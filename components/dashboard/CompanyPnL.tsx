@@ -1,0 +1,578 @@
+"use client";
+
+// ============================================================
+// CompanyPnL — Chi phí QC × Doanh thu/Đơn theo công ty (MBC/MBI)
+// Nguồn: /api/finance/company-pnl. MBC đo doanh thu, MBI đo đơn hàng.
+// ============================================================
+
+import { useState, useEffect, useCallback } from "react";
+import { DollarSign, RefreshCw, AlertTriangle, TrendingUp, ShoppingCart, Percent, Calendar, ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+/** Kênh đặt được trần ngân sách (Settings → KPI). */
+const BUDGET_CHANNELS = ["google", "facebook", "tiktok", "zalo"] as const;
+type BudgetChannel = (typeof BUDGET_CHANNELS)[number];
+type ChannelBudget = Record<BudgetChannel, number>;
+
+/** Kênh có chi phí thực tế — thêm "other" (Kênh khác) vốn không đặt trần được. */
+const SPEND_CHANNELS = [...BUDGET_CHANNELS, "other"] as const;
+type SpendChannel = (typeof SPEND_CHANNELS)[number];
+type ChannelSpend = Record<SpendChannel, number>;
+
+const CHANNEL_LABEL: Record<SpendChannel, string> = {
+  google: "Google",
+  facebook: "Facebook",
+  tiktok: "TikTok",
+  zalo: "Zalo",
+  other: "Kênh khác",
+};
+
+/** Kênh lấy số tự động qua API — hai kênh còn lại do người khai tay theo tháng. */
+const AUTO_CHANNELS = new Set<SpendChannel>(["google", "facebook"]);
+
+const EMPTY_CHANNEL_SPEND: ChannelSpend = { google: 0, facebook: 0, tiktok: 0, zalo: 0, other: 0 };
+
+interface MbcPnl {
+  company: "MBC";
+  spendGoogle: number; spendFacebook: number; totalSpend: number;
+  spendByChannel?: ChannelSpend;
+  spendFacebookError?: string | null; spendGoogleError?: string | null;
+  spendFacebookStaleAt?: string | null;
+  revenue: number; orders: number; aov: number; costPerOrder: number;
+  adCostRatioPct: number; projectedRevenue: number;
+  // true khi Report API (count-revenue) lỗi/timeout — các số ở trên đã bị
+  // coerce về 0, KHÔNG phải doanh thu thật bằng 0.
+  revenueSourceError?: boolean;
+}
+interface MbiPnl {
+  company: "MBI";
+  spendGoogle: number; spendFacebook: number; totalSpend: number;
+  spendByChannel?: ChannelSpend;
+  spendFacebookError?: string | null; spendGoogleError?: string | null;
+  spendFacebookStaleAt?: string | null;
+  orders: number; costPerOrder: number; projectedOrders: number;
+  // true khi Report API (count-sale-order-paid) lỗi/timeout — orders ở trên
+  // đã bị coerce về 0, KHÔNG phải đơn hàng thật bằng 0.
+  ordersSourceError?: boolean;
+}
+interface PeriodTargets {
+  revenueMbc: number; adSpendMbc: number; adSpendMbi: number; ordersMbi: number;
+  adSpendMbcByChannel?: ChannelBudget; adSpendMbiByChannel?: ChannelBudget;
+  /** true = số SUY RA từ KPI tháng, không phải mục tiêu ai đó đặt cho kỳ này. */
+  derived: boolean;
+  derivedNote: string | null;
+}
+interface MetricDelta {
+  current: number; previous: number; diff: number;
+  /** null = không tính được nghĩa (xem noBaseline/lowBaseline). */
+  pct: number | null;
+  noBaseline: boolean; lowBaseline: boolean; clamped: boolean;
+}
+interface PnlComparison {
+  label: string; comparedDays: number; truncated: boolean;
+  MBC: { totalSpend: MetricDelta; revenue: MetricDelta; orders: MetricDelta };
+  MBI: { totalSpend: MetricDelta; orders: MetricDelta };
+}
+interface ApiResponse {
+  success: boolean;
+  month: string;
+  daysElapsed: number; daysInMonth: number;
+  mode?: "month" | "week" | "rolling28";
+  periodKey?: string;
+  periodLabel?: string;
+  targets?: PeriodTargets;
+  /** true = chi phí TikTok/Zalo nhập tay KHÔNG nằm trong tổng chi phí kỳ này. */
+  manualExcluded?: boolean;
+  comparison?: PnlComparison;
+  companies: { MBC?: MbcPnl; MBI?: MbiPnl };
+  error?: string;
+}
+
+// Số đầy đủ (không rút gọn), chuẩn vi-VN + hậu tố đ. VD: 123.456.789đ
+function fmtVND(v: number): string {
+  return `${Math.round(v).toLocaleString("vi-VN")}đ`;
+}
+const fmtNum = (v: number) => v.toLocaleString("vi-VN");
+function currentMonth(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+const ymd = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+/** Thứ Hai của tuần chứa `d` — tuần Việt Nam: T2 → CN. */
+function mondayOf(d: Date): Date {
+  const out = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const dow = out.getDay();
+  out.setDate(out.getDate() - (dow === 0 ? 6 : dow - 1));
+  return out;
+}
+function currentWeek(): string { return ymd(mondayOf(new Date())); }
+
+export default function CompanyPnL() {
+  const [mode, setMode] = useState<"month" | "week" | "rolling28">("month");
+  const [month, setMonth] = useState(currentMonth());
+  const [week, setWeek] = useState(currentWeek());
+  const [compare, setCompare] = useState(false);
+  const [data, setData] = useState<ApiResponse | null>(null);
+  const [kpi, setKpi] = useState<{
+    adSpendMbc: number; adSpendMbi: number; revenueMbc: number; ordersMbi: number;
+    mbcByChannel?: ChannelBudget; mbiByChannel?: ChannelBudget;
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true); setError(null);
+    try {
+      const cmp = compare ? "&compare=1" : "";
+      const res = await fetch(
+        mode === "rolling28"
+          ? `/api/finance/company-pnl?rolling=1${cmp}`
+          : mode === "week"
+          ? `/api/finance/company-pnl?week=${week}${cmp}`
+          : `/api/finance/company-pnl?month=${month}${cmp}`,
+      );
+      const text = await res.text();
+      const json = (text ? JSON.parse(text) : {}) as ApiResponse;
+      if (!res.ok || !json.success) throw new Error(json.error ?? `Lỗi tải dữ liệu (HTTP ${res.status})`);
+      setData(json);
+      if (mode !== "month") {
+        // Chế độ tuần: mục tiêu do server chia đều theo ngày (xử lý đúng cả tuần
+        // vắt qua hai tháng/hai năm) — không tự cộng ở trình duyệt.
+        setKpi(json.targets
+          ? { adSpendMbc: json.targets.adSpendMbc, adSpendMbi: json.targets.adSpendMbi,
+              revenueMbc: json.targets.revenueMbc, ordersMbi: json.targets.ordersMbi,
+              mbcByChannel: json.targets.adSpendMbcByChannel,
+              mbiByChannel: json.targets.adSpendMbiByChannel }
+          : null);
+        return;
+      }
+      // KPI ngân sách QC tháng này
+      try {
+        const y = month.slice(0, 4); const mi = Number(month.slice(5, 7)) - 1;
+        const kr = await fetch(`/api/settings/kpi?year=${y}`);
+        const kt = await kr.text(); const kj = kt ? JSON.parse(kt) : {};
+        const mk = kj.success && Array.isArray(kj.months) ? kj.months[mi] : null;
+        setKpi(mk ? {
+          adSpendMbc: mk.adSpendMbc || 0, adSpendMbi: mk.adSpendMbi || 0,
+          revenueMbc: mk.revenueMbc || 0, ordersMbi: mk.ordersMbi || 0,
+          mbcByChannel: mk.adSpendMbcByChannel, mbiByChannel: mk.adSpendMbiByChannel,
+        } : null);
+      } catch { setKpi(null); }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Lỗi kết nối");
+    } finally { setLoading(false); }
+  }, [mode, month, week, compare]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const mbc = data?.companies.MBC;
+  const mbi = data?.companies.MBI;
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <div className="rounded-full bg-emerald-50 p-2"><DollarSign className="h-4 w-4 text-emerald-600" /></div>
+        <div className="flex-1 min-w-0">
+          <h2 className="text-base font-semibold text-slate-800">Hiệu quả chi phí theo công ty</h2>
+          <p className="text-[11px] text-slate-400">
+            Chi phí QC × Doanh thu/Đơn
+            {data ? ` · ${data.periodLabel ?? ""}${data.periodLabel ? " · " : ""}${data.daysElapsed}/${data.daysInMonth} ngày` : ""}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="flex rounded-lg border border-slate-200 overflow-hidden text-xs font-medium">
+            {([
+              { k: "month", label: "Tháng", hint: "Theo tháng dương lịch — khớp với KPI" },
+              { k: "week", label: "Tuần", hint: "Tuần thứ Hai đến Chủ nhật" },
+              { k: "rolling28", label: "4 tuần", hint: "28 ngày trọn gần nhất — hai kỳ cùng thành phần thứ trong tuần nên so chuẩn nhất" },
+            ] as const).map(m => (
+              <button key={m.k} onClick={() => setMode(m.k)} title={m.hint}
+                className={cn("px-2.5 py-1.5 transition-colors",
+                  mode === m.k ? "bg-amber-500 text-white" : "bg-white text-slate-500 hover:bg-slate-50")}>
+                {m.label}
+              </button>
+            ))}
+          </div>
+          <button onClick={() => setCompare(v => !v)}
+            title="So với kỳ trước, cùng số ngày đã trôi"
+            className={cn("px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors",
+              compare ? "border-amber-400 bg-amber-50 text-amber-700" : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50")}>
+            So sánh
+          </button>
+          {mode !== "rolling28" && <Calendar className="h-3.5 w-3.5 text-slate-400" />}
+          {mode === "rolling28" ? null : mode === "week" ? (
+            // Chọn ngày bất kỳ trong tuần; server tự quy về thứ Hai. `max` chặn
+            // tuần tương lai — kỳ chưa xảy ra thì không có số để đo, hiện ra sẽ
+            // là một loạt số 0 trông như "tuần đó không chi đồng nào".
+            <input type="date" value={week} max={ymd(new Date())}
+              onChange={e => e.target.value && setWeek(ymd(mondayOf(new Date(`${e.target.value}T00:00:00`))))}
+              className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm bg-white focus:outline-none focus:border-amber-400" />
+          ) : (
+            <input type="month" value={month} max={currentMonth()} onChange={e => setMonth(e.target.value)}
+              className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm bg-white focus:outline-none focus:border-amber-400" />
+          )}
+          <button onClick={load} disabled={loading} className="p-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 disabled:opacity-50" aria-label="Làm mới">
+            <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
+          </button>
+        </div>
+      </div>
+
+      {mode === "rolling28" && (
+        // Người dùng sẽ thấy số ở chế độ này lệch với chế độ Tháng và thắc mắc.
+        // Nói trước lý do: cố ý bỏ hôm nay để hai kỳ đều là ngày trọn.
+        <p className="mb-3 rounded-lg bg-indigo-50 border border-indigo-200 px-2.5 py-1.5 text-[10px] text-indigo-700">
+          <strong>28 ngày trọn gần nhất</strong>, kết thúc <strong>hôm qua</strong> — chưa tính hôm nay vì ngày còn đang chạy.
+          Chọn 28 ngày (đúng 4 tuần) để kỳ này và kỳ trước có cùng số ngày thường và cuối tuần, nên so ra con số sạch nhất.
+          Muốn xem số tới hôm nay và khớp KPI thì dùng chế độ <strong>Tháng</strong>.
+        </p>
+      )}
+
+      {compare && data?.comparison && (
+        // Nói rõ đang so với KHOẢNG NÀO và BAO NHIÊU NGÀY. Không có dòng này thì
+        // mấy con số phần trăm bên dưới là số không rõ gốc — và người đọc sẽ mặc
+        // định là "so với trọn kỳ trước", đúng cái hiểu nhầm cần tránh.
+        <p className="mb-3 rounded-lg bg-slate-50 border border-slate-200 px-2.5 py-1.5 text-[10px] text-slate-500">
+          Đang so với <strong className="text-slate-700">{data.comparison.label}</strong> — lấy đúng{" "}
+          {data.comparison.comparedDays} ngày đầu kỳ để hai bên cùng số ngày, vì kỳ này chưa chạy hết.
+          {data.comparison.truncated && (
+            <span className="text-amber-700"> Kỳ trước ngắn hơn nên đã cắt bớt — hai kỳ không cùng số ngày.</span>
+          )}
+        </p>
+      )}
+
+      {error ? (
+        <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-xl p-3">
+          <AlertTriangle className="h-4 w-4 shrink-0" /> {error}
+        </div>
+      ) : loading ? (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {[0, 1].map(i => <div key={i} className="h-64 rounded-2xl bg-slate-100 animate-pulse" />)}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {mbc && <MbcCard d={mbc} adSpendTarget={kpi?.adSpendMbc} revenueTarget={kpi?.revenueMbc} channelTargets={kpi?.mbcByChannel} derived={data?.targets?.derived} manualExcluded={data?.manualExcluded} cmp={data?.comparison} />}
+          {mbi && <MbiCard d={mbi} adSpendTarget={kpi?.adSpendMbi} ordersTarget={kpi?.ordersMbi} channelTargets={kpi?.mbiByChannel} derived={data?.targets?.derived} manualExcluded={data?.manualExcluded} cmp={data?.comparison} />}
+          {!mbc && !mbi && <p className="text-sm text-slate-400 py-6 text-center col-span-2">Không có dữ liệu công ty bạn được xem.</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SpendRow({ g, f, t, accent, fbError, ggError, fbStaleAt, manualExcluded, spendDelta, byChannel, budget }: {
+  g: number; f: number; t: number; accent: string;
+  fbError?: string | null; ggError?: string | null;
+  /** Chi phí Facebook là số cũ đọc lúc này — số ĐÚNG, chỉ không mới. */
+  fbStaleAt?: string | null;
+  /** Chế độ tuần: chi phí nhập tay TikTok/Zalo không nằm trong tổng. */
+  manualExcluded?: boolean;
+  spendDelta?: MetricDelta;
+  /** Chi phí thực tế tách theo kênh. Thiếu (payload cũ trong bộ đệm 10 phút)
+   *  thì lùi về đúng hai kênh đo được, không bịa ra kênh nào bằng 0. */
+  byChannel?: ChannelSpend;
+  /** Trần ngân sách theo kênh, đặt ở Settings → KPI. Kênh để 0 = chưa đặt trần. */
+  budget?: ChannelBudget;
+}) {
+  // "0đ" và "không lấy được số" là hai chuyện khác hẳn nhau. Meta chặn khi vượt
+  // hạn mức gọi API (`Application request limit reached`) thì chi phí về 0 —
+  // hiện thành "0đ" là báo sai một con số tiền, và tổng chi phí bên cạnh cũng
+  // thiếu đúng phần đó mà không ai biết.
+  const anyError = !!fbError || !!ggError || (!!fbStaleAt && f <= 0);
+  // Số cũ KHÁC không có số. Meta ở bậc development_access bị chặn suốt, mà chi
+  // tiêu Facebook của một tháng gần như không đổi giữa hai lần xem — nên khi bị
+  // chặn thì hiện số đọc được gần nhất KÈM MỐC GIỜ, tốt hơn hẳn một dấu gạch.
+  // Chốt thứ hai, độc lập với backend: mốc giờ mà chi phí bằng 0 thì KHÔNG
+  // phải một phép đo cũ — đó là "không có số", và dán nhãn "số cũ" kèm câu
+  // "con số vẫn đúng tại thời điểm đó" lên số 0 là một lời trấn an sai về tiền.
+  // Một tài khoản đang chạy quảng cáo không tiêu đúng 0đ cả tháng.
+  const staleUsable = !!fbStaleAt && f > 0;
+  const staleLabel = staleUsable
+    ? new Date(fbStaleAt!).toLocaleString("vi-VN", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" })
+    : null;
+  // Có mốc giờ nhưng số bằng 0 → coi như không lấy được, để tổng bên cạnh được
+  // đánh dấu THIẾU thay vì âm thầm cộng 0.
+  const fbUnavailable = !!fbError || (!!fbStaleAt && f <= 0);
+  // Thiếu bảng theo kênh (payload cũ còn trong bộ đệm) thì chỉ dựng lại hai kênh
+  // đo được — KHÔNG suy ngược phần còn lại thành TikTok/Zalo, vì phần chênh có
+  // thể là bất cứ kênh nào người ta đã khai.
+  const spend: ChannelSpend = byChannel
+    ? { ...EMPTY_CHANNEL_SPEND, ...byChannel }
+    : { ...EMPTY_CHANNEL_SPEND, google: g, facebook: f };
+
+  // Google/Facebook luôn hiện (đo tự động, 0đ là 0đ thật). Kênh nhập tay chỉ
+  // hiện khi có tiêu hoặc có trần — bày một ô Zalo 0đ quanh năm chỉ tổ rối.
+  // Chế độ tuần: số nhập tay không nằm trong kỳ nên không bày ô nào cả, tránh
+  // hiểu nhầm "tuần này TikTok tiêu 0đ".
+  const visibleChannels = SPEND_CHANNELS.filter(ch => {
+    if (AUTO_CHANNELS.has(ch)) return true;
+    if (manualExcluded) return false;
+    return spend[ch] > 0 || (ch !== "other" && (budget?.[ch] ?? 0) > 0);
+  });
+
+  const overspent = BUDGET_CHANNELS
+    .filter(ch => (budget?.[ch] ?? 0) > 0 && spend[ch] > budget![ch])
+    .map(ch => ({ ch, over: spend[ch] - budget![ch] }));
+
+  return (
+    <div className="space-y-1.5 mb-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        {visibleChannels.map(ch => {
+          const unavailable = (ch === "facebook" && fbUnavailable) || (ch === "google" && !!ggError);
+          const label =
+            ch === "facebook" && staleLabel ? "Facebook (số cũ)" : CHANNEL_LABEL[ch];
+          return (
+            <ChannelCell
+              key={ch}
+              label={label}
+              manual={!AUTO_CHANNELS.has(ch)}
+              actual={spend[ch]}
+              target={ch === "other" ? 0 : budget?.[ch] ?? 0}
+              value={unavailable ? "—" : fmtVND(spend[ch])}
+              unavailable={unavailable}
+              budgetable={ch !== "other"}
+            />
+          );
+        })}
+      </div>
+      <div className="grid grid-cols-1 gap-2">
+        <Cell
+          label={anyError ? "Tổng chi phí (thiếu)" : `Tổng chi phí = ${visibleChannels.map(c => CHANNEL_LABEL[c]).join(" + ")}`}
+          value={fmtVND(t)} strong accent={accent} delta={spendDelta} money
+        />
+      </div>
+      {overspent.length > 0 && (
+        // Vượt trần một kênh là chuyện phải đọc thấy ngay, không phải chuyện đi
+        // dò từng ô — nên nhắc lại thành một dòng riêng.
+        <p className="rounded-lg bg-red-50 border border-red-200 px-2.5 py-1.5 text-[10px] text-red-800">
+          Vượt trần kênh:{" "}
+          {overspent.map(o => `${CHANNEL_LABEL[o.ch]} +${fmtVND(o.over)}`).join(" · ")}
+          {" "}— trần đặt ở <strong>Settings → KPI</strong>.
+        </p>
+      )}
+      {staleLabel && !fbError && (
+        <p className="rounded-lg bg-sky-50 border border-sky-200 px-2.5 py-1.5 text-[10px] text-sky-800">
+          Chi phí Facebook là <strong>số đọc lúc {staleLabel}</strong> — Meta đang chặn nên chưa lấy được số mới.
+          Con số vẫn đúng tại thời điểm đó; chi tiêu cả tháng thay đổi rất chậm nên sai lệch không đáng kể.
+        </p>
+      )}
+      {anyError && (
+        <p className="rounded-lg bg-amber-50 border border-amber-200 px-2.5 py-1.5 text-[10px] text-amber-800">
+          Không lấy được chi phí {fbUnavailable ? "Facebook" : ""}{fbUnavailable && ggError ? " và " : ""}{ggError ? "Google" : ""} —{" "}
+          {fbError ?? ggError ?? "số cũ trong bộ đệm bằng 0 nên không dùng được"}. Tổng bên trên đang <strong>thiếu</strong> phần này, không phải chi 0đ.
+        </p>
+      )}
+      {manualExcluded && (
+        // Chi phí TikTok/Zalo chỉ nhập được theo tháng. Chia đều ra tuần là bịa
+        // (tháng đó có thể chỉ chạy TikTok đúng một tuần), nên bỏ ra và nói rõ.
+        <p className="rounded-lg bg-slate-50 border border-slate-200 px-2.5 py-1.5 text-[10px] text-slate-500">
+          Tổng tuần chỉ gồm Google + Facebook. Chi phí TikTok/Zalo nhập tay chỉ lưu được theo tháng nên chưa cộng vào —
+          xem đủ ở chế độ <strong>Tháng</strong>.
+        </p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Huy hiệu so kỳ trước.
+ *
+ * Không hiện phần trăm khi nó không có nghĩa: kỳ trước bằng 0 (chia cho 0) hoặc quá
+ * nhỏ so với kỳ này (ra vài nghìn phần trăm). Hiện chữ giải thích thay vì một con số
+ * to đùng — số vô nghĩa dạy người dùng ngừng tin cả khối.
+ */
+function DeltaBadge({ d, money, higherIsBetter }: { d?: MetricDelta; money?: boolean; higherIsBetter?: boolean }) {
+  if (!d) return null;
+  if (d.noBaseline) {
+    return <span className="text-[9px] font-medium text-slate-400">kỳ trước chưa có số để so</span>;
+  }
+  if (d.lowBaseline) {
+    return <span className="text-[9px] font-medium text-slate-400">kỳ trước quá nhỏ để so tỉ lệ</span>;
+  }
+  if (d.pct === null) return null;
+
+  const flat = Math.abs(d.pct) < 0.05;
+  const up = d.diff > 0;
+  // Chi phí tăng là xấu, doanh thu/đơn tăng là tốt — cùng một mũi tên lên nhưng
+  // khác màu, nếu không thì "chi phí +40%" hiện màu xanh lá là đọc ngược ý.
+  const good = higherIsBetter ? up : !up;
+  const tone = flat ? "text-slate-400" : good ? "text-emerald-600" : "text-red-500";
+  const Icon = flat ? Minus : up ? ArrowUpRight : ArrowDownRight;
+  const abs = Math.abs(d.diff);
+  return (
+    <span className={cn("inline-flex items-center gap-0.5 text-[9px] font-bold", tone)}
+      title={`Kỳ trước: ${money ? fmtVND(d.previous) : fmtNum(d.previous)}${d.clamped ? " (tỉ lệ đã kẹp ở ±300%)" : ""}`}>
+      <Icon className="h-2.5 w-2.5" />
+      {flat ? "đi ngang" : `${d.pct > 0 ? "+" : ""}${d.pct}%`}
+      <span className="font-medium text-slate-400">({money ? fmtVND(abs) : fmtNum(abs)})</span>
+    </span>
+  );
+}
+
+function Cell({ label, value, strong, accent, icon, delta, money, higherIsBetter }: {
+  label: string; value: string; strong?: boolean; accent?: string; icon?: React.ReactNode;
+  delta?: MetricDelta; money?: boolean; higherIsBetter?: boolean;
+}) {
+  return (
+    <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-2.5">
+      <div className="flex items-center gap-1 text-[10px] font-semibold text-slate-400 uppercase mb-1">{icon}{label}</div>
+      <p className={cn("font-black leading-none", strong ? "text-base" : "text-sm", accent ?? "text-slate-800")}>{value}</p>
+      {delta && <div className="mt-1"><DeltaBadge d={delta} money={money} higherIsBetter={higherIsBetter} /></div>}
+    </div>
+  );
+}
+
+/**
+ * Ô chi phí một kênh. Có trần thì kèm thanh tiến độ riêng của kênh đó — đây là
+ * chỗ trả lời câu "kênh nào sắp vượt tiền", mà thanh tổng bên dưới không nói được:
+ * tổng vẫn trong hạn mức trong khi Facebook đã tiêu quá phần của nó.
+ */
+function ChannelCell({ label, value, actual, target, manual, unavailable, budgetable = true }: {
+  label: string; value: string; actual: number; target: number;
+  /** Kênh do người khai tay (TikTok/Zalo/Kênh khác) — nói ra để không ai tưởng
+   *  con số này hệ thống tự đo được. */
+  manual?: boolean;
+  unavailable?: boolean;
+  /** false với "Kênh khác": đặt trần riêng cho nó không được, nên đừng gợi ý
+   *  là "chưa đặt" — người đọc sẽ đi tìm ô nhập không tồn tại. */
+  budgetable?: boolean;
+}) {
+  const hasTarget = target > 0 && !unavailable;
+  const pct = hasTarget ? Math.round((actual / target) * 100) : 0;
+  const diff = actual - target;
+  const tone = pct > 100
+    ? { bar: "bg-red-500", text: "text-red-600" }
+    : pct >= 80
+    ? { bar: "bg-amber-500", text: "text-amber-600" }
+    : { bar: "bg-emerald-500", text: "text-emerald-600" };
+
+  return (
+    <div className={cn(
+      "rounded-xl border p-2.5",
+      hasTarget && pct > 100 ? "border-red-200 bg-red-50/50" : "border-slate-100 bg-slate-50/60",
+    )}>
+      <div className="flex items-center justify-between gap-1 mb-1">
+        <span className="text-[10px] font-semibold text-slate-400 uppercase truncate">
+          {label}
+          {manual && (
+            <span className="ml-1 normal-case font-normal text-[9px] text-slate-400"
+              title="Số do người khai ở Settings → Chi phí kênh khác, không phải hệ thống đo qua API">
+              (nhập tay)
+            </span>
+          )}
+        </span>
+        {hasTarget && <span className={cn("text-[10px] font-black shrink-0", tone.text)}>{pct}%</span>}
+      </div>
+      <p className="text-sm font-black leading-none text-slate-800">{value}</p>
+      {hasTarget && (
+        <>
+          <div className="h-1 bg-slate-200 rounded-full overflow-hidden my-1.5">
+            <div className={cn("h-full rounded-full", tone.bar)} style={{ width: `${Math.min(100, pct)}%` }} />
+          </div>
+          <p className="text-[9px] text-slate-500">
+            trần {fmtVND(target)} ·{" "}
+            <span className={tone.text}>{diff > 0 ? `vượt ${fmtVND(diff)}` : `còn ${fmtVND(-diff)}`}</span>
+          </p>
+        </>
+      )}
+      {!hasTarget && !unavailable && (
+        <p className="text-[9px] text-slate-300 mt-1.5">
+          {budgetable ? "chưa đặt trần" : "không đặt trần riêng"}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Thanh tiến độ KPI. higherIsBetter=false (chi QC): vượt = đỏ.
+ * higherIsBetter=true (DT/Đơn): đạt cao = xanh, thiếu = đỏ.
+ */
+function KpiBar({ label, actual, target, money, higherIsBetter, derived }: { label: string; actual: number; target?: number; money?: boolean; higherIsBetter?: boolean; derived?: boolean }) {
+  if (!target) return null;
+  const pct = Math.round((actual / target) * 100);
+  const diff = actual - target;
+  const f = (v: number) => (money ? fmtVND(v) : fmtNum(Math.round(v)));
+  const tone = higherIsBetter
+    ? (pct >= 100 ? { bar: "bg-emerald-500", text: "text-emerald-600" } : pct >= 80 ? { bar: "bg-amber-500", text: "text-amber-600" } : { bar: "bg-red-500", text: "text-red-500" })
+    : (pct > 100 ? { bar: "bg-red-500", text: "text-red-600" } : pct >= 80 ? { bar: "bg-amber-500", text: "text-amber-600" } : { bar: "bg-emerald-500", text: "text-emerald-600" });
+  const note = higherIsBetter
+    ? (diff >= 0 ? `vượt ${f(diff)}` : `còn thiếu ${f(-diff)}`)
+    : (diff >= 0 ? `vượt ${f(diff)}` : `còn ${f(-diff)}`);
+  return (
+    <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-2.5 mb-2">
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-[10px] font-semibold text-slate-400 uppercase">
+          {label}
+          {derived && (
+            // Con số này KHÔNG do ai đặt cho tuần — nó là KPI tháng chia đều theo
+            // ngày. Không dán nhãn thì người đọc sẽ hiểu là cam kết của tuần.
+            <span
+              className="ml-1 normal-case font-normal text-[9px] text-amber-600"
+              title="Suy từ KPI tháng, chia đều theo ngày — không phải mục tiêu đặt riêng cho tuần này"
+            >
+              (suy từ KPI tháng)
+            </span>
+          )}
+        </span>
+        <span className={cn("text-xs font-black", tone.text)}>{pct}%</span>
+      </div>
+      <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden mb-1">
+        <div className={cn("h-full rounded-full", tone.bar)} style={{ width: `${Math.min(100, pct)}%` }} />
+      </div>
+      <p className="text-[10px] text-slate-500">
+        <span className="font-semibold text-slate-700">{f(actual)}</span>
+        <span className="text-slate-400"> / {f(target)} · </span>
+        <span className={tone.text}>{note}</span>
+      </p>
+    </div>
+  );
+}
+
+function MbcCard({ d, adSpendTarget, revenueTarget, channelTargets, derived, manualExcluded, cmp }: { d: MbcPnl; adSpendTarget?: number; revenueTarget?: number; channelTargets?: ChannelBudget; derived?: boolean; manualExcluded?: boolean; cmp?: PnlComparison }) {
+  return (
+    <div className="rounded-2xl border border-blue-200 bg-blue-50/30 p-4" style={{ borderLeftWidth: 3, borderLeftColor: "#2563eb" }}>
+      <h3 className="text-sm font-bold text-blue-700 mb-3">🏢 MBC — đo theo doanh thu</h3>
+      <SpendRow g={d.spendGoogle} f={d.spendFacebook} t={d.totalSpend} accent="text-blue-700" fbError={d.spendFacebookError} ggError={d.spendGoogleError} fbStaleAt={d.spendFacebookStaleAt} manualExcluded={manualExcluded} spendDelta={cmp?.MBC.totalSpend} byChannel={d.spendByChannel} budget={channelTargets} />
+      {d.revenueSourceError && (
+        <div className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 mb-2">
+          <AlertTriangle className="h-3 w-3 shrink-0" />
+          ⚠️ Không lấy được doanh thu thật — số liệu có thể chưa chính xác
+        </div>
+      )}
+      <KpiBar label="KPI Doanh thu" actual={d.revenue} target={revenueTarget} money higherIsBetter derived={derived} />
+      <KpiBar label="Ngân sách QC (KPI)" actual={d.totalSpend} target={adSpendTarget} money derived={derived} />
+      <div className="grid grid-cols-2 gap-2">
+        <Cell label="Doanh thu" value={fmtVND(d.revenue)} icon={<TrendingUp className="h-3 w-3" />} delta={cmp?.MBC.revenue} money higherIsBetter />
+        <Cell label="Số đơn" value={fmtNum(d.orders)} icon={<ShoppingCart className="h-3 w-3" />} delta={cmp?.MBC.orders} higherIsBetter />
+        <Cell label="Giá trị TB/đơn" value={fmtVND(d.aov)} />
+        <Cell label="Chi phí TB/đơn" value={fmtVND(d.costPerOrder)} />
+        <Cell label="Tỉ lệ QC / Doanh thu" value={`${d.adCostRatioPct}%`} icon={<Percent className="h-3 w-3" />} accent={d.adCostRatioPct > 30 ? "text-red-600" : d.adCostRatioPct > 15 ? "text-amber-600" : "text-emerald-600"} />
+        <Cell label="DT dự kiến tháng" value={fmtVND(d.projectedRevenue)} accent="text-violet-700" />
+      </div>
+    </div>
+  );
+}
+
+function MbiCard({ d, adSpendTarget, ordersTarget, channelTargets, derived, manualExcluded, cmp }: { d: MbiPnl; adSpendTarget?: number; ordersTarget?: number; channelTargets?: ChannelBudget; derived?: boolean; manualExcluded?: boolean; cmp?: PnlComparison }) {
+  return (
+    <div className="rounded-2xl border border-violet-200 bg-violet-50/30 p-4" style={{ borderLeftWidth: 3, borderLeftColor: "#7c3aed" }}>
+      <h3 className="text-sm font-bold text-violet-700 mb-3">🏢 MBI — đo theo đơn hàng</h3>
+      <SpendRow g={d.spendGoogle} f={d.spendFacebook} t={d.totalSpend} accent="text-violet-700" fbError={d.spendFacebookError} ggError={d.spendGoogleError} fbStaleAt={d.spendFacebookStaleAt} manualExcluded={manualExcluded} spendDelta={cmp?.MBI.totalSpend} byChannel={d.spendByChannel} budget={channelTargets} />
+      {d.ordersSourceError && (
+        <div className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 mb-2">
+          <AlertTriangle className="h-3 w-3 shrink-0" />
+          ⚠️ Không lấy được đơn hàng thật — số liệu có thể chưa chính xác
+        </div>
+      )}
+      <KpiBar label="KPI Đơn hàng" actual={d.orders} target={ordersTarget} higherIsBetter derived={derived} />
+      <KpiBar label="Ngân sách QC (KPI)" actual={d.totalSpend} target={adSpendTarget} money derived={derived} />
+      <div className="grid grid-cols-2 gap-2">
+        <Cell label="Số đơn" value={fmtNum(d.orders)} icon={<ShoppingCart className="h-3 w-3" />} delta={cmp?.MBI.orders} higherIsBetter />
+        <Cell label="Chi phí TB/đơn" value={fmtVND(d.costPerOrder)} accent={d.costPerOrder > 300000 ? "text-red-600" : "text-slate-800"} />
+        <Cell label="Đơn dự kiến tháng" value={fmtNum(d.projectedOrders)} accent="text-violet-700" />
+      </div>
+      <p className="text-[10px] text-slate-400 mt-2">MBI KPI = đơn hàng (không có doanh thu để tính AOV / %QC).</p>
+    </div>
+  );
+}

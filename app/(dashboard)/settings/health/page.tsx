@@ -1,0 +1,100 @@
+"use client";
+
+// ============================================================
+// 🩺 Sức khoẻ tool — /settings/health
+// ------------------------------------------------------------
+// Đọc GET /api/system/health (jobs + connectors + kênh cảnh báo + đối chiếu
+// số tuần), cho phép super admin gửi thử cảnh báo (POST test_alert), và một
+// danh sách bấm thử thủ công sau mỗi lần cập nhật (PROD_CHECKLIST). Cùng
+// phong cách với app/(dashboard)/settings/jobs/page.tsx.
+// ============================================================
+
+import { useCallback, useEffect, useState } from "react";
+import { Loader2, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { getJson, ApiError } from "@/components/case/api";
+import type { HealthResponse } from "@/components/health/types";
+import { SummaryStrip } from "@/components/health/SummaryStrip";
+import { TestAlertButton } from "@/components/health/TestAlertButton";
+import { JobsHealthTable } from "@/components/health/JobsHealthTable";
+import { ConnectorsTable } from "@/components/health/ConnectorsTable";
+import { NumbersCheckTable } from "@/components/health/NumbersCheckTable";
+import { ChecklistPanel } from "@/components/health/ChecklistPanel";
+
+export default function HealthPage() {
+  const [data, setData] = useState<HealthResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const json = (await getJson("/api/system/health")) as HealthResponse;
+      setData(json);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Không tải được — thử lại sau.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  return (
+    <div className="space-y-5 max-w-5xl">
+      {/* Header */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <p className="text-sm font-semibold text-slate-800">🩺 Sức khoẻ tool</p>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Job cron, kết nối, kênh cảnh báo và đối chiếu số — gộp một chỗ để kiểm nhanh sau mỗi lần cập nhật.
+          </p>
+        </div>
+        <Button variant="outline" size="sm" onClick={load} disabled={loading} className="gap-1.5 text-xs border-slate-200">
+          <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} /> Refresh
+        </Button>
+      </div>
+
+      {/* Loading (lần đầu) */}
+      {loading && !data && (
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="h-6 w-6 animate-spin text-amber-500" />
+        </div>
+      )}
+
+      {/* Lỗi — chưa có dữ liệu nào để hiện */}
+      {error && !data && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+          <p className="text-sm font-semibold text-red-800">Không tải được trạng thái hệ thống</p>
+          <p className="text-xs text-red-700 mt-1">{error}</p>
+          <Button variant="outline" size="sm" className="mt-3" onClick={load}>Thử lại</Button>
+        </div>
+      )}
+
+      {/* Lỗi ở lần refresh sau — vẫn còn dữ liệu cũ để hiện */}
+      {error && data && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-700">
+          Refresh gần nhất lỗi: {error} — dữ liệu bên dưới có thể cũ.
+        </div>
+      )}
+
+      {data && (
+        <>
+          <SummaryStrip jobs={data.jobs} connectors={data.connectors} alertChannel={data.alertChannel} bootAt={data.bootAt} />
+
+          {data.canControl && <TestAlertButton />}
+
+          <JobsHealthTable jobs={data.jobs} />
+
+          <ConnectorsTable connectors={data.connectors} />
+
+          <NumbersCheckTable numbersCheck={data.numbersCheck} />
+
+          <ChecklistPanel />
+        </>
+      )}
+    </div>
+  );
+}

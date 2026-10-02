@@ -1,0 +1,25 @@
+"use client";
+// Đợt 21a — nạp danh sách công ty của BẢN CÀI vào sổ công ty phía trình duyệt (lib/companies/registry).
+// Bản Mắt Bão: cấu hình = mặc định → không đổi gì, không vẽ lại. Bản cài khác: khi nạp xong cấu hình khác mặc định thì
+// vẽ lại cây con (key) để bộ chọn công ty / nhãn đọc đúng danh sách mới.
+import { useEffect, useState } from "react";
+import { setCompaniesConfig } from "@/lib/companies/registry";
+import { DEFAULT_COMPANIES, type CompaniesConfig } from "@/lib/companies/defaults";
+
+export function CompaniesBoot({ children }: { children: React.ReactNode }) {
+  const [gen, setGen] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/companies", { credentials: "same-origin" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { config?: CompaniesConfig } | null) => {
+        if (!alive || !j?.config?.companies?.length) return;
+        if (JSON.stringify(j.config) === JSON.stringify(DEFAULT_COMPANIES)) return;
+        setCompaniesConfig(j.config);
+        setGen((g) => g + 1);
+      })
+      .catch(() => { /* giữ mặc định */ });
+    return () => { alive = false };
+  }, []);
+  return <div key={gen} className="contents">{children}</div>;
+}

@@ -1,0 +1,192 @@
+import {
+  Globe, Cloud, Briefcase, Mail, Shield, Bot, Edit3,
+  FileText, ClipboardList, DollarSign, Users, BarChart3, Rocket,
+} from "lucide-react";
+
+// ─────────────────────────────────────────────
+// Constants
+// ─────────────────────────────────────────────
+
+export const PRODUCTS_BY_COMPANY: Record<string, Array<{ id: string; label: string; icon: typeof Globe; badge: string | null }>> = {
+  MBC: [
+    { id: "ten-mien",        label: "Tên miền",          icon: Globe,          badge: null },
+    { id: "hosting",         label: "Hosting",           icon: Cloud,          badge: null },
+    // Sản phẩm THẬT, không phải biến thể của "hosting": bán cho người dựng app
+    // bằng AI mà không biết code. Trước 26/08/2026 chưa có trong danh sách nên
+    // ai cũng phải gõ tay "Vibe Hosting" → productId thành `custom_Vibe Hosting`
+    // → không khớp kiến thức sản phẩm nào → AI suy luận trắng.
+    { id: "vibe-hosting",    label: "Vibe Hosting",      icon: Rocket,         badge: "🚀 Mới" },
+    { id: "microsoft-365",   label: "Microsoft 365",     icon: Briefcase,      badge: null },
+    { id: "google-workspace",label: "Google Workspace",   icon: Globe,          badge: null },
+    { id: "email-dn",        label: "Email doanh nghiệp",icon: Mail,           badge: null },
+    { id: "ssl",             label: "SSL Certificate",   icon: Shield,         badge: null },
+    { id: "sale-ai",         label: "Sale.ai",           icon: Bot,            badge: "⭐ Đang push mạnh" },
+    { id: "custom",          label: "Tuỳ chỉnh",        icon: Edit3,          badge: null },
+  ],
+  MBI: [
+    { id: "hoa-don-dien-tu", label: "Hóa đơn điện tử",  icon: FileText,       badge: null },
+    { id: "chu-ky-so",       label: "Chữ ký số",        icon: Shield,         badge: null },
+    { id: "hop-dong-dien-tu",label: "Hợp đồng điện tử", icon: ClipboardList,  badge: null },
+    { id: "hoa-don-ecom",    label: "Hóa đơn Ecom",     icon: FileText,       badge: "🔥 Hot" },
+    { id: "custom",          label: "Tuỳ chỉnh",        icon: Edit3,          badge: null },
+  ],
+};
+
+// Backward compat — flat list of all products for lookups
+export const ALL_PRODUCTS_LIST = [...PRODUCTS_BY_COMPANY.MBC, ...PRODUCTS_BY_COMPANY.MBI];
+
+// Company-specific objectives mapped to FB API
+export const FB_OBJECTIVE_OPTIONS: Record<string, Array<{
+  key: string; label: string; description: string; icon: typeof DollarSign;
+}>> = {
+  MBC: [
+    { key: "OUTCOME_SALES",   label: "Doanh số",                    description: "Mua trực tiếp online — tối ưu cho conversion",     icon: DollarSign },
+    { key: "OUTCOME_LEADS",   label: "Khách hàng tiềm năng",       description: "Thu thập form đăng ký, tư vấn",                    icon: Users },
+    { key: "OUTCOME_TRAFFIC", label: "Lưu lượng truy cập",         description: "Đưa người vào website đọc",                        icon: BarChart3 },
+  ],
+  MBI: [
+    { key: "OUTCOME_SALES",   label: "Doanh số",                    description: "Mua khoá học, đăng ký webinar trực tiếp",          icon: DollarSign },
+    { key: "OUTCOME_TRAFFIC", label: "Lưu lượng truy cập",         description: "Đưa người vào landing page tìm hiểu",              icon: BarChart3 },
+  ],
+};
+
+// Legacy OBJECTIVES kept for generate-text prompt
+export const OBJECTIVES = [
+  { value: "OUTCOME_SALES",   label: "Tăng doanh số" },
+  { value: "OUTCOME_LEADS",   label: "Thu lead" },
+  { value: "OUTCOME_TRAFFIC", label: "Tăng traffic" },
+];
+
+// PIXEL_EVENTS (5 sự kiện gõ cứng) đã được gỡ: danh sách sự kiện chuyển đổi
+// nay lấy thật từ Pixel qua /api/creative/pixel-events, còn danh mục tiêu
+// chuẩn nằm ở lib/meta-pixel-events.ts (nguồn sự thật duy nhất, dùng chung
+// cho cả giao diện, đường khởi chạy và bảng tra CPL).
+
+export const PLATFORMS: { value: string; label: string }[] = [
+  { value: "facebook", label: "Facebook" },
+  { value: "google",   label: "Google" },
+  { value: "both",     label: "Cả hai" },
+];
+
+export const TONES = [
+  { id: "professional",  label: "Chuyên nghiệp",   icon: "💼", description: "B2B, logic, số liệu",         sampleHook: "Giải pháp tên miền toàn diện cho doanh nghiệp Việt",    bestFor: ["ten-mien", "microsoft-365", "chu-ky-so"] },
+  { id: "urgent",        label: "Khẩn cấp",         icon: "🔥", description: "Deadline, flash sale",        sampleHook: "Chỉ còn 48 giờ — Tên miền .COM giảm 70%",              bestFor: ["ten-mien", "hosting"] },
+  { id: "friendly",      label: "Thân thiện",        icon: "😊", description: "Gần gũi, dùng 'bạn', emoji", sampleHook: "Xin chào! Tên miền đẹp cho dự án của bạn đây 👋",       bestFor: ["ten-mien", "sale-ai"] },
+  { id: "authority",     label: "Uy tín & Số liệu",  icon: "🏆", description: "Social proof, thành tựu",    sampleHook: "200,000+ doanh nghiệp Việt tin dùng Mat Bao",           bestFor: ["microsoft-365", "sale-ai", "chu-ky-so"] },
+  { id: "fomo",          label: "FOMO",               icon: "👀", description: "Đối thủ đang làm, đừng bỏ lỡ", sampleHook: "Đối thủ bạn đã có website — bạn thì sao?",           bestFor: ["ten-mien", "microsoft-365", "hoa-don-dien-tu"] },
+  { id: "value",         label: "Giá trị/Tiết kiệm", icon: "💰", description: "Price-sensitive, SME nhỏ",   sampleHook: "Mua 1 tên miền — Nhận 4. Tiết kiệm 75% ngay hôm nay",  bestFor: ["ten-mien", "hosting", "hoa-don-dien-tu"] },
+];
+
+export const MAX_TONES = 3;
+
+export const STORAGE_KEY = "adscommand_saved_creatives";
+
+// ─────────────────────────────────────────────
+// Smart Pre-fill Templates per Product
+// ─────────────────────────────────────────────
+
+export const PRODUCT_PREFILLS: Record<string, {
+  usp: string;
+  socialProof: string;
+  customerDesc: string;
+  painPoints: string;
+  motivation: string;
+  competitors: string;
+}> = {
+  "ten-mien": {
+    usp: "Tên miền .vn/.com chính ngạch, đăng ký trong 5 phút, hỗ trợ 24/7",
+    socialProof: "Quản lý 200,000+ tên miền, đối tác chính thức VNNIC & ICANN",
+    customerDesc: "Chủ doanh nghiệp/startup 28-45 tuổi vừa thành lập công ty, muốn bảo vệ thương hiệu online",
+    painPoints: "Sợ bị mất tên thương hiệu, không biết đăng ký ở đâu uy tín, lo bị lừa đảo domain",
+    motivation: "Muốn có email @congty.vn chuyên nghiệp, bảo vệ thương hiệu, tăng uy tín online",
+    competitors: "Vietnix, VNPT, PA Vietnam, Mắt Bão",
+  },
+  "hosting": {
+    usp: "Hosting SSD NVMe tốc độ cao, uptime 99.9%, cPanel miễn phí, hỗ trợ 24/7",
+    socialProof: "50,000+ website đang chạy ổn định trên hệ thống Mat Bao",
+    customerDesc: "Web developer hoặc chủ website SME cần hosting ổn định, tốc độ cao cho kinh doanh online",
+    painPoints: "Hosting hiện tại chậm, hay down, hỗ trợ kém, giá ẩn phí",
+    motivation: "Muốn website load nhanh, không bị gián đoạn, tiết kiệm chi phí vận hành",
+    competitors: "Vietnix, VNPT Hosting, Mắt Bão Hosting",
+  },
+  "vibe-hosting": {
+    usp: "Đưa app/web dựng bằng AI lên mạng trong 3 phút — không cần biết code, AI báo lỗi bằng tiếng Việt, quay lại bản cũ 1 chạm",
+    socialProof: "Nhận thẳng code từ Claude, ChatGPT, v0.dev, Bolt, Codex, Antigravity, Lovable, Cursor",
+    customerDesc: "Freelancer/designer 22-35 vừa dựng xong app bằng AI nhưng không biết đưa lên mạng; và chủ SME tự làm công cụ nội bộ mà không có người IT",
+    painPoints: "AI viết xong web rồi mà không biết deploy thế nào; hosting cPanel không chạy được app Node/Next; log lỗi toàn tiếng Anh không đọc nổi",
+    motivation: "Cho khách xem sản phẩm ngay hôm nay, không phải chờ hay thuê dev; có hóa đơn VAT để quyết toán",
+    competitors: "Vercel, Railway, Render, hosting cPanel truyền thống",
+  },
+  "microsoft-365": {
+    usp: "Microsoft 365 bản quyền chính hãng, triển khai trong 1 ngày, giá tốt nhất thị trường",
+    socialProof: "10,000+ doanh nghiệp Việt đang dùng Microsoft 365 qua Mat Bao",
+    customerDesc: "Doanh nghiệp vừa và nhỏ 20-100 nhân viên cần công cụ làm việc cộng tác và email doanh nghiệp",
+    painPoints: "Đang dùng phần mềm crack, lo bị kiểm tra bản quyền, email miễn phí không chuyên nghiệp",
+    motivation: "Nâng cao hình ảnh doanh nghiệp, cải thiện năng suất làm việc nhóm, tuân thủ bản quyền",
+    competitors: "Google Workspace, Zoho Mail, FPT Office",
+  },
+  "google-workspace": {
+    usp: "Google Workspace bản quyền, email @domain riêng, Drive không giới hạn, hỗ trợ tiếng Việt",
+    socialProof: "5,000+ doanh nghiệp Việt đang cộng tác hiệu quả với Google Workspace qua Mat Bao",
+    customerDesc: "Startup, SME 5-50 người cần email công ty và công cụ cộng tác online linh hoạt",
+    painPoints: "Email Gmail cá nhân không chuyên nghiệp, khó quản lý tài liệu nhóm, bảo mật kém",
+    motivation: "Email @congty.vn chuyên nghiệp, chia sẻ tài liệu dễ dàng, làm việc từ xa hiệu quả",
+    competitors: "Microsoft 365, Zoho Workplace",
+  },
+  "email-dn": {
+    usp: "Email doanh nghiệp @domain.vn, chống spam tốt, dung lượng lớn, bảo mật cao",
+    socialProof: "100,000+ hộp thư doanh nghiệp đang vận hành qua Mat Bao",
+    customerDesc: "Chủ doanh nghiệp cần email công ty riêng, muốn tách biệt email cá nhân và công việc",
+    painPoints: "Đang dùng Gmail cá nhân, email không chuyên nghiệp, hay bị vào spam",
+    motivation: "Tạo dựng hình ảnh doanh nghiệp chuyên nghiệp, tăng tỷ lệ email được đọc",
+    competitors: "Google Workspace, Microsoft 365, Zoho Mail",
+  },
+  "ssl": {
+    usp: "SSL Certificate từ các CA uy tín, cài đặt trong 10 phút, đảm bảo HTTPS",
+    socialProof: "20,000+ website đã được bảo vệ bằng SSL từ Mat Bao",
+    customerDesc: "Chủ website thương mại điện tử, landing page cần HTTPS để tăng uy tín và SEO",
+    painPoints: "Website chưa có HTTPS, khách hàng lo ngại khi nhập thông tin, Google rank thấp",
+    motivation: "Tăng tin cậy cho khách hàng, cải thiện SEO, bảo mật dữ liệu người dùng",
+    competitors: "Vietnix SSL, Comodo, Sectigo",
+  },
+  "sale-ai": {
+    usp: "AI Sales tự động trả lời, chốt đơn 24/7, tích hợp Facebook & Zalo trong vài giờ",
+    socialProof: "500+ doanh nghiệp đang dùng Sale.ai, tỷ lệ chốt đơn tăng trung bình 40%",
+    customerDesc: "Chủ shop online, SME bán hàng qua Facebook/Zalo đang quá tải tin nhắn khách hàng",
+    painPoints: "Bỏ lỡ khách hàng ngoài giờ, nhân viên sale bị quá tải, phản hồi chậm làm mất đơn",
+    motivation: "Tự động hóa chăm sóc khách hàng 24/7, tăng doanh thu mà không cần tăng nhân sự",
+    competitors: "Pancake, Haravan Bot, Chatbot thủ công",
+  },
+  "hoa-don-dien-tu": {
+    usp: "Hóa đơn điện tử đúng Nghị định 123, kết nối CQT trực tiếp, tích hợp ERP/phần mềm kế toán",
+    socialProof: "10,000+ doanh nghiệp đang phát hành hóa đơn điện tử hàng tháng qua MBI",
+    customerDesc: "Kế toán trưởng/Giám đốc doanh nghiệp 20-200 nhân viên đang chuẩn bị chuyển đổi HĐĐT bắt buộc",
+    painPoints: "Chưa hiểu quy trình chuyển đổi HĐĐT, lo sai sót kê khai thuế, sợ phức tạp kỹ thuật",
+    motivation: "Tuân thủ quy định Bộ Tài chính, giảm chi phí in ấn, tự động hóa kế toán",
+    competitors: "MISA, Fast Accounting, VNPT Invoice, BKAV",
+  },
+  "chu-ky-so": {
+    usp: "Chữ ký số USB Token & Cloud theo chuẩn ETSI, ký hợp đồng hợp pháp mọi lúc mọi nơi",
+    socialProof: "50,000+ chứng thư số đang được ký và xác thực qua MBI mỗi tháng",
+    customerDesc: "Giám đốc/kế toán trưởng cần ký hợp đồng, HĐĐT, hồ sơ pháp lý số hóa từ xa",
+    painPoints: "Phải in ra ký tay tốn thời gian, lo chữ ký scan không có giá trị pháp lý",
+    motivation: "Ký kết từ xa trong vài giây, giảm chi phí in ấn, hồ sơ pháp lý đầy đủ giá trị",
+    competitors: "VNPT-CA, Viettel-CA, BKAV-CA, FPT-CA",
+  },
+  "hop-dong-dien-tu": {
+    usp: "Hợp đồng điện tử có giá trị pháp lý, chữ ký đa bên, lưu trữ đám mây an toàn",
+    socialProof: "5,000+ hợp đồng được ký kết điện tử hàng tháng qua MBI",
+    customerDesc: "Bộ phận pháp lý/kinh doanh ký nhiều hợp đồng với đối tác, muốn rút ngắn thời gian",
+    painPoints: "Ký hợp đồng giấy chậm, khó lưu trữ và tra cứu, chi phí in ấn cao",
+    motivation: "Rút ngắn thời gian ký kết từ ngày xuống phút, lưu trữ tập trung dễ quản lý",
+    competitors: "DocuSign, VNPT eContract, FPT eContract",
+  },
+  "hoa-don-ecom": {
+    usp: "Hóa đơn điện tử cho Ecom, tích hợp Shopee/Lazada/Tiki, phát hành tự động theo đơn",
+    socialProof: "2,000+ shop online đang tự động phát hành hóa đơn đúng chuẩn qua MBI",
+    customerDesc: "Chủ shop thương mại điện tử bán hàng đa sàn, cần tự động hóa hóa đơn theo Nghị định 123",
+    painPoints: "Phát hành hóa đơn thủ công tốn thời gian, hay sai sót, không theo kịp đơn hàng lớn",
+    motivation: "Tự động hóa hoàn toàn quy trình hóa đơn, tuân thủ quy định, tiết kiệm nhân lực",
+    competitors: "MISA Ecom, VNPT Invoice API, BKAV Invoice",
+  },
+};

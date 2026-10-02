@@ -1,0 +1,34 @@
+// GET /api/jobs — all job states + registry metadata
+// Requires: authenticated user (all roles can view)
+
+import { NextResponse } from "next/server";
+import { getCurrentUser } from "@/lib/auth";
+import { isSuperAdmin } from "@/lib/permissions";
+import { buildJobStates } from "@/lib/jobs/state";
+import { ACTIVE_JOBS as JOB_REGISTRY } from "@/lib/jobs/registry";
+
+export async function GET() {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const states  = buildJobStates();
+  const meta    = JOB_REGISTRY.map(d => ({
+    id:                   d.id,
+    displayName:          d.displayName,
+    description:          d.description,
+    cronExpr:             d.cronExpr,
+    intervalLabel:        d.intervalLabel,
+    riskLevel:            d.riskLevel,
+    riskNote:             d.riskNote ?? null,
+    endpoint:             d.endpoint,
+    manualTriggerAllowed: d.manualTriggerAllowed,
+    schedulingStatus:     d.schedulingStatus,
+  }));
+
+  return NextResponse.json({
+    states,
+    meta,
+    canControl: isSuperAdmin(user.role),
+    nbaAutoApply: process.env.NBA_AUTO_APPLY ?? "dry_run",
+  });
+}

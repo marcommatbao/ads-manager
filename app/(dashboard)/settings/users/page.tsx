@@ -1,0 +1,1029 @@
+"use client";
+
+import { useState, useMemo, useCallback } from "react";
+import useSWR from "swr";
+import { formatDistanceToNow } from "date-fns";
+import { vi } from "date-fns/locale";
+import {
+  UserCog,
+  UserPlus,
+  Pencil,
+  Trash2,
+  Users,
+  ShieldCheck,
+  Eye,
+  KeyRound,
+  Loader2,
+  AlertTriangle,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  Building2,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  ROLE_CONFIG,
+  PERMISSION_LABELS,
+  ALL_ROLES,
+  getPermissions,
+} from "@/lib/permissions";
+import type { Role, PermissionKey } from "@/lib/permissions";
+import type { MemberStatus, CompanyAccess } from "@/lib/team";
+
+// ─────────────────────────────────────────────
+// Types
+// ─────────────────────────────────────────────
+
+interface SafeUser {
+  id: string;
+  email: string;
+  name: string;
+  role: Role;
+  company_access: CompanyAccess[];
+  telegram_chat_id?: string;
+  avatar?: string;
+  last_active: string;
+  last_login?: string;
+  invited_at: string;
+  status: MemberStatus;
+  is_active: boolean;
+}
+
+// ─────────────────────────────────────────────
+// Fetcher
+// ─────────────────────────────────────────────
+
+const fetcher = (url: string) =>
+  fetch(url).then((r) => r.json()).then((d) => {
+    if (!d.success) throw new Error(d.error ?? "API error");
+    return d.data as SafeUser[];
+  });
+
+// ─────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────
+
+function formatRelativeTime(isoString: string): string {
+  try {
+    return formatDistanceToNow(new Date(isoString), {
+      addSuffix: true,
+      locale: vi,
+    });
+  } catch {
+    return isoString;
+  }
+}
+
+function companyLabel(access: CompanyAccess[]): string {
+  if (access.includes("ALL")) return "MBC & MBI";
+  return access.join(" & ");
+}
+
+function getInitials(name: string): string {
+  return name
+    .split(" ")
+    .map((w) => w[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+}
+
+// Permission chips config — maps to RolePermissions keys
+const PERM_CHIPS: { key: PermissionKey; short: string }[] = [
+  { key: "can_edit",            short: "Chỉnh sửa" },
+  { key: "can_manage_budget",   short: "Ngân sách" },
+  { key: "can_view_cpl",        short: "CPL" },
+  { key: "can_input_offline",   short: "Offline" },
+  { key: "can_edit_thresholds", short: "Ngưỡng CPL" },
+];
+
+// ─────────────────────────────────────────────
+// Sub-components
+// ─────────────────────────────────────────────
+
+function AvatarCell({ user }: { user: SafeUser }) {
+  const cfg = ROLE_CONFIG[user.role];
+  return (
+    <div className="flex items-center gap-3 min-w-0">
+      <div
+        className={cn(
+          "flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[13px] font-bold",
+          cfg.bg,
+          cfg.color,
+          "border",
+          cfg.border
+        )}
+      >
+        {user.avatar ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={user.avatar}
+            alt={user.name}
+            className="h-9 w-9 rounded-full object-cover"
+          />
+        ) : (
+          getInitials(user.name)
+        )}
+      </div>
+      <div className="min-w-0">
+        <p className="truncate text-sm font-semibold text-slate-800">{user.name}</p>
+        <p className="truncate text-xs text-slate-400">{user.telegram_chat_id ? `@tg:${user.telegram_chat_id}` : "—"}</p>
+      </div>
+    </div>
+  );
+}
+
+function RoleBadge({ role }: { role: Role }) {
+  const cfg = ROLE_CONFIG[role];
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-semibold",
+        cfg.color,
+        cfg.bg,
+        cfg.border
+      )}
+    >
+      {cfg.label}
+    </span>
+  );
+}
+
+function StatusBadge({ status }: { status: MemberStatus }) {
+  const map: Record<MemberStatus, { label: string; classes: string; dot: string }> = {
+    active:   { label: "Hoạt động",  classes: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-500" },
+    pending:  { label: "Chờ duyệt",  classes: "bg-amber-50 text-amber-700 border-amber-200",       dot: "bg-amber-500" },
+    disabled: { label: "Vô hiệu",    classes: "bg-red-50 text-red-600 border-red-200",             dot: "bg-red-500" },
+  };
+  const s = map[status];
+  return (
+    <span className={cn("inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs font-semibold", s.classes)}>
+      <span className={cn("h-1.5 w-1.5 rounded-full", s.dot)} />
+      {s.label}
+    </span>
+  );
+}
+
+function PermissionChips({ role }: { role: Role }) {
+  const perms = getPermissions(role);
+  return (
+    <div className="flex flex-wrap gap-1">
+      {PERM_CHIPS.map(({ key, short }) => (
+        <span
+          key={key}
+          title={PERMISSION_LABELS[key]}
+          className={cn(
+            "inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold",
+            perms[key]
+              ? "bg-emerald-50 text-emerald-700"
+              : "bg-slate-100 text-slate-400"
+          )}
+        >
+          {short}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// Stats Row
+// ─────────────────────────────────────────────
+
+function StatsRow({ users }: { users: SafeUser[] }) {
+  const total = users.length;
+  const active = users.filter((u) => u.status === "active").length;
+  const admins = users.filter((u) =>
+    ["super_admin", "admin_mbc", "admin_mbi"].includes(u.role)
+  ).length;
+  const viewers = users.filter((u) =>
+    ["viewer_mbc", "viewer_mbi"].includes(u.role)
+  ).length;
+
+  const stats = [
+    { label: "Tổng users",   value: total,   icon: Users,       color: "text-blue-600",   bg: "bg-blue-50"   },
+    { label: "Đang hoạt động", value: active, icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-50" },
+    { label: "Admins",        value: admins,  icon: ShieldCheck,  color: "text-amber-600",  bg: "bg-amber-50"  },
+    { label: "Viewers",       value: viewers, icon: Eye,          color: "text-violet-600", bg: "bg-violet-50" },
+  ];
+
+  return (
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      {stats.map((s) => (
+        <Card key={s.label} className="border border-slate-200 bg-white shadow-sm">
+          <CardContent className="flex items-center gap-3 py-4">
+            <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-lg", s.bg)}>
+              <s.icon className={cn("h-5 w-5", s.color)} />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-slate-800">{s.value}</p>
+              <p className="text-xs text-slate-500">{s.label}</p>
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// User Form (Add / Edit)
+// ─────────────────────────────────────────────
+
+interface UserFormData {
+  email: string;
+  name: string;
+  role: Role;
+  company_access: CompanyAccess[];
+  password: string;
+  telegram_chat_id: string;
+  status: MemberStatus;
+}
+
+const DEFAULT_FORM: UserFormData = {
+  email: "",
+  name: "",
+  role: "viewer_mbc",
+  company_access: ["MBC"],
+  password: "",
+  telegram_chat_id: "",
+  status: "active",
+};
+
+function defaultCompanyAccessForRole(role: Role): CompanyAccess[] {
+  if (role === "super_admin") return ["ALL"];
+  if (role === "admin_mbc" || role === "viewer_mbc") return ["MBC"];
+  if (role === "admin_mbi" || role === "viewer_mbi") return ["MBI"];
+  return ["MBC"];
+}
+
+interface UserFormProps {
+  data: UserFormData;
+  onChange: (patch: Partial<UserFormData>) => void;
+  isEdit?: boolean;
+  onResetPassword?: () => void;
+  submitting?: boolean;
+}
+
+function UserForm({ data, onChange, isEdit, onResetPassword, submitting }: UserFormProps) {
+  const selectedCfg = ROLE_CONFIG[data.role];
+  const isSuperAdmin = data.role === "super_admin";
+  const checkedMBC = isSuperAdmin || data.company_access.includes("MBC") || data.company_access.includes("ALL");
+  const checkedMBI = isSuperAdmin || data.company_access.includes("MBI") || data.company_access.includes("ALL");
+
+  const handleRoleChange = (newRole: Role | null) => {
+    if (!newRole) return;
+    onChange({ role: newRole, company_access: defaultCompanyAccessForRole(newRole) });
+  };
+
+  const toggleMBC = () => {
+    if (isSuperAdmin || submitting) return;
+    if (checkedMBC && !checkedMBI) return; // must keep at least one
+    const next = (checkedMBC
+      ? data.company_access.filter((c) => c !== "MBC" && c !== "ALL")
+      : [...data.company_access.filter((c) => c !== "ALL"), "MBC"]) as CompanyAccess[];
+    onChange({ company_access: next });
+  };
+
+  const toggleMBI = () => {
+    if (isSuperAdmin || submitting) return;
+    if (checkedMBI && !checkedMBC) return; // must keep at least one
+    const next = (checkedMBI
+      ? data.company_access.filter((c) => c !== "MBI" && c !== "ALL")
+      : [...data.company_access.filter((c) => c !== "ALL"), "MBI"]) as CompanyAccess[];
+    onChange({ company_access: next });
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Email */}
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium text-slate-700">
+          Email <span className="text-red-500">*</span>
+        </label>
+        <Input
+          type="email"
+          placeholder="ten@matbao.com"
+          value={data.email}
+          onChange={(e) => onChange({ email: e.target.value })}
+          disabled={isEdit || submitting}
+          className="border-slate-200"
+        />
+      </div>
+
+      {/* Full name */}
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium text-slate-700">
+          Họ và tên <span className="text-red-500">*</span>
+        </label>
+        <Input
+          type="text"
+          placeholder="Nguyễn Văn A"
+          value={data.name}
+          onChange={(e) => onChange({ name: e.target.value })}
+          disabled={submitting}
+          className="border-slate-200"
+        />
+      </div>
+
+      {/* Role */}
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium text-slate-700">
+          Role <span className="text-red-500">*</span>
+        </label>
+        <Select
+          value={data.role}
+          onValueChange={handleRoleChange}
+          disabled={submitting}
+        >
+          <SelectTrigger className="w-full border-slate-200">
+            <SelectValue placeholder="Chọn role" />
+          </SelectTrigger>
+          <SelectContent>
+            {ALL_ROLES.map((r) => {
+              const cfg = ROLE_CONFIG[r];
+              return (
+                <SelectItem key={r} value={r}>
+                  <div className="flex w-full items-center justify-between gap-3">
+                    <div>
+                      <span className={cn("text-sm font-semibold", cfg.color)}>{cfg.label}</span>
+                      <p className="text-xs text-slate-500">{cfg.description}</p>
+                    </div>
+                    <span
+                      className={cn(
+                        "ml-2 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold",
+                        cfg.bg,
+                        cfg.color,
+                        "border",
+                        cfg.border
+                      )}
+                    >
+                      {cfg.companyLabel}
+                    </span>
+                  </div>
+                </SelectItem>
+              );
+            })}
+          </SelectContent>
+        </Select>
+        {/* Description preview */}
+        <div
+          className={cn(
+            "flex items-center gap-2 rounded-lg border px-3 py-2 text-xs",
+            selectedCfg.bg,
+            selectedCfg.border,
+            selectedCfg.color
+          )}
+        >
+          <Building2 className="h-3.5 w-3.5 shrink-0" />
+          <span>{selectedCfg.description}</span>
+        </div>
+      </div>
+
+      {/* Company Access */}
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium text-slate-700">
+          Công ty truy cập <span className="text-red-500">*</span>
+        </label>
+        <div className="flex gap-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <label
+            className={cn(
+              "flex items-center gap-2.5 select-none",
+              isSuperAdmin || submitting ? "cursor-not-allowed opacity-60" : "cursor-pointer"
+            )}
+          >
+            <input
+              type="checkbox"
+              checked={checkedMBC}
+              onChange={toggleMBC}
+              disabled={isSuperAdmin || submitting}
+              className="h-4 w-4 rounded border-slate-300 accent-blue-600"
+            />
+            <span className="text-sm font-semibold text-blue-700">MBC</span>
+            <span className="text-xs text-slate-400">Mắt Bão Cloud</span>
+          </label>
+          <label
+            className={cn(
+              "flex items-center gap-2.5 select-none",
+              isSuperAdmin || submitting ? "cursor-not-allowed opacity-60" : "cursor-pointer"
+            )}
+          >
+            <input
+              type="checkbox"
+              checked={checkedMBI}
+              onChange={toggleMBI}
+              disabled={isSuperAdmin || submitting}
+              className="h-4 w-4 rounded border-slate-300 accent-violet-600"
+            />
+            <span className="text-sm font-semibold text-violet-700">MBI</span>
+            <span className="text-xs text-slate-400">Mắt Bão Invest</span>
+          </label>
+        </div>
+        {isSuperAdmin ? (
+          <p className="text-[11px] text-slate-400">Super Admin luôn có quyền truy cập cả MBC & MBI.</p>
+        ) : (
+          <p className="text-[11px] text-slate-400">Chọn một hoặc cả hai công ty mà nhân viên này quản lý.</p>
+        )}
+      </div>
+
+      {/* Password */}
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium text-slate-700">
+          {isEdit ? "Mật khẩu mới (để trống nếu không đổi)" : <>Mật khẩu <span className="text-red-500">*</span></>}
+        </label>
+        <div className="flex gap-2">
+          <Input
+            type="password"
+            placeholder={isEdit ? "••••••••" : "Nhập mật khẩu"}
+            value={data.password}
+            onChange={(e) => onChange({ password: e.target.value })}
+            disabled={submitting}
+            className="border-slate-200"
+          />
+          {isEdit && onResetPassword && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onResetPassword}
+              disabled={submitting}
+              className="shrink-0 gap-1.5 border-slate-200 text-slate-600 hover:text-amber-700"
+            >
+              <KeyRound className="h-3.5 w-3.5" />
+              Reset
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Telegram */}
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium text-slate-700">
+          Telegram Chat ID <span className="text-slate-400 font-normal">(tuỳ chọn)</span>
+        </label>
+        <Input
+          type="text"
+          placeholder="123456789"
+          value={data.telegram_chat_id}
+          onChange={(e) => onChange({ telegram_chat_id: e.target.value })}
+          disabled={submitting}
+          className="border-slate-200"
+        />
+      </div>
+
+      {/* Status (edit only) */}
+      {isEdit && (
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-slate-700">Trạng thái</label>
+          <Select
+            value={data.status}
+            onValueChange={(v) => onChange({ status: v as MemberStatus })}
+            disabled={submitting}
+          >
+            <SelectTrigger className="w-full border-slate-200">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="active">
+                <span className="flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                  Hoạt động
+                </span>
+              </SelectItem>
+              <SelectItem value="pending">
+                <span className="flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-amber-500" />
+                  Chờ duyệt
+                </span>
+              </SelectItem>
+              <SelectItem value="disabled">
+                <span className="flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-red-500" />
+                  Vô hiệu
+                </span>
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// Permission Matrix
+// ─────────────────────────────────────────────
+
+function PermissionMatrix() {
+  const PERM_KEYS: PermissionKey[] = [
+    "can_edit",
+    "can_manage_budget",
+    "can_manage_users",
+    "can_view_cpl",
+    "can_input_offline",
+    "can_edit_thresholds",
+  ];
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+      <div className="border-b border-slate-200 bg-slate-50 px-5 py-4">
+        <p className="text-sm font-bold text-slate-800">Ma trận quyền theo Role</p>
+        <p className="mt-0.5 text-xs text-slate-500">Tham khảo: mỗi role có quyền gì trong hệ thống</p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-slate-200 bg-slate-50/50">
+              <th className="py-3 pl-5 pr-4 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                Quyền
+              </th>
+              {ALL_ROLES.map((r) => {
+                const cfg = ROLE_CONFIG[r];
+                return (
+                  <th key={r} className="px-3 py-3 text-center text-[11px] font-semibold uppercase tracking-wider">
+                    <span className={cn("rounded px-2 py-0.5", cfg.bg, cfg.color)}>
+                      {cfg.label}
+                    </span>
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {PERM_KEYS.map((pk, i) => (
+              <tr
+                key={pk}
+                className={cn(
+                  "border-b border-slate-100 last:border-0 transition-colors hover:bg-slate-50/60",
+                  i % 2 === 0 ? "bg-white" : "bg-slate-50/20"
+                )}
+              >
+                <td className="py-3 pl-5 pr-4 text-[13px] text-slate-700">
+                  {PERMISSION_LABELS[pk]}
+                </td>
+                {ALL_ROLES.map((r) => {
+                  const perms = getPermissions(r);
+                  const has = perms[pk];
+                  return (
+                    <td key={r} className="px-3 py-3 text-center">
+                      {has ? (
+                        <CheckCircle2 className="mx-auto h-4 w-4 text-emerald-500" />
+                      ) : (
+                        <XCircle className="mx-auto h-4 w-4 text-slate-200" />
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// Main Page
+// ─────────────────────────────────────────────
+
+export default function UsersPage() {
+  const { data: users = [], error, isLoading, mutate } = useSWR<SafeUser[]>(
+    "/api/settings/users",
+    fetcher
+  );
+
+  // Modal state
+  const [addOpen, setAddOpen] = useState(false);
+  const [editUser, setEditUser] = useState<SafeUser | null>(null);
+  const [deleteUser, setDeleteUser] = useState<SafeUser | null>(null);
+
+  // Form state
+  const [addForm, setAddForm] = useState<UserFormData>({ ...DEFAULT_FORM });
+  const [editForm, setEditForm] = useState<UserFormData>({ ...DEFAULT_FORM });
+
+  // Submission state
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [formSuccess, setFormSuccess] = useState<string | null>(null);
+
+  // Stats (memoised)
+  const stats = useMemo(() => {
+    return { users };
+  }, [users]);
+
+  // Open add modal
+  const openAdd = useCallback(() => {
+    setAddForm({ ...DEFAULT_FORM });
+    setFormError(null);
+    setFormSuccess(null);
+    setAddOpen(true);
+  }, []);
+
+  // Open edit modal
+  const openEdit = useCallback((user: SafeUser) => {
+    setEditForm({
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      company_access: user.company_access.length > 0 ? user.company_access : defaultCompanyAccessForRole(user.role),
+      password: "",
+      telegram_chat_id: user.telegram_chat_id ?? "",
+      status: user.status,
+    });
+    setFormError(null);
+    setFormSuccess(null);
+    setEditUser(user);
+  }, []);
+
+  // Handle add submit
+  const handleAdd = async () => {
+    setFormError(null);
+    if (!addForm.email || !addForm.name || !addForm.password) {
+      setFormError("Vui lòng điền đầy đủ email, tên và mật khẩu.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/settings/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: addForm.email,
+          name: addForm.name,
+          role: addForm.role,
+          company_access: addForm.company_access,
+          password: addForm.password,
+          telegram_chat_id: addForm.telegram_chat_id || undefined,
+        }),
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error);
+      await mutate();
+      setAddOpen(false);
+    } catch (e: unknown) {
+      setFormError(e instanceof Error ? e.message : "Tạo user thất bại");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Handle edit submit
+  const handleEdit = async () => {
+    if (!editUser) return;
+    setFormError(null);
+    setSubmitting(true);
+    try {
+      const body: Record<string, unknown> = {
+        name: editForm.name,
+        role: editForm.role,
+        company_access: editForm.company_access,
+        status: editForm.status,
+        is_active: editForm.status === "active",
+        telegram_chat_id: editForm.telegram_chat_id || undefined,
+      };
+      if (editForm.password) body.password = editForm.password;
+
+      const res = await fetch(`/api/settings/users/${editUser.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error);
+      await mutate();
+      setEditUser(null);
+    } catch (e: unknown) {
+      setFormError(e instanceof Error ? e.message : "Cập nhật thất bại");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Handle delete
+  const handleDelete = async () => {
+    if (!deleteUser) return;
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/settings/users/${deleteUser.id}`, {
+        method: "DELETE",
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error);
+      await mutate();
+      setDeleteUser(null);
+    } catch (e: unknown) {
+      setFormError(e instanceof Error ? e.message : "Xóa thất bại");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Reset password (prefill a generated hint)
+  const handleResetPasswordHint = () => {
+    const generated = Math.random().toString(36).slice(2, 10);
+    setEditForm((prev) => ({ ...prev, password: generated }));
+    setFormSuccess(`Mật khẩu mới gợi ý: ${generated} — hãy sao chép trước khi lưu.`);
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* ── Header ── */}
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h2 className="flex items-center gap-2 text-xl font-bold text-slate-800">
+            <UserCog className="h-5 w-5 text-blue-600" />
+            Quản lý Users
+          </h2>
+          <p className="mt-0.5 text-sm text-slate-500">
+            Thêm, chỉnh sửa và phân quyền thành viên trong hệ thống AdsCommand.
+          </p>
+        </div>
+        <Button
+          onClick={openAdd}
+          className="gap-2 bg-amber-500 text-amber-950 hover:bg-amber-600"
+        >
+          <UserPlus className="h-4 w-4" />
+          Thêm nhân viên
+        </Button>
+      </div>
+
+      {/* ── Stats ── */}
+      {!isLoading && !error && <StatsRow users={stats.users} />}
+
+      {/* ── User Table Card ── */}
+      <Card className="border border-slate-200 bg-white shadow-sm">
+        <CardHeader className="border-b border-slate-200 pb-4">
+          <CardTitle className="text-base font-semibold text-slate-800">
+            Danh sách nhân viên
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {isLoading && (
+            <div className="flex items-center justify-center gap-2 py-16 text-slate-400">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              <span className="text-sm">Đang tải...</span>
+            </div>
+          )}
+
+          {error && (
+            <div className="flex items-center justify-center gap-2 py-16 text-red-500">
+              <AlertTriangle className="h-5 w-5" />
+              <span className="text-sm">{error.message}</span>
+            </div>
+          )}
+
+          {!isLoading && !error && users.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+              <Users className="mb-3 h-10 w-10 text-slate-200" />
+              <p className="text-sm font-medium">Chưa có nhân viên nào</p>
+              <p className="mt-1 text-xs">Nhấn &quot;Thêm nhân viên&quot; để bắt đầu.</p>
+            </div>
+          )}
+
+          {!isLoading && !error && users.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50/50">
+                    {[
+                      "Nhân viên",
+                      "Email",
+                      "Role",
+                      "Công ty",
+                      "Quyền",
+                      "Trạng thái",
+                      "Hoạt động lần cuối",
+                      "",
+                    ].map((h) => (
+                      <th
+                        key={h}
+                        className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 last:text-right"
+                      >
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.map((user) => (
+                    <tr
+                      key={user.id}
+                      className="border-b border-slate-100 last:border-0 transition-colors hover:bg-slate-50/60"
+                    >
+                      <td className="px-4 py-3">
+                        <AvatarCell user={user} />
+                      </td>
+                      <td className="px-4 py-3 text-[13px] text-slate-600">
+                        {user.email}
+                      </td>
+                      <td className="px-4 py-3">
+                        <RoleBadge role={user.role} />
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
+                          <Building2 className="h-3 w-3" />
+                          {companyLabel(user.company_access)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <PermissionChips role={user.role} />
+                      </td>
+                      <td className="px-4 py-3">
+                        <StatusBadge status={user.status} />
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="flex items-center gap-1 text-xs text-slate-400">
+                          <Clock className="h-3 w-3 shrink-0" />
+                          {formatRelativeTime(user.last_active)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={() => openEdit(user)}
+                            className="text-slate-400 hover:text-amber-700"
+                            title="Chỉnh sửa"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={() => {
+                              setFormError(null);
+                              setDeleteUser(user);
+                            }}
+                            className="text-slate-400 hover:text-red-500"
+                            title="Xóa"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── Permission Matrix ── */}
+      <PermissionMatrix />
+
+      {/* ════════════════════════════════════════
+          Add User Modal
+      ════════════════════════════════════════ */}
+      <Dialog open={addOpen} onOpenChange={(o) => { if (!submitting) setAddOpen(o); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-slate-800">
+              <UserPlus className="h-4 w-4 text-blue-600" />
+              Thêm nhân viên mới
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="max-h-[60vh] overflow-y-auto pr-1">
+            {formError && (
+              <div className="mb-4 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                {formError}
+              </div>
+            )}
+            <UserForm
+              data={addForm}
+              onChange={(patch) => setAddForm((prev) => ({ ...prev, ...patch }))}
+              submitting={submitting}
+            />
+          </div>
+
+          <DialogFooter showCloseButton>
+            <Button
+              onClick={handleAdd}
+              disabled={submitting}
+              className="gap-2 bg-amber-500 text-amber-950 hover:bg-amber-600"
+            >
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
+              Tạo tài khoản
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ════════════════════════════════════════
+          Edit User Modal
+      ════════════════════════════════════════ */}
+      <Dialog open={editUser !== null} onOpenChange={(o) => { if (!submitting && !o) setEditUser(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-slate-800">
+              <Pencil className="h-4 w-4 text-blue-600" />
+              Chỉnh sửa: {editUser?.name}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="max-h-[60vh] overflow-y-auto pr-1">
+            {formError && (
+              <div className="mb-4 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                {formError}
+              </div>
+            )}
+            {formSuccess && (
+              <div className="mb-4 flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-700">
+                <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                {formSuccess}
+              </div>
+            )}
+            <UserForm
+              data={editForm}
+              onChange={(patch) => setEditForm((prev) => ({ ...prev, ...patch }))}
+              isEdit
+              onResetPassword={handleResetPasswordHint}
+              submitting={submitting}
+            />
+          </div>
+
+          <DialogFooter showCloseButton>
+            <Button
+              onClick={handleEdit}
+              disabled={submitting}
+              className="gap-2 bg-amber-500 text-amber-950 hover:bg-amber-600"
+            >
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+              Lưu thay đổi
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ════════════════════════════════════════
+          Delete Confirm Dialog
+      ════════════════════════════════════════ */}
+      <Dialog open={deleteUser !== null} onOpenChange={(o) => { if (!submitting && !o) setDeleteUser(null); }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="h-4 w-4" />
+              Xác nhận xóa người dùng
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            {formError && (
+              <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                {formError}
+              </div>
+            )}
+            <p className="text-sm text-slate-600">
+              Bạn có chắc muốn xóa tài khoản{" "}
+              <strong className="text-slate-800">{deleteUser?.name}</strong> (
+              {deleteUser?.email})?
+            </p>
+            <p className="text-xs text-slate-400">Hành động này không thể hoàn tác.</p>
+          </div>
+
+          <DialogFooter showCloseButton>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={submitting}
+              className="gap-2"
+            >
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              Xóa tài khoản
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
