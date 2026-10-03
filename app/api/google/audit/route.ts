@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const company = pickCompany(searchParams.get("company"));
-    if (!canAccessCompany(user.role, company)) {
+    if (!canAccessCompany(user, company)) {
       return NextResponse.json({ error: "Access denied for this company" }, { status: 403 });
     }
 

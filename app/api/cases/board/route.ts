@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic"
 export async function GET() {
   const u = await requireUser()
   if (!u.ok) return u.response
-  const companies = (["MBI", "MBC"] as Company[]).filter((c) => canAccessCompany(u.value.role, c))
+  const companies = (["MBI", "MBC"] as Company[]).filter((c) => canAccessCompany(u.value, c))
   return NextResponse.json({
     success: true, companies, rows: caseBoard(companies),
     reminders: { enabled: remindersEnabled(), channel: "Microsoft Teams", overdueDays: 3 },

@@ -16,6 +16,7 @@ import path from "path";
 import { writeFileAtomic } from "@/lib/fs-atomic";
 import { withFileLock } from "@/lib/file-lock";
 import { companyIds } from "@/lib/companies"
+import { isCompany } from "@/lib/companies/registry";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const FILE = path.join(DATA_DIR, "manual-channel-spend.json");
@@ -135,7 +136,7 @@ export async function getManualSpendForMonth(
 
   for (const e of all) {
     if (e.month !== month) continue;
-    if (e.company !== "MBC" && e.company !== "MBI") continue;
+    if (!isCompany(e.company)) continue;
     const amount = Number(e.amount) || 0;
     if (amount <= 0) continue;
     out[e.company].total += amount;

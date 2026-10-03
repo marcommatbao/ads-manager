@@ -10,6 +10,7 @@ import { canAccessCompany, hasPermission } from "@/lib/permissions";
 import { googleAdsErrorMessage } from "@/lib/google-ads-error";
 import { createdNames, guardedMutate, WriteGuardError } from "@/lib/write-guard";
 import { GOOGLE_CUSTOMER_IDS } from "@/lib/google-ads-client"
+import { isCompany } from "@/lib/companies/registry";
 interface KeywordToAdd {
   keyword: string;
   matchType: "EXACT" | "PHRASE" | "BROAD";
@@ -38,10 +39,10 @@ export async function POST(req: NextRequest) {
     if (!hasPermission(user.role, "can_edit")) {
       return NextResponse.json({ success: false, error: "Không có quyền chỉnh sửa từ khóa" }, { status: 403 });
     }
-    if (company !== "MBC" && company !== "MBI") {
+    if (!isCompany(company)) {
       return NextResponse.json({ success: false, error: "company phải là MBC hoặc MBI" }, { status: 400 });
     }
-    if (!canAccessCompany(user.role, company)) {
+    if (!canAccessCompany(user, company)) {
       return NextResponse.json({ success: false, error: "Access denied for this company" }, { status: 403 });
     }
 

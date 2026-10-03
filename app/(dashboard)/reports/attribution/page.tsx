@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { useAdsStore }         from "@/store/useAdsStore"
 import { companyIds } from "@/lib/companies/registry";
+import { isCompany } from "@/lib/companies/registry";
 
 type Company = string
 
@@ -108,7 +109,7 @@ export default function AttributionPage() {
   const [loading, setLoading]= useState(true)
 
   useEffect(() => {
-    if (storeCompany === "MBC" || storeCompany === "MBI") setCompany(storeCompany)
+    if (isCompany(storeCompany)) setCompany(storeCompany)
   }, [storeCompany])
 
   const fetchData = useCallback(async () => {

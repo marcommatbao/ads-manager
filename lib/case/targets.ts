@@ -12,10 +12,11 @@ import path from "path"
 import { writeFileAtomicSync } from "@/lib/fs-atomic"
 import { withFileLock } from "@/lib/file-lock"
 import { DEFAULT_BRAND, DEFAULT_COMPETITORS, type IntentLexicon } from "./intent"
-import { companyDef } from "@/lib/companies/registry"
+import { companyDef, hasPack } from "@/lib/companies/registry"
 import type { ProductGroup } from "./product"
 import type { Company } from "./types"
 import type { CaseTarget } from "./verdict"
+import { isCompany } from "@/lib/companies/registry";
 
 const TARGETS_FILE = path.join(process.cwd(), "data", "case-targets.json")
 const LEXICON_FILE = path.join(process.cwd(), "data", "case-lexicon.json")
@@ -58,7 +59,7 @@ export function targetFor(company: Company, group: ProductGroup): CaseTarget | n
 }
 
 export function validateTarget(t: Partial<TargetRow>): string | null {
-  if (t.company !== "MBC" && t.company !== "MBI") return "Công ty phải là MBC hoặc MBI"
+  if (!isCompany(t.company)) return "Công ty phải là MBC hoặc MBI"
   if (!t.group) return "Thiếu nhóm sản phẩm"
   if (t.basis !== "cpa" && t.basis !== "roas") return "Cách chấm phải là cpa hoặc roas"
   const target = Number(t.target), ceiling = Number(t.ceiling)
@@ -87,7 +88,8 @@ export function lexiconFor(company: Company): IntentLexicon {
   const x = all[company] ?? {}
   return {
     // Đợt 21a: mặc định theo công ty của bản cài (brandTerms/competitors), không có thì mặc định chung (Mắt Bão).
-    brand: x.brand?.length ? x.brand : companyDef(company)?.brandTerms?.length ? companyDef(company)!.brandTerms! : DEFAULT_BRAND,
-    competitors: x.competitors?.length ? x.competitors : companyDef(company)?.competitors?.length ? companyDef(company)!.competitors! : DEFAULT_COMPETITORS,
+    // Đợt 21 B: mặc định chung (matbao / đối thủ hoá đơn điện tử) CHỈ cho công ty gói Mắt Bão — công ty bản cài khách để trống.
+    brand: x.brand?.length ? x.brand : companyDef(company)?.brandTerms?.length ? companyDef(company)!.brandTerms! : hasPack(company, "matbao") ? DEFAULT_BRAND : [],
+    competitors: x.competitors?.length ? x.competitors : companyDef(company)?.competitors?.length ? companyDef(company)!.competitors! : hasPack(company, "matbao") ? DEFAULT_COMPETITORS : [],
   }
 }

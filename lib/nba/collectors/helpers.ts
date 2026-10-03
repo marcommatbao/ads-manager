@@ -4,10 +4,11 @@
 
 import type { Campaign } from "@/types/ads.types";
 import type { NbaCompany, NbaPlatform } from "../types";
+import { isCompany } from "@/lib/companies/registry";
 
 /** Suy công ty: ưu tiên field, fallback prefix tên. null nếu không xác định. */
 export function detectCompany(c: Campaign): NbaCompany | null {
-  if (c.company === "MBC" || c.company === "MBI") return c.company;
+  if (isCompany(c.company)) return c.company;
   const n = (c.name ?? "").toUpperCase();
   if (n.includes("MBI")) return "MBI";
   if (n.includes("MBC")) return "MBC";

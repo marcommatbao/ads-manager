@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const sp = request.nextUrl.searchParams;
-  const allowed = getCompaniesForRole(user.role) as NbaCompany[];
+  const allowed = getCompaniesForRole(user) as NbaCompany[];
   const canExecute = isAdmin(user.role) || isSuperAdmin(user.role);
 
   // ── Filters ──
@@ -159,8 +159,9 @@ export async function GET(request: NextRequest) {
     // y hệt một ngưỡng đúng.
     const cplCfg = getCplThresholds();
     const thresholdWarnings = companyIds()
-      .filter((co) => companies.includes(co) && cplCfg[co].source === "fallback")
-      .map((co) => cplCfg[co].staleWarning!)
+      // Đợt 21 B: công ty chưa có ngưỡng CPL (bản cài khách — ngưỡng hiện chỉ tính cho MBC/MBI) → bỏ qua, không sập cả trang.
+      .filter((co) => companies.includes(co) && cplCfg[co]?.source === "fallback")
+      .map((co) => cplCfg[co]?.staleWarning ?? "")
       .filter(Boolean);
 
     /** Nói rõ tổng được tính thế nào, thay vì để một con số trần không ai
@@ -221,7 +222,7 @@ export async function POST(request: NextRequest) {
   // route ngân sách Meta/Google đang làm (`can_manage_budget`).
   // RBAC silo TRƯỚC mọi thay đổi (audit 30/09: trước đây kiểm SAU setStatus — trạng thái công ty kia đã bị đổi rồi
   // mới trả 403; còn undo thì không kiểm công ty chút nào → admin_mbc hoàn tác ngân sách Meta của MBI).
-  const companies = new Set(getCompaniesForRole(user.role));
+  const companies = new Set(getCompaniesForRole(user));
   const rec = getRecommendation(id);
   const undoEntry = action === "undo" ? findUndoable(id) : null;
   const ownerCompany = undoEntry?.company ?? rec?.company;

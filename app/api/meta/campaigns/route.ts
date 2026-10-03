@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
     // and drop whatever this role isn't allowed to see. Was previously
     // returned completely unfiltered/untagged to any authenticated user,
     // including viewer_mbc/viewer_mbi.
-    const allowedCompanies = getCompaniesForRole(user.role);
+    const allowedCompanies = getCompaniesForRole(user);
 
     const campaigns: Campaign[] = rawCampaigns
       .map((c) => {

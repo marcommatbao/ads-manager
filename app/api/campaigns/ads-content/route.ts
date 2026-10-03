@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
   const month = normalizeMonth(searchParams.get("month"));
   const requestedCompany = searchParams.get("company") ?? "ALL";
 
-  const allowedCompanies = getCompaniesForRole(user.role);
+  const allowedCompanies = getCompaniesForRole(user);
   const companies = requestedCompany === "ALL"
     ? allowedCompanies
     : allowedCompanies.filter((c) => c === requestedCompany);

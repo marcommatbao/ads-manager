@@ -28,9 +28,16 @@ function readSettings(): TelegramSettings {
   return {};
 }
 
+/** Đợt 21 A4 (soát bảo mật): đọc để GHI — lỗi đọc / giải mã thì NÉM, không trả {} (trả {} rồi ghi = xoá sạch khoá đã lưu khác). */
+function readSettingsForWrite(): ReturnType<typeof readSettings> {
+  if (!fs.existsSync(SETTINGS_PATH)) return {};
+  const raw = JSON.parse(fs.readFileSync(SETTINGS_PATH, "utf8"));
+  return decryptFields(raw, ENCRYPTED_FIELDS) as ReturnType<typeof readSettings>;
+}
+
 async function saveSettings(settings: TelegramSettings): Promise<{ persisted: boolean }> {
   return withFileLock(SETTINGS_PATH, async () => {
-    const existing = readSettings();
+    const existing = readSettingsForWrite();
     const merged = { ...existing, ...settings };
     if (merged.botToken) process.env.TELEGRAM_BOT_TOKEN = merged.botToken;
     if (merged.chatId)   process.env.TELEGRAM_CHAT_ID = merged.chatId;
@@ -82,7 +89,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, message: "Không có thay đổi mới nào để lưu.", persisted: false });
   }
 
-  const { persisted } = await saveSettings(settings);
+  let persisted: boolean;
+  try { ({ persisted } = await saveSettings(settings)); }
+  catch { return NextResponse.json({ ok: false, error: "Không đọc / giải mã được khoá đã lưu (khoá mã hoá DATA_ENCRYPTION_KEY đã đổi hoặc tệp hỏng) — KHÔNG ghi đè để khỏi mất các khoá khác. Liên hệ quản trị." }, { status: 500 }); }
 
   await writeAuditEntry(
     "credentials_telegram", user, "update",

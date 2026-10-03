@@ -15,7 +15,7 @@ export async function GET() {
   try {
     const snap = readSnapshot()
     if (!snap) return NextResponse.json({ success: true, builtAt: null, items: [], errors: [], digest: null, adsChannel: !!(process.env.TEAMS_WEBHOOK_ADS ?? "").trim(), canEdit: hasPermission(u.value.role, "can_edit") })
-    const ok = (co: string) => co === "ALL" || canAccessCompany(u.value.role, co as string)
+    const ok = (co: string) => co === "ALL" || canAccessCompany(u.value, co as string)
     return NextResponse.json({
       success: true, builtAt: snap.builtAt,
       items: viewItems(snap.items.filter((i) => ok(i.company)), readStates()),
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     if (typeof input === "string") return NextResponse.json({ success: false, error: input }, { status: 400 })
     const item = readSnapshot()?.items.find((i) => i.key === input.key)
     if (!item) return NextResponse.json({ success: false, error: "Không tìm thấy việc (hộp việc đã dựng lại?) — tải lại trang" }, { status: 404 })
-    if (!canAccessCompany(u.value.role, item.company)) return NextResponse.json({ success: false, error: "Không có quyền với công ty này" }, { status: 403 })
+    if (!canAccessCompany(u.value, item.company)) return NextResponse.json({ success: false, error: "Không có quyền với công ty này" }, { status: 403 })
     return NextResponse.json({ success: true, state: setItemStatus(input, actorOf(u.value)) })
   } catch (e) { return fail(e) }
 }

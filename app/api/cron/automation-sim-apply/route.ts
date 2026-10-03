@@ -47,7 +47,7 @@ function applyPolicy(): "off" | "dry_run" | "on" {
 }
 
 // Cron runs with admin-level context for all companies
-const CRON_COMPANIES: SimCompany[] = companyIds();
+// Đợt 21 A6: đọc danh sách công ty LÚC CHẠY (trình thiết lập đổi data/companies.json không cần khởi động lại).
 
 async function buildRecentChanges(): Promise<Record<string, RecentRelatedChange[]>> {
   const cutoff = Date.now() - 3 * 86_400_000;
@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
   const policy    = applyPolicy();
 
   const ctx: SimContext = {
-    companies: CRON_COMPANIES,
+    companies: companyIds() as SimCompany[],
     canApply:  true,          // cron has admin-level apply rights
     policy,
     recentChanges: await buildRecentChanges(),

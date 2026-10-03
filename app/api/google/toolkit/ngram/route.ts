@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
   }
   const nSize      = parseInt(searchParams.get("n") || "1", 10)
 
-  if (!canAccessCompany(user.role, company)) {
+  if (!canAccessCompany(user, company)) {
     return NextResponse.json({ error: "Access denied for this company" }, { status: 403 })
   }
 
@@ -235,7 +235,7 @@ export async function POST(req: NextRequest) {
   if (!hasPermission(user.role, "can_edit")) {
     return NextResponse.json({ error: "Không có quyền thêm từ khóa phủ định" }, { status: 403 })
   }
-  if (!canAccessCompany(user.role, company)) {
+  if (!canAccessCompany(user, company)) {
     return NextResponse.json({ error: "Access denied for this company" }, { status: 403 })
   }
   // campaignId is interpolated into a resource name below.

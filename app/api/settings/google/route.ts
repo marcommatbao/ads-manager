@@ -10,6 +10,8 @@ import { withFileLock } from "@/lib/file-lock";
 import fs from "fs";
 import { writeFileAtomicSync } from "@/lib/fs-atomic";
 import path from "path";
+import { cleanCompanyMap, digitsOnly, envSuffix } from "@/lib/settings/company-ids";
+import { companyIds, companyLabel } from "@/lib/companies";
 
 const SETTINGS_PATH = path.resolve(process.cwd(), "data/google-settings.json");
 
@@ -21,6 +23,8 @@ type GoogleSettings = {
   customerIdMBC?: string;
   customerIdMBI?: string;
   loginCustomerId?: string;
+  /** Đợt 21 A4: mã khách hàng theo MỌI công ty của bản cài (MBC/MBI vẫn dùng 2 trường cũ). */
+  customerIds?: Record<string, string>;
 };
 
 // Real secrets only — clientId/customerIds/loginCustomerId are account
@@ -38,9 +42,16 @@ function readSettings(): GoogleSettings {
   return {};
 }
 
+/** Đợt 21 A4 (soát bảo mật): đọc để GHI — lỗi đọc / giải mã thì NÉM, không trả {} (trả {} rồi ghi = xoá sạch khoá đã lưu khác). */
+function readSettingsForWrite(): ReturnType<typeof readSettings> {
+  if (!fs.existsSync(SETTINGS_PATH)) return {};
+  const raw = JSON.parse(fs.readFileSync(SETTINGS_PATH, "utf8"));
+  return decryptFields(raw, ENCRYPTED_FIELDS) as ReturnType<typeof readSettings>;
+}
+
 async function saveSettings(settings: GoogleSettings): Promise<{ persisted: boolean }> {
   return withFileLock(SETTINGS_PATH, async () => {
-    const existing = readSettings();
+    const existing = readSettingsForWrite();
     const merged = { ...existing, ...settings };
 
     if (merged.developerToken)  process.env.GOOGLE_ADS_DEVELOPER_TOKEN = merged.developerToken;
@@ -50,6 +61,10 @@ async function saveSettings(settings: GoogleSettings): Promise<{ persisted: bool
     if (merged.customerIdMBC)   process.env.GOOGLE_ADS_CUSTOMER_ID_MBC = merged.customerIdMBC;
     if (merged.customerIdMBI)   process.env.GOOGLE_ADS_CUSTOMER_ID_MBI = merged.customerIdMBI;
     if (merged.loginCustomerId) process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID = merged.loginCustomerId;
+    for (const [co, id] of Object.entries(merged.customerIds ?? {})) {
+      const name = `GOOGLE_ADS_CUSTOMER_ID_${envSuffix(co)}`;
+      if (id) process.env[name] = id; else if (settings.customerIds && co in settings.customerIds) delete process.env[name]; // xoá trắng = bỏ ngay
+    }
 
     try {
       fs.mkdirSync(path.dirname(SETTINGS_PATH), { recursive: true });
@@ -87,6 +102,8 @@ export async function GET() {
     customerIdMBC:   raw.customerIdMBC,
     customerIdMBI:   raw.customerIdMBI,
     loginCustomerId: raw.loginCustomerId,
+    // Đợt 21 A4: mọi công ty của bản cài (mã khách hàng không phải bí mật)
+    companies: companyIds().map((co) => ({ id: co, label: companyLabel(co), customerId: process.env[`GOOGLE_ADS_CUSTOMER_ID_${envSuffix(co)}`] || saved.customerIds?.[co] || (co === "MBC" ? raw.customerIdMBC : co === "MBI" ? raw.customerIdMBI : "") || "" })),
     // secrets — masked
     developerToken:  maskSecret(raw.developerToken),
     clientId:        maskSecret(raw.clientId),
@@ -114,22 +131,35 @@ export async function POST(request: NextRequest) {
     customerIdMBC?: string;
     customerIdMBI?: string;
     loginCustomerId?: string;
+    customerIds?: Record<string, string>;
   };
 
   const settings: GoogleSettings = {};
+  if (body.customerIds !== undefined) {
+    const c = cleanCompanyMap(body.customerIds, [10, 10]);
+    if (c.errors.length) return NextResponse.json({ ok: false, error: c.errors.join(" · ") }, { status: 400 });
+    settings.customerIds = { ...(readSettings().customerIds ?? {}), ...c.map };
+  }
   if (body.developerToken  && !isMaskedPlaceholder(body.developerToken))  settings.developerToken  = body.developerToken;
   if (body.clientId        && !isMaskedPlaceholder(body.clientId))        settings.clientId        = body.clientId;
   if (body.clientSecret    && !isMaskedPlaceholder(body.clientSecret))    settings.clientSecret    = body.clientSecret;
   if (body.refreshToken    && !isMaskedPlaceholder(body.refreshToken))    settings.refreshToken    = body.refreshToken;
-  if (body.customerIdMBC)   settings.customerIdMBC   = body.customerIdMBC.replace(/-/g, "");
-  if (body.customerIdMBI)   settings.customerIdMBI   = body.customerIdMBI.replace(/-/g, "");
-  if (body.loginCustomerId) settings.loginCustomerId = body.loginCustomerId.replace(/-/g, "");
+  // Đợt 21 A4: chỉ nhận chuỗi chữ số 10 số (trước đây giá trị không phải chuỗi làm route ném 500).
+  for (const k of ["customerIdMBC", "customerIdMBI", "loginCustomerId"] as const) {
+    const v = body[k];
+    if (v === undefined || v === null || v === "") continue;
+    const d = digitsOnly(v, [10, 10]);
+    if (!d) return NextResponse.json({ ok: false, error: `${k}: mã tài khoản Google Ads phải gồm 10 chữ số` }, { status: 400 });
+    settings[k] = d;
+  }
 
   if (Object.keys(settings).length === 0) {
     return NextResponse.json({ ok: true, message: "Không có thay đổi mới nào để lưu.", persisted: false });
   }
 
-  const { persisted } = await saveSettings(settings);
+  let persisted: boolean;
+  try { ({ persisted } = await saveSettings(settings)); }
+  catch { return NextResponse.json({ ok: false, error: "Không đọc / giải mã được khoá đã lưu (khoá mã hoá DATA_ENCRYPTION_KEY đã đổi hoặc tệp hỏng) — KHÔNG ghi đè để khỏi mất các khoá khác. Liên hệ quản trị." }, { status: 500 }); }
 
   await writeAuditEntry(
     "credentials_google", user, "update",

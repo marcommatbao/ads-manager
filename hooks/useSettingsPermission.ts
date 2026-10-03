@@ -5,13 +5,14 @@
 // all settings domains. Derived from session role + companies.
 // ============================================================
 
+import { companyIds } from "@/lib/companies/registry";
 import { useSession } from "@/components/SessionProvider";
 import { hasPermission, isSuperAdmin, canAccessCompany } from "@/lib/permissions";
 import type { CompanyScope } from "@/lib/permissions";
 
 export interface SettingsPermissions {
   // ── View ────────────────────────────────────────────────
-  /** See masked API credentials form (admin+) */
+  /** See masked API credentials form — Đợt 21 A4: CHỈ super_admin */
   canViewCredentials: boolean;
   /** See budget config */
   canViewBudget: boolean;
@@ -88,8 +89,9 @@ export function useSettingsPermission(): SettingsPermissions {
   const admin   = hasPermission(role, "can_edit");
   const viewer  = !admin;
 
-  const companies = (["MBC", "MBI"] as CompanyScope[]).filter(co =>
-    canAccessCompany(role, co),
+  // Đợt 21 A5: theo người dùng (vai trò chung lấy phạm vi từ company_access) + công ty của bản cài.
+  const companies = (companyIds() as CompanyScope[]).filter(co =>
+    canAccessCompany(user, co),
   );
 
   return {
@@ -110,8 +112,8 @@ export function useSettingsPermission(): SettingsPermissions {
     canTestConnection:    hasPermission(role, "can_view_credentials"),
 
     visibleCompanies:     companies,
-    canSeeMBC:            canAccessCompany(role, "MBC"),
-    canSeeMBI:            canAccessCompany(role, "MBI"),
+    canSeeMBC:            canAccessCompany(user, "MBC"),
+    canSeeMBI:            canAccessCompany(user, "MBI"),
 
     isAdmin:              admin,
     isSuperAdmin:         isSuper,

@@ -7,6 +7,7 @@ import { getCurrentUser }            from "@/lib/auth"
 import { canAccessCompany, hasPermission } from "@/lib/permissions"
 import { safeDateRange, safeNumericId, safeResourceName, InvalidGaqlInput } from "@/lib/google-ads-guards"
 import { googleAdsErrorMessage } from "@/lib/google-ads-error";
+import { isCompany } from "@/lib/companies/registry";
 // Removed unused db
 
 // 24 giờ × 7 ngày = 168 ô
@@ -30,7 +31,7 @@ export async function GET(req: NextRequest) {
     throw err
   }
 
-  if (!canAccessCompany(user.role, company)) {
+  if (!canAccessCompany(user, company)) {
     return NextResponse.json({ error: "Access denied for this company" }, { status: 403 })
   }
 
@@ -326,10 +327,10 @@ export async function POST(req: NextRequest) {
   if (!hasPermission(user.role, "can_edit")) {
     return NextResponse.json({ error: "Không có quyền thay đổi lịch chạy quảng cáo" }, { status: 403 })
   }
-  if (company !== "MBC" && company !== "MBI") {
+  if (!isCompany(company)) {
     return NextResponse.json({ error: "company phải là MBC hoặc MBI" }, { status: 400 })
   }
-  if (!canAccessCompany(user.role, company)) {
+  if (!canAccessCompany(user, company)) {
     return NextResponse.json({ error: "Access denied for this company" }, { status: 403 })
   }
 

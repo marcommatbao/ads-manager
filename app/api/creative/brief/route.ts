@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
   // Chấm theo VAI TRÒ. Bản cũ coi "ALL"/"*" trong user.companies là cờ toàn
   // quyền — mà MỌI tài khoản đều mang ["ALL"], kể cả viewer_mbc, nên phép kiểm
   // này chưa từng chặn được ai.
-  if (!canAccessCompany(user.role, input.company as string)) {
+  if (!canAccessCompany(user, input.company as string)) {
     return NextResponse.json(
       { success: false, error: `Access denied: user cannot access company ${input.company}` },
       { status: 403 },
@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
     const allDrafts = listDrafts(50);
     // Filter by company access
     const drafts  = allDrafts
-      .filter(d => canAccessCompany(user.role, d.input.company as string))
+      .filter(d => canAccessCompany(user, d.input.company as string))
       .slice(0, limit);
 
     return NextResponse.json({ success: true, data: { drafts, total: drafts.length } });

@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
   }
 
   const company = (req.nextUrl.searchParams.get("company") ?? "MBC") as string;
-  if (!canAccessCompany(user.role, company)) {
+  if (!canAccessCompany(user, company)) {
     return NextResponse.json({ error: "Access denied for this company" }, { status: 403 });
   }
 

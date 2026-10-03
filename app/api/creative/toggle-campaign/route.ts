@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
     }
     const nameData = { name: owner.name };
     const campaignCompany = detectCompany(owner.campaignName);
-    if (!canAccessCompany(user.role, campaignCompany)) {
+    if (!canAccessCompany(user, campaignCompany)) {
       return NextResponse.json({ success: false, error: "Access denied for this company" }, { status: 403 });
     }
 

@@ -92,7 +92,7 @@ export async function GET(request: NextRequest) {
   // Clamp to what this role is actually allowed to see — "ALL" used to mean
   // "no company filter at all" regardless of role, leaking the other
   // company's revenue to a single-company viewer/admin by default.
-  const allowedCompanies = getCompaniesForRole(user.role);
+  const allowedCompanies = getCompaniesForRole(user);
   if (requestedCompany !== "ALL" && !allowedCompanies.includes(requestedCompany as string)) {
     return NextResponse.json({ error: "Access denied for this company" }, { status: 403 });
   }

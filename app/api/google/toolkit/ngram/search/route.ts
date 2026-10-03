@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
     if (!phrase) {
       return NextResponse.json({ error: "Thiếu cụm từ khóa cần tìm" }, { status: 400 })
     }
-    if (!canAccessCompany(user.role, company)) {
+    if (!canAccessCompany(user, company)) {
       return NextResponse.json({ error: "Access denied for this company" }, { status: 403 })
     }
 

@@ -65,7 +65,7 @@ async function buildCtx(
   withRecentChanges = true,
 ): Promise<SimContext> {
   const ctx: SimContext = {
-    companies: getCompaniesForRole(user.role) as SimCompany[],
+    companies: getCompaniesForRole(user) as SimCompany[],
     canApply: isAdmin(user.role) || isSuperAdmin(user.role),
     policy: applyPolicy(),
   };

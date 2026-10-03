@@ -1,5 +1,8 @@
 "use client";
 
+import { CompanyIntegrationIds } from "@/components/settings/CompanyIntegrationIds";
+import { isCompany } from "@/lib/companies/registry";
+import { useCompaniesVersion } from "@/lib/companies/use-companies";
 import { useState, useEffect } from "react";
 import {
   Card,
@@ -150,6 +153,9 @@ const apiSections: ApiSection[] = [
 
 import { COMPANY_CONFIG } from "@/lib/company-config";
 
+// Đợt 21 B: ô mã khách hàng Google cứng tên Mắt Bão → chỉ hiện ở bản cài CÓ công ty đó. Bản khách dán ở khối "Mã theo từng công ty".
+const LEGACY_COMPANY_FIELD: Record<string, string> = { googleCustomerIdMBC: "MBC", googleCustomerIdMBI: "MBI" };
+
 function CompanyMappingTable() {
   return (
     <div className="rounded-xl border border-slate-200 overflow-hidden bg-white shadow-sm mt-6">
@@ -235,6 +241,7 @@ function SettingsContent() {
   const searchParams = useSearchParams();
   const perms = useSettingsPermission();
   const [values, setValues] = useState<Record<string, string>>({});
+  useCompaniesVersion(); // Đợt 21 B: vẽ lại khi danh sách công ty của bản cài nạp xong (ẩn/hiện ô MBC/MBI)
   const [metaSaving, setMetaSaving] = useState(false);
   const [metaTesting, setMetaTesting] = useState(false);
   const [metaResult, setMetaResult] = useState<TestResult | null>(null);
@@ -365,7 +372,8 @@ function SettingsContent() {
     if (token) params.set("token", token);
     if (adAccountId) params.set("adAccountId", adAccountId);
     try {
-      const res = await fetch(`/api/settings/meta/test?${params}`);
+      // Đợt 21 A4: khoá gửi trong THÂN POST, không ghép lên URL (lọt log proxy / lịch sử trình duyệt).
+      const res = await fetch(`/api/settings/meta/test`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(Object.fromEntries(params)) });
       const data = await res.json() as { ok: boolean; userName?: string; accountName?: string; error?: string };
       if (data.ok) {
         setMetaResult({ ok: true, message: `Connected as ${data.userName}${data.accountName ? ` · ${data.accountName}` : ""}` });
@@ -422,7 +430,8 @@ function SettingsContent() {
     if (values["googleCustomerIdMBI"])   params.set("customerIdMBI",   values["googleCustomerIdMBI"]);
     if (values["googleLoginCustomerId"]) params.set("loginCustomerId", values["googleLoginCustomerId"]);
     try {
-      const res = await fetch(`/api/settings/google/test?${params}`);
+      // Đợt 21 A4: khoá gửi trong THÂN POST, không ghép lên URL (lọt log proxy / lịch sử trình duyệt).
+      const res = await fetch(`/api/settings/google/test`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(Object.fromEntries(params)) });
       const data = await res.json() as { ok: boolean; accounts?: { id: string; name: string }[]; error?: string };
       if (data.ok) {
         const names = data.accounts?.map((a) => a.name).join(", ") || "";
@@ -475,7 +484,8 @@ function SettingsContent() {
     const params = new URLSearchParams();
     if (values["geminiApiKey"]) params.set("apiKey", values["geminiApiKey"]);
     try {
-      const res = await fetch(`/api/settings/gemini/test?${params}`);
+      // Đợt 21 A4: khoá gửi trong THÂN POST, không ghép lên URL (lọt log proxy / lịch sử trình duyệt).
+      const res = await fetch(`/api/settings/gemini/test`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(Object.fromEntries(params)) });
       const data = await res.json() as { ok: boolean; modelCount?: number; error?: string };
       if (data.ok) {
         setGeminiResult({ ok: true, message: `Connected · ${data.modelCount ?? 0} models available` });
@@ -600,6 +610,9 @@ function SettingsContent() {
         </div>
       </div>
 
+      {/* Đợt 21 A4: mã theo từng công ty của bản cài */}
+      <CompanyIntegrationIds canEdit={perms.canEditCredentials} />
+
       {/* API Sections */}
       {apiSections.map((section, idx) => (
         <Card
@@ -683,7 +696,7 @@ function SettingsContent() {
               </div>
             )}
 
-            {section.fields.map((field) => (
+            {section.fields.filter((field) => !LEGACY_COMPANY_FIELD[field.key] || isCompany(LEGACY_COMPANY_FIELD[field.key])).map((field) => (
               <div key={field.key} className="space-y-1.5">
                 <label className="text-sm font-medium text-slate-700">
                   {field.label}

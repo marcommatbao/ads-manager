@@ -1,5 +1,8 @@
 "use client";
 
+import { hasModule } from "@/lib/companies/registry";
+import { moduleOfPage } from "@/lib/companies/modules";
+import { useCompaniesVersion } from "@/lib/companies/use-companies";
 import { useState, useEffect, useCallback } from "react";
 import { isHiddenPage } from "@/lib/hidden-pages";
 import {
@@ -603,6 +606,7 @@ const GROUPS: FeatureGroup[] = [
         tips: [
           "Trong Scheduled Jobs có job “Tự kiểm truy vấn thật” (query_smoke), chạy mỗi sáng 05:45 (giờ VN). Nó chạy thử (chỉ đọc) các truy vấn Google Ads / Meta mà tính năng đang dùng; khi một lần đọc bị hỏng (lỗi MỚI) hoặc đã hết lỗi, nó báo Teams kênh IT.",
           "Job Health Monitor tự báo Teams nếu việc báo lead / đơn hàng mới bị im hoặc lỗi.",
+          "Bản cài mới cho khách có thêm mục Cài đặt → “Thiết lập ban đầu” (chỉ Super Admin, chỉ hiện ở bản cài bật trình thiết lập). Mục này đi lần lượt 6 bước: công ty → dán khoá → kiểm tra kết nối → tự kiểm → người dùng & email được đăng nhập → hoàn tất. Trước khi bấm Hoàn tất, các trang khác tạm khoá và job tự động chưa chạy.",
         ],
         warnings: [
           "Meta Access Token hết hạn sau 60 ngày — cần gia hạn định kỳ.",
@@ -997,16 +1001,19 @@ function FeatureCard({ feature }: { feature: Feature }) {
 // Tính năng thực sự hiện ra = bỏ mục trỏ tới trang đang tạm ẩn (lib/hidden-pages.ts)
 // — cùng một nguồn với menu, để trang Hướng dẫn không đi giới thiệu một trang
 // không vào được. Nhóm nào rỗng sau khi lọc thì bỏ luôn.
-const VISIBLE_GROUPS: FeatureGroup[] = GROUPS
-  .map((g) => ({ ...g, features: g.features.filter((f) => !isHiddenPage(f.href)) }))
+// Đợt 21 A2: bỏ cả mục thuộc mô-đun đang TẮT ở bản cài (tính trong component — cấu hình nạp sau lần vẽ đầu).
+const visibleGroups = (): FeatureGroup[] => GROUPS
+  .map((g) => ({ ...g, features: g.features.filter((f) => !isHiddenPage(f.href) && hasModule(moduleOfPage(f.href))) }))
   .filter((g) => g.features.length > 0);
-const VISIBLE_FEATURES = VISIBLE_GROUPS.flatMap((g) => g.features);
 
 function scrollToId(id: string) {
   document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 export default function GuidePage() {
+  useCompaniesVersion();
+  const VISIBLE_GROUPS = visibleGroups();
+  const VISIBLE_FEATURES = VISIBLE_GROUPS.flatMap((g) => g.features);
   const [search, setSearch] = useState("");
 
   const q = search.toLowerCase();

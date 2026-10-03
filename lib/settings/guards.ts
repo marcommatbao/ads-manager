@@ -77,7 +77,7 @@ export function scopeBudgetToCompanies<T extends Record<string, unknown>>(
   const scoped: Partial<T> = {};
   const companies = companyIds();
   for (const co of companies) {
-    if (canAccessCompany(user.role, co) && co in config) {
+    if (canAccessCompany(user, co) && co in config) {
       scoped[co as keyof T] = config[co as keyof T];
     }
   }
@@ -94,7 +94,7 @@ export function guardBudgetCompanyScope(
 ): NextResponse | null {
   if (isSuperAdmin(user.role)) return null;
   const attempted = companyIds().filter(co => co in body);
-  const allowed   = companyIds().filter(co => canAccessCompany(user.role, co));
+  const allowed   = companyIds().filter(co => canAccessCompany(user, co));
   const outOfScope = attempted.filter(co => !allowed.includes(co));
   if (outOfScope.length > 0) {
     return NextResponse.json(

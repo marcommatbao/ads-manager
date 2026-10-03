@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
 
   const company = parseCompany(request.nextUrl.searchParams.get("company"));
   if (!company) return NextResponse.json({ error: "company phải là MBC hoặc MBI" }, { status: 400 });
-  if (!canAccessCompany(user.role, company)) {
+  if (!canAccessCompany(user, company)) {
     return NextResponse.json({ error: "Access denied for this company" }, { status: 403 });
   }
 
@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
 
   const company = parseCompany(body.company ?? null);
   if (!company) return NextResponse.json({ error: "company phải là MBC hoặc MBI" }, { status: 400 });
-  if (!canAccessCompany(user.role, company)) {
+  if (!canAccessCompany(user, company)) {
     return NextResponse.json({ error: "Access denied for this company" }, { status: 403 });
   }
 

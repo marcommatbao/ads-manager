@@ -28,6 +28,10 @@ const WEBHOOK_KEYS = [
   { key: "leads_notify",       envVar: "TEAMS_WEBHOOK_MATBAOIN",        label: "Lead mới — matbao.in" },
   { key: "orders_notify",      envVar: "TEAMS_WEBHOOK_ORDERS_MATBAOIN", label: "Đơn hàng mới — matbao.in" },
   { key: "job_health_monitor", envVar: "TEAMS_WEBHOOK_OPS_ALERTS",      label: "Cảnh báo hệ thống (Job Health Monitor)" },
+  // Đợt 21 A4: mọi webhook Teams dán được ở Cài đặt (trước đây 3 cái dưới chỉ đặt được bằng biến môi trường)
+  { key: "ads",                envVar: "TEAMS_WEBHOOK_ADS",             label: "Kênh Ads — kết quả đo bản tách, nhắc việc, báo cáo tuần, Hộp việc" },
+  { key: "case_task",          envVar: "CASE_TASK_TEAMS_WEBHOOK",       label: "Nhắc việc phiên Xử lý chiến dịch" },
+  { key: "measure_monitor",    envVar: "MEASURE_MONITOR_TEAMS_WEBHOOK", label: "Giám sát Sức khoẻ đo lường" },
 ] as const;
 
 type WebhookKey = (typeof WEBHOOK_KEYS)[number]["key"];
@@ -55,9 +59,16 @@ function patchEnv(settings: WebhookSettings): void {
   }
 }
 
+/** Đợt 21 A4 (soát bảo mật): đọc để GHI — lỗi đọc / giải mã thì NÉM, không trả {} (trả {} rồi ghi = xoá sạch khoá đã lưu khác). */
+function readSettingsForWrite(): ReturnType<typeof readSettings> {
+  if (!fs.existsSync(SETTINGS_PATH)) return {};
+  const raw = JSON.parse(fs.readFileSync(SETTINGS_PATH, "utf8"));
+  return decryptFields(raw, ENCRYPTED_FIELDS) as ReturnType<typeof readSettings>;
+}
+
 async function saveSettings(settings: WebhookSettings): Promise<{ persisted: boolean }> {
   return withFileLock(SETTINGS_PATH, async () => {
-    const existing = readSettings();
+    const existing = readSettingsForWrite();
     const merged = { ...existing, ...settings };
     patchEnv(merged);
     try {
@@ -115,14 +126,20 @@ export async function POST(request: NextRequest) {
   const settings: WebhookSettings = {};
   for (const w of WEBHOOK_KEYS) {
     const v = body[w.key];
-    if (typeof v === "string" && v.trim() && !isMaskedPlaceholder(v)) settings[w.key] = v.trim();
+    if (typeof v === "string" && v.trim() && !isMaskedPlaceholder(v)) {
+      // Đợt 21 A4 (soát bảo mật): máy chủ sẽ POST vào URL này → chỉ nhận https (không http, không địa chỉ nội bộ dạng tự do).
+      if (!/^https:\/\/[^\s/]+\.[^\s]+$/.test(v.trim())) return NextResponse.json({ ok: false, error: `${w.label}: phải là đường dẫn https:// (webhook Teams / Power Automate)` }, { status: 400 });
+      settings[w.key] = v.trim();
+    }
   }
 
   if (Object.keys(settings).length === 0) {
     return NextResponse.json({ ok: true, message: "Không có thay đổi mới nào để lưu.", persisted: false });
   }
 
-  const { persisted } = await saveSettings(settings);
+  let persisted: boolean;
+  try { ({ persisted } = await saveSettings(settings)); }
+  catch { return NextResponse.json({ ok: false, error: "Không đọc / giải mã được khoá đã lưu (khoá mã hoá DATA_ENCRYPTION_KEY đã đổi hoặc tệp hỏng) — KHÔNG ghi đè để khỏi mất các khoá khác. Liên hệ quản trị." }, { status: 500 }); }
 
   await writeAuditEntry(
     "credentials_teams_webhooks", user, "update",

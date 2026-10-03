@@ -659,7 +659,7 @@ export async function POST(request: NextRequest) {
   // Xác minh theo ID (thứ mà hành động thật sự nhắm tới), không theo tên client
   // gửi kèm — hai thứ đó không buộc phải khớp nhau.
   const access = await verifyMetaCampaignAccess(
-    body.campaignId ?? "", (c) => canAccessCompany(user.role, c),
+    body.campaignId ?? "", (c) => canAccessCompany(user, c),
   );
   if (!access.allowed) {
     return NextResponse.json({ success: false, error: access.error ?? "Access denied for this company" }, { status: 403 });

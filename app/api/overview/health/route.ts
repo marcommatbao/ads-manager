@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
   if (!u.ok) return u.response
   const sp = request.nextUrl.searchParams
   const want = sp.get("company") ?? "ALL"
-  const allowed = (["MBI", "MBC"] as Company[]).filter((c) => canAccessCompany(u.value.role, c))
+  const allowed = (["MBI", "MBC"] as Company[]).filter((c) => canAccessCompany(u.value, c))
   const companies = want === "ALL" ? allowed : allowed.filter((c) => c === want)
   if (!companies.length) return NextResponse.json({ success: false, error: "Không có quyền với công ty này" }, { status: 403 })
   try {

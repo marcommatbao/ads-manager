@@ -1,4 +1,5 @@
 // GET /api/settings/gemini/test — verify a Gemini API key is working
+import { isMaskedPlaceholder } from "@/lib/settings/validators/credentials";
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { guardViewCredentials } from "@/lib/settings/guards";
@@ -6,13 +7,24 @@ import { guardViewCredentials } from "@/lib/settings/guards";
 // been suspended") — echo thẳng ra là in khoá lên màn hình người dùng.
 import { redactApiKeys } from "@/lib/gemini";
 
+// Đợt 21 A4 (soát bảo mật): khoá mới dán gửi qua THÂN POST, không qua URL (URL lọt vào log proxy + lịch sử trình duyệt).
+// GET vẫn chạy nhưng CHỈ kiểm khoá đã lưu (bỏ qua mọi khoá trên URL).
+type ParamGet = (k: string) => string | null;
+export async function POST(request: NextRequest) {
+  const b = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+  // Ô đang hiện giá trị đã che (••••) = "dùng khoá đã lưu" → bỏ qua, không đem chuỗi che đi kiểm.
+  return run(request, (k) => (typeof b[k] === "string" && (b[k] as string).trim() && !isMaskedPlaceholder(b[k] as string) ? (b[k] as string).trim() : null));
+}
 export async function GET(request: NextRequest) {
+  return run(request, () => null);
+}
+async function run(request: NextRequest, p: ParamGet) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const credGuard = guardViewCredentials(user);
   if (credGuard) return credGuard;
 
-  const apiKey = request.nextUrl.searchParams.get("apiKey") || process.env.GEMINI_API_KEY;
+  const apiKey = p("apiKey") || process.env.GEMINI_API_KEY;
   if (!apiKey) {
     return NextResponse.json({ ok: false, error: "Missing API key" });
   }

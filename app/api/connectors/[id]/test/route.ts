@@ -3,7 +3,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission, isAdmin } from "@/lib/permissions";
 import { runLiveCheck } from "@/lib/connectors/engine";
 import { CONNECTORS_BY_ID } from "@/lib/connectors/registry";
 import type { ConnectorId } from "@/lib/connectors/types";
@@ -14,7 +14,7 @@ export async function POST(_req: NextRequest, { params }: RouteContext) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  if (!hasPermission(user.role, "can_view_credentials")) {
+  if (!isAdmin(user.role) /* Đợt 21 A4: can_view_credentials nay CHỈ super_admin (xem khoá). Tính năng này không phải khoá → giữ phạm vi cũ admin+. */) {
     return NextResponse.json({ error: "Không có quyền test kết nối" }, { status: 403 });
   }
 

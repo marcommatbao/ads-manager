@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
   if (!user) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
 
   const company = pickCompany(req.nextUrl.searchParams.get("company"));
-  if (!canAccessCompany(user.role, company)) {
+  if (!canAccessCompany(user, company)) {
     return NextResponse.json({ success: false, error: "Access denied for this company" }, { status: 403 });
   }
 
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
     typeof body.to === "string" ? body.to : null,
   );
 
-  if (!canAccessCompany(user.role, company)) {
+  if (!canAccessCompany(user, company)) {
     return NextResponse.json({ success: false, error: "Access denied for this company" }, { status: 403 });
   }
   if (!campaignId || (type !== "search_themes" && type !== "creative_brief")) {

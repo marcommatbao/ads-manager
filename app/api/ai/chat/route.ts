@@ -18,6 +18,7 @@
 // fails, its section says so explicitly rather than being silently omitted —
 // an answer built on partial data must look partial.
 // ============================================================
+import { orgName } from "@/lib/brand/store"
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getCompaniesForRole } from "@/lib/permissions";
@@ -52,7 +53,7 @@ const vnd = (n: number) => new Intl.NumberFormat("vi-VN").format(Math.round(n));
 // dữ liệu nó cần (lib/ai-tools/registry.ts), nên không còn phải đoán trước
 // người dùng sẽ hỏi gì rồi nhồi sẵn một ảnh chụp 7 ngày cố định.
 
-const SYSTEM_INSTRUCTION = `Bạn là AdsBot — trợ lý phân tích quảng cáo nội bộ của Mắt Bão, hỗ trợ đội chạy Facebook Ads và Google Ads.
+const SYSTEM_INSTRUCTION = `Bạn là AdsBot — trợ lý phân tích quảng cáo nội bộ của __ORG__, hỗ trợ đội chạy Facebook Ads và Google Ads.
 
 QUY TẮC BẮT BUỘC:
 1. CHỈ dùng số liệu do CÔNG CỤ trả về. TUYỆT ĐỐI không bịa số liệu, tên campaign, CPL, ngân sách hay bất kỳ con số nào công cụ không đưa ra.
@@ -115,9 +116,9 @@ export async function POST(request: NextRequest) {
   // Ngữ cảnh giờ CHỈ còn phần tối thiểu để model biết đường mà gọi công cụ.
   // Trước đây chỗ này nạp sẵn chi tiêu 7 ngày + 12 improvement — hẹp cứng, không
   // trả lời nổi câu hỏi ngoài dự kiến, mà nhồi thêm thì tốn token vô ích.
-  const companies = getCompaniesForRole(user.role);
+  const companies = getCompaniesForRole(user);
   const systemInstruction =
-    `${SYSTEM_INSTRUCTION}\n\n=== BỐI CẢNH ===\n` +
+    `${SYSTEM_INSTRUCTION.replace("__ORG__", orgName())}\n\n=== BỐI CẢNH ===\n` +
     `- Hôm nay: ${new Date().toISOString().slice(0, 10)}\n` +
     `- Người dùng được xem công ty: ${companies.join(", ") || "không công ty nào"}\n` +
     `- Nền tảng đang nối: Facebook Ads, Google Ads\n=== HẾT BỐI CẢNH ===`;

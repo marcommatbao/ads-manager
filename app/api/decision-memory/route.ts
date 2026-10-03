@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
   // regardless of company, while letting an admin_mbc/admin_mbi request
   // the OTHER company's decision memory) — fixed to the actual company
   // scope check.
-  if (!canAccessCompany(user.role, company)) {
+  if (!canAccessCompany(user, company)) {
     return NextResponse.json({ error: "Access denied for this company" }, { status: 403 });
   }
 

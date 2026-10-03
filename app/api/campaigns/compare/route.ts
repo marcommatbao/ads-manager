@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
     ]);
     const originalCompany = detectCompany(originalName);
     const cloneCompany = detectCompany(cloneName);
-    if (!canAccessCompany(user.role, originalCompany) || !canAccessCompany(user.role, cloneCompany)) {
+    if (!canAccessCompany(user, originalCompany) || !canAccessCompany(user, cloneCompany)) {
       return NextResponse.json({ success: false, error: "Access denied for this company" }, { status: 403 });
     }
 

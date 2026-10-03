@@ -278,7 +278,7 @@ export async function GET(req: NextRequest) {
   // user.companies — trường đó là PHẠM VI và đang mang ["ALL"] cho MỌI tài
   // khoản (kiểm data/team-members.json 16/09/2026, kể cả viewer_mbc), nên
   // mọi phép kiểm quyền công ty ở đây LUÔN ĐÚNG cho tất cả mọi người.
-  if (!canAccessCompany(user.role, company as string)) {
+  if (!canAccessCompany(user, company as string)) {
     return NextResponse.json({ error: "Forbidden: no access to requested company" }, { status: 403 });
   }
 

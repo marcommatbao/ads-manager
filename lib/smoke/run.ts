@@ -17,7 +17,7 @@ export interface ProbeResult { company: Company; id: string; label: string; ok: 
 export interface SmokeRun { at: string; results: ProbeResult[] }
 interface Probe { id: string; label: string; run: (co: Company, day: { from: string; to: string }) => Promise<string | { skip: string }> }
 
-const COMPANIES: Company[] = companyIds()
+// Đợt 21 A6: đọc danh sách công ty LÚC CHẠY (trình thiết lập đổi data/companies.json không cần khởi động lại).
 const FILE = path.join(process.cwd(), "data", "smoke", "last.json")
 const short = (e: unknown) => (e instanceof Error ? e.message : String(e)).replace(/access_token=[^&\s]+/g, "access_token=***").slice(0, 300)
 /** Hàm X-quang gom lỗi từng truy vấn vào errors[] thay vì ném — ở đây coi errors[] không rỗng là HỎNG. */
@@ -62,7 +62,7 @@ export const PROBES: Probe[] = [
   } },
 ]
 
-export async function runProbes(now = new Date(), probes = PROBES, companies = COMPANIES): Promise<SmokeRun> {
+export async function runProbes(now = new Date(), probes = PROBES, companies: Company[] = companyIds()): Promise<SmokeRun> {
   const y = addDays(vnDate(now), -1), day = { from: y, to: y }
   const results: ProbeResult[] = []
   for (const co of companies) for (const p of probes) {

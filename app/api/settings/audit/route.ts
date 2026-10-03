@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
   // Was previously unfiltered: any authenticated viewer_mbc/viewer_mbi
   // could read the other company's full change history.
   const entries = getAuditLog(domain, limit).filter(
-    e => e.company === "ALL" || canAccessCompany(user.role, e.company),
+    e => e.company === "ALL" || canAccessCompany(user, e.company),
   );
 
   // Snapshots are full-config dumps (not split per company) used for

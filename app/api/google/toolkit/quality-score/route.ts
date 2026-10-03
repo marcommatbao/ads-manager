@@ -68,7 +68,7 @@ async function handle(req: NextRequest, user: SessionUser): Promise<NextResponse
     }
     const filter     = searchParams.get("filter")     || "ALL"
 
-    if (!canAccessCompany(user.role, company)) {
+    if (!canAccessCompany(user, company)) {
       return NextResponse.json({ error: "Access denied for this company" }, { status: 403 })
     }
 

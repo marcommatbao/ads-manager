@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
 
     // Non-super_admin: can only read their own company's tenant
     if (!isSuperAdmin(user.role)) {
-      const allowed = getCompaniesForRole(user.role);
+      const allowed = getCompaniesForRole(user);
       const tenant  = getTenant(id);
       if (!tenant || !allowed.includes(tenant.legacyCompanyKey as never)) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
   }
 
   // Non-super: return only accessible tenants
-  const allowed = getCompaniesForRole(user.role);
+  const allowed = getCompaniesForRole(user);
   const filtered = all.filter(t => allowed.includes(t.legacyCompanyKey as never));
   return NextResponse.json({ success: true, data: filtered.map(sanitize) });
 }

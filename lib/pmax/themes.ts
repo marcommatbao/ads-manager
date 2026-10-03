@@ -8,6 +8,8 @@
 // Asset group mới: Gemini viết chữ tiếng Việt → kiểm luật; ảnh/video/logo MƯỢN từ asset group có sẵn cùng chiến dịch; tạo
 // TẠM DỪNG trong MỘT lệnh (asset trước → asset group → liên kết → theme; đo 28/09 thứ tự khác bị từ chối). Bật do người dùng.
 
+import { brandPromptBlock } from "@/lib/brand/types"
+import { brandOverride } from "@/lib/brand/store"
 import fs from "fs"
 import path from "path"
 import { enums } from "google-ads-api"
@@ -189,11 +191,13 @@ export async function draftAssetGroup(company: Company, input: { campaignId: str
   const links = (await c.query(`SELECT asset_group_asset.field_type, asset.resource_name, asset.name, asset.type, asset.text_asset.text, asset.youtube_video_asset.youtube_video_title FROM asset_group_asset WHERE asset_group.id = ${Number(input.sourceAssetGroupId)} AND asset_group_asset.status = 'ENABLED'`)) as Row[]
   const media = links.filter((l) => MEDIA_FIELDS.includes(FT[l.asset_group_asset.field_type])).map((l) => ({ field: FT[l.asset_group_asset.field_type], asset: String(l.asset.resource_name), label: String(l.asset.text_asset?.text || l.asset.youtube_video_asset?.youtube_video_title || l.asset.name || l.asset.resource_name.split("/").pop()) }))
   const sample = (f: string) => links.filter((l) => FT[l.asset_group_asset.field_type] === f).slice(0, 4).map((l) => l.asset.text_asset?.text).filter(Boolean).join(" | ")
+  // Đợt 21 A3: hồ sơ doanh nghiệp (null = MBC/MBI chưa lưu hồ sơ → chuỗi cũ y nguyên).
+  const bp = brandOverride(company)
   const prompt = `Viết asset chữ tiếng Việt cho MỘT asset group Google Performance Max mới.
-Doanh nghiệp: ${company === "MBC" ? "Mắt Bão — tên miền, hosting, email, máy chủ, Microsoft 365, Google Workspace" : "Mắt Bão Invoice — hoá đơn điện tử, hợp đồng điện tử, chữ ký số"}.
+Doanh nghiệp: ${bp ? `${bp.brandName}${bp.industry ? ` — ${bp.industry}` : ""}${brandPromptBlock(bp) ? `\n${brandPromptBlock(bp)}` : ""}` : company === "MBC" ? "Mắt Bão — tên miền, hosting, email, máy chủ, Microsoft 365, Google Workspace" : "Mắt Bão Invoice — hoá đơn điện tử, hợp đồng điện tử, chữ ký số"}.
 Chủ đề asset group: "${theme}". Trang đích: ${input.finalUrl}.
 Giọng văn tham khảo (asset group "${src.asset_group.name}", KHÔNG chép): tiêu đề: ${sample("HEADLINE")}; mô tả: ${sample("DESCRIPTION")}.
-Yêu cầu: 7 tiêu đề (≤ 30 ký tự), 3 tiêu đề dài (≤ 90), 4 mô tả (≤ 90, trong đó ít nhất 1 mô tả ≤ 60), 15 search theme (cụm người mua hay gõ khi tìm đúng chủ đề này, không chứa tên thương hiệu Mắt Bão hay đối thủ). Tiếng Việt có dấu, nêu lợi ích cụ thể, không viết hoa toàn bộ, không "!!", không số điện thoại, không "số 1"/"rẻ nhất"/"100%".
+Yêu cầu: 7 tiêu đề (≤ 30 ký tự), 3 tiêu đề dài (≤ 90), 4 mô tả (≤ 90, trong đó ít nhất 1 mô tả ≤ 60), 15 search theme (cụm người mua hay gõ khi tìm đúng chủ đề này, không chứa tên thương hiệu ${bp ? bp.brandName : "Mắt Bão"} hay đối thủ). Tiếng Việt có dấu, nêu lợi ích cụ thể, không viết hoa toàn bộ, không "!!", không số điện thoại, không "số 1"/"rẻ nhất"/"100%".
 Trả JSON: {"headlines":[],"longHeadlines":[],"descriptions":[],"searchThemes":[]}`
   const res = await callGemini(prompt, { temperature: 0.7, maxOutputTokens: 2000, responseMimeType: "application/json", thinkingBudget: 0, timeoutMs: 40000 })
   const j = (extractJSON(res.text) ?? {}) as Record<string, unknown>

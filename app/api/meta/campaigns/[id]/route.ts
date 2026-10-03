@@ -57,7 +57,7 @@ export async function GET(
     // campaign detail just by knowing/guessing its ID (matches the RBAC
     // pattern already enforced on the sibling budget/status mutation routes).
     const campaignCompany = detectCompany((campaign.name as string) ?? "");
-    if (!canAccessCompany(user.role, campaignCompany)) {
+    if (!canAccessCompany(user, campaignCompany)) {
       return NextResponse.json({ error: "Access denied for this company" }, { status: 403 });
     }
 

@@ -17,6 +17,9 @@
 // Fetched campaign/conversion data (ga4DataCache) stays in-memory — it's
 // a re-fetchable cache, not configuration, fine to lose on restart.
 
+import { isAdmin, canAccessCompany, canAccessAllCompanies } from "@/lib/permissions";
+import { isCompany } from "@/lib/companies";
+import type { SessionUser } from "@/lib/auth";
 import { NextRequest, NextResponse } from "next/server";
 import {
   fetchGA4ByCampaign,
@@ -27,7 +30,7 @@ import {
 } from "@/lib/ga4-client";
 import type { GA4PropertyMapping } from "@/types/ads.types";
 import { getCurrentUser } from "@/lib/auth";
-import { guardViewCredentials, guardEditCredentials } from "@/lib/settings/guards";
+import { guardEditCredentials } from "@/lib/settings/guards";
 import { writeAuditEntry } from "@/lib/settings/audit";
 import { maskSecret } from "@/lib/settings/validators/credentials";
 import {
@@ -60,20 +63,34 @@ function toPublicView(c: GA4PropertyMapping) {
 }
 
 // ── In-memory fetch cache (re-fetchable, not config — fine to lose on restart) ──
+// Đợt 21 A5b: cả hai bộ đệm theo propertyId để lọc được theo công ty người xem.
 const ga4DataCache: Map<string, GA4CampaignData[]> = new Map();
-let cachedConversionEvents: GA4ConversionEvent[] = [];
+const conversionCache: Map<string, GA4ConversionEvent[]> = new Map();
 let lastFetchedAt: string | null = null;
+
+/** Property gán cho một công ty → người được giao công ty đó; chưa gán / "ALL" → chỉ người được giao MỌI công ty. */
+function canSeeConnection(user: SessionUser, c: GA4PropertyMapping): boolean {
+  return c.mappedCompany && c.mappedCompany !== "ALL" ? canAccessCompany(user, c.mappedCompany) : canAccessAllCompanies(user);
+}
+function visibleData(user: SessionUser) {
+  const connections = readConfigs().filter((c) => canSeeConnection(user, c));
+  const ids = connections.map((c) => c.propertyId);
+  return {
+    connections,
+    campaigns: ids.flatMap((id) => ga4DataCache.get(id) ?? []),
+    conversionEvents: ids.flatMap((id) => conversionCache.get(id) ?? []),
+  };
+}
 
 // ── GET: Return cached data + connection status ──
 export async function GET() {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const credGuard = guardViewCredentials(user);
-  if (credGuard) return credGuard;
+  // Đợt 21 A4: phản hồi không có token (chỉ trạng thái + số liệu) → admin+ như cũ, không cần quyền xem khoá.
+  if (!isAdmin(user.role)) return NextResponse.json({ error: "Không có quyền" }, { status: 403 });
 
-  const configs = readConfigs();
+  const { connections: configs, campaigns: allCampaigns, conversionEvents } = visibleData(user);
   const oauth = readGA4OAuth();
-  const allCampaigns = Array.from(ga4DataCache.values()).flat();
   return NextResponse.json({
     success: true,
     data: {
@@ -82,7 +99,7 @@ export async function GET() {
         : { connected: false },
       connections: configs.map(toPublicView),
       campaigns: allCampaigns,
-      conversionEvents: cachedConversionEvents,
+      conversionEvents,
       lastFetchedAt,
       totalSessions: allCampaigns.reduce((s, c) => s + c.sessions, 0),
       totalConversions: allCampaigns.reduce((s, c) => s + c.conversions, 0),
@@ -100,12 +117,15 @@ export async function POST(req: NextRequest) {
 
   // fetch is a read of already-connected properties — view permission is
   // enough. Every action that changes stored connections needs edit.
-  const guard = action === "fetch" ? guardViewCredentials(user) : guardEditCredentials(user);
+  const guard = action === "fetch" ? (isAdmin(user.role) ? null : NextResponse.json({ error: "Không có quyền" }, { status: 403 })) : guardEditCredentials(user);
   if (guard) return guard;
 
   switch (action) {
     case "connect_property": {
       const { propertyId, propertyName, measurementId, mappedCompany } = body;
+      if (mappedCompany && mappedCompany !== "ALL" && !isCompany(mappedCompany)) {
+        return NextResponse.json({ success: false, error: "Công ty không hợp lệ" }, { status: 400 });
+      }
 
       // Tokens are no longer accepted from the client. They come from the
       // OAuth grant made in Settings → GA4 (/api/ga4/auth), so a connection
@@ -153,7 +173,7 @@ export async function POST(req: NextRequest) {
       await clearGA4OAuth();
       await mutateConfigs(() => ({ configs: [], result: null }));
       ga4DataCache.clear();
-      cachedConversionEvents = [];
+      conversionCache.clear();
       await writeAuditEntry("credentials_ga4", user, "update", "disconnect_oauth", null, null, "ALL");
       return NextResponse.json({ success: true, data: [] });
     }
@@ -167,6 +187,7 @@ export async function POST(req: NextRequest) {
       });
       if (target) {
         ga4DataCache.delete(target.propertyId);
+        conversionCache.delete(target.propertyId);
         await writeAuditEntry("credentials_ga4", user, "update", "disconnect_property", null, null, "ALL");
       }
       return NextResponse.json({ success: true, data: remaining.map(toPublicView) });
@@ -174,6 +195,9 @@ export async function POST(req: NextRequest) {
 
     case "update_mapping": {
       const { id, mappedCompany } = body;
+      if (mappedCompany && mappedCompany !== "ALL" && !isCompany(mappedCompany)) {
+        return NextResponse.json({ success: false, error: "Công ty không hợp lệ" }, { status: 400 });
+      }
       const { configs: updated, found } = await mutateConfigs((configs) => {
         const config = configs.find((c) => c.id === id);
         if (config) config.mappedCompany = mappedCompany;
@@ -187,7 +211,8 @@ export async function POST(req: NextRequest) {
 
     // ── Fetch real GA4 data ──
     case "fetch": {
-      const configs = readConfigs();
+      // Soát bảo mật 03/10: chỉ kéo property người này được xem (trước đây kéo hết → lỗi lộ tên property công ty khác).
+      const configs = visibleData(user).connections;
       if (configs.length === 0) {
         return NextResponse.json(
           { success: false, error: "GA4 not connected" },
@@ -201,7 +226,7 @@ export async function POST(req: NextRequest) {
         const dateRange = { startDate: thirtyDaysAgo, endDate: today };
 
         ga4DataCache.clear();
-        const allConversionEvents: GA4ConversionEvent[] = [];
+        conversionCache.clear();
         for (const config of configs) {
           if (config.status !== "CONNECTED") continue;
           if (!config.refreshToken) {
@@ -215,12 +240,11 @@ export async function POST(req: NextRequest) {
             fetchGA4ConversionEvents(config.propertyId, dateRange, accessToken),
           ]);
           ga4DataCache.set(config.propertyId, transformGA4Response(campaignReport));
-          allConversionEvents.push(...conversionReport);
+          conversionCache.set(config.propertyId, conversionReport);
         }
-        cachedConversionEvents = allConversionEvents;
 
         lastFetchedAt = new Date().toISOString();
-        const allCampaigns = Array.from(ga4DataCache.values()).flat();
+        const allCampaigns = visibleData(user).campaigns;
 
         return NextResponse.json({
           success: true,

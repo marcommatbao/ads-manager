@@ -16,6 +16,7 @@ import { writeFileAtomicSync } from "@/lib/fs-atomic"
 // 29/09: đổi sang sendSystemAlert (Teams → rơi xuống Telegram). TEAMS_WEBHOOK_OPS_ALERTS không có trên Coolify — nếu
 // Cài đặt cũng trống thì mọi cảnh báo ĐỨT từ 25/09 đã trả notConfigured và KHÔNG TỚI AI (user: "không biết khi nào lỗi").
 import { sendSystemAlert } from "@/lib/system-alert"
+import { isCompany } from "@/lib/companies/registry";
 
 const FILE = path.join(process.cwd(), "data", "lead-flows.json")
 type Row = Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -69,7 +70,7 @@ export function validateFlows(x: unknown): string | null {
   if (!Array.isArray(x) || x.length > 20) return "Danh sách đường lead không hợp lệ"
   for (const [i, f] of (x as Partial<LeadFlow>[]).entries()) {
     if (!f || typeof f.id !== "string" || !/^[a-z0-9_]{2,40}$/.test(f.id)) return `Dòng ${i + 1}: mã chỉ gồm a-z, 0-9, _`
-    if (f.company !== "MBI" && f.company !== "MBC") return `Dòng ${i + 1}: công ty`
+    if (!isCompany(f.company)) return `Dòng ${i + 1}: công ty`
     if (!f.pixelId || !/^\d+$/.test(f.pixelId)) return `Dòng ${i + 1}: Pixel ID là số`
     if (!Array.isArray(f.pixelEvents) || !f.pixelEvents.length || f.pixelEvents.some((e) => typeof e !== "string" || !e.trim())) return `Dòng ${i + 1}: cần ít nhất 1 tên sự kiện form`
     if (!f.odooSourceIlike || typeof f.odooSourceIlike !== "string") return `Dòng ${i + 1}: nguồn lead Odoo`

@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
   catch (e) { return NextResponse.json({ success: false, error: `Không xác minh được công ty: ${e instanceof Error ? e.message : String(e)}` }, { status: 403 }); }
   if (owner.kind !== "child") return NextResponse.json({ success: false, error: "adSetId phải là nhóm quảng cáo" }, { status: 400 });
   const ownerCompany = detectCompany(owner.campaignName) as string;
-  if (!canAccessCompany(user.role, ownerCompany) || (company && company !== ownerCompany)) {
+  if (!canAccessCompany(user, ownerCompany) || (company && company !== ownerCompany)) {
     return NextResponse.json({ success: false, error: "Access denied for this company" }, { status: 403 });
   }
 

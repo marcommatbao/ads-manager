@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  if (!canAccessCompany(user.role, "MBI")) {
+  if (!canAccessCompany(user, "MBI")) {
     return NextResponse.json({ success: false, error: "Access denied for MBI" }, { status: 403 });
   }
 

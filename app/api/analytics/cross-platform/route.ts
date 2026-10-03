@@ -145,7 +145,7 @@ export async function GET(request: NextRequest) {
 
   const raw = (request.nextUrl.searchParams.get("company") ?? "ALL").toUpperCase();
   const scope: Scope = isCompany(raw) ? raw : "ALL";
-  if (scope !== "ALL" && !canAccessCompany(user.role, scope)) {
+  if (scope !== "ALL" && !canAccessCompany(user, scope)) {
     return NextResponse.json({ success: false, error: "Access denied for this company" }, { status: 403 });
   }
 

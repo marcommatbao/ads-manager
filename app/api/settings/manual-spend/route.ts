@@ -18,6 +18,7 @@ import {
   type ManualChannel,
   type ManualCompany,
 } from "@/lib/finance/manual-spend";
+import { isCompany } from "@/lib/companies/registry";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +31,7 @@ export async function GET(req: NextRequest) {
 
   // Chỉ trả về công ty người dùng được xem — cùng nguyên tắc với các trang khác.
   const visible = all.filter(
-    (e) => (!year || e.month.startsWith(`${year}-`)) && canAccessCompany(user.role, e.company),
+    (e) => (!year || e.month.startsWith(`${year}-`)) && canAccessCompany(user, e.company),
   );
 
   return NextResponse.json({
@@ -57,10 +58,10 @@ export async function PUT(req: NextRequest) {
   };
 
   const company = body.company as ManualCompany;
-  if (company !== "MBC" && company !== "MBI") {
+  if (!isCompany(company)) {
     return NextResponse.json({ success: false, error: "company phải là MBC hoặc MBI" }, { status: 400 });
   }
-  if (!canAccessCompany(user.role, company)) {
+  if (!canAccessCompany(user, company)) {
     return NextResponse.json({ success: false, error: "Không có quyền với công ty này" }, { status: 403 });
   }
 

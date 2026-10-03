@@ -40,7 +40,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const maxDuration = 60;
 
-const COMPANIES: Company[] = companyIds();
+// Đợt 21 A6: đọc danh sách công ty LÚC CHẠY (trình thiết lập đổi data/companies.json không cần khởi động lại).
 
 // Apply-route actions that are real mutations. IMPROVE_PMAX_ASSETS/
 // FIX_AD_STRENGTH deliberately excluded (redirect stub, not a real fix)
@@ -94,7 +94,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const perCompany = await Promise.all(
-      COMPANIES.map(async (company) => ({ company, candidates: await fetchCandidates(company) }))
+      companyIds().map(async (company) => ({ company, candidates: await fetchCandidates(company) }))
     );
     const allCandidates = perCompany.flatMap((c) => c.candidates.map((i) => ({ ...i, _company: c.company })));
 
@@ -142,7 +142,7 @@ export async function GET(request: NextRequest) {
     }
 
     const summary =
-      `candidates=${allCandidates.length}, mode=${COMPANIES.map((c) => `${c}:${effectiveMode(c)}`).join("/")}, ` +
+      `candidates=${allCandidates.length}, mode=${companyIds().map((c) => `${c}:${effectiveMode(c)}`).join("/")}, ` +
       `applied=${applied.length}, failed=${failed.length}`;
     await jobGuard.finish(
       // Chỉ việc áp dụng thất bại mới là failure; gửi thông báo hỏng thì không.
@@ -153,7 +153,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      mode: Object.fromEntries(COMPANIES.map((c) => [c, effectiveMode(c)])),
+      mode: Object.fromEntries(companyIds().map((c) => [c, effectiveMode(c)])),
       candidates: allCandidates.length,
       applied,
       failed,

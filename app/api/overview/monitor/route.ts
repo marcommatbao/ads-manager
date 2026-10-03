@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic"
 export async function GET() {
   const u = await requireUser()
   if (!u.ok) return u.response
-  const can = (c: string) => canAccessCompany(u.value.role, c)
+  const can = (c: string) => canAccessCompany(u.value, c)
   const runs = listRuns(7).map((r) => ({
     date: r.date, at: r.at, comparedTo: r.comparedTo, teams: r.teams,
     changes: r.changes.filter((c) => can(c.company)),

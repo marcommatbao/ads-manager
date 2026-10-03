@@ -7,6 +7,8 @@
 // Output: { success, rsa, pmax, keywords, product, id }
 // ============================================================
 
+import { brandPromptBlock } from "@/lib/brand/types";
+import { brandOverride } from "@/lib/brand/store";
 import { NextRequest, NextResponse } from "next/server";
 import { planNegativeKeywords } from "@/lib/google-negative-keywords";
 import { getCurrentUser } from "@/lib/auth";
@@ -59,7 +61,10 @@ function buildPrompt(params: {
   searchIntents: string[];
 }): string {
   const { productName, finalUrl, company, campaignType, segment, usp, painPoints, searchIntents } = params;
-  const brandName = company === "MBI" ? "Matbao Invoice" : company === "MBC" ? "Mắt Bão" : companyLabel(company);
+  // Đợt 21 A3: hồ sơ doanh nghiệp (null = MBC/MBI chưa lưu hồ sơ → chuỗi cũ y nguyên).
+  const bp = brandOverride(company);
+  const brandName = bp?.brandName ?? (company === "MBI" ? "Matbao Invoice" : company === "MBC" ? "Mắt Bão" : companyLabel(company));
+  const brandBlock = bp ? brandPromptBlock(bp) : "";
   // Chấp nhận cả `name` lẫn `segmentName`: kiểu AudienceSegment dùng
   // `segmentName`, còn chỗ này vốn chỉ đọc `name` — nên trước 26/08/2026 prompt
   // này nhận ĐÚNG SỐ KHÔNG ngữ cảnh đối tượng mà không ai biết (chuỗi rỗng thì
@@ -77,7 +82,7 @@ function buildPrompt(params: {
   return `You are a Google Ads expert for ${brandName} (Vietnam market). Generate creative assets for the product: "${productName}".
 
 Context:
-- Brand: ${brandName}
+- Brand: ${brandName}${brandBlock ? `\n${brandBlock}` : ""}
 - Product: ${productName}
 - Landing page: ${finalUrl}
 - ${segDesc}
@@ -208,8 +213,12 @@ export async function POST(request: NextRequest) {
     if (productId.startsWith("custom_")) {
       // Custom product — user-supplied name, use generic matbao.net URL
       productName = productId.replace(/^custom_/, "").trim();
-      const baseUrl = company === "MBI" ? "https://matbao.in" : company === "MBC" ? "https://matbao.net" : companyUrl(company);
+      const bp = brandOverride(company);
+      // Đợt 21 A3: sản phẩm khai trong hồ sơ → đúng trang đích của nó; không thì trang chủ của công ty.
+      const fromProfile = bp?.products.find((p) => p.name.toLowerCase() === productName.toLowerCase())?.url;
+      const baseUrl = fromProfile ?? (bp?.domain ? `https://${bp.domain}` : company === "MBI" ? "https://matbao.in" : company === "MBC" ? "https://matbao.net" : companyUrl(company));
       finalUrl = baseUrl;
+      if (bp) usp = bp.strengths;
     } else {
       const product = ALL_PRODUCTS[productId];
       if (!product) {

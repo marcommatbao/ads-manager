@@ -32,7 +32,7 @@ export async function PATCH(
     if (!company) {
       return NextResponse.json({ success: false, error: "Thiếu company (MBC/MBI)" }, { status: 400 });
     }
-    if (!canAccessCompany(user.role, company)) {
+    if (!canAccessCompany(user, company)) {
       return NextResponse.json({ success: false, error: "Không có quyền truy cập công ty này" }, { status: 403 });
     }
     if (!dailyBudget || dailyBudget < 10000) {

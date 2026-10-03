@@ -1,5 +1,6 @@
 "use client";
 
+import { hasModule } from "@/lib/companies/registry";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import MetricsCard from "@/components/MetricsCard";
@@ -1646,7 +1647,7 @@ export default function DashboardPage() {
           (/api/automation/morning-briefing) vẫn còn nguyên, cron vẫn chạy —
           chỉ là không hiện trên Dashboard. */}
       {false && <MorningBriefingCard />}
-      <RevenueReminderBanner />
+      {hasModule("matbao") && <RevenueReminderBanner />}
       {tokenExpired && (
         <div className="rounded-xl border-2 border-amber-300 bg-gradient-to-r from-amber-50 to-orange-50 px-5 py-3 flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
@@ -1671,7 +1672,7 @@ export default function DashboardPage() {
           { key: "kpi",          label: "📦 Chi Phí SP" },
           { key: "kpi-overview", label: "🎯 KPI Tổng Quan" },
           { key: "health",       label: "🩺 Tình trạng & cảnh báo" },
-        ] as const).map(t => (
+        ] as const).filter(t => hasModule("matbao") || (t.key !== "kpi" && t.key !== "kpi-overview")).map(t => ( /* Đợt 21 B: 2 tab KPI đọc Odoo / KPI MBC–MBI → chỉ gói Mắt Bão */
           <button
             key={t.key}
             onClick={() => setMainTab(t.key)}
@@ -1688,10 +1689,10 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Chi Phí SP tab ── */}
-      {mainTab === "kpi" && <KpiTab />}
+      {mainTab === "kpi" && hasModule("matbao") && <KpiTab />}
 
       {/* ── KPI Tổng Quan tab (mục tiêu vs thực tế) ── */}
-      {mainTab === "kpi-overview" && <KpiOverviewTab />}
+      {mainTab === "kpi-overview" && hasModule("matbao") && <KpiOverviewTab />}
 
       {/* ── Tình trạng & cảnh báo tab (Đợt 5) ── */}
       {mainTab === "health" && <HealthOverviewTab />}
@@ -1742,8 +1743,8 @@ export default function DashboardPage() {
           {/* Zone 3: Performance diagnostics — hidden */}
           {/* Zone 4: Budget & risk — hidden */}
 
-          {/* Zone 5: Business outcome */}
-          <DashboardSection
+          {/* Zone 5: Business outcome — doanh thu Odoo + P&L Report API: gói Mắt Bão (Đợt 21 A2) */}
+          {hasModule("matbao") && (<DashboardSection
             title="Kết quả kinh doanh"
             actions={
               <button
@@ -1756,7 +1757,7 @@ export default function DashboardPage() {
           >
             <RevenueChart />
             <CompanyPnL />
-          </DashboardSection>
+          </DashboardSection>)}
 
           {/* Zone 6: Daily trends (collapsible) */}
           <DashboardSection

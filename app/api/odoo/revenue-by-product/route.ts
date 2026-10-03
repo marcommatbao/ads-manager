@@ -17,6 +17,7 @@ import {
 } from "@/lib/odoo-product-categories";
 import { getCurrentUser } from "@/lib/auth";
 import { canAccessCompany } from "@/lib/permissions";
+import { isCompany } from "@/lib/companies/registry";
 
 // MBC order type names (confirmed via Odoo search: ID 6=MBN, ID 9=MBN Overdue)
 const MBC_TYPE_NAMES = ["MBN Overdue", "MBN"];
@@ -98,10 +99,10 @@ export async function GET(req: NextRequest) {
   const month   = searchParams.get("month") ?? new Date().toISOString().slice(0, 7);
   const company = (searchParams.get("company") ?? "MBC") as string;
 
-  if (company !== "MBC" && company !== "MBI") {
+  if (!isCompany(company)) {
     return NextResponse.json({ error: "company must be MBC or MBI" }, { status: 400 });
   }
-  if (!canAccessCompany(user.role, company)) {
+  if (!canAccessCompany(user, company)) {
     return NextResponse.json({ error: "Access denied for this company" }, { status: 403 });
   }
 

@@ -178,6 +178,7 @@ const ACCOUNT_NAMES: Record<string, string> = {
 let _apiInstance: GoogleAdsApi | null = null;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const _customers = new Map<string, any>();
+let _credKey = "";
 
 // ─────────────────────────────────────────────
 // GoogleAdsClient Class (Multi-Account)
@@ -219,6 +220,12 @@ class GoogleAdsClient {
 
   /** Return a cached Customer instance so the internal OAuth token is shared and not re-fetched per call. */
   private getCustomer(customerId: string) {
+    // Đợt 21 A4: khoá đổi (dán ở Cài đặt) → bỏ bộ đệm, tạo lại — có hiệu lực ngay, không cần khởi động lại.
+    {
+      const c = this.baseCredentials;
+      const key = [c.clientId, c.clientSecret, c.developerToken, c.refreshToken, process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID ?? ""].join("\u0000");
+      if (key !== _credKey) { _credKey = key; _apiInstance = null; _customers.clear(); }
+    }
     if (!_customers.has(customerId)) {
       const { clientId, clientSecret, developerToken, refreshToken } = this.baseCredentials;
       if (!_apiInstance) {

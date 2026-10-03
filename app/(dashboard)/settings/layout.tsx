@@ -15,14 +15,18 @@ import {
   Timer,
   Bot,
   LineChart,
-  HeartPulse,
-} from "lucide-react";
+  HeartPulse, Building2 } from "lucide-react";
+
+import { hasModule } from "@/lib/companies/registry";
+import { moduleOfPage } from "@/lib/companies/modules";
+import { useCompaniesVersion } from "@/lib/companies/use-companies";
 
 const tabs = [
   { label: "API Keys",       href: "/settings",               icon: Shield },
   { label: "Ngân sách",      href: "/settings/budget",        icon: Wallet },
   { label: "Doanh Thu",      href: "/settings/revenue",       icon: DollarSign },
   { label: "KPI",            href: "/settings/kpi",           icon: Target },
+  { label: "Hồ sơ doanh nghiệp", href: "/settings/brand-profile", icon: Building2 },
   { label: "Chi phí kênh khác", href: "/settings/manual-spend", icon: Wallet },
   { label: "Thông báo",      href: "/settings/notifications", icon: Bell },
   { label: "Team",           href: "/settings/team",          icon: Users },
@@ -40,6 +44,7 @@ export default function SettingsLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  useCompaniesVersion(); // Đợt 21 B: vẽ lại khi mô-đun của bản cài nạp xong
 
   return (
     <div className="space-y-6">
@@ -53,7 +58,7 @@ export default function SettingsLayout({
 
       {/* Tab Navigation */}
       <div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm overflow-x-auto">
-        {tabs.map(({ label, href, icon: Icon }) => {
+        {tabs.filter(({ href }) => hasModule(moduleOfPage(href))).map(({ label, href, icon: Icon }) => { /* Đợt 21 B: ẩn tab thuộc mô-đun không bật */
           const isActive =
             href === "/settings"
               ? pathname === "/settings"

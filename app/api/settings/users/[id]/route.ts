@@ -4,6 +4,8 @@
 // DELETE /api/settings/users/[id]  — remove member
 // ============================================================
 
+import { ALL_ROLE_IDS, GENERIC_ROLES } from "@/lib/permissions";
+import { companyIds } from "@/lib/companies";
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser, hashPassword } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
@@ -11,6 +13,7 @@ import { updateMember, removeMember, getMember } from "@/lib/team";
 import { writeAuditEntry, computeDiff } from "@/lib/settings/audit";
 import type { Role } from "@/lib/permissions";
 import type { MemberStatus, CompanyAccess } from "@/lib/team";
+import { normalizePassword, passwordProblem } from "@/lib/password-policy";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -32,18 +35,22 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
 
     const { id } = await params;
 
-    // Cannot change own role
+    // Đợt 21 A5: đọc thân yêu cầu MỘT lần (trước đây đọc 2 lần khi tự sửa mình → luôn lỗi 500).
+    const body = await request.json().catch(() => ({}));
+
+    // Cannot change own role / own company scope
     if (id === currentUser.id) {
-      const body = await request.json();
       if (body.role && body.role !== currentUser.role) {
         return NextResponse.json(
           { success: false, error: "Không thể tự thay đổi role của mình" },
           { status: 400 }
         );
       }
+      if (body.company_access !== undefined) {
+        return NextResponse.json({ success: false, error: "Không thể tự đổi phạm vi công ty của mình" }, { status: 400 });
+      }
     }
 
-    const body = await request.json();
     const { name, role, status, is_active, password, telegram_chat_id, company_access } = body as {
       name?: string;
       role?: Role;
@@ -54,16 +61,34 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
       company_access?: CompanyAccess[];
     };
 
-    const validAccess: CompanyAccess[] = ["MBC", "MBI", "ALL"];
+    const validAccess: CompanyAccess[] = ["ALL", ...companyIds()]; // Đợt 21 A5: công ty của bản cài
+    // Đợt 21 A5: trước đây nhận BẤT KỲ chuỗi nào làm vai trò → kiểm theo danh sách vai trò.
+    if (role !== undefined && !ALL_ROLE_IDS.includes(role)) return NextResponse.json({ success: false, error: "Role không hợp lệ" }, { status: 400 });
     const updates: Parameters<typeof updateMember>[1] = {};
     if (name !== undefined) updates.name = name;
     if (role !== undefined) updates.role = role;
     if (status !== undefined) updates.status = status;
     if (is_active !== undefined) updates.is_active = is_active;
     if (telegram_chat_id !== undefined) updates.telegram_chat_id = telegram_chat_id;
-    if (password) updates.password_hash = hashPassword(password);
-    if (Array.isArray(company_access) && company_access.length > 0 && company_access.every((a) => validAccess.includes(a))) {
+    if (password) {
+      // Soát bảo mật 03/10: luật mật khẩu chung — kể cả Super Admin tự đặt cho mình ở đây (trước đây "a" vẫn được nhận).
+      const pwProblem = passwordProblem(password);
+      if (pwProblem) return NextResponse.json({ success: false, error: pwProblem }, { status: 400 });
+      updates.password_hash = hashPassword(normalizePassword(password));
+      // Đợt 21 B: đặt lại mật khẩu HỘ người khác → họ phải tự đổi ở lần đăng nhập tới (đặt cho chính mình thì không).
+      updates.must_change_password = id !== currentUser.id;
+    }
+    // Đợt 21 A5 (soát bảo mật): danh sách sai → 400 (trước đây bỏ qua âm thầm, giữ giá trị cũ).
+    if (company_access !== undefined) {
+      if (!Array.isArray(company_access) || company_access.length === 0 || !company_access.every((a) => validAccess.includes(a))) {
+        return NextResponse.json({ success: false, error: "Công ty truy cập không hợp lệ" }, { status: 400 });
+      }
       updates.company_access = company_access;
+    }
+    // Đổi SANG vai trò chung (admin/viewer) thì PHẢI gửi kèm danh sách công ty: vai trò cũ đều đang lưu ["ALL"] (vô hại với
+    // vai trò cũ vì phạm vi theo vai trò) — giữ nguyên ["ALL"] khi đổi sang vai trò chung là âm thầm cấp MỌI công ty.
+    if (role !== undefined && GENERIC_ROLES.includes(role) && updates.company_access === undefined) {
+      return NextResponse.json({ success: false, error: "Đổi sang vai trò Admin / Viewer phải chọn kèm công ty truy cập" }, { status: 400 });
     }
 
     // Capture before-state for diff (exclude password_hash)

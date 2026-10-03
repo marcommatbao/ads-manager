@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
 
     // Chỉ trả về công ty người này được xem — cảnh báo có kèm tên campaign và số
     // liệu chi tiêu, không phải thứ để lọt sang công ty kia.
-    const allowed = getCompaniesForRole(user.role) as string[];
+    const allowed = getCompaniesForRole(user) as string[];
     const mine = all.filter(a => allowed.includes(a?.company));
 
     const sorted = mine

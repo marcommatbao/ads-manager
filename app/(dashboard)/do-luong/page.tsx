@@ -27,6 +27,8 @@ import { DEFAULT_VIEW_DAYS, MAX_RANGE_DAYS, isYmd, lastDays, rangeDays } from "@
 import type { Company } from "@/lib/case/types";
 import type { MetaHealth } from "@/lib/measure/meta-health";
 import type { GoogleHealth } from "@/lib/measure/google-health";
+import { hasModule } from "@/lib/companies/registry";
+import { isCompany } from "@/lib/companies/registry";
 
 type Platform = "facebook" | "google" | "tags" | "orders";
 type HealthResponse =
@@ -47,11 +49,11 @@ function quotaHint(message: string): string | null {
  */
 function initialPlatform(sp: ReturnType<typeof useSearchParams>): Platform {
   const t = sp.get("tab");
-  return t === "google" || t === "tags" || t === "facebook" || t === "orders" ? t : "facebook";
+  return t === "google" || t === "tags" || t === "facebook" || (t === "orders" && hasModule("orders")) ? t : "facebook";
 }
 function initialCompany(sp: ReturnType<typeof useSearchParams>): Company | null {
   const c = sp.get("company");
-  return c === "MBI" || c === "MBC" ? c : null;
+  return isCompany(c) ? c : null;
 }
 function initialRange(sp: ReturnType<typeof useSearchParams>): DateRangeValue {
   const from = sp.get("from");
@@ -167,7 +169,7 @@ function DoLuongPageInner() {
               { value: "google", label: "Google Ads" },
               { value: "tags", label: "Chẩn đoán gắn thẻ" },
               { value: "orders", label: "Đơn thật" },
-            ] as const).map((p) => (
+            ] as const).filter((p) => p.value !== "orders" || hasModule("orders")).map((p) => (
               <button
                 key={p.value}
                 role="tab"

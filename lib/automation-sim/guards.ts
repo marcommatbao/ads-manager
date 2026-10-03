@@ -10,6 +10,7 @@ import { getLearningStatus } from "@/lib/campaign-health";
 import { isInCooldown } from "@/lib/rules-engine";
 import { queryFor } from "@/lib/nba/store";
 import type { SimContext, SimProposedAction, SimReasonCode, SimRisk, SimCompany } from "./types";
+import { isCompany } from "@/lib/companies/registry";
 
 // NBA recommendation types that imply SCALE (positive action on a campaign)
 const SCALE_TYPES = new Set(["SCALE_BUDGET", "SCALE_WINNER"]);
@@ -25,7 +26,7 @@ export interface GuardOutput {
 }
 
 export function detectCompany(c: Campaign): SimCompany | null {
-  if (c.company === "MBC" || c.company === "MBI") return c.company;
+  if (isCompany(c.company)) return c.company;
   const n = (c.name ?? "").toUpperCase();
   if (n.includes("MBI")) return "MBI";
   if (n.includes("MBC")) return "MBC";

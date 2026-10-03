@@ -53,7 +53,7 @@ export async function POST() {
     return NextResponse.json({ success: false, error: "Không có quyền đồng bộ hiệu suất" }, { status: 403 });
   }
 
-  const allowed = getCompaniesForRole(user.role);
+  const allowed = getCompaniesForRole(user);
 
   try {
     await initMetaClient();

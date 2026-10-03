@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
 
-  const allowed = getCompaniesForRole(user.role);
+  const allowed = getCompaniesForRole(user);
   const companyParam = request.nextUrl.searchParams.get("company");
   const limit = Math.min(
     MAX_LIMIT,

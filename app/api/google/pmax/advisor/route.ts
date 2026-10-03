@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
   if (!user) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
 
   const company = pickCompany(req.nextUrl.searchParams.get("company"));
-  if (!canAccessCompany(user.role, company)) {
+  if (!canAccessCompany(user, company)) {
     return NextResponse.json({ success: false, error: "Access denied for this company" }, { status: 403 });
   }
   const range = parsePMaxDateRange(req.nextUrl.searchParams.get("from"), req.nextUrl.searchParams.get("to"));
@@ -104,7 +104,7 @@ export async function PATCH(req: NextRequest) {
 
   const existing = await getRecommendationById(id);
   if (!existing) return NextResponse.json({ success: false, error: "Not found" }, { status: 404 });
-  if (!canAccessCompany(user.role, existing.company)) {
+  if (!canAccessCompany(user, existing.company)) {
     return NextResponse.json({ success: false, error: "Access denied for this company" }, { status: 403 });
   }
 

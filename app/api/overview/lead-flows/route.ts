@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic"
 export async function GET() {
   const u = await requireUser()
   if (!u.ok) return u.response
-  const can = (c: string) => canAccessCompany(u.value.role, c)
+  const can = (c: string) => canAccessCompany(u.value, c)
   return NextResponse.json({
     success: true, flows: readFlows().filter((f) => can(f.company)), statuses: lastStatuses().filter((s) => can(s.flow.company)),
     canEdit: hasPermission(u.value.role, "can_edit_thresholds"), canRunNow: isSuperAdmin(u.value.role), jobId: "lead_flow_watch",

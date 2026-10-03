@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
     }
 
     // RBAC: chỉ trả công ty user được phép
-    const allowed = new Set(getCompaniesForRole(user.role));
+    const allowed = new Set(getCompaniesForRole(user));
     return NextResponse.json({
       success: true,
       month: data.month,

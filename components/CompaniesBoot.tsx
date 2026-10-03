@@ -3,8 +3,9 @@
 // Bản Mắt Bão: cấu hình = mặc định → không đổi gì, không vẽ lại. Bản cài khác: khi nạp xong cấu hình khác mặc định thì
 // vẽ lại cây con (key) để bộ chọn công ty / nhãn đọc đúng danh sách mới.
 import { useEffect, useState } from "react";
-import { setCompaniesConfig } from "@/lib/companies/registry";
+import { setCompaniesConfig, setPublicIds } from "@/lib/companies/registry";
 import { DEFAULT_COMPANIES, type CompaniesConfig } from "@/lib/companies/defaults";
+import { setSetupFlags, type SetupFlags } from "@/lib/setup/client";
 
 export function CompaniesBoot({ children }: { children: React.ReactNode }) {
   const [gen, setGen] = useState(0);
@@ -12,8 +13,10 @@ export function CompaniesBoot({ children }: { children: React.ReactNode }) {
     let alive = true;
     fetch("/api/companies", { credentials: "same-origin" })
       .then((r) => (r.ok ? r.json() : null))
-      .then((j: { config?: CompaniesConfig } | null) => {
+      .then((j: { config?: CompaniesConfig; publicIds?: Record<string, string>; setup?: SetupFlags } | null) => {
+        if (alive) setSetupFlags(j?.setup);
         if (!alive || !j?.config?.companies?.length) return;
+        if (j.publicIds) setPublicIds(j.publicIds);
         if (JSON.stringify(j.config) === JSON.stringify(DEFAULT_COMPANIES)) return;
         setCompaniesConfig(j.config);
         setGen((g) => g + 1);

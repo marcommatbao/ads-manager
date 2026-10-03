@@ -10,7 +10,7 @@
 
 import type { ModuleDefinition } from "./types";
 
-const ADMIN_ROLES = ["super_admin", "admin_mbc", "admin_mbi"] as const;
+const ADMIN_ROLES = ["super_admin", "admin_mbc", "admin_mbi", "admin"] as const; // Đợt 21 A5: + vai trò chung
 
 export const DEFAULT_MODULES: ModuleDefinition[] = [
   // ── Core (visible to all roles) ────────────────────────

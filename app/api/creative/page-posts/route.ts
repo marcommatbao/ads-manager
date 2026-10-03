@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
   const userToken = process.env.META_ACCESS_TOKEN;
   const { searchParams } = request.nextUrl;
   const company = (searchParams.get("company") ?? "MBC") as string;
-  if (!canAccessCompany(user.role, company)) {
+  if (!canAccessCompany(user, company)) {
     return NextResponse.json({ error: "Access denied for this company" }, { status: 403 });
   }
   const days = parseInt(searchParams.get("days") ?? "30", 10);

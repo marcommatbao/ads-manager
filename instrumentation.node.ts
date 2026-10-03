@@ -20,6 +20,11 @@ export async function registerNode() {
     const err = companiesConfigError();
     console.log(JSON.stringify({ level: err ? "warn" : "info", module: "startup", message: `Companies: ${companyIds().join(", ")}`, ...(err ? { error: err } : {}) }));
   } catch (e) { console.error("[startup] companies config", e); }
+  // Đợt 21 A6: trình thiết lập lần đầu (SETUP_WIZARD=on chỉ ở bản cài mới cho khách; bản Mắt Bão phải là "off").
+  try {
+    const { setupEnabled, setupPending } = await import("@/lib/setup/state");
+    console.log(JSON.stringify({ level: "info", module: "startup", message: `Setup wizard: ${setupEnabled() ? (setupPending() ? "on (chưa hoàn tất)" : "on (đã hoàn tất)") : "off"}` }));
+  } catch (e) { console.error("[startup] setup state", e); }
 
   // ── 0. Verify DATA_ENCRYPTION_KEY is configured ─────────────────────────────
   // Deliberately NOT inside the non-fatal try/catch below: an app that can't
@@ -42,84 +47,12 @@ export async function registerNode() {
 
   // ── 1. Backfill credentials from data/ ─────────────────────────────────────
 
+  // ── 1. Khoá dán ở Cài đặt → API Keys (data/*-settings.json). Đợt 21 A4: gom về lib/settings/saved-credentials.ts
+  //    (sửa 2 lỗi: Gemini/Telegram mã hoá mà không giải mã; mã khách hàng Google lệch chữ hoa). Biến môi trường vẫn thắng.
   try {
-    const fs   = (await import("fs")).default;
-    const path = (await import("path")).default;
-    const { decryptFields } = await import("@/lib/crypto/data-encryption");
-
-    // Meta settings (legacy format)
-    const metaPath = path.resolve(process.cwd(), "data/meta-settings.json");
-    if (fs.existsSync(metaPath)) {
-      try {
-        const raw = JSON.parse(fs.readFileSync(metaPath, "utf8")) as Record<string, unknown>;
-        const saved = decryptFields(raw, ["accessToken", "appSecret"]) as Record<string, string>;
-        if (saved.accessToken  && !process.env.META_ACCESS_TOKEN)  process.env.META_ACCESS_TOKEN  = saved.accessToken;
-        if (saved.adAccountId  && !process.env.META_AD_ACCOUNT_ID) process.env.META_AD_ACCOUNT_ID = saved.adAccountId;
-        if (saved.appId        && !process.env.META_APP_ID)        process.env.META_APP_ID        = saved.appId;
-        if (saved.appSecret    && !process.env.META_APP_SECRET)    process.env.META_APP_SECRET    = saved.appSecret;
-      } catch (err) { console.warn("[instrumentation] meta-settings.json unreadable — skipping (non-fatal):", err instanceof Error ? err.message : err); }
-    }
-
-    // Google Ads settings
-    const googlePath = path.resolve(process.cwd(), "data/google-settings.json");
-    if (fs.existsSync(googlePath)) {
-      try {
-        const raw = JSON.parse(fs.readFileSync(googlePath, "utf8")) as Record<string, unknown>;
-        const saved = decryptFields(raw, ["developerToken", "clientSecret", "refreshToken"]) as Record<string, string>;
-        if (saved.developerToken  && !process.env.GOOGLE_ADS_DEVELOPER_TOKEN)   process.env.GOOGLE_ADS_DEVELOPER_TOKEN   = saved.developerToken;
-        if (saved.clientId        && !process.env.GOOGLE_ADS_CLIENT_ID)         process.env.GOOGLE_ADS_CLIENT_ID         = saved.clientId;
-        if (saved.clientSecret    && !process.env.GOOGLE_ADS_CLIENT_SECRET)     process.env.GOOGLE_ADS_CLIENT_SECRET     = saved.clientSecret;
-        if (saved.refreshToken    && !process.env.GOOGLE_ADS_REFRESH_TOKEN)     process.env.GOOGLE_ADS_REFRESH_TOKEN     = saved.refreshToken;
-        if (saved.customerIdMbc   && !process.env.GOOGLE_ADS_CUSTOMER_ID_MBC)   process.env.GOOGLE_ADS_CUSTOMER_ID_MBC   = saved.customerIdMbc;
-        if (saved.customerIdMbi   && !process.env.GOOGLE_ADS_CUSTOMER_ID_MBI)   process.env.GOOGLE_ADS_CUSTOMER_ID_MBI   = saved.customerIdMbi;
-        if (saved.loginCustomerId && !process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID) process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID = saved.loginCustomerId;
-      } catch (err) { console.warn("[instrumentation] google-settings.json unreadable — skipping (non-fatal):", err instanceof Error ? err.message : err); }
-    }
-
-    // Gemini settings
-    const geminiPath = path.resolve(process.cwd(), "data/gemini-settings.json");
-    if (fs.existsSync(geminiPath)) {
-      try {
-        const saved = JSON.parse(fs.readFileSync(geminiPath, "utf8")) as Record<string, string>;
-        if (saved.apiKey && !process.env.GEMINI_API_KEY) process.env.GEMINI_API_KEY = saved.apiKey;
-      } catch { /* non-fatal */ }
-    }
-
-    // Telegram settings
-    const telegramPath = path.resolve(process.cwd(), "data/telegram-settings.json");
-    if (fs.existsSync(telegramPath)) {
-      try {
-        const saved = JSON.parse(fs.readFileSync(telegramPath, "utf8")) as Record<string, string>;
-        if (saved.botToken && !process.env.TELEGRAM_BOT_TOKEN) process.env.TELEGRAM_BOT_TOKEN = saved.botToken;
-        if (saved.chatId   && !process.env.TELEGRAM_CHAT_ID)   process.env.TELEGRAM_CHAT_ID   = saved.chatId;
-      } catch { /* non-fatal */ }
-    }
-
-    // Teams webhook links (leads_notify / orders_notify / job_health_monitor)
-    const teamsWebhooksPath = path.resolve(process.cwd(), "data/teams-webhooks-settings.json");
-    if (fs.existsSync(teamsWebhooksPath)) {
-      try {
-        const raw = JSON.parse(fs.readFileSync(teamsWebhooksPath, "utf8")) as Record<string, unknown>;
-        const saved = decryptFields(raw, ["leads_notify", "orders_notify", "job_health_monitor"]) as Record<string, string>;
-        if (saved.leads_notify       && !process.env.TEAMS_WEBHOOK_MATBAOIN)        process.env.TEAMS_WEBHOOK_MATBAOIN        = saved.leads_notify;
-        if (saved.orders_notify      && !process.env.TEAMS_WEBHOOK_ORDERS_MATBAOIN) process.env.TEAMS_WEBHOOK_ORDERS_MATBAOIN = saved.orders_notify;
-        if (saved.job_health_monitor && !process.env.TEAMS_WEBHOOK_OPS_ALERTS)      process.env.TEAMS_WEBHOOK_OPS_ALERTS      = saved.job_health_monitor;
-      } catch { /* non-fatal */ }
-    }
-
-    // Odoo settings
-    const odooPath = path.resolve(process.cwd(), "data/odoo-settings.json");
-    if (fs.existsSync(odooPath)) {
-      try {
-        const saved = JSON.parse(fs.readFileSync(odooPath, "utf8")) as Record<string, string>;
-        if (saved.url      && !process.env.ODOO_URL)      process.env.ODOO_URL      = saved.url;
-        if (saved.db       && !process.env.ODOO_DB)       process.env.ODOO_DB       = saved.db;
-        if (saved.user     && !process.env.ODOO_USER)     process.env.ODOO_USER     = saved.user;
-        if (saved.password && !process.env.ODOO_PASSWORD) process.env.ODOO_PASSWORD = saved.password;
-        if (saved.apiKey   && !process.env.ODOO_API_KEY)  process.env.ODOO_API_KEY  = saved.apiKey;
-      } catch { /* non-fatal */ }
-    }
-
+    const { applySavedCredentials } = await import("@/lib/settings/saved-credentials");
+    const names = await applySavedCredentials();
+    if (names.length) console.log(JSON.stringify({ level: "info", module: "startup", message: `Khoá từ Cài đặt: ${names.join(", ")}` }));
   } catch { /* non-fatal — instrumentation must not crash the server */ }
 
   // ── 2. Run startup checks ────────────────────────────────────────────────────

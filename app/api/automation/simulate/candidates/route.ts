@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
 
   try {
     // Company-scope: only show items the current user can see
-    const allowedCompanies = new Set(getCompaniesForRole(user.role) as SimCompany[]);
+    const allowedCompanies = new Set(getCompaniesForRole(user) as SimCompany[]);
 
     let runs = getRuns(30);
     if (ruleId) runs = runs.filter(r => r.ruleId === ruleId);

@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "company parameter required (MBC|MBI)" }, { status: 400 });
   }
 
-  const allowed = getCompaniesForRole(user.role);
+  const allowed = getCompaniesForRole(user);
   if (!allowed.includes(company)) {
     return NextResponse.json({ error: "Access denied for this company" }, { status: 403 });
   }

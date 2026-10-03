@@ -24,8 +24,8 @@ export async function GET() {
     // hành động của CẢ HAI công ty.
     // rule.company === "all" là rule áp cho cả hai, chỉ ai có cả hai mới thấy.
     const rules = getAllRules().filter(r => {
-      if (!r.company || r.company === "all") return getCompaniesForRole(user.role).length === 2;
-      return canAccessCompany(user.role, r.company as string);
+      if (!r.company || r.company === "all") return getCompaniesForRole(user).length === 2;
+      return canAccessCompany(user, r.company as string);
     });
     const executionLog = getExecutionLog();
     return NextResponse.json({ success: true, data: { rules, executionLog } });
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
   // Audit 30/09: bỏ trống company trước đây LỌT phép kiểm (chỉ kiểm khi có giá trị) trong khi engine coi rule
   // không company là "cả hai công ty". Nay: trống = "all" → chỉ ai có cả hai công ty; admin một công ty bỏ trống
   // thì rule được gán công ty của họ (xem action "create" bên dưới).
-  if (draft?.action === "create" && !canTouchRuleScope(user.role, defaultRuleCompany(user.role, draft?.rule?.company))) {
+  if (draft?.action === "create" && !canTouchRuleScope(user, defaultRuleCompany(user, draft?.rule?.company))) {
     return NextResponse.json({
       success: false,
       error: `Không có quyền tạo rule cho công ty ${String(draft?.rule?.company ?? "cả hai công ty")}`,
@@ -84,14 +84,14 @@ export async function POST(request: NextRequest) {
     switch (action) {
       case "create": {
         const input = { ...(body.rule as Record<string, unknown>) };
-        input.company = defaultRuleCompany(user.role, input.company);
+        input.company = defaultRuleCompany(user, input.company);
         const rule = createRule(input as Parameters<typeof createRule>[0]);
         return NextResponse.json({ success: true, data: rule });
       }
 
       case "toggle": {
         const cur = getRuleById(body.id as string);
-        if (cur && !canTouchRuleScope(user.role, cur.company)) {
+        if (cur && !canTouchRuleScope(user, cur.company)) {
           return NextResponse.json({ success: false, error: "Không có quyền với rule của công ty khác" }, { status: 403 });
         }
         if (cur && !cur.isActive && ruleTouchesBudget(cur.actions) && !hasPermission(user.role, "can_manage_budget")) {
@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
 
       case "delete": {
         const cur = getRuleById(body.id as string);
-        if (cur && !canTouchRuleScope(user.role, cur.company)) {
+        if (cur && !canTouchRuleScope(user, cur.company)) {
           return NextResponse.json({ success: false, error: "Không có quyền với rule của công ty khác" }, { status: 403 });
         }
         const deleted = deleteRule(body.id as string);
@@ -118,7 +118,7 @@ export async function POST(request: NextRequest) {
 
       case "run": {
         // Chạy ngay = chạy MỌI rule đang bật của CẢ HAI công ty → chỉ người có cả hai công ty.
-        if (getCompaniesForRole(user.role).length !== 2) {
+        if (getCompaniesForRole(user).length !== 2) {
           return NextResponse.json({ success: false, error: "Chỉ người quản lý cả hai công ty được chạy ngay toàn bộ rule" }, { status: 403 });
         }
         const results = await runAutomationEngine();

@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
   // This route creates a real Campaign/AdSet/Ad on the shared Meta ad
   // account — must be gated to the company the launch is actually for,
   // same as the budget/status mutation routes (lib/company-detect.ts).
-  if (!canAccessCompany(user.role, config.company)) {
+  if (!canAccessCompany(user, config.company)) {
     return NextResponse.json({ success: false, error: "Access denied for this company" }, { status: 403 });
   }
 

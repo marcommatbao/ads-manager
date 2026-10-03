@@ -1,3 +1,4 @@
+import { isCompany } from "@/lib/companies/registry";
 // ============================================================
 // Luật kiểm liên kết Facebook theo bảng link chuẩn — THUẦN, không đụng fs
 // ============================================================
@@ -67,7 +68,7 @@ export function validateStandardLinks(links: unknown): string | null {
   if (links.length > 200) return "Tối đa 200 dòng"
   for (const [i, l] of links.entries()) {
     const row = l as Partial<StandardLink>
-    if (!row || (row.company !== "MBI" && row.company !== "MBC")) return `Dòng ${i + 1}: công ty phải là MBI hoặc MBC`
+    if (!row || (!isCompany(row.company))) return `Dòng ${i + 1}: công ty phải là MBI hoặc MBC`
     if (typeof row.label !== "string" || !row.label.trim()) return `Dòng ${i + 1}: thiếu tên sản phẩm`
     if (typeof row.url !== "string") return `Dòng ${i + 1}: thiếu link`
     const p = parseLink(row.url)

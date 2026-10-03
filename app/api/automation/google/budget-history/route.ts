@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
 
     // Chỉ trả về công ty người này được xem. Lọc TRƯỚC khi cắt, và total phải là
     // số sau lọc — nếu không thì riêng con số cũng đã lộ bên kia có bao nhiêu bản ghi.
-    const allowed = getCompaniesForRole(user.role) as string[];
+    const allowed = getCompaniesForRole(user) as string[];
     const mine = all.filter(a => allowed.includes(a.company));
 
     const sorted = mine

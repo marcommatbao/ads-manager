@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
 
   // This creates a real Custom + Lookalike Audience on the shared Meta ad
   // account — gate to the company the audience is actually for.
-  const companyOk = config.company === "both" ? isSuperAdmin(user.role) : canAccessCompany(user.role, config.company);
+  const companyOk = config.company === "both" ? isSuperAdmin(user.role) : canAccessCompany(user, config.company);
   if (!companyOk) {
     return NextResponse.json({ success: false, error: "Access denied for this company" }, { status: 403 });
   }

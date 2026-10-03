@@ -25,7 +25,7 @@ export async function PATCH(
   const { id } = await params;
   const alert = await getAlertById(id);
   if (!alert) return NextResponse.json({ success: false, error: "Not found" }, { status: 404 });
-  if (!canAccessCompany(user.role, alert.company as string)) {
+  if (!canAccessCompany(user, alert.company as string)) {
     return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
   }
 

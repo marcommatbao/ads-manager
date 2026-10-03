@@ -2,6 +2,7 @@
 // AdsCommand — Team & User Management (Upgraded for Auth)
 // ============================================================
 
+import crypto from "crypto";
 import { promises as fs } from "fs";
 import { writeFileAtomic } from "@/lib/fs-atomic";
 import { withFileLock } from "@/lib/file-lock";
@@ -33,6 +34,9 @@ export interface TeamMember {
   is_active: boolean;
   /** Tăng mỗi khi quyền / trạng thái / mật khẩu đổi hoặc đăng xuất — phiên (JWT) mang số cũ bị từ chối ngay. */
   session_version?: number;
+  /** Mật khẩu do người khác đặt (Super Admin tạo / đặt lại, hoặc tài khoản quản trị đầu tiên từ biến môi trường) → phải tự đổi ở lần
+   *  đăng nhập kế tiếp (Đợt 21 B). Thiếu = false (mọi tài khoản đang có của bản Mắt Bão không bị buộc đổi). */
+  must_change_password?: boolean;
 }
 
 // ─────────────────────────────────────────────
@@ -48,10 +52,28 @@ async function ensureDataDir(): Promise<void> {
 
 async function readMembers(): Promise<TeamMember[]> {
   await ensureDataDir();
+  let raw: string | null = null;
   try {
-    const raw = await fs.readFile(TEAM_FILE, "utf-8");
-    return JSON.parse(raw) as TeamMember[];
-  } catch {
+    raw = await fs.readFile(TEAM_FILE, "utf-8");
+  } catch (e) {
+    // SỬA 03/10/2026 (soát bảo mật Đợt 21 B): trước đây MỌI lỗi (kể cả JSON hỏng, thiếu quyền đọc) rơi vào nhánh tạo admin
+    // bên dưới → writeMembers([admin]) GHI ĐÈ cả tệp → mất sạch danh sách người dùng. Nay chỉ tạo khi tệp CHƯA TỒN TẠI.
+    if ((e as NodeJS.ErrnoException)?.code !== "ENOENT") throw new Error(`[team] Không đọc được ${TEAM_FILE}: ${(e as Error).message}`);
+  }
+  if (raw !== null) {
+    try {
+      const parsed = JSON.parse(raw) as TeamMember[];
+      if (!Array.isArray(parsed)) throw new Error("không phải danh sách");
+      return parsed;
+    } catch (e) {
+      // Tệp hỏng → GIỮ NGUYÊN, chép một bản để cứu, kêu to. Không bao giờ ghi đè danh sách người dùng.
+      const rescue = `${TEAM_FILE}.corrupt-${new Date().toISOString().replace(/[:.]/g, "-")}`;
+      try { await fs.copyFile(TEAM_FILE, rescue); } catch { /* bỏ qua */ }
+      console.error(`[team] ${TEAM_FILE} HỎNG (${(e as Error).message}) — đã chép ra ${rescue}, KHÔNG ghi đè. Sửa tay rồi khởi động lại.`);
+      throw new Error("[team] Danh sách người dùng bị hỏng — xem log máy chủ");
+    }
+  }
+  {
     // ── TẠO TÀI KHOẢN QUẢN TRỊ ĐẦU TIÊN ──
     //
     // SỬA 17/09/2026 — LỖ HỔNG NGHIÊM TRỌNG ở bản cũ:
@@ -86,6 +108,9 @@ async function readMembers(): Promise<TeamMember[]> {
       role: "super_admin",
       company_access: ["ALL"],
       password_hash: hashPassword(bootstrapPassword),
+      must_change_password: true, // Đợt 21 B: mật khẩu nằm trong biến môi trường của người cài → chủ tài khoản phải đổi ngay
+      // Soát bảo mật 03/10: số phiên NGẪU NHIÊN — cookie của một bản cài cũ (mất ổ dữ liệu rồi tạo lại) không khớp được nữa.
+      session_version: crypto.randomInt(1, 1_000_000_000),
       last_active: new Date().toISOString(),
       invited_at: new Date().toISOString(),
       status: "active",
@@ -140,6 +165,7 @@ export async function addMember(
       password_hash: data.password_hash,
       telegram_chat_id: data.telegram_chat_id,
       avatar: data.avatar,
+      ...(data.must_change_password ? { must_change_password: true } : {}),
       last_active: now,
       invited_at: now,
       status: "active",
@@ -154,7 +180,7 @@ export async function addMember(
 
 export async function updateMember(
   id: string,
-  updates: Partial<Pick<TeamMember, "name" | "role" | "company_access" | "telegram_chat_id" | "status" | "is_active" | "password_hash" | "avatar">>,
+  updates: Partial<Pick<TeamMember, "name" | "role" | "company_access" | "telegram_chat_id" | "status" | "is_active" | "password_hash" | "avatar" | "must_change_password">>,
   opts: { keepSessions?: boolean } = {},
 ): Promise<TeamMember | null> {
   return withFileLock(TEAM_FILE, async () => {

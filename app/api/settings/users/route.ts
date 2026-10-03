@@ -4,6 +4,7 @@
 // POST /api/settings/users  — create new member
 // ============================================================
 
+import { companyIds } from "@/lib/companies";
 import { isAllowedLoginEmail, loginDomainMessage } from "@/lib/login-domain";
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser, hashPassword } from "@/lib/auth";
@@ -12,12 +13,14 @@ import { getAllMembers, addMember } from "@/lib/team";
 import { writeAuditEntry } from "@/lib/settings/audit";
 import type { Role } from "@/lib/permissions";
 import type { CompanyAccess } from "@/lib/team";
+import { normalizePassword, passwordProblem } from "@/lib/password-policy";
 
 function companyAccessFromRole(role: Role): CompanyAccess[] {
   if (role === "super_admin") return ["ALL"];
   if (role === "admin_mbc" || role === "viewer_mbc") return ["MBC"];
   if (role === "admin_mbi" || role === "viewer_mbi") return ["MBI"];
-  return ["MBC"];
+  // Đợt 21 A5: vai trò chung → công ty đầu tiên của bản cài (bản Mắt Bão không có ca này trước đây → ["MBC"] như cũ)
+  return [companyIds()[0] ?? "MBC"];
 }
 
 export async function GET() {
@@ -83,7 +86,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const validRoles: Role[] = ["super_admin", "admin_mbc", "admin_mbi", "viewer_mbc", "viewer_mbi"];
+    // Soát bảo mật 03/10: mật khẩu đặt hộ cũng theo luật chung (trước đây "1" vẫn được nhận).
+    const pwProblem = passwordProblem(password, email);
+    if (pwProblem) return NextResponse.json({ success: false, error: pwProblem }, { status: 400 });
+
+    const validRoles: Role[] = ["super_admin", "admin_mbc", "admin_mbi", "viewer_mbc", "viewer_mbi", "admin", "viewer"]; // Đợt 21 A5: + vai trò chung
     if (!validRoles.includes(role)) {
       return NextResponse.json(
         { success: false, error: "Role không hợp lệ" },
@@ -91,18 +98,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const validAccess: CompanyAccess[] = ["MBC", "MBI", "ALL"];
-    const company_access: CompanyAccess[] =
-      Array.isArray(rawAccess) && rawAccess.length > 0 && rawAccess.every((a) => validAccess.includes(a))
-        ? rawAccess
-        : companyAccessFromRole(role);
+    const validAccess: CompanyAccess[] = ["ALL", ...companyIds()]; // Đợt 21 A5: công ty của bản cài
+    // Đợt 21 A5 (soát bảo mật): gửi danh sách sai → 400 (trước đây âm thầm thay bằng mặc định).
+    if (rawAccess !== undefined && (!Array.isArray(rawAccess) || rawAccess.length === 0 || !rawAccess.every((a) => validAccess.includes(a)))) {
+      return NextResponse.json({ success: false, error: "Công ty truy cập không hợp lệ" }, { status: 400 });
+    }
+    const company_access: CompanyAccess[] = Array.isArray(rawAccess) && rawAccess.length > 0 ? rawAccess : companyAccessFromRole(role);
 
     const member = await addMember({
       email,
       name,
       role,
       company_access,
-      password_hash: hashPassword(password),
+      password_hash: hashPassword(normalizePassword(password)),
+      must_change_password: true, // Đợt 21 B: Super Admin đặt mật khẩu hộ → người dùng phải tự đổi ở lần đăng nhập đầu
       telegram_chat_id: telegram_chat_id || undefined,
     });
 

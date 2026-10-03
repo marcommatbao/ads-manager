@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
 
   const requested = (req.nextUrl.searchParams.get("company") ?? "ALL") as string /* mã công ty hoặc "ALL" */;
   // Chặn theo quyền như mọi đường đọc số liệu công ty khác.
-  const allowed = getCompaniesForRole(user.role);
+  const allowed = getCompaniesForRole(user);
   if (requested !== "ALL" && !allowed.includes(requested)) {
     return NextResponse.json({ error: "Access denied for this company" }, { status: 403 });
   }

@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { isAdmin, isSuperAdmin } from "@/lib/permissions";
+import { kpiForbiddenChanges } from "@/lib/settings/kpi-scope";
 import { getKpiYear, saveKpiYear, type MonthKpi } from "@/lib/settings/kpi-store";
 import { writeAuditEntry, writeAuditSnapshot, computeDiff } from "@/lib/settings/audit";
 import { validateKpiYear } from "@/lib/settings/validators/kpi";
@@ -52,6 +53,10 @@ export async function PUT(request: NextRequest) {
 
   // Snapshot current year before overwriting
   const oldYear = getKpiYear(year);
+  const forbidden = kpiForbiddenChanges(user, oldYear.months, body.months);
+  if (forbidden.length > 0) {
+    return NextResponse.json({ success: false, error: `Bạn không được giao công ty của các ô: ${forbidden.join(", ")}` }, { status: 403 });
+  }
   const snapId  = await writeAuditSnapshot("kpi", user, oldYear);
 
   // Save

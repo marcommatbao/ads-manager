@@ -62,7 +62,7 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const company = pickCompany(searchParams.get("company"));
-    if (!canAccessCompany(user.role, company)) {
+    if (!canAccessCompany(user, company)) {
       return NextResponse.json({ error: "Access denied for this company" }, { status: 403 });
     }
     const dateRange = safeDateRange(searchParams.get("dateRange"));

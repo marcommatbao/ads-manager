@@ -28,6 +28,7 @@ import { LearningPanel } from "./LearningPanel";
 import { NewCustomerPanel } from "./NewCustomerPanel";
 import { LeadQualityPanel } from "./LeadQualityPanel";
 import type { ChangeMark, LearningCheck, NewCustomerChange, NewCustomerView } from "@/lib/pmax/signals";
+import { hasModule } from "@/lib/companies/registry";
 
 type Company = string;
 
@@ -103,7 +104,7 @@ export function PmaxExperimentView({ company }: { company: Company }) {
       </div>
 
       <div className="border-t border-slate-100 pt-8">
-        <LeadQualityPanel company={company} />
+        {hasModule("orders") && <LeadQualityPanel company={company} />}
       </div>
     </div>
   );

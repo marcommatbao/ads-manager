@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
     imageAssets?: Array<{ resourceName: string; fieldType: string }>;
   };
   const company = pickCompany(body.company);
-  if (!canAccessCompany(user.role, company)) {
+  if (!canAccessCompany(user, company)) {
     return NextResponse.json({ success: false, error: "Access denied for this company" }, { status: 403 });
   }
   if (!body.assetGroupId || !Array.isArray(body.imageAssets) || body.imageAssets.length === 0) {

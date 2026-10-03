@@ -52,7 +52,7 @@ export async function PATCH(
   if (!company) {
     return NextResponse.json({ success: false, error: "Thiếu company (MBC/MBI)" }, { status: 400 });
   }
-  if (!canAccessCompany(user.role, company)) {
+  if (!canAccessCompany(user, company)) {
     return NextResponse.json({ success: false, error: "Access denied for this company" }, { status: 403 });
   }
 

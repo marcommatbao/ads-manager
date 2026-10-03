@@ -79,7 +79,7 @@ export async function GET(req: NextRequest) {
   const company = pickCompany(sp.get("company"));
   const t = sp.get("type");
   const type = t === "SITELINK" ? "SITELINK" : t === "VIDEO" ? "VIDEO" : "IMAGE";
-  if (!canAccessCompany(user.role, company)) {
+  if (!canAccessCompany(user, company)) {
     return NextResponse.json({ success: false, error: "Access denied for this company" }, { status: 403 });
   }
 

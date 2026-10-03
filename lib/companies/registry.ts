@@ -4,16 +4,16 @@
 // Mặc định = lib/companies/defaults.ts (bản Mắt Bão). Máy chủ: lib/companies/index.ts đọc data/companies.json rồi nạp vào đây
 // (instrumentation nạp lúc khởi động; mỗi lần gọi ở máy chủ kiểm tệp có đổi không). Trình duyệt: nạp qua /api/companies.
 
-import { DEFAULT_COMPANIES, type CompaniesConfig, type CompanyDef } from "./defaults"
+import { DEFAULT_COMPANIES, type CompaniesConfig, type CompanyDef, type ModuleId } from "./defaults"
 
 // Trạng thái để trên globalThis: Next có thể nhân bản module này giữa các gói route của máy chủ — mọi bản sao trong CÙNG
 // tiến trình phải thấy cùng cấu hình (nếu không, route chỉ import sổ này sẽ âm thầm dùng mặc định Mắt Bão).
-const G = globalThis as unknown as { __adsCompanies?: { current: CompaniesConfig; refresh: (() => void) | null } }
+const G = globalThis as unknown as { __adsCompanies?: { current: CompaniesConfig; refresh: (() => void) | null }; __adsCompaniesVer?: number }
 const st = () => (G.__adsCompanies ??= { current: DEFAULT_COMPANIES, refresh: null })
 
 /** Máy chủ đăng ký hàm đọc lại tệp (so mtime) — gọi trước mỗi lần tra. */
 export function registerCompaniesRefresh(fn: () => void) { st().refresh = fn }
-export function setCompaniesConfig(c: CompaniesConfig) { st().current = c; for (const l of listeners) l() }
+export function setCompaniesConfig(c: CompaniesConfig) { st().current = c; G.__adsCompaniesVer = (G.__adsCompaniesVer ?? 0) + 1; for (const l of listeners) l() }
 const listeners = new Set<() => void>()
 /** Giao diện: nghe khi danh sách công ty được nạp từ /api/companies. */
 export function subscribeCompanies(l: () => void): () => void { listeners.add(l); return () => { listeners.delete(l) } }
@@ -39,3 +39,13 @@ export const pickCompany = (raw: unknown): string => (isCompany(raw) ? raw : fal
 export const companyLabel = (id: string): string => companyDef(id)?.label ?? id
 export const companyUrl = (id: string): string => { const d = companyDef(id)?.domain; return d ? `https://${d}` : "" }
 export const companyDisplayPath = (id: string): string => (companyDef(id)?.domain ?? "").replace(/\./g, " ")
+
+/** Mô-đun bật ở bản cài (marketing luôn có). */
+export const installModules = (): ModuleId[] => { const m = cfg().modules ?? ["marketing"]; return m.includes("marketing") ? m : ["marketing", ...m] }
+export const hasModule = (m: ModuleId | null | undefined): boolean => !m || m === "marketing" || installModules().includes(m)
+/** Số lần cấu hình đổi — để giao diện vẽ lại (useSyncExternalStore). */
+export const companiesVersion = (): number => (G.__adsCompaniesVer ?? 0)
+
+/** Đợt 21 A4: mã tích hợp CÔNG KHAI (pixel / trang Meta, GA4) theo tên biến NEXT_PUBLIC_* — trình duyệt nạp từ /api/companies. */
+export function setPublicIds(m: Record<string, string>) { (G as { __adsPublicIds?: Record<string, string> }).__adsPublicIds = m }
+export const publicIdFromConfig = (name: string): string | null => (G as { __adsPublicIds?: Record<string, string> }).__adsPublicIds?.[name] || null

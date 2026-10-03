@@ -6,6 +6,8 @@
 // → Creates real Google Ads: Campaign → Ad Groups → Keywords → RSA
 // ============================================================
 
+import { brandOverride } from "@/lib/brand/store";
+import { catalogFor } from "@/lib/brand/catalog";
 import { NextRequest, NextResponse } from "next/server";
 import { ResourceNames } from "google-ads-api";
 import { runPreflightGoogleSearch, preflightToLog } from "@/lib/launch-preflight";
@@ -163,7 +165,7 @@ export async function POST(req: NextRequest) {
     // Each company has its own Google Ads customer account — gate before
     // creating any real campaign against it (same pattern as the
     // Meta launch/budget/status mutation routes).
-    if (!canAccessCompany(user.role, pickCompany(company))) {
+    if (!canAccessCompany(user, pickCompany(company))) {
       return NextResponse.json({ success: false, error: "Access denied for this company" }, { status: 403 });
     }
 
@@ -205,7 +207,7 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Resolve product info ──
-    const catalog = getProductCatalog(company);
+    const catalog = catalogFor(company); // Đợt 21 A3: hồ sơ doanh nghiệp (MBC/MBI chưa lưu = catalog cũ)
     const product = catalog[creative.productId];
     // KHÔNG thay bằng trang chủ khi sản phẩm thiếu URL. Thay ngầm là che mất
     // đúng vấn đề: quảng cáo vẫn tạo được nhưng trỏ sai chỗ, tiền vẫn mất mà
@@ -621,7 +623,7 @@ export async function POST(req: NextRequest) {
                 headlines,
                 descriptions,
                 path1: productPath,
-                path2: sanitizeDisplayPath(company === "MBI" ? "matbao in" : company === "MBC" ? "matbao net" : companyDisplayPath(company)),
+                path2: sanitizeDisplayPath(brandOverride(company)?.displayPath || (company === "MBI" ? "matbao in" : company === "MBC" ? "matbao net" : companyDisplayPath(company))),
               },
               final_urls: [finalUrl],
             },

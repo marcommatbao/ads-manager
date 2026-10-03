@@ -6,7 +6,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import { isAdmin } from "@/lib/permissions";
+import { isAdmin, canAccessCompany } from "@/lib/permissions";
 import { getById } from "@/lib/decision-memory/store";
 import { addManualOverride } from "@/lib/decision-memory/recorder";
 
@@ -22,7 +22,8 @@ export async function POST(
 
   const { id } = await params;
   const entry = getById(id);
-  if (!entry) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  // Đợt 21 A5b: quyết định của công ty KHÔNG được giao → 404 như không tồn tại (không lộ mã có hay không).
+  if (!entry || !canAccessCompany(user, entry.target.company)) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const body = await request.json() as { reason?: string; overrodeTo?: string };
   if (!body.reason || body.reason.trim().length < 5) {

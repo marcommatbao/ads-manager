@@ -9,6 +9,10 @@ import fs from "fs";
 import path from "path";
 import { withFileLock } from "@/lib/file-lock";
 import { writeFileAtomic } from "@/lib/fs-atomic";
+import { hasModule } from "@/lib/companies";
+import { JOB_MODULE, moduleOfJob } from "@/lib/companies/modules";
+import { setupPending } from "@/lib/setup/state";
+import { JOBS_BY_ID } from "./registry";
 import type {
   JobId,
   JobControlFile,
@@ -42,13 +46,21 @@ const envPaused = (id: JobId): JobControlRecord => ({ jobId: id, enabled: false,
 
 export function getJobControl(id: JobId): JobControlRecord {
   if (envDisabledJobs().has(id)) return envPaused(id);
+  // Đợt 21 A6: bản cài MỚI đang thiết lập (SETUP_WIZARD=on, chưa hoàn tất) → mọi job tự động dừng (chưa có công ty / khoá thật,
+  // chạy chỉ sinh lỗi). Trừ query_smoke — trình thiết lập dùng nó để tự kiểm. Bản Mắt Bão không bật → không đổi.
+  if (id !== "query_smoke" && setupPending()) return { jobId: id, enabled: false, pausedAt: null, pausedBy: "thiết lập", pauseReason: "Bản cài đang thiết lập lần đầu — job tự chạy sau khi bấm Hoàn tất" };
+  // Đợt 21 A2: job thuộc mô-đun TẮT ở bản cài → không chạy (bản Mắt Bão bật đủ mô-đun → không đổi).
+  const mod = moduleOfJob(id);
+  if (mod && !hasModule(mod)) return { jobId: id, enabled: false, pausedAt: null, pausedBy: "mô-đun", pauseReason: `Mô-đun "${mod}" không bật ở bản cài này` };
   const file = readControlFile();
   return file.controls[id] ?? { jobId: id, enabled: true, pausedAt: null, pausedBy: null, pauseReason: null };
 }
 
 export function getAllJobControls(): Partial<Record<JobId, JobControlRecord>> {
   const c = { ...readControlFile().controls };
+  for (const [id, mod] of Object.entries(JOB_MODULE)) if (mod && !hasModule(mod)) c[id as JobId] = getJobControl(id as JobId);
   for (const id of envDisabledJobs()) c[id as JobId] = envPaused(id as JobId);
+  if (setupPending()) for (const id of Object.keys(JOBS_BY_ID)) if (id !== "query_smoke") c[id as JobId] = getJobControl(id as JobId);
   return c;
 }
 

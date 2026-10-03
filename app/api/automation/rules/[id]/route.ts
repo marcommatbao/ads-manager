@@ -64,7 +64,7 @@ export async function PUT(
     // nó nên PUT {company:null} mở rộng được rule sang công ty kia.
     const scopes: unknown[] = [current?.company, ...(body && "company" in body ? [body.company] : [])];
     for (const c of scopes) {
-      if (!canTouchRuleScope(user.role, c)) {
+      if (!canTouchRuleScope(user, c)) {
         return NextResponse.json({
           success: false,
           error: `Không có quyền với rule của công ty ${String(c ?? "cả hai công ty")}`,
@@ -111,8 +111,8 @@ export async function DELETE(
     const current = getAllRules().find(r => r.id === id);
     if (current?.company) {
       const ok = current.company === "all"
-        ? getCompaniesForRole(user.role).length === 2
-        : canAccessCompany(user.role, current.company as string);
+        ? getCompaniesForRole(user).length === 2
+        : canAccessCompany(user, current.company as string);
       if (!ok) {
         return NextResponse.json({
           success: false,
@@ -152,7 +152,7 @@ export async function PATCH(
     const existing = getAllRules().find(r => r.id === id);
     // Xác minh audit 01/10: PATCH (bật/tắt) cũng phải kiểm công ty của rule đang lưu — trước đây admin_mbc bật/tắt
     // được rule của MBI qua đường này dù PUT/DELETE đã chặn.
-    if (existing && !canTouchRuleScope(user.role, existing.company)) {
+    if (existing && !canTouchRuleScope(user, existing.company)) {
       return NextResponse.json({ success: false, error: "Không có quyền với rule của công ty khác" }, { status: 403 });
     }
     if (existing && !existing.isActive && ruleTouchesBudget(existing.actions)

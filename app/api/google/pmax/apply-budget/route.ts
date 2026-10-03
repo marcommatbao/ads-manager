@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
 
   const rec = await getRecommendationById(recommendationId);
   if (!rec) return NextResponse.json({ success: false, error: "Không tìm thấy đề xuất" }, { status: 404 });
-  if (!canAccessCompany(user.role, rec.company)) {
+  if (!canAccessCompany(user, rec.company)) {
     return NextResponse.json({ success: false, error: "Không có quyền với công ty này" }, { status: 403 });
   }
   if (rec.type !== "scale_carefully") {

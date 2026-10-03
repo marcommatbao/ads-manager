@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const company = (searchParams.get("company") ?? "MBC") as string;
-  if (!canAccessCompany(user.role, company)) {
+  if (!canAccessCompany(user, company)) {
     return NextResponse.json({ success: false, error: "Access denied for this company" }, { status: 403 });
   }
   const customerId = GOOGLE_CUSTOMER_IDS[company];

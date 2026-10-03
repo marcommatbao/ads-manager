@@ -43,6 +43,8 @@ export interface SessionUser {
   email: string;
   role: Role;
   companies: string[];
+  /** Đợt 21 B: phải đổi mật khẩu trước khi dùng app (middleware chuyển về /doi-mat-khau, API trả 403). */
+  mustChangePassword?: boolean;
 }
 
 interface JWTPayload {
@@ -53,6 +55,8 @@ interface JWTPayload {
   companies: string[];
   /** session_version của thành viên lúc cấp phiên (lib/team.ts). */
   sv?: number;
+  /** Đợt 21 B: phải đổi mật khẩu (middleware chỉ giải mã JWT, không tra kho người dùng). */
+  mcp?: boolean;
   iat: number;        // issued at
   exp: number;        // expires
 }
@@ -172,6 +176,7 @@ export function verifyPassword(password: string, stored: string): boolean {
 export function createSessionToken(user: SessionUser, sessionVersion = 0): string {
   const payload: JWTPayload = {
     sv: sessionVersion,
+    ...(user.mustChangePassword ? { mcp: true } : {}),
     sub: user.id,
     name: user.name,
     email: user.email,
@@ -192,13 +197,14 @@ export function decodeSessionToken(token: string): SessionUser | null {
     email: payload.email,
     role: payload.role,
     companies: payload.companies,
+    ...(payload.mcp ? { mustChangePassword: true } : {}),
   };
 }
 
 /** Tối thiểu từ lib/team TeamMember cần để đối chiếu phiên (tránh import vòng auth ↔ team). */
 export interface SessionMemberRecord {
   id: string; name: string; email: string; role: Role; company_access: string[]
-  status: string; is_active: boolean; session_version?: number
+  status: string; is_active: boolean; session_version?: number; must_change_password?: boolean
 }
 
 /**
@@ -214,7 +220,7 @@ export function resolveSession(token: string, lookup: (id: string) => SessionMem
   if (!m || !m.is_active || m.status !== "active") return null;
   if (!isAllowedLoginEmail(m.email)) return null;
   if ((m.session_version ?? 0) !== (payload.sv ?? 0)) return null;
-  return { id: m.id, name: m.name, email: m.email, role: m.role, companies: m.company_access };
+  return { id: m.id, name: m.name, email: m.email, role: m.role, companies: m.company_access, ...(m.must_change_password ? { mustChangePassword: true } : {}) };
 }
 
 /**

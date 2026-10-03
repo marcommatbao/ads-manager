@@ -22,7 +22,8 @@ export type SettingsDomain =
   | "team"
   | "notifications"
   | "tracking"
-  | "kpi";
+  | "kpi"
+  | "companies"; // Đợt 21 A6: trình thiết lập (công ty / hoàn tất)
 
 export type ConfigClass = "SECRET" | "OPERATIONAL" | "TARGET" | "PREFERENCE";
 
@@ -43,6 +44,7 @@ export const DOMAIN_CLASS: Record<SettingsDomain, ConfigClass> = {
   notifications:        "PREFERENCE",
   tracking:             "OPERATIONAL",
   kpi:                  "TARGET",
+  companies:            "OPERATIONAL",
 };
 
 /** Whether this domain supports snapshot rollback. */

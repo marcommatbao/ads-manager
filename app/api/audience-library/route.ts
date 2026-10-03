@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
   const search = searchParams.get("search") || "";
   const sortBy = searchParams.get("sort") || "usageCount";
 
-  const allowed = getCompaniesForRole(user.role);
+  const allowed = getCompaniesForRole(user);
   let segments = getAllSegments().filter((s) => allowed.includes(s.company as string));
 
   // Filters
@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
   // Map from AudienceSegment (Step 2 shape) to AudienceSegmentRecord
   const seg = body as Record<string, unknown>;
   const requestedCompany = (seg.company as string) || "MBC";
-  if (!canAccessCompany(user.role, requestedCompany)) {
+  if (!canAccessCompany(user, requestedCompany)) {
     return err("Access denied for this company", 403);
   }
 
@@ -184,7 +184,7 @@ export async function DELETE(request: NextRequest) {
   if (!id) return err("id is required");
   const existing = getSegmentById(id);
   if (!existing) return err("Segment not found", 404);
-  if (!canAccessCompany(user.role, existing.company as string)) {
+  if (!canAccessCompany(user, existing.company as string)) {
     return err("Access denied for this company", 403);
   }
   const ok = deleteSegment(id);

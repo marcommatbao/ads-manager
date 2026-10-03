@@ -23,7 +23,7 @@ export async function POST(
 
   const seg = getSegmentById(id);
   if (!seg) return err("Segment not found", 404);
-  if (!canAccessCompany(user.role, seg.company as string)) {
+  if (!canAccessCompany(user, seg.company as string)) {
     return err("Access denied for this company", 403);
   }
 

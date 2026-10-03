@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     const since = Date.now() - days * 86_400_000
     const { events, errors } = await collectWrites(new Date(), { persist: false })
     const outcomes = readOutcomes(), today = vnDate()
-    const rows = events.filter((e) => canAccessCompany(u.value.role, e.company) && Date.parse(e.at) >= since).map((e) => ({
+    const rows = events.filter((e) => canAccessCompany(u.value, e.company) && Date.parse(e.at) >= since).map((e) => ({
       ...e,
       windows: WINDOWS.map((d) => {
         const w = windowRanges(e.at, d)

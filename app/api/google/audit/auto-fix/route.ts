@@ -20,6 +20,7 @@ import { AUDIT_GUIDES } from "@/lib/google-audit-guide";
 
 import { googleAdsErrorMessage } from "@/lib/google-ads-error";
 import { GOOGLE_CUSTOMER_IDS } from "@/lib/google-ads-client"
+import { isCompany } from "@/lib/companies/registry";
 /** Ngưỡng "đã tiêu đáng kể" cho một search term trong 30 ngày.
  *
  *  micros: 1 đồng = 1.000.000 micros. Bản cũ đặt 200_000_000 và mô tả là
@@ -67,10 +68,10 @@ export async function POST(req: Request) {
       confirm?: boolean;
     };
 
-    if (!company || (company !== "MBC" && company !== "MBI")) {
+    if (!company || (!isCompany(company))) {
       return NextResponse.json({ success: false, error: "Invalid company" }, { status: 400 });
     }
-    if (!canAccessCompany(user.role, company)) {
+    if (!canAccessCompany(user, company)) {
       return NextResponse.json({ success: false, error: "Không có quyền truy cập công ty này" }, { status: 403 });
     }
 

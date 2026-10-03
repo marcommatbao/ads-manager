@@ -12,7 +12,18 @@ export type Role =
   | "admin_mbc"     // Full access MBC only
   | "admin_mbi"     // Full access MBI only
   | "viewer_mbc"    // Read-only MBC
-  | "viewer_mbi";   // Read-only MBI
+  | "viewer_mbi"    // Read-only MBI
+  // Đợt 21 A5: vai trò CHUNG — phạm vi công ty lấy từ company_access của người dùng (["ALL"] = mọi công ty của bản cài).
+  // Vai trò cũ ở trên giữ NGUYÊN hành vi (phạm vi theo vai trò).
+  | "admin"         // Toàn quyền trong các công ty được gán
+  | "viewer";       // Chỉ xem các công ty được gán
+
+/** Vai trò chung (Đợt 21 A5) — phạm vi theo người dùng, không theo tên vai trò. */
+export const GENERIC_ROLES: readonly Role[] = ["admin", "viewer"];
+export const ADMIN_LIKE_ROLES: readonly Role[] = ["super_admin", "admin_mbc", "admin_mbi", "admin"];
+export const ALL_ROLE_IDS: readonly Role[] = ["super_admin", "admin_mbc", "admin_mbi", "viewer_mbc", "viewer_mbi", "admin", "viewer"];
+/** Người dùng (hoặc chỉ vai trò — cách gọi cũ) để kiểm công ty. */
+export type AccessSubject = Role | { role: Role; companies?: string[] | null };
 
 export type CompanyScope = string;
 
@@ -60,7 +71,7 @@ const PERMISSIONS: Record<Role, RolePermissions> = {
     can_view_cpl:         true,
     can_input_offline:    false,
     can_edit_thresholds:  false,
-    can_view_credentials: true,   // see masked creds (read-only form)
+    can_view_credentials: false,  // Đợt 21 A4 (user 03/10): CHỈ super_admin xem được khoá, kể cả dạng đã che
     can_edit_credentials: false,  // cannot save new keys
     can_manage_policy_radar: true,
   },
@@ -72,7 +83,7 @@ const PERMISSIONS: Record<Role, RolePermissions> = {
     can_view_cpl:         true,
     can_input_offline:    true,
     can_edit_thresholds:  false,
-    can_view_credentials: true,
+    can_view_credentials: false, // Đợt 21 A4: chỉ super_admin
     can_edit_credentials: false,
     can_manage_policy_radar: true,
   },
@@ -100,6 +111,31 @@ const PERMISSIONS: Record<Role, RolePermissions> = {
     can_edit_credentials: false,
     can_manage_policy_radar: false,
   },
+  // Đợt 21 A5: vai trò chung. companies = mọi công ty của bản cài (trần); phạm vi thật = company_access của người dùng.
+  admin: {
+    get companies() { return companyIds() },
+    can_edit:             true,
+    can_manage_budget:    true,
+    can_manage_users:     false,
+    can_view_cpl:         true,
+    can_input_offline:    true,
+    can_edit_thresholds:  false,
+    can_view_credentials: false,
+    can_edit_credentials: false,
+    can_manage_policy_radar: true,
+  },
+  viewer: {
+    get companies() { return companyIds() },
+    can_edit:             false,
+    can_manage_budget:    false,
+    can_manage_users:     false,
+    can_view_cpl:         true,
+    can_input_offline:    false,
+    can_edit_thresholds:  false,
+    can_view_credentials: false,
+    can_edit_credentials: false,
+    can_manage_policy_radar: false,
+  },
 };
 
 // ─────────────────────────────────────────────
@@ -114,12 +150,28 @@ export function hasPermission(role: Role, action: PermissionKey): boolean {
   return PERMISSIONS[role]?.[action] ?? false;
 }
 
-export function canAccessCompany(role: Role, company: CompanyScope): boolean {
-  return PERMISSIONS[role].companies.includes(company);
+/** Công ty người/vai trò này được dùng. Vai trò cũ: theo vai trò (y như trước). Vai trò chung: company_access ∩ công ty bản cài. */
+export function getCompaniesForRole(subject: AccessSubject): CompanyScope[] {
+  const role = typeof subject === "string" ? subject : subject.role;
+  const perm = PERMISSIONS[role];
+  if (!perm) return [];
+  if (!GENERIC_ROLES.includes(role)) return perm.companies;
+  // Vai trò chung mà chỉ có tên vai trò (không có danh sách công ty của người) → KHÔNG cho gì (an toàn).
+  if (typeof subject === "string") return [];
+  const list = subject.companies ?? [];
+  return list.includes("ALL") ? companyIds() : companyIds().filter((c) => list.includes(c));
 }
 
-export function getCompaniesForRole(role: Role): CompanyScope[] {
-  return PERMISSIONS[role].companies;
+export function canAccessCompany(subject: AccessSubject, company: CompanyScope): boolean {
+  return getCompaniesForRole(subject).includes(company);
+}
+
+/** Được giao MỌI công ty của bản cài (Đợt 21 A5b) — dùng cho cài đặt/dữ liệu chung không gắn với một công ty (vd tài sản GA4
+ *  chưa gán công ty, KPI năm). Bản cài không có công ty nào → false. */
+export function canAccessAllCompanies(subject: AccessSubject): boolean {
+  const ids = companyIds();
+  const mine = getCompaniesForRole(subject);
+  return ids.length > 0 && ids.every((c) => mine.includes(c));
 }
 
 /**
@@ -144,7 +196,7 @@ export function resolveCompanyScope(
   companies: string[] | undefined | null,
   role: Role | undefined | null,
 ): CompanyScope[] {
-  const roleScope = role && PERMISSIONS[role] ? PERMISSIONS[role].companies : [];
+  const roleScope = role && PERMISSIONS[role] ? PERMISSIONS[role].companies : []; // vai trò chung: trần = mọi công ty, giao với `companies` bên dưới
   const list = companies ?? [];
   const expanded: CompanyScope[] = list.includes("ALL")
     ? companyIds()
@@ -153,7 +205,7 @@ export function resolveCompanyScope(
 }
 
 export function isAdmin(role: Role): boolean {
-  return role === "super_admin" || role === "admin_mbc" || role === "admin_mbi";
+  return ADMIN_LIKE_ROLES.includes(role);
 }
 
 export function isSuperAdmin(role: Role): boolean {
@@ -180,6 +232,12 @@ const ROUTE_PERMISSIONS: Record<string, Role[]> = {
   "/policy-radar":            ["super_admin", "admin_mbc", "admin_mbi", "viewer_mbc", "viewer_mbi"],
   "/":                        ["super_admin", "admin_mbc", "admin_mbi", "viewer_mbc", "viewer_mbi"],
 };
+
+// Đợt 21 A5: vai trò chung đi theo vai trò cũ tương ứng (admin ≈ admin_mbc/mbi, viewer ≈ viewer_mbc/mbi).
+for (const roles of Object.values(ROUTE_PERMISSIONS)) {
+  if ((roles.includes("admin_mbc") || roles.includes("admin_mbi")) && !roles.includes("admin")) roles.push("admin");
+  if ((roles.includes("viewer_mbc") || roles.includes("viewer_mbi")) && !roles.includes("viewer")) roles.push("viewer");
+}
 
 export function canAccessRoute(role: Role, pathname: string): boolean {
   // Exact match
@@ -275,6 +333,25 @@ export const ROLE_CONFIG: Record<Role, {
     border: "border-slate-200",
     companyLabel: "MBI",
   },
+  // Đợt 21 A5 — vai trò chung (phạm vi công ty theo người dùng)
+  admin: {
+    label: "Admin",
+    labelVi: "Quản trị viên",
+    description: "Toàn quyền trong các công ty được gán",
+    color: "text-blue-700",
+    bg: "bg-blue-50",
+    border: "border-blue-200",
+    companyLabel: "Theo công ty được gán",
+  },
+  viewer: {
+    label: "Viewer",
+    labelVi: "Người xem",
+    description: "Chỉ xem các công ty được gán",
+    color: "text-slate-600",
+    bg: "bg-slate-50",
+    border: "border-slate-200",
+    companyLabel: "Theo công ty được gán",
+  },
 };
 
 // All available roles for UI selects
@@ -284,6 +361,8 @@ export const ALL_ROLES: Role[] = [
   "admin_mbi",
   "viewer_mbc",
   "viewer_mbi",
+  "admin",
+  "viewer",
 ];
 
 // Permission labels for UI display

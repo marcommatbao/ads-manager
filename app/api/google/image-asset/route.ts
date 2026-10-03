@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
     currentCount?: number;
   };
   const company = pickCompany(body.company);
-  if (!canAccessCompany(user.role, company)) {
+  if (!canAccessCompany(user, company)) {
     return NextResponse.json({ success: false, error: "Access denied for this company" }, { status: 403 });
   }
   if (!body.dataUrl || !body.width || !body.height) {

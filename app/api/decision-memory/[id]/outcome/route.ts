@@ -5,7 +5,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import { isAdmin } from "@/lib/permissions";
+import { isAdmin, canAccessCompany } from "@/lib/permissions";
 import { getById } from "@/lib/decision-memory/store";
 import { closeOutcome } from "@/lib/decision-memory/recorder";
 import type { FinalVerdict } from "@/lib/decision-memory/types";
@@ -24,7 +24,8 @@ export async function PATCH(
 
   const { id } = await params;
   const entry = getById(id);
-  if (!entry) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  // Đợt 21 A5b: quyết định của công ty KHÔNG được giao → 404 như không tồn tại (không lộ mã có hay không).
+  if (!entry || !canAccessCompany(user, entry.target.company)) return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (entry.outcome) return NextResponse.json({ error: "Outcome already set — use override endpoint to change" }, { status: 409 });
 
   const body = await request.json() as { verdict?: string; summaryNote?: string };

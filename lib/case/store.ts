@@ -14,6 +14,7 @@ import { withFileLock } from "@/lib/file-lock"
 import type { NegativeKw, SimulationResult } from "./simulate-negatives"
 import type { CaseEvidence, Company, Diagnosis } from "./types"
 import type { TargetBasis } from "./verdict"
+import { isCompany } from "@/lib/companies/registry";
 
 const DIR = path.join(process.cwd(), "data", "cases")
 /** Phiên đóng quá 180 ngày thì dọn — kết quả đo lại đã có, tài khoản đã khác xa. */
@@ -156,7 +157,7 @@ export function validateImportedCase(x: unknown): string | null {
   const c = x as Partial<CampaignCase>
   if (!c || typeof c !== "object") return "không phải phiên"
   if (typeof c.id !== "string" || !/^case_[a-z0-9_]+$/.test(c.id)) return "mã phiên không hợp lệ"
-  if (c.company !== "MBI" && c.company !== "MBC") return "công ty không hợp lệ"
+  if (!isCompany(c.company)) return "công ty không hợp lệ"
   if (c.platform !== "google" && c.platform !== "facebook") return "nền tảng không hợp lệ"
   if (typeof c.campaignId !== "string" || !/^\d+$/.test(c.campaignId)) return "campaignId không hợp lệ"
   if (!c.evidence || !Array.isArray(c.executions) || !Array.isArray(c.remeasure) || !Array.isArray(c.actions)) return "thiếu bằng chứng / lần thực hiện / lịch đo lại"

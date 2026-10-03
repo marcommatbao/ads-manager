@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
       throw err
     }
 
-    if (!canAccessCompany(user.role, company)) {
+    if (!canAccessCompany(user, company)) {
       return NextResponse.json({ error: "Access denied for this company" }, { status: 403 })
     }
 

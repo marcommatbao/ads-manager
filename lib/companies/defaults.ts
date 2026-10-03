@@ -33,13 +33,28 @@ export interface CompanyDef {
   packs?: string[]
 }
 
+/**
+ * Đợt 21 A2 — mô-đun của BẢN CÀI (docs/DESIGN-DOT21.md §8):
+ *   marketing — lõi quản lý quảng cáo Google + Meta (luôn bật)
+ *   orders    — đơn hàng & CRM: nguồn đơn, Google/Facebook học theo đơn thật, Creative theo đơn thật, chất lượng lead
+ *   matbao    — riêng Mắt Bão: Odoo MBI, P&L Report API, cảnh báo đơn/lead matbao.in
+ */
+export type ModuleId = "marketing" | "orders" | "matbao"
+export const MODULE_IDS: ModuleId[] = ["marketing", "orders", "matbao"]
+export const MODULE_LABEL: Record<ModuleId, string> = { marketing: "Marketing (Google + Meta)", orders: "Đơn hàng & CRM", matbao: "Gói Mắt Bão" }
+
 export interface CompaniesConfig {
+  /** Tên tổ chức của bản cài (AdsBot / phân tích tự giới thiệu là "trợ lý của …"). Bỏ trống = "Mắt Bão" (bản gốc). */
+  orgName?: string
+  /** Mô-đun bật ở bản cài. Thiếu = chỉ "marketing" (bản cài mới gọn nhất). Bản Mắt Bão (mặc định) bật đủ. */
+  modules?: ModuleId[]
   companies: CompanyDef[]
   /** Không khớp quy tắc nào → công ty này (bản Mắt Bão: MBC — đúng hành vi cũ). */
   fallback: string
 }
 
 export const DEFAULT_COMPANIES: CompaniesConfig = {
+  modules: ["marketing", "orders", "matbao"],
   fallback: "MBC",
   companies: [
     {
@@ -72,5 +87,9 @@ export function validateCompanies(c: CompaniesConfig): string[] {
   }
   if (!c.companies.some((x) => x.ads)) errs.push("Phải có ít nhất một công ty chạy quảng cáo (ads: true)")
   if (!ids.has(c.fallback)) errs.push(`fallback "${c.fallback}" không có trong danh sách`)
+  if (c.modules !== undefined) {
+    if (!Array.isArray(c.modules)) errs.push("modules phải là danh sách")
+    else for (const m of c.modules) if (!MODULE_IDS.includes(m)) errs.push(`Mô-đun "${m}" không có (dùng: ${MODULE_IDS.join(", ")})`)
+  }
   return errs
 }

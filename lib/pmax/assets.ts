@@ -7,6 +7,8 @@
 // Thay asset: MỘT lệnh nguyên khối/lần (tạo asset chữ mới → gắn vào asset group → gỡ liên kết cũ); đo 28/09 validate_only
 // QUA. Số lượng mỗi loại giữ nguyên (1 đổi 1) nên không vi phạm tối thiểu/tối đa. Hoàn tác = gắn lại asset cũ + gỡ asset mới.
 
+import { brandPromptBlock } from "@/lib/brand/types"
+import { brandOverride } from "@/lib/brand/store"
 import fs from "fs"
 import path from "path"
 import { enums } from "google-ads-api"
@@ -170,8 +172,10 @@ export async function draftReplacements(company: Company, groupId: string, links
 /** Gemini viết 3 phương án/dòng theo giọng các dòng đang được bấm nhiều → kiểm độ dài, trùng, luật. Dùng chung PMax + Search RSA. */
 export async function geminiRewrite(input: { company: Company; kind: string; context: string; strong: Partial<Record<TextType, string[]>>; targets: { field: TextType; text: string }[]; existing: string[] }): Promise<{ options: { text: string; findings: PolicyFinding[] }[]; rejected: string[] }[]> {
   const L: Record<TextType, string> = { HEADLINE: "Tiêu đề", LONG_HEADLINE: "Tiêu đề dài", DESCRIPTION: "Mô tả" }
-  const prompt = `Bạn viết quảng cáo Google ${input.kind} bằng tiếng Việt cho ${input.company === "MBC" ? "Mắt Bão (tên miền, hosting, email, máy chủ, Microsoft 365, Google Workspace)" : "Mắt Bão Invoice (hoá đơn điện tử, hợp đồng điện tử, chữ ký số cho doanh nghiệp)"}.
-${input.context}.
+  // Đợt 21 A3: hồ sơ doanh nghiệp (null = MBC/MBI chưa lưu hồ sơ → chuỗi cũ y nguyên).
+  const bp = brandOverride(input.company)
+  const prompt = `Bạn viết quảng cáo Google ${input.kind} bằng tiếng Việt cho ${bp ? `${bp.brandName}${bp.industry ? ` (${bp.industry})` : ""}` : input.company === "MBC" ? "Mắt Bão (tên miền, hosting, email, máy chủ, Microsoft 365, Google Workspace)" : "Mắt Bão Invoice (hoá đơn điện tử, hợp đồng điện tử, chữ ký số cho doanh nghiệp)"}.
+${bp && brandPromptBlock(bp) ? `${brandPromptBlock(bp)}\n` : ""}${input.context}.
 Các dòng đang được bấm nhiều nhất (học giọng văn, KHÔNG chép lại):
 ${(Object.keys(input.strong) as TextType[]).filter((f) => input.strong[f]?.length).map((f) => `- ${L[f]}: ${input.strong[f]!.join(" | ")}`).join("\n") || "(chưa có)"}
 Viết 3 phương án THAY cho từng dòng yếu dưới đây. Luật: đúng giới hạn ký tự (tính cả dấu cách), tiếng Việt có dấu chuẩn, không viết hoa toàn bộ, không "!!", không số điện thoại, không hứa hẹn tuyệt đối ("số 1", "rẻ nhất", "100%") trừ khi có trong dòng đang chạy, không trùng các dòng đang có, nêu lợi ích cụ thể.

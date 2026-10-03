@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const company = searchParams.get("company") as string | null;
-    if (company && !canAccessCompany(user.role, company)) {
+    if (company && !canAccessCompany(user, company)) {
       return NextResponse.json({ error: "Access denied for this company" }, { status: 403 });
     }
     const from = searchParams.get("from");
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     // No explicit company → scope to every company the role is allowed to
     // see (never "no filter at all", which used to leak both MBC and MBI
     // campaigns to a plain viewer_mbc/viewer_mbi request).
-    const allowedAccountIds = (company ? [company] : getCompaniesForRole(user.role))
+    const allowedAccountIds = (company ? [company] : getCompaniesForRole(user))
       .map((c) => GOOGLE_CUSTOMER_IDS[c])
       .filter((id): id is string => !!id);
 

@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
   const company = searchParams.get("company");
   const product = searchParams.get("product");
 
-  const allowed = getCompaniesForRole(user.role);
+  const allowed = getCompaniesForRole(user);
 
   if (id) {
     const c = getCreativeById(id);
@@ -101,9 +101,9 @@ export async function POST(request: NextRequest) {
     ? (body.creative as Partial<CreativeVariant> | undefined)?.id
     : (body as { id?: string }).id;
   const existing = targetId ? getCreativeById(String(targetId)) : undefined;
-  if (existing?.company && !canAccessCompany(user.role, existing.company as string)) return err("Access denied for this company", 403);
+  if (existing?.company && !canAccessCompany(user, existing.company as string)) return err("Access denied for this company", 403);
   const newCompany = (action === "create" || action === "save") ? (body.creative as Partial<CreativeVariant> | undefined)?.company : undefined;
-  if (newCompany && !canAccessCompany(user.role, newCompany as string)) return err("Access denied for this company", 403);
+  if (newCompany && !canAccessCompany(user, newCompany as string)) return err("Access denied for this company", 403);
 
   // ── CREATE / SAVE TO LIBRARY ──────────────────────────
   if (action === "create" || action === "save") {
@@ -214,7 +214,7 @@ export async function DELETE(request: NextRequest) {
   const id = searchParams.get("id");
   if (!id) return err("id is required");
   const existing = getCreativeById(id);
-  if (existing?.company && !canAccessCompany(user.role, existing.company as string)) return err("Access denied for this company", 403);
+  if (existing?.company && !canAccessCompany(user, existing.company as string)) return err("Access denied for this company", 403);
   const ok = await deleteCreative(id);
   if (!ok) return err("Creative not found", 404);
   return NextResponse.json({ success: true });

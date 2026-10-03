@@ -1,5 +1,6 @@
 "use client";
 
+import { moduleOfPage } from "@/lib/companies/modules";
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -14,7 +15,7 @@ import {
   // Target — chỉ còn dùng ở các mục đang bị ẩn (CPL, Intelligence); bỏ import
   // để không phát sinh lỗi lint. Mở lại mục nào thì thêm lại icon đó.
   Users,
-  LogOut,
+  LogOut, KeyRound,
   ChevronDown,
   ChevronRight,
   Wrench,
@@ -46,6 +47,10 @@ import type { Role } from "@/lib/permissions";
 // ─────────────────────────────────────────────
 
 import { isHiddenPage } from "@/lib/hidden-pages";
+import type { ModuleId } from "@/lib/companies/defaults";
+import { hasModule } from "@/lib/companies/registry";
+import { useSetupFlags } from "@/lib/setup/client";
+import { useCompaniesVersion } from "@/lib/companies/use-companies";
 
 export interface NavItem {
   label: string;
@@ -71,10 +76,12 @@ export interface NavItem {
   // viewer role sees "Radar Chính Sách" but not Intelligence/PMax/Audit,
   // which are admin-only within the same "Phân tích" section).
   section?: string;
+  /** Đợt 21 A2: mô-đun của bản cài. Bỏ trống = lõi Marketing (luôn hiện). */
+  module?: ModuleId;
 }
 
-const ALL_ROLES: Role[] = ["super_admin", "admin_mbc", "admin_mbi", "viewer_mbc", "viewer_mbi"];
-const ADMIN_ROLES: Role[] = ["super_admin", "admin_mbc", "admin_mbi"];
+const ALL_ROLES: Role[] = ["super_admin", "admin_mbc", "admin_mbi", "viewer_mbc", "viewer_mbi", "admin", "viewer"];
+const ADMIN_ROLES: Role[] = ["super_admin", "admin_mbc", "admin_mbi", "admin"]; // Đợt 21 A5: + vai trò chung
 
 const ALL_NAV_ITEMS: NavItem[] = [
   { label: "Dashboard",      href: "/",              icon: LayoutDashboard, description: "Tổng quan chi tiêu, cảnh báo và tóm tắt AI mỗi sáng." },
@@ -97,11 +104,11 @@ const ALL_NAV_ITEMS: NavItem[] = [
 
   // ── FACEBOOK / META ──
   { label: "Meta X-quang",  href: "/meta-xray",     icon: ScanLine, roles: ADMIN_ROLES, description: "Đơn Meta báo tách bấm thật vs chỉ xem, đối chiếu GA4, việc nên làm cho từng chiến dịch.", section: "Facebook / Meta" },
-  { label: "Creative đơn thật", href: "/creative-don-that", icon: Target, roles: ADMIN_ROLES, description: "Mẫu quảng cáo nào thật sự ra đơn — chấm theo đơn đã thu tiền / lượt bấm, không theo số Meta tự báo.", section: "Facebook / Meta" },
+  { label: "Creative đơn thật", href: "/creative-don-that", icon: Target, roles: ADMIN_ROLES, description: "Mẫu quảng cáo nào thật sự ra đơn — chấm theo đơn đã thu tiền / lượt bấm, không theo số Meta tự báo.", section: "Facebook / Meta", module: "orders" },
 
   // ── ĐO LƯỜNG & ĐƠN THẬT: số có đáng tin không, đơn đã thu tiền về Google/Meta ──
   { label: "Sức khoẻ đo lường", href: "/do-luong", icon: HeartPulse, description: "Kiểm pixel/sự kiện chuyển đổi có bắn đúng trước khi đọc chi phí/đơn.", section: "Đo lường & đơn thật" },
-  { label: "Doanh thu thật", href: "/revenue-attribution", icon: Receipt, roles: ADMIN_ROLES, description: "Đối chiếu chi quảng cáo với đơn hàng thật trong Odoo theo nhãn campaign.", section: "Đo lường & đơn thật" },
+  { label: "Doanh thu thật", href: "/revenue-attribution", icon: Receipt, roles: ADMIN_ROLES, description: "Đối chiếu chi quảng cáo với đơn hàng thật trong Odoo theo nhãn campaign.", section: "Đo lường & đơn thật", module: "matbao" },
   { label: "Attribution",    href: "/reports/attribution", icon: GitBranch, description: "Vai trò từng kênh trong hành trình chuyển đổi (Google + Meta).", section: "Đo lường & đơn thật" },
 
   // ── CHIẾN DỊCH & CREATIVE: xem / tạo ──
@@ -170,6 +177,7 @@ const ALL_NAV_ITEMS: NavItem[] = [
       { label: "Scheduled Jobs",href: "/settings/jobs",           roles: ["super_admin"] },
       { label: "Sức khoẻ tool", href: "/settings/health",         roles: ["super_admin"] },
       { label: "KPI",           href: "/settings/kpi" },
+      { label: "Hồ sơ doanh nghiệp", href: "/settings/brand-profile" },
       { label: "Team",          href: "/settings/team",           roles: ["super_admin"] },
       { label: "Tracking",      href: "/settings/tracking" },
       // { label: "CPL Thresholds", href: "/settings/cpl-thresholds", roles: ["super_admin"] },
@@ -199,6 +207,8 @@ const ROLE_BADGE: Record<Role, { label: string; color: string }> = {
   admin_mbi:   { label: "Admin MBI",    color: "bg-violet-500/20 text-violet-300" },
   viewer_mbc:  { label: "Viewer MBC",   color: "bg-slate-500/20 text-slate-300" },
   viewer_mbi:  { label: "Viewer MBI",   color: "bg-slate-500/20 text-slate-300" },
+  admin:       { label: "Admin",        color: "bg-blue-500/20 text-blue-300" },
+  viewer:      { label: "Viewer",       color: "bg-slate-500/20 text-slate-300" },
 };
 
 // ─────────────────────────────────────────────
@@ -262,6 +272,8 @@ export default function Sidebar() {
   // Default to super_admin while session is loading so all nav items remain visible
   const userRole = user?.role || "super_admin";
 
+  useCompaniesVersion(); // vẽ lại khi cấu hình bản cài (mô-đun) nạp xong
+  const setup = useSetupFlags(); // Đợt 21 A6: mục "Thiết lập ban đầu" chỉ ở bản cài bật SETUP_WIZARD (không có ở bản Mắt Bão)
   function canSee(roles?: Role[]): boolean {
     if (!roles) return true;
     return roles.includes(userRole);
@@ -281,7 +293,7 @@ export default function Sidebar() {
 
       {/* ---- Navigation ---- */}
       <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
-        {navItems.filter((item) => canSee(item.roles)).map((item, idx, visibleItems) => {
+        {navItems.filter((item) => canSee(item.roles) && hasModule(item.module)).map((item, idx, visibleItems) => {
           // Compares against the previous VISIBLE item (not the previous
           // item in the full array) so a header still renders correctly
           // when role-based filtering hides a group's first item but not
@@ -346,8 +358,8 @@ export default function Sidebar() {
                         {item.href === "/settings" ? "Cài đặt chung" : `Tổng quan ${item.label}`}
                       </Link>
                     )}
-                    {item.children.map((child) => {
-                      if (!canSee(child.roles)) return null;
+                    {(item.href === "/settings" && setup.enabled ? [{ label: "Thiết lập ban đầu", href: "/setup", roles: ["super_admin"] as Role[] }, ...item.children] : item.children).map((child) => {
+                      if (!canSee(child.roles) || !hasModule(moduleOfPage(child.href))) return null;
                       const isActive = pathname === child.href;
                       return (
                         <Link
@@ -445,6 +457,13 @@ export default function Sidebar() {
                 {ROLE_BADGE[userRole].label}
               </span>
             </div>
+            <Link
+              href="/doi-mat-khau"
+              className="flex h-7 w-7 items-center justify-center rounded-lg text-sidebar-foreground/30 hover:text-sidebar-foreground/70 hover:bg-sidebar-accent transition-colors"
+              title="Đổi mật khẩu"
+            >
+              <KeyRound size={14} />
+            </Link>
             <button
               onClick={logout}
               className="flex h-7 w-7 items-center justify-center rounded-lg text-sidebar-foreground/30 hover:text-sidebar-foreground/70 hover:bg-sidebar-accent transition-colors"

@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getClientIp, rateLimit } from "@/lib/rate-limit"
 import { ingestOrders, MAX_ORDERS_PER_CALL, orderSourceOf, verifyOrderSecret, type OrderInput } from "@/lib/orders/sources"
 import type { Company } from "@/lib/case/types"
+import { isCompany } from "@/lib/companies/registry";
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
@@ -14,7 +15,7 @@ const MAX_BODY_BYTES = 1_000_000
 
 export async function POST(request: NextRequest) {
   const co = request.nextUrl.searchParams.get("company")
-  if (co !== "MBC" && co !== "MBI") return NextResponse.json({ success: false, error: "company phải là MBC hoặc MBI" }, { status: 400 })
+  if (!isCompany(co)) return NextResponse.json({ success: false, error: "company phải là MBC hoặc MBI" }, { status: 400 })
   const auth = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim() ?? null
   // Lọc rẻ TRƯỚC bộ đếm tần suất (bộ đếm ghi tệp mỗi lần gọi): không có khoá đúng khuôn thì trả 401 luôn.
   if (!auth || !/^ord_[A-Za-z0-9_-]{30,40}$/.test(auth)) return NextResponse.json({ success: false, error: "Sai hoặc thiếu khoá webhook" }, { status: 401 })

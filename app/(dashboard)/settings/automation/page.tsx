@@ -16,6 +16,7 @@ import { Loader2, Play, Eye, ShieldCheck, AlertTriangle } from "lucide-react";
 import { useAdsStore } from "@/store/useAdsStore";
 import { cn } from "@/lib/utils";
 import { companyIds } from "@/lib/companies/registry";
+import { isCompany } from "@/lib/companies/registry";
 
 type Company = string;
 type Mode = "dry_run" | "auto_apply";
@@ -102,7 +103,7 @@ export default function AutomationSettingsPage() {
   const [runMsg, setRunMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    if (storeCompany === "MBC" || storeCompany === "MBI") setCompany(storeCompany);
+    if (isCompany(storeCompany)) setCompany(storeCompany);
   }, [storeCompany]);
 
   const load = useCallback(async () => {

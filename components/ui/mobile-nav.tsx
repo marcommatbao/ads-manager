@@ -1,5 +1,6 @@
 "use client";
 
+import { moduleOfPage } from "@/lib/companies/modules";
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -8,6 +9,7 @@ import { Menu, Bell, LayoutDashboard, Megaphone, Target, Zap, BarChart2, Setting
 import { cn } from "@/lib/utils";
 import { navItems } from "@/components/Sidebar";
 import type { Role } from "@/lib/permissions";
+import { hasModule } from "@/lib/companies/registry";
 
 // ─────────────────────────────────────────────
 // Shared Logic
@@ -129,7 +131,7 @@ export function MobileDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: ()
 
         <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
           {navItems.map((item) => {
-            if (!canSee(item.roles)) return null;
+            if (!canSee(item.roles) || !hasModule(item.module)) return null;
 
             const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
 
@@ -158,7 +160,7 @@ export function MobileDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: ()
                 {item.children && (
                   <div className="mt-1 ml-4 pl-4 border-l-2 border-slate-100 space-y-1">
                     {item.children.map(child => {
-                      if (!canSee(child.roles)) return null;
+                      if (!canSee(child.roles) || !hasModule(moduleOfPage(child.href))) return null;
                       const isChildActive = pathname === child.href;
                       return (
                         <Link

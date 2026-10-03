@@ -29,6 +29,7 @@ import type { KeywordMetric } from "@/lib/google-keyword-planner";
 import type { CPLResult } from "@/lib/cpl-calculator";
 import type { GA4CampaignData } from "@/lib/ga4-client";
 import { companyIds } from "@/lib/companies"
+import { isCompany } from "@/lib/companies/registry";
 
 /** Trần dòng mỗi tool — vượt thì cắt và NÓI RÕ là đã cắt. */
 const MAX_ROWS = 50;
@@ -135,10 +136,10 @@ function resolveCompanies(user: SessionUser, requested: unknown): {
   companies: Array<string>;
   note?: string;
 } {
-  const allowed = getCompaniesForRole(user.role);
+  const allowed = getCompaniesForRole(user);
   const want = typeof requested === "string" ? requested.toUpperCase() : "";
 
-  if (want === "MBC" || want === "MBI") {
+  if (isCompany(want)) {
     if (allowed.includes(want as string)) return { companies: [want as string] };
     return {
       companies: allowed,
@@ -415,7 +416,7 @@ const getPolicyUpdates: ToolDef = {
 
 const TONE_IDS = ["professional", "urgent", "friendly", "authority", "fomo", "value"] as const;
 const PLATFORMS = ["facebook", "google"] as const;
-const COMPANIES = companyIds();
+// Đợt 21 A6: đọc danh sách công ty LÚC CHẠY (trình thiết lập đổi data/companies.json không cần khởi động lại). Khai báo công cụ dùng getter `enum` vì cùng lý do.
 
 /** productId hợp lệ của /api/ai/audience-insight — đúng khoá trong PRODUCT_LABELS
  *  của route đó. Sai khoá thì route vẫn chạy nhưng mất toàn bộ kiến thức sản
@@ -472,7 +473,7 @@ const generateAdCreative: ToolDef = {
         socialProof: { type: "string", description: "CHỈ điền khi người dùng đã nói ra" },
         offer: { type: "string", description: "Ưu đãi. CHỈ điền khi người dùng đã nói ra" },
         objective: { type: "string", description: "Mục tiêu chiến dịch" },
-        company: { type: "string", enum: [...COMPANIES] },
+        company: { type: "string", get enum() { return [...companyIds()] } },
       },
       required: ["product", "segment", "segmentName", "tone", "toneLabel", "platform"],
     },
@@ -506,7 +507,7 @@ const generateAdCreative: ToolDef = {
       socialProof: str(args.socialProof),
       offer: str(args.offer),
       objective: str(args.objective),
-      company: enumStr(args.company, COMPANIES),
+      company: enumStr(args.company, companyIds()),
     };
 
     try {
@@ -838,7 +839,7 @@ const getPmaxRecommendations: ToolDef = {
     parameters: {
       type: "object",
       properties: {
-        company: { type: "string", enum: [...COMPANIES] },
+        company: { type: "string", get enum() { return [...companyIds()] } },
         from: { type: "string", description: "YYYY-MM-DD" },
         to: { type: "string", description: "YYYY-MM-DD" },
       },
@@ -897,7 +898,7 @@ const getPmaxDiagnosis: ToolDef = {
     parameters: {
       type: "object",
       properties: {
-        company: { type: "string", enum: [...COMPANIES] },
+        company: { type: "string", get enum() { return [...companyIds()] } },
         campaignId: { type: "string", description: "id chiến dịch PMax, lấy từ công cụ khác" },
         assetGroupId: { type: "string", description: "Bỏ trống = chẩn đoán cả chiến dịch" },
         from: { type: "string", description: "YYYY-MM-DD" },
@@ -1036,7 +1037,7 @@ const measureKeywordVolume: ToolDef = {
     parameters: {
       type: "object",
       properties: {
-        company: { type: "string", enum: [...COMPANIES] },
+        company: { type: "string", get enum() { return [...companyIds()] } },
         keywords: { type: "array", items: { type: "string" }, description: "Tối đa 20 từ khoá" },
       },
       required: ["keywords"],
@@ -1154,7 +1155,7 @@ const getCrossPlatformComparison: ToolDef = {
     parameters: {
       type: "object",
       properties: {
-        company: { type: "string", enum: [...COMPANIES], description: "Bỏ trống = tất cả công ty người dùng được xem" },
+        company: { type: "string", get enum() { return [...companyIds()] }, description: "Bỏ trống = tất cả công ty người dùng được xem" },
       },
     },
   },
@@ -1253,7 +1254,7 @@ const getPmaxXrayActions: ToolDef = {
     parameters: {
       type: "object",
       properties: {
-        company: { type: "string", enum: [...COMPANIES] },
+        company: { type: "string", get enum() { return [...companyIds()] } },
         from: { type: "string", description: "YYYY-MM-DD" },
         to: { type: "string", description: "YYYY-MM-DD" },
       },
@@ -1299,7 +1300,7 @@ const getPmaxExperiments: ToolDef = {
       "PMax thí nghiệm & tín hiệu: (1) thí nghiệm TẮT PMax ở một vùng để đo đơn PMax/YouTube có phải đơn thêm thật không — các phương án (Hà Nội / TP.HCM / nửa các tỉnh) với độ nhạy, chi phí tiết kiệm, thí nghiệm đang chạy và kết quả; " +
       "(2) chiến dịch PMax nào không đủ đơn/ngân sách để thoát 'đang học' và gợi ý gộp; (3) tỉ lệ khách mới/khách cũ và chế độ khách mới; (4) so trước/sau mốc đổi cài đặt. " +
       "Dùng khi hỏi 'YouTube có tạo đơn thật không', 'làm sao kiểm chứng PMax', 'thí nghiệm đang ra sao', 'vì sao PMax học mãi', 'PMax có tiêu vào khách cũ không'.",
-    parameters: { type: "object", properties: { company: { type: "string", enum: [...COMPANIES] } } },
+    parameters: { type: "object", properties: { company: { type: "string", get enum() { return [...companyIds()] } } } },
   },
   handler: async (args, ctx) => {
     const { companies, note } = resolveCompanies(ctx.user, args.company);
@@ -1342,7 +1343,7 @@ const getPmaxAssets: ToolDef = {
       "PMax asset & nhóm: từng asset group (ad strength, trạng thái, thiếu loại asset nào, asset bị từ chối, tiêu đề/mô tả YẾU theo tỉ lệ bấm), " +
       "search theme không khớp lượt tìm thật + gợi ý theme từ lượt tìm đã ra đơn, và PMax đã dừng lâu nên gắn nhãn dọn dẹp. " +
       "Dùng khi hỏi 'asset nào yếu', 'nên viết lại tiêu đề nào', 'search theme có ổn không', 'asset group thiếu gì', 'dọn chiến dịch PMax cũ'.",
-    parameters: { type: "object", properties: { company: { type: "string", enum: [...COMPANIES] } } },
+    parameters: { type: "object", properties: { company: { type: "string", get enum() { return [...companyIds()] } } } },
   },
   handler: async (args, ctx) => {
     const { companies, note } = resolveCompanies(ctx.user, args.company);
@@ -1380,7 +1381,7 @@ const getSearchXrayActions: ToolDef = {
       "Search X-quang: mỗi chiến dịch Search chi bao nhiêu cho lượt tìm THƯƠNG HIỆU vs lượt tìm CHUNG/MUA vs ĐỐI THỦ, CPA theo đơn Mua hàng từng nhóm, mất hiển thị vì ngân sách hay vì hạng, " +
       "cảnh báo chiến dịch thương hiệu bị lượt tìm chung ăn ngân sách, và VIỆC NÊN LÀM (tách thương hiệu/chung, thêm lượt tìm ra đơn làm từ khoá, phủ định đối thủ, từ khoá đốt tiền) + dòng quảng cáo RSA yếu. " +
       "Dùng khi hỏi 'Search đang tiêu tiền vào đâu', 'chiến dịch brand có ổn không', 'từ khoá nào nên thêm/dừng', 'quảng cáo Search nào yếu'.",
-    parameters: { type: "object", properties: { company: { type: "string", enum: [...COMPANIES] }, from: { type: "string", description: "YYYY-MM-DD" }, to: { type: "string", description: "YYYY-MM-DD" } } },
+    parameters: { type: "object", properties: { company: { type: "string", get enum() { return [...companyIds()] } }, from: { type: "string", description: "YYYY-MM-DD" }, to: { type: "string", description: "YYYY-MM-DD" } } },
   },
   handler: async (args, ctx) => {
     const { companies, note } = resolveCompanies(ctx.user, args.company);
@@ -1422,7 +1423,7 @@ const getMetaXray: ToolDef = {
       "Meta/Facebook X-quang: mỗi chiến dịch chi bao nhiêu, 'mua hàng' Meta báo TÁCH thành từ lượt bấm (7 ngày) và chỉ xem (1 ngày), CPA theo lượt bấm, sự kiện tối ưu, cài đặt ghi nhận, tần suất, " +
       "đơn GA4 theo utm_campaign để đối chiếu, và việc nên làm (mở phiên xử lý tạo nhóm mới chỉ tính lượt bấm / tối ưu Mua hàng, chuẩn hoá utm). " +
       "Dùng khi hỏi 'Facebook có ra đơn thật không', 'số Meta có đáng tin không', 'chiến dịch Facebook nào tốt/tệ', 'vì sao Meta báo nhiều đơn mà Odoo ít'.",
-    parameters: { type: "object", properties: { company: { type: "string", enum: [...COMPANIES] }, from: { type: "string", description: "YYYY-MM-DD" }, to: { type: "string", description: "YYYY-MM-DD" } } },
+    parameters: { type: "object", properties: { company: { type: "string", get enum() { return [...companyIds()] } }, from: { type: "string", description: "YYYY-MM-DD" }, to: { type: "string", description: "YYYY-MM-DD" } } },
   },
   handler: async (args, ctx) => {
     const { companies, note } = resolveCompanies(ctx.user, args.company);

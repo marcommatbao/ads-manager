@@ -13,6 +13,7 @@ import { guardEditThresholds } from "@/lib/settings/guards";
 import fs from "fs";
 import { writeFileAtomicSync } from "@/lib/fs-atomic";
 import path from "path";
+import { isCompany } from "@/lib/companies/registry";
 
 export const maxDuration = 60; // Up to 60s for insights
 
@@ -110,7 +111,7 @@ export async function GET(req: Request) {
     // khoản (kiểm data/team-members.json 16/09/2026, kể cả viewer_mbc), nên
     // mọi phép kiểm quyền công ty ở đây LUÔN ĐÚNG cho tất cả mọi người.
     const filteredResults = results.filter(r =>
-      canAccessCompany(user.role, (r.company ?? "") as string)
+      canAccessCompany(user, (r.company ?? "") as string)
     );
 
     return NextResponse.json({ success: true, data: filteredResults, thresholds: getCplThresholds() });
@@ -146,7 +147,7 @@ export async function POST(req: Request) {
     const num = (v: unknown) => (Number.isFinite(Number(v)) ? Math.round(Number(v)) : 0);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const trimmed = (cplData as any[])
-      .filter((c) => (c?.company === "MBC" || c?.company === "MBI") && canAccessCompany(user.role, c.company))
+      .filter((c) => (isCompany(c?.company)) && canAccessCompany(user, c.company))
       .slice(0, 30).map((c) => ({
         name: str(c.campaign_name, 150),
         company: c.company as string,

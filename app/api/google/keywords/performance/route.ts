@@ -17,6 +17,7 @@ import { resolveMatchType } from "@/lib/google-ads-helpers";
 
 import { googleAdsErrorMessage } from "@/lib/google-ads-error";
 import { daysBackVN } from "@/lib/case/dates";
+import { isCompany } from "@/lib/companies/registry";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
@@ -52,11 +53,11 @@ export async function GET(request: NextRequest) {
   if (!user) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
 
   const companyParam = (request.nextUrl.searchParams.get("company") ?? "MBC").toUpperCase();
-  if (companyParam !== "MBC" && companyParam !== "MBI") {
+  if (!isCompany(companyParam)) {
     return NextResponse.json({ success: false, error: "company phải là MBC hoặc MBI" }, { status: 400 });
   }
   const company = companyParam as string;
-  if (!canAccessCompany(user.role, company)) {
+  if (!canAccessCompany(user, company)) {
     return NextResponse.json({ success: false, error: "Access denied for this company" }, { status: 403 });
   }
 

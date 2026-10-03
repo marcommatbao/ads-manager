@@ -6,6 +6,8 @@ import type { CompanyAccess } from "@/lib/team";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import crypto from "crypto";
 import { isAllowedLoginEmail, loginDomainMessage } from "@/lib/login-domain";
+import { normalizePassword } from "@/lib/password-policy";
+import { setupEnabled } from "@/lib/setup/state";
 
 // Max 5 attempts per IP per 60s. Durable across restarts (data/rate-limit.json)
 // — was previously an in-process Map here that reset on every redeploy.
@@ -19,12 +21,17 @@ const LOGIN_EMAIL_WINDOW_MS = 15 * 60_000;
 // Map SEO tool roles → AdsCommand roles
 const SEO_ROLE_MAP: Record<string, Role> = {
   superadmin: "super_admin",
+  // Đợt 21 A5: CHỈ ánh xạ sang vai trò CŨ. Đăng nhập SEO gán companies=["ALL"] trong phiên — vô hại với vai trò cũ (phạm vi
+  // theo vai trò) nhưng sẽ cấp MỌI công ty nếu ánh xạ sang vai trò chung "admin"/"viewer". Đừng đổi sang vai trò chung.
   admin:      "admin_mbc",
   editor:     "viewer_mbc",
   viewer:     "viewer_mbc",
 };
 
 async function trySeоAuth(email: string, password: string) {
+  // Soát bảo mật 03/10: bản cài KHÁCH (SETUP_WIZARD=on) KHÔNG BAO GIỜ nhận đăng nhập qua công cụ SEO của Mắt Bão — nếu
+  // SEO_API_URL lỡ bị chép sang, người dùng SEO (kể cả superadmin → super_admin) sẽ vào được bản cài của khách.
+  if (setupEnabled()) return null;
   // Không còn host mặc định trong mã (đổi 17/09/2026). Nhánh này GỬI email +
   // mật khẩu người dùng sang một hệ thống khác; host của nó không nên nằm
   // trong repo công khai. Thiếu biến → BỎ hẳn nhánh dự phòng này (trả null)
@@ -88,7 +95,7 @@ export async function POST(request: NextRequest) {
   const member = await getMemberByEmail(email);
   const storedHash = member?.password_hash ?? "scrypt:dummy:dummy";
   const localValid = member && member.is_active && member.status === "active"
-    ? verifyPassword(password, storedHash)
+    ? verifyPassword(password, storedHash) || (normalizePassword(password) !== password && verifyPassword(normalizePassword(password), storedHash)) // NFC: xem lib/password-policy.ts
     : false;
 
   if (localValid && member) {
@@ -115,10 +122,11 @@ export async function POST(request: NextRequest) {
       email: member.email,
       role: member.role,
       companies: member.company_access,
+      mustChangePassword: !!member.must_change_password, // Đợt 21 B
     }, member.session_version ?? 0);
     const response = NextResponse.json({
       success: true,
-      user: { name: member.name, email: member.email, role: member.role },
+      user: { name: member.name, email: member.email, role: member.role, mustChangePassword: !!member.must_change_password },
     });
     response.headers.set("Set-Cookie", getSessionCookieHeader(token));
     return response;

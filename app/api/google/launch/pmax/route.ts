@@ -6,6 +6,8 @@
 // → Creates real Google Ads: Campaign → Asset Group → Assets → Audience Signals
 // ============================================================
 
+import { brandOverride } from "@/lib/brand/store";
+import { catalogFor } from "@/lib/brand/catalog";
 import { NextRequest, NextResponse } from "next/server";
 import { ResourceNames } from "google-ads-api";
 import { runPreflightGooglePMax, preflightToLog } from "@/lib/launch-preflight";
@@ -140,7 +142,7 @@ export async function POST(req: NextRequest) {
     // Each company has its own Google Ads customer account — gate before
     // creating any real campaign against it (same pattern as the
     // Meta launch/budget/status mutation routes).
-    if (!canAccessCompany(user.role, pickCompany(company))) {
+    if (!canAccessCompany(user, pickCompany(company))) {
       return NextResponse.json({ success: false, error: "Access denied for this company" }, { status: 403 });
     }
 
@@ -183,7 +185,7 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Resolve product info ──
-    const catalog = getProductCatalog(company);
+    const catalog = catalogFor(company); // Đợt 21 A3: hồ sơ doanh nghiệp (MBC/MBI chưa lưu = catalog cũ)
     const product = catalog[creative.productId];
     // Như launch/search: không thay ngầm bằng trang chủ.
     const finalUrl = product
@@ -231,7 +233,7 @@ export async function POST(req: NextRequest) {
     const bizNameAssetRN = ResourceNames.asset(customerId, "-3");
 
     // Tên thương hiệu và logo vuông — Brand Guidelines ĐÒI cả hai ở cấp campaign.
-    const brandName: string = pmax.businessName ?? (company === "MBI" ? "Mắt Bão Invoice" : company === "MBC" ? "Mắt Bão" : companyLabel(company));
+    const brandName: string = pmax.businessName ?? (brandOverride(company)?.brandName ?? (company === "MBI" ? "Mắt Bão Invoice" : company === "MBC" ? "Mắt Bão" : companyLabel(company)));
 
     // DÙNG LẠI asset tên thương hiệu nếu tài khoản đã có. Tạo mới mỗi lần
     // launch sẽ nhồi thư viện tài sản đầy những bản "Mắt Bão" giống hệt nhau,
@@ -520,7 +522,7 @@ export async function POST(req: NextRequest) {
     ];
 
     // Business Name (1)
-    const bizName = pmax.businessName ?? (company === "MBI" ? "Mắt Bão Invoice" : company === "MBC" ? "Mắt Bão" : companyLabel(company));
+    const bizName = pmax.businessName ?? (brandOverride(company)?.brandName ?? (company === "MBI" ? "Mắt Bão Invoice" : company === "MBC" ? "Mắt Bão" : companyLabel(company)));
     queueTextAsset(bizName, "BUSINESS_NAME");
 
     // Create all text assets in one batch

@@ -135,7 +135,8 @@ function buildPrompt(
   anomalies: Anomaly[],
   budgetConstrained: boolean
 ): string {
-  const th = getCplThresholds()[campaign.company ?? "MBC"];
+  // Đợt 21 B: công ty chưa có ngưỡng CPL (bản cài khách) → nói rõ "chưa đặt" thay vì sập.
+  const th = getCplThresholds()[campaign.company ?? "MBC"] as { good: number; warning: number; critical: number } | undefined;
   const fmtK = (n: number) => (n >= 1000 ? `${Math.round(n / 1000)}K` : `${n}`);
 
   const anomalyLines = anomalies.length
@@ -143,7 +144,7 @@ function buildPrompt(
     : "- Không có chỉ số nào lệch bất thường so với TB 7 ngày (ngoài CPL).";
 
   return `Bạn là chuyên gia quảng cáo ${campaign.platform === "google" ? "Google Ads" : "Facebook Ads"}. Campaign "${campaign.name}" (${campaign.company}) đang có CPL ở mức "${cplLevel}".
-Ngưỡng ${campaign.company}: tốt ≤${fmtK(th.good)}, cảnh báo ${fmtK(th.good)}-${fmtK(th.warning)}, nguy hiểm ≥${fmtK(th.critical)}. CPL hiện tại: ${cpl !== null ? fmtK(Math.round(cpl)) : "chưa có data"}.
+${th ? `Ngưỡng ${campaign.company}: tốt ≤${fmtK(th.good)}, cảnh báo ${fmtK(th.good)}-${fmtK(th.warning)}, nguy hiểm ≥${fmtK(th.critical)}.` : `Ngưỡng ${campaign.company}: chưa đặt.`} CPL hiện tại: ${cpl !== null ? fmtK(Math.round(cpl)) : "chưa có data"}.
 
 Các chỉ số bất thường so với trung bình 7 ngày gần nhất:
 ${anomalyLines}

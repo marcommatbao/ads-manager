@@ -19,7 +19,7 @@ export async function GET() {
 
   // Chỉ trả lịch sử của công ty người này được xem. Route này vốn đã TÍNH ra
   // company cho từng dòng rồi trả hết — tính đúng nhưng không dùng để lọc.
-  const allowed = getCompaniesForRole(user.role) as string[];
+  const allowed = getCompaniesForRole(user) as string[];
 
   const data = log
     .filter((entry) => !entry.skipped)

@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
   }
 
   const company = pickCompany(body.company);
-  if (!canAccessCompany(user.role, company)) {
+  if (!canAccessCompany(user, company)) {
     return NextResponse.json({ success: false, error: `Không có quyền thao tác trên ${company}` }, { status: 403 });
   }
 

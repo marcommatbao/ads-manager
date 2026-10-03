@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
 
   const body = (await req.json().catch(() => ({}))) as { company?: string; keywords?: string[] };
   const company = pickCompany(body.company);
-  if (!canAccessCompany(user.role, company)) {
+  if (!canAccessCompany(user, company)) {
     return NextResponse.json({ success: false, error: "Access denied for this company" }, { status: 403 });
   }
   if (!Array.isArray(body.keywords) || body.keywords.length === 0) {

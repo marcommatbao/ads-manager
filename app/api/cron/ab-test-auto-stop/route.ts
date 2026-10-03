@@ -23,7 +23,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const maxDuration = 60;
 
-const COMPANIES = companyIds();
+// Đợt 21 A6: đọc danh sách công ty LÚC CHẠY (trình thiết lập đổi data/companies.json không cần khởi động lại).
 
 function formatMoney(vnd: number): string {
   return `${Math.round(vnd).toLocaleString("vi-VN")}đ`;
@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const perCompany = await Promise.all(
-      COMPANIES.map(async (company) => ({ company, scan: await scanForAbTests(company) }))
+      companyIds().map(async (company) => ({ company, scan: await scanForAbTests(company) }))
     );
 
     const allResults: ABTestResult[] = perCompany.flatMap((c) => c.scan.results);

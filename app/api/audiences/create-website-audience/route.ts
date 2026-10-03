@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
 
   // This creates a real WEBSITE Custom + Lookalike Audience on the shared
   // Meta ad account — same RBAC/company gate as create-lookalike/route.ts.
-  const companyOk = config.company === "both" ? isSuperAdmin(user.role) : canAccessCompany(user.role, config.company);
+  const companyOk = config.company === "both" ? isSuperAdmin(user.role) : canAccessCompany(user, config.company);
   if (!companyOk) {
     return NextResponse.json({ success: false, error: "Access denied for this company" }, { status: 403 });
   }

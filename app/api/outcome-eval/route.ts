@@ -9,7 +9,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission, isAdmin, canAccessCompany } from "@/lib/permissions";
 import { evaluate } from "@/lib/outcome-evaluator/evaluator";
 import { getWindow, recommendedWindow } from "@/lib/outcome-evaluator/windows";
 import type { EvaluationInput } from "@/lib/outcome-evaluator/types";
@@ -20,7 +20,7 @@ export const dynamic = "force-dynamic";
 export async function POST(request: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!hasPermission(user.role, "can_view_credentials")) {
+  if (!isAdmin(user.role) /* Đợt 21 A4: can_view_credentials nay CHỈ super_admin (xem khoá). Tính năng này không phải khoá → giữ phạm vi cũ admin+. */) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -35,8 +35,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Required: entityId, company, event, before, after" }, { status: 400 });
   }
   if (!isCompany(body.company!)) {
-    return NextResponse.json({ error: "company must be MBC or MBI" }, { status: 400 });
+    return NextResponse.json({ error: "company không hợp lệ" }, { status: 400 });
   }
+  if (!canAccessCompany(user, body.company!)) return NextResponse.json({ error: "Forbidden" }, { status: 403 }); // Đợt 21 A5b
 
   const window = body.windowLabel
     ? getWindow(body.windowLabel)

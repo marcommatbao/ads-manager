@@ -333,7 +333,7 @@ export async function POST(req: NextRequest) {
     if (!body.improvementId || !body.company) {
       return NextResponse.json({ success: false, error: "Thiếu improvementId/company" }, { status: 400 });
     }
-    if (!canAccessCompany(user.role, body.company)) {
+    if (!canAccessCompany(user, body.company)) {
       return NextResponse.json({ success: false, error: "Không có quyền truy cập công ty này" }, { status: 403 });
     }
     await dismissImprovement(body.improvementId, body.company);
@@ -356,7 +356,7 @@ export async function POST(req: NextRequest) {
     const entry = findUndoable(String(body.improvementId));
     // Audit 30/09: hoàn tác phải qua đúng phép kiểm công ty như áp dụng — trước đây nhánh này dùng body.company
     // cho khách hàng Google và không đối chiếu với công ty của bản ghi → admin_mbc hoàn tác được thay đổi của MBI.
-    if (entry && (entry.company !== body.company || !canAccessCompany(user.role, entry.company as string))) {
+    if (entry && (entry.company !== body.company || !canAccessCompany(user, entry.company as string))) {
       return NextResponse.json({ success: false, error: "Không có quyền truy cập công ty này" }, { status: 403 });
     }
     if (!entry) {
@@ -463,7 +463,7 @@ export async function POST(req: NextRequest) {
     if (!body.company || !Array.isArray(body.items)) {
       return NextResponse.json({ success: false, error: "Thiếu company/items" }, { status: 400 });
     }
-    if (!canAccessCompany(user.role, body.company)) {
+    if (!canAccessCompany(user, body.company)) {
       return NextResponse.json({ success: false, error: "Không có quyền truy cập công ty này" }, { status: 403 });
     }
     const results = await Promise.all(
@@ -498,7 +498,7 @@ export async function POST(req: NextRequest) {
   if (!body.company || !body.applyPayload) {
     return NextResponse.json({ success: false, error: "Thiếu company/applyPayload" }, { status: 400 });
   }
-  if (!canAccessCompany(user.role, body.company)) {
+  if (!canAccessCompany(user, body.company)) {
     return NextResponse.json({ success: false, error: "Không có quyền truy cập công ty này" }, { status: 403 });
   }
 

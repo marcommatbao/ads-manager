@@ -48,7 +48,7 @@ export async function PATCH(
     catch (e) { return NextResponse.json({ success: false, error: `Không xác minh được công ty: ${e instanceof Error ? e.message : String(e)}` }, { status: 403 }); }
     const nameData = { name: owner.name, daily_budget: owner.dailyBudget };
     const campaignCompany = detectCompany(owner.campaignName);
-    if (!canAccessCompany(user.role, campaignCompany)) {
+    if (!canAccessCompany(user, campaignCompany)) {
       return NextResponse.json({ success: false, error: "Access denied for this company" }, { status: 403 });
     }
     const campaignName = nameData.name ?? `Campaign ${id}`;

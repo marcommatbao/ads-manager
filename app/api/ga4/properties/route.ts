@@ -1,9 +1,9 @@
 // GET /api/ga4/properties — list the GA4 properties the connected Google
 // account can read, so Settings → GA4 can offer a real picker instead of
 // asking someone to type a numeric property id by hand.
+import { isAdmin, canAccessAllCompanies } from "@/lib/permissions";
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import { guardViewCredentials } from "@/lib/settings/guards";
 import {
   readGA4OAuth,
   getAccessToken,
@@ -16,8 +16,10 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
-  const guard = guardViewCredentials(user);
-  if (guard) return guard;
+  // Đợt 21 A4: danh sách property (không có token) → admin+ như cũ.
+  if (!isAdmin(user.role)) return NextResponse.json({ success: false, error: "Không có quyền" }, { status: 403 });
+  // Đợt 21 A5b: danh sách MỌI property của tài khoản Google đã nối (dùng khi thiết lập) → chỉ người được giao mọi công ty.
+  if (!canAccessAllCompanies(user)) return NextResponse.json({ success: false, error: "Không có quyền" }, { status: 403 });
 
   const oauth = readGA4OAuth();
   if (!oauth) {

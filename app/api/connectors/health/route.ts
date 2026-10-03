@@ -4,7 +4,7 @@
 
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission, isAdmin } from "@/lib/permissions";
 import { snapshotAllConnectors, refreshAllConnectors } from "@/lib/connectors/engine";
 import { CONNECTOR_REGISTRY } from "@/lib/connectors/registry";
 
@@ -13,8 +13,11 @@ export async function GET() {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  // All authenticated users can VIEW connector health (but only admins can trigger tests)
-  const records = snapshotAllConnectors();
+  // All authenticated users can VIEW connector health (but only admins can trigger tests).
+  // Đợt 21 A4 (soát bảo mật): maskedConfig chứa 4 ký tự đầu/cuối của token + mã ở dạng rõ → CHỈ super_admin.
+  const canSeeConfig = hasPermission(user.role, "can_view_credentials");
+  const snap = snapshotAllConnectors();
+  const records = canSeeConfig ? snap : Object.fromEntries(Object.entries(snap).map(([id, r]) => [id, { ...r, maskedConfig: {} }])) as typeof snap;
 
   return NextResponse.json({
     records,
@@ -25,7 +28,7 @@ export async function GET() {
       color: d.color,
       icon: d.icon,
     })),
-    canTest: hasPermission(user.role, "can_view_credentials"),
+    canTest: isAdmin(user.role),
   });
 }
 
@@ -34,7 +37,7 @@ export async function POST() {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  if (!hasPermission(user.role, "can_view_credentials")) {
+  if (!isAdmin(user.role)) {
     return NextResponse.json({ error: "Không có quyền kích hoạt kiểm tra kết nối" }, { status: 403 });
   }
 

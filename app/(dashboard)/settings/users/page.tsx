@@ -1,5 +1,6 @@
 "use client";
 
+import { companyIds, companyLabel as companyName } from "@/lib/companies/registry";
 import { useState, useMemo, useCallback } from "react";
 import useSWR from "swr";
 import { formatDistanceToNow } from "date-fns";
@@ -98,8 +99,9 @@ function formatRelativeTime(isoString: string): string {
 }
 
 function companyLabel(access: CompanyAccess[]): string {
-  if (access.includes("ALL")) return "MBC & MBI";
-  return access.join(" & ");
+  // Đợt 21 A5: theo công ty của bản cài (bản Mắt Bão vẫn ra "MBC & MBI")
+  if (access.includes("ALL")) return companyIds().map(companyName).join(" & ");
+  return access.map(companyName).join(" & ");
 }
 
 function getInitials(name: string): string {
@@ -217,10 +219,10 @@ function StatsRow({ users }: { users: SafeUser[] }) {
   const total = users.length;
   const active = users.filter((u) => u.status === "active").length;
   const admins = users.filter((u) =>
-    ["super_admin", "admin_mbc", "admin_mbi"].includes(u.role)
+    ["super_admin", "admin_mbc", "admin_mbi", "admin"].includes(u.role)
   ).length;
   const viewers = users.filter((u) =>
-    ["viewer_mbc", "viewer_mbi"].includes(u.role)
+    ["viewer_mbc", "viewer_mbi", "viewer"].includes(u.role)
   ).length;
 
   const stats = [
@@ -277,7 +279,7 @@ function defaultCompanyAccessForRole(role: Role): CompanyAccess[] {
   if (role === "super_admin") return ["ALL"];
   if (role === "admin_mbc" || role === "viewer_mbc") return ["MBC"];
   if (role === "admin_mbi" || role === "viewer_mbi") return ["MBI"];
-  return ["MBC"];
+  return [companyIds()[0] ?? "MBC"]; // Đợt 21 A5: vai trò chung → công ty đầu tiên của bản cài
 }
 
 interface UserFormProps {
@@ -291,29 +293,20 @@ interface UserFormProps {
 function UserForm({ data, onChange, isEdit, onResetPassword, submitting }: UserFormProps) {
   const selectedCfg = ROLE_CONFIG[data.role];
   const isSuperAdmin = data.role === "super_admin";
-  const checkedMBC = isSuperAdmin || data.company_access.includes("MBC") || data.company_access.includes("ALL");
-  const checkedMBI = isSuperAdmin || data.company_access.includes("MBI") || data.company_access.includes("ALL");
+  // Đợt 21 A5: ô tích theo công ty của bản cài (trước đây cố định MBC / MBI).
+  const ids = companyIds();
+  const checked = (co: string) => isSuperAdmin || data.company_access.includes(co) || data.company_access.includes("ALL");
 
   const handleRoleChange = (newRole: Role | null) => {
     if (!newRole) return;
     onChange({ role: newRole, company_access: defaultCompanyAccessForRole(newRole) });
   };
 
-  const toggleMBC = () => {
+  const toggle = (co: string) => {
     if (isSuperAdmin || submitting) return;
-    if (checkedMBC && !checkedMBI) return; // must keep at least one
-    const next = (checkedMBC
-      ? data.company_access.filter((c) => c !== "MBC" && c !== "ALL")
-      : [...data.company_access.filter((c) => c !== "ALL"), "MBC"]) as CompanyAccess[];
-    onChange({ company_access: next });
-  };
-
-  const toggleMBI = () => {
-    if (isSuperAdmin || submitting) return;
-    if (checkedMBI && !checkedMBC) return; // must keep at least one
-    const next = (checkedMBI
-      ? data.company_access.filter((c) => c !== "MBI" && c !== "ALL")
-      : [...data.company_access.filter((c) => c !== "ALL"), "MBI"]) as CompanyAccess[];
+    const cur = data.company_access.includes("ALL") ? ids : data.company_access;
+    if (checked(co) && cur.filter((c) => c !== co).length === 0) return; // phải giữ ít nhất một
+    const next = (checked(co) ? cur.filter((c) => c !== co) : [...cur, co]) as CompanyAccess[];
     onChange({ company_access: next });
   };
 
@@ -363,7 +356,7 @@ function UserForm({ data, onChange, isEdit, onResetPassword, submitting }: UserF
             <SelectValue placeholder="Chọn role" />
           </SelectTrigger>
           <SelectContent>
-            {ALL_ROLES.map((r) => {
+            {ALL_ROLES.filter((r) => !(r.endsWith("_mbc") && !ids.includes("MBC")) && !(r.endsWith("_mbi") && !ids.includes("MBI"))).map((r) => {
               const cfg = ROLE_CONFIG[r];
               return (
                 <SelectItem key={r} value={r}>
@@ -408,44 +401,31 @@ function UserForm({ data, onChange, isEdit, onResetPassword, submitting }: UserF
         <label className="text-sm font-medium text-slate-700">
           Công ty truy cập <span className="text-red-500">*</span>
         </label>
-        <div className="flex gap-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-          <label
-            className={cn(
-              "flex items-center gap-2.5 select-none",
-              isSuperAdmin || submitting ? "cursor-not-allowed opacity-60" : "cursor-pointer"
-            )}
-          >
-            <input
-              type="checkbox"
-              checked={checkedMBC}
-              onChange={toggleMBC}
-              disabled={isSuperAdmin || submitting}
-              className="h-4 w-4 rounded border-slate-300 accent-blue-600"
-            />
-            <span className="text-sm font-semibold text-blue-700">MBC</span>
-            <span className="text-xs text-slate-400">Mắt Bão Cloud</span>
-          </label>
-          <label
-            className={cn(
-              "flex items-center gap-2.5 select-none",
-              isSuperAdmin || submitting ? "cursor-not-allowed opacity-60" : "cursor-pointer"
-            )}
-          >
-            <input
-              type="checkbox"
-              checked={checkedMBI}
-              onChange={toggleMBI}
-              disabled={isSuperAdmin || submitting}
-              className="h-4 w-4 rounded border-slate-300 accent-violet-600"
-            />
-            <span className="text-sm font-semibold text-violet-700">MBI</span>
-            <span className="text-xs text-slate-400">Mắt Bão Invest</span>
-          </label>
+        <div className="flex flex-wrap gap-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+          {ids.map((co) => (
+            <label key={co}
+              className={cn(
+                "flex items-center gap-2.5 select-none",
+                isSuperAdmin || submitting ? "cursor-not-allowed opacity-60" : "cursor-pointer"
+              )}
+            >
+              <input
+                type="checkbox"
+                checked={checked(co)}
+                onChange={() => toggle(co)}
+                disabled={isSuperAdmin || submitting}
+                className="h-4 w-4 rounded border-slate-300 accent-blue-600"
+              />
+              <span className={cn("text-sm font-semibold", co === "MBI" ? "text-violet-700" : "text-blue-700")}>{companyName(co)}</span>
+              {co === "MBC" && <span className="text-xs text-slate-400">Mắt Bão Cloud</span>}
+              {co === "MBI" && <span className="text-xs text-slate-400">Mắt Bão Invest</span>}
+            </label>
+          ))}
         </div>
         {isSuperAdmin ? (
-          <p className="text-[11px] text-slate-400">Super Admin luôn có quyền truy cập cả MBC & MBI.</p>
+          <p className="text-[11px] text-slate-400">Super Admin luôn có quyền truy cập mọi công ty.</p>
         ) : (
-          <p className="text-[11px] text-slate-400">Chọn một hoặc cả hai công ty mà nhân viên này quản lý.</p>
+          <p className="text-[11px] text-slate-400">Chọn các công ty mà nhân viên này quản lý (vai trò Admin / Viewer áp theo đúng danh sách này).</p>
         )}
       </div>
 

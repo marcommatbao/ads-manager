@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
   const company = sp.get("company") === "MBC" ? "MBC" : "MBI";
   const month = sp.get("month") ?? new Date().toISOString().slice(0, 7);
-  if (!canAccessCompany(user.role, company)) {
+  if (!canAccessCompany(user, company)) {
     return NextResponse.json({ success: false, error: "Access denied for this company" }, { status: 403 });
   }
 

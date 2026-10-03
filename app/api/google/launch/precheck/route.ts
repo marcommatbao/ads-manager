@@ -22,6 +22,8 @@
 // tài khoản. Chạy bao nhiêu lần cũng được.
 // ============================================================
 
+import { brandOverride } from "@/lib/brand/store";
+import { catalogFor } from "@/lib/brand/catalog";
 import { NextRequest, NextResponse } from "next/server";
 import { ResourceNames } from "google-ads-api";
 import { runPreflightGoogleSearch, preflightToLog } from "@/lib/launch-preflight";
@@ -100,7 +102,7 @@ export async function POST(req: NextRequest) {
       : [];
     const locationsToCheck = pickedLocations.length > 0 ? pickedLocations : [GEO_VIETNAM];
 
-    if (!canAccessCompany(user.role, pickCompany(company))) {
+    if (!canAccessCompany(user, pickCompany(company))) {
       return NextResponse.json({ success: false, error: "Access denied for this company" }, { status: 403 });
     }
     if (!googleCreativeId || !campaignName) {
@@ -137,7 +139,7 @@ export async function POST(req: NextRequest) {
       ? null
       : runPreflightGoogleSearch({ company, googleCreativeId, dailyBudgetVnd, campaignName, rsa, keywords });
 
-    const catalog = getProductCatalog(company);
+    const catalog = catalogFor(company); // Đợt 21 A3: hồ sơ doanh nghiệp (MBC/MBI chưa lưu = catalog cũ)
     const product = catalog[creative.productId];
     const finalUrl = product
       ? (product.finalUrls[company] ?? product.finalUrls[product.company] ?? "https://matbao.net")
@@ -339,7 +341,7 @@ export async function POST(req: NextRequest) {
       droppedHeadlines = allHeadlines.filter((h) => h.isValid === false).map((h) => `${h.text} (${h.text.length} ký tự)`);
 
       path1 = sanitizeDisplayPath(product?.name);
-      path2 = sanitizeDisplayPath(company === "MBI" ? "matbao in" : company === "MBC" ? "matbao net" : companyDisplayPath(company));
+      path2 = sanitizeDisplayPath(brandOverride(company)?.displayPath || (company === "MBI" ? "matbao in" : company === "MBC" ? "matbao net" : companyDisplayPath(company)));
 
       ops.push({
         entity: "ad_group_ad",

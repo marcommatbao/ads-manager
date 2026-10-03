@@ -19,6 +19,7 @@
 // nói rõ là thiếu chứ không im lặng bỏ qua.
 // ============================================================
 
+import { orgName } from "@/lib/brand/store"
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { canAccessCompany } from "@/lib/permissions";
@@ -52,7 +53,7 @@ interface CampaignDetailResponse {
   error?: string;
 }
 
-const SYSTEM_RULES = `Bạn là chuyên viên phân tích quảng cáo của Mắt Bão, đang giải thích kết quả chấm điểm một chiến dịch cho người chạy quảng cáo.
+const SYSTEM_RULES = `Bạn là chuyên viên phân tích quảng cáo của __ORG__, đang giải thích kết quả chấm điểm một chiến dịch cho người chạy quảng cáo.
 
 LUẬT TUYỆT ĐỐI:
 1. CHỈ dùng đúng những con số có trong dữ liệu được đưa bên dưới. KHÔNG được tự tính thêm, tự làm tròn khác đi, hay nhắc tới bất kỳ con số nào không xuất hiện trong dữ liệu đó.
@@ -89,7 +90,7 @@ function buildPrompt(name: string, platform: AnalysisPlatform, a: CampaignAnalys
       ).join("\n")
     : "KHÔNG CÓ VẤN ĐỀ NÀO. Máy chấm đã đi hết 5 trụ và không có mục nào cần xử lý.";
 
-  return `${SYSTEM_RULES}
+  return `${SYSTEM_RULES.replace("__ORG__", orgName())}
 
 === DỮ LIỆU ĐÃ CHẤM (nguồn duy nhất được phép dùng) ===
 Chiến dịch: ${name}
@@ -185,7 +186,7 @@ export async function GET(
       { status: 400 }
     );
   }
-  if (company && !canAccessCompany(user.role, company)) {
+  if (company && !canAccessCompany(user, company)) {
     return NextResponse.json({ error: "Không có quyền xem công ty này" }, { status: 403 });
   }
 
@@ -227,7 +228,7 @@ export async function GET(
   const effectiveCompany = platform === "google"
     ? company
     : detectCompany(detail.campaign.name ?? "");
-  if (effectiveCompany && !canAccessCompany(user.role, effectiveCompany)) {
+  if (effectiveCompany && !canAccessCompany(user, effectiveCompany)) {
     return NextResponse.json({ error: "Không có quyền xem chiến dịch này" }, { status: 403 });
   }
 

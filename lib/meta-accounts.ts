@@ -21,6 +21,8 @@
 // giải quyết được gì.
 // ============================================================
 
+import { publicIdFromConfig } from "@/lib/companies/registry";
+
 export type MetaCompany = string;
 
 /** Các công ty có fanpage/pixel Meta để chạy campaign (SALE_AI chỉ có pixel + GA4). */
@@ -85,8 +87,15 @@ const PUBLIC_ENV: Record<string, string | undefined> = {
 
 /** Đọc một biến NEXT_PUBLIC_* từ bảng tĩnh ở trên; thiếu thì rỗng (không đoán). */
 function env(name: string): string {
+  // Đợt 21 A4: ở MÁY CHỦ đọc biến LÚC CHẠY (mã dán ở Cài đặt → API Keys có hiệu lực ngay; bản Mắt Bão: cùng giá trị như cũ).
+  if (typeof window === "undefined") {
+    const live = process.env[name];
+    if (typeof live === "string" && live.trim()) return live.trim();
+  }
   const raw = PUBLIC_ENV[name];
-  return typeof raw === "string" ? raw.trim() : "";
+  if (typeof raw === "string" && raw.trim()) return raw.trim();
+  // Trình duyệt: bản build không có mã (bản cài khách dán ở Cài đặt) → lấy từ /api/companies (CompaniesBoot nạp).
+  return publicIdFromConfig(name) ?? "";
 }
 
 

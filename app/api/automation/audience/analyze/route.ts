@@ -642,7 +642,7 @@ export async function POST(request: NextRequest) {
   // chỉ bằng cách gửi ID, và mỗi lần gọi là một lượt Gemini + vài lượt Meta API.
   // Xác minh theo ID, không theo campaignName client gửi kèm.
   const access = await verifyMetaCampaignAccess(
-    body.campaignId, (c) => canAccessCompany(user.role, c),
+    body.campaignId, (c) => canAccessCompany(user, c),
   );
   if (!access.allowed) {
     return NextResponse.json({ success: false, error: access.error ?? "Access denied for this company" }, { status: 403 });

@@ -7,13 +7,14 @@ import { getClientIp, rateLimit } from "@/lib/rate-limit"
 import { ingestEvents, MAX_EVENTS_PER_CALL, uploadPending, verifyWebhookSecret, type LeadEventInput } from "@/lib/leads/quality"
 import { PmaxControlError } from "@/lib/pmax/controls"
 import type { Company } from "@/lib/case/types"
+import { isCompany } from "@/lib/companies/registry";
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
 
 export async function POST(request: NextRequest) {
   const co = request.nextUrl.searchParams.get("company")
-  if (co !== "MBC" && co !== "MBI") return NextResponse.json({ success: false, error: "company phải là MBC hoặc MBI" }, { status: 400 })
+  if (!isCompany(co)) return NextResponse.json({ success: false, error: "company phải là MBC hoặc MBI" }, { status: 400 })
   const rl = await rateLimit(`lead-quality:${getClientIp(request)}`, 60, 60_000)
   if (!rl.allowed) return NextResponse.json({ success: false, error: "Quá nhiều lần gọi — thử lại sau 1 phút" }, { status: 429 })
   const auth = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim() ?? null

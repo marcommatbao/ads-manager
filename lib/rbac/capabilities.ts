@@ -14,7 +14,7 @@ import type { BaseRole, Capability } from "./types";
 
 export function toBaseRole(role: Role): BaseRole {
   if (role === "super_admin")                      return "super_admin";
-  if (role === "admin_mbc" || role === "admin_mbi") return "admin";
+  if (role === "admin_mbc" || role === "admin_mbi" || role === "admin") return "admin"; // Đợt 21 A5: + vai trò chung
   return "viewer";
 }
 

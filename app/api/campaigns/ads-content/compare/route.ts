@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
     // và client thì không đáng tin để tự khai.
     for (const side of [a, b]) {
       const company = detectCompany(side.campaignName);
-      if (!canAccessCompany(user.role, company)) {
+      if (!canAccessCompany(user, company)) {
         return NextResponse.json(
           { success: false, error: `Không có quyền xem dữ liệu của ${company}` },
           { status: 403 }

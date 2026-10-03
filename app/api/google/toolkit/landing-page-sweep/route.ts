@@ -19,6 +19,7 @@ import { canAccessCompany } from "@/lib/permissions";
 import { getGoogleAdsCustomer } from "@/lib/google-ads-client";
 import { googleAdsErrorMessage } from "@/lib/google-ads-error";
 import { sweepLandingPages, fetchDisapprovedAds, classifyDisapprovedHosts } from "@/lib/google-landing-pages";
+import { isCompany } from "@/lib/companies/registry";
 
 export const dynamic = "force-dynamic";
 // Quét hàng trăm URL thật, mỗi URL tới 12 giây chờ — cần trần thời gian rộng.
@@ -43,10 +44,10 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const company = (searchParams.get("company") || "MBC") as string;
-  if (company !== "MBC" && company !== "MBI") {
+  if (!isCompany(company)) {
     return NextResponse.json({ error: "company phải là MBC hoặc MBI" }, { status: 400 });
   }
-  if (!canAccessCompany(user.role, company)) {
+  if (!canAccessCompany(user, company)) {
     return NextResponse.json({ error: "Không có quyền xem công ty này" }, { status: 403 });
   }
 

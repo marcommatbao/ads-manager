@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { brandOverride } from "@/lib/brand/store"
 import { canAccessCompany } from "@/lib/permissions";
 import { getGoogleAdsCustomer }      from "@/lib/google-ads-client"
 import { metaClient, graphFetch, isMetaTransientInsightError, describeMetaError } from "@/lib/meta-client"
@@ -21,6 +22,7 @@ import { googleAdsErrorMessage } from "@/lib/google-ads-error"
 import { daysBackVN } from "@/lib/case/dates"
 import { META_GRAPH_BASE } from "@/lib/meta/graph-version"
 import { companyIds } from "@/lib/companies"
+import { isCompany } from "@/lib/companies/registry";
 
 // ─────────────────────────────────────
 // TYPES
@@ -321,7 +323,7 @@ export async function GET(req: NextRequest) {
     // đang mang ["ALL"] cho MỌI tài khoản nên chưa từng chặn được ai.
     const requestedCompaniesEarly = companyRaw === "ALL" ? companyIds() : [companyRaw]
     const companiesEarly = requestedCompaniesEarly.filter(
-      c => canAccessCompany(user.role, c as string)
+      c => canAccessCompany(user, c as string)
     )
     if (companiesEarly.length === 0) {
       return NextResponse.json({ error: "Forbidden: no access to requested company" }, { status: 403 })
@@ -369,7 +371,7 @@ export async function GET(req: NextRequest) {
     // Validate company access against the authenticated user's permissions
     const requestedCompanies = companyRaw === "ALL" ? companyIds() : [companyRaw]
     const companies = requestedCompanies.filter(
-      c => canAccessCompany(user.role, c as string)
+      c => canAccessCompany(user, c as string)
     )
     if (companies.length === 0) {
       return NextResponse.json({ error: "Forbidden: no access to requested company" }, { status: 403 })
@@ -429,7 +431,7 @@ export async function GET(req: NextRequest) {
 
     // ── Process each company ──
     for (const co of companies) {
-      if (co !== "MBC" && co !== "MBI") continue
+      if (!isCompany(co)) continue
 
       const odooRevenue = await getOdooRevenue(co, dates.from, dates.to)
 
@@ -785,6 +787,8 @@ export async function GET(req: NextRequest) {
 
       // ── 1C. Brand term lọt vào non-brand campaign ──
       const BRAND_TERMS       = [/mat bao/i, /matbao/i, /\bmbc\b/i, /\bmbi\b/i, /sale\.ai/i]
+        // Đợt 21 A3: thêm tên thương hiệu trong hồ sơ (công ty của bản cài khác)
+        .concat(companyIds().map((c) => brandOverride(c)?.brandName).filter((x): x is string => !!x).map((n) => new RegExp(n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i")))
       const NON_BRAND_CAMPAIGN = /domain|ssl|hosting|einvoice|hóa đơn/i
 
       for (const term of termData) {

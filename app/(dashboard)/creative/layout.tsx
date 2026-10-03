@@ -3,12 +3,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Sparkles, BookOpen, FileText } from "lucide-react";
+import { Sparkles, FileText } from "lucide-react";
 
 const tabs = [
   { label: "Creative AI", href: "/creative",          icon: Sparkles },
   { label: "AI Ad Copy",  href: "/creative/ad-copy",  icon: FileText },
-  { label: "Thư viện",    href: "/creative/library",   icon: BookOpen },
 ];
 
 export default function CreativeLayout({

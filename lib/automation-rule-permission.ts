@@ -25,7 +25,8 @@ export function ruleTouchesBudget(actions: Action[] | undefined): boolean {
 // (automation-engine ruleAllowsCompany) → trước đây admin_mbc bỏ trống company là tạo được rule chạy
 // lên campaign MBI; toggle/delete theo id cũng không kiểm công ty của rule đang lưu.
 // ─────────────────────────────────────────────
-import { canAccessCompany, getCompaniesForRole, type Role } from "./permissions";
+import { canAccessCompany, getCompaniesForRole, type AccessSubject } from "./permissions";
+import { companyIds } from "@/lib/companies/registry";
 import { isCompany } from "@/lib/companies"
 
 /** Trống / null / "all" = cả hai công ty. */
@@ -34,13 +35,14 @@ export function effectiveRuleCompany(company: unknown): string | "all" {
 }
 
 /** Người này có được đụng tới rule mang phạm vi này không. "all" chỉ dành cho ai có CẢ HAI công ty. */
-export function canTouchRuleScope(role: Role, company: unknown): boolean {
+export function canTouchRuleScope(role: AccessSubject, company: unknown): boolean {
   const c = effectiveRuleCompany(company);
-  return c === "all" ? getCompaniesForRole(role).length === 2 : canAccessCompany(role, c);
+  // Đợt 21 A5: "all" = MỌI công ty của bản cài (bản Mắt Bão: 2 → như cũ)
+  return c === "all" ? getCompaniesForRole(role).length === companyIds().length : canAccessCompany(role, c);
 }
 
 /** Tạo rule: bỏ trống company mà chỉ có một công ty → gán công ty đó (không để rule rơi về "cả hai"). */
-export function defaultRuleCompany(role: Role, company: unknown): unknown {
+export function defaultRuleCompany(role: AccessSubject, company: unknown): unknown {
   if (effectiveRuleCompany(company) !== "all") return company;
   const mine = getCompaniesForRole(role);
   return mine.length === 1 ? mine[0] : company;

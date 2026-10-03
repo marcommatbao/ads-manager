@@ -22,7 +22,7 @@ export async function GET() {
     // bản cũ trả toàn bộ ad set kèm targeting cho bất kỳ ai đăng nhập.
     // Lọc TRƯỚC khi ghép cặp: ghép trước rồi lọc sau vẫn để lộ qua con số tổng,
     // và còn sinh ra cặp MBC×MBI vô nghĩa với người chỉ xem được một bên.
-    const allowed = getCompaniesForRole(user.role) as string[];
+    const allowed = getCompaniesForRole(user) as string[];
     const adSets = allAdSets.filter(a => allowed.includes(detectCompany(a.campaign?.name ?? a.name ?? "")));
 
     const { pairs, totalQualifyingPairs } = findOverlappingAdSetPairs(adSets);

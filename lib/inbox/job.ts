@@ -23,7 +23,7 @@ import { fromPmax, fromSearch, fromMeta, fromHealth, fromBoard, fromNba, fromSpl
 import { readSnapshot, saveSnapshot, readStates, viewItems, isOpen, type InboxSnapshot } from "./store"
 import { companyIds } from "@/lib/companies"
 
-const COMPANIES: Company[] = companyIds()
+// Đợt 21 A6: đọc danh sách công ty LÚC CHẠY (trình thiết lập đổi data/companies.json không cần khởi động lại).
 export const ADS_WEBHOOK_HINT = "Top 5 buổi sáng đang KHÔNG gửi vì thiếu biến TEAMS_WEBHOOK_ADS (webhook kênh Teams của team Ads). Việc vẫn hiện ở trang Việc hôm nay."
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e)).slice(0, 300)
 
@@ -33,6 +33,7 @@ export async function buildInbox(now = new Date()): Promise<InboxSnapshot> {
   const run = async (company: Company | "ALL", source: InboxSource, f: () => Promise<InboxItem[]>) => {
     try { items.push(...(await f())) } catch (e) { errors.push({ company, source, error: errMsg(e) }) }
   }
+  const COMPANIES: Company[] = companyIds()
   for (const co of COMPANIES) {
     await run(co, "pmax", async () => {
       const [px, cd] = await Promise.all([pmaxXray(co, r), readControlData(co, r)])

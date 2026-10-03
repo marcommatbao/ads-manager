@@ -7,6 +7,7 @@ import { canAccessCompany, hasPermission, type PermissionKey } from "@/lib/permi
 import { CaseError } from "./service"
 import { readCase, type CampaignCase } from "./store"
 import type { Company } from "./types"
+import { isCompany } from "@/lib/companies/registry";
 
 export type Guarded<T> = { ok: true; value: T } | { ok: false; response: NextResponse }
 
@@ -20,10 +21,10 @@ export async function requireUser(perm?: PermissionKey): Promise<Guarded<Session
 }
 
 export function requireCompany(user: SessionUser, company: unknown): Guarded<Company> {
-  if (company !== "MBC" && company !== "MBI") {
+  if (!isCompany(company)) {
     return { ok: false, response: NextResponse.json({ success: false, error: "Thiếu công ty (MBC/MBI)" }, { status: 400 }) }
   }
-  if (!canAccessCompany(user.role, company)) {
+  if (!canAccessCompany(user, company)) {
     return { ok: false, response: NextResponse.json({ success: false, error: "Không có quyền với công ty này" }, { status: 403 }) }
   }
   return { ok: true, value: company }

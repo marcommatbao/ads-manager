@@ -21,7 +21,7 @@ export const revalidate = 0;
 // đang mang ["ALL"] cho MỌI tài khoản (kể cả viewer_mbc), nên phép kiểm này
 // luôn đúng cho tất cả mọi người, tức không kiểm gì cả.
 function hasCompanyAccess(user: SessionUser, company: string): boolean {
-  return canAccessCompany(user.role, company as string);
+  return canAccessCompany(user, company as string);
 }
 
 // ── GET: list pending drafts, or fetch one by id ──────────────

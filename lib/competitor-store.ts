@@ -17,6 +17,7 @@ import type {
   CompetitorInsight,
 } from "./competitor-config";
 import { DEFAULT_COMPETITORS } from "./competitor-config";
+import { hasModule } from "@/lib/companies";
 
 // ── File I/O ──
 
@@ -30,7 +31,7 @@ interface CompetitorStoreData {
 
 function defaultData(): CompetitorStoreData {
   return {
-    competitors: [...DEFAULT_COMPETITORS],
+    competitors: hasModule("matbao") ? [...DEFAULT_COMPETITORS] : [], // Đợt 21 B: bản cài khách bắt đầu TRỐNG (danh sách mẫu là của Mắt Bão)
     ads: [],
     insights: [],
   };
