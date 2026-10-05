@@ -3,6 +3,7 @@ import { safeDateRange, safeNumericId, InvalidGaqlInput } from "@/lib/google-ads
 import { getGoogleAdsCustomer }      from "@/lib/google-ads-client"
 import { getCurrentUser }            from "@/lib/auth"
 import { canAccessCompany }          from "@/lib/permissions"
+import { friendlyError } from "@/lib/not-configured";
 
 // ============================================================
 // GET /api/google/toolkit/ngram/search
@@ -35,7 +36,7 @@ export async function GET(req: NextRequest) {
     try {
       dateRange = safeDateRange(searchParams.get("range"))
     } catch (err) {
-      if (err instanceof InvalidGaqlInput) return NextResponse.json({ error: err.message }, { status: 400 })
+      if (err instanceof InvalidGaqlInput) return NextResponse.json({ error: friendlyError(err.message) }, { status: 400 })
       throw err
     }
     const phrase     = (searchParams.get("phrase") || "").toLowerCase().trim().replace(/\s+/g, " ")
@@ -222,6 +223,6 @@ export async function GET(req: NextRequest) {
     })
   } catch (error: any) {
     console.error("N-Gram phrase search error:", error)
-    return NextResponse.json({ error: error.message, phrase: "", avgCPA: 0, matchedTermCount: 0, campaigns: [] }, { status: 500 })
+    return NextResponse.json({ error: friendlyError(error.message), phrase: "", avgCPA: 0, matchedTermCount: 0, campaigns: [] }, { status: 500 })
   }
 }

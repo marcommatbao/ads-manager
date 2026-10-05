@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getGoogleAdsCustomer } from "@/lib/google-ads-client"
 import { getCurrentUser } from "@/lib/auth"
 import { canAccessCompany } from "@/lib/permissions"
+import { friendlyError } from "@/lib/not-configured";
 
 export async function GET(req: NextRequest) {
   const user = await getCurrentUser()
@@ -135,6 +136,6 @@ export async function GET(req: NextRequest) {
     })
   } catch (error: any) {
     console.error("[BudgetPacing]", error)
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 })
+    return NextResponse.json({ success: false, error: friendlyError(error.message) }, { status: 500 })
   }
 }

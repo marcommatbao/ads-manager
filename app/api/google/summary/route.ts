@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { googleAdsClient, convertMicros } from "@/lib/google-client";
 import { getCurrentUser } from "@/lib/auth";
+import { friendlyError, isNotConfigured } from "@/lib/not-configured";
 
 function pctChange(current: number, previous: number): number {
   if (previous === 0) return 0;
@@ -82,11 +83,11 @@ export async function GET(request: NextRequest) {
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    if (message.toLowerCase().includes("not configured")) {
+    if (isNotConfigured(message)) {
       return NextResponse.json({ success: false, data: null });
     }
     return NextResponse.json(
-      { success: false, error: message },
+      { success: false, error: friendlyError(message) },
       { status: 500 }
     );
   }

@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { actorOf, fail, requireCompany, requireUser } from "@/lib/case/http"
 import { hasPermission } from "@/lib/permissions"
 import { listWrites, undoWrite, WriteGuardError } from "@/lib/write-guard"
+import { friendlyError } from "@/lib/not-configured";
 
 export const dynamic = "force-dynamic"
 
@@ -24,7 +25,7 @@ export async function POST(request: NextRequest) {
   const co = requireCompany(u.value, b.company)
   if (!co.ok) return co.response
   try { const { inverse: _i, ...w } = await undoWrite(co.value, String(b.id ?? ""), actorOf(u.value)); void _i; return NextResponse.json({ success: true, write: w }) } catch (e) {
-    if (e instanceof WriteGuardError) return NextResponse.json({ success: false, error: e.message }, { status: e.status })
+    if (e instanceof WriteGuardError) return NextResponse.json({ success: false, error: friendlyError(e.message) }, { status: e.status })
     return fail(e)
   }
 }

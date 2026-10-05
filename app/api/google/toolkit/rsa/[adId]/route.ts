@@ -11,6 +11,7 @@ import { checkRsaCharLimits, checkRsaCountLimits } from "@/lib/creative-limits";
 import { appendRsaEditRecord } from "@/lib/rsa-edit-history";
 import { getGoogleAdsCustomer, GOOGLE_CUSTOMER_IDS } from "@/lib/google-ads-client";
 import { guardedMutate, WriteGuardError } from "@/lib/write-guard";
+import { friendlyError } from "@/lib/not-configured";
 
 interface PatchBody {
   company?: string;
@@ -102,7 +103,7 @@ export async function PATCH(
       if (!g.entry) return NextResponse.json({ success: true, validated: true });
       writeId = g.entry.id;
     } catch (e) {
-      if (e instanceof WriteGuardError) return NextResponse.json({ success: false, error: e.message, needsConfirm: e.status === 428, validated: e.validated }, { status: e.status });
+      if (e instanceof WriteGuardError) return NextResponse.json({ success: false, error: friendlyError(e.message), needsConfirm: e.status === 428, validated: e.validated }, { status: e.status });
       throw e;
     }
 
@@ -188,10 +189,10 @@ export async function PATCH(
       editedAt: new Date().toISOString(),
       source: body.source === "ai_suggested" ? "ai_suggested" : "manual",
       success: false,
-      error: message,
+      error: friendlyError(message),
     }).catch(() => { /* audit log failure must not mask the real Google error below */ });
 
     console.error("[rsa PATCH]", err);
-    return NextResponse.json({ success: false, error: message }, { status: 502 });
+    return NextResponse.json({ success: false, error: friendlyError(message) }, { status: 502 });
   }
 }

@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
 import { META_GRAPH_BASE } from "@/lib/meta/graph-version";
+import { friendlyError } from "@/lib/not-configured";
 
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/gif", "image/webp"]);
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // Meta's own ad-image ceiling
@@ -21,7 +22,7 @@ export async function POST(request: NextRequest) {
   const adAccountId = process.env.META_AD_ACCOUNT_ID;
 
   if (!token || !adAccountId) {
-    return NextResponse.json({ success: false, error: "META credentials not configured" }, { status: 401 });
+    return NextResponse.json({ success: false, error: friendlyError("META credentials not configured") }, { status: 401 });
   }
 
   let formData: FormData;

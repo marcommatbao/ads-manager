@@ -13,6 +13,7 @@ import type {
   PolicySeverity,
   PolicySourceType,
 } from "@/lib/policy-radar/types";
+import { friendlyError } from "@/lib/not-configured";
 
 export async function GET(request: NextRequest) {
   const user = await getCurrentUser();
@@ -34,7 +35,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: true, data: filtered });
   } catch (err: unknown) {
     return NextResponse.json(
-      { success: false, error: err instanceof Error ? err.message : "Unknown error" },
+      { success: false, error: friendlyError(err instanceof Error ? err.message : "Unknown error") },
       { status: 500 }
     );
   }
@@ -79,7 +80,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, data: item });
   } catch (err: unknown) {
     return NextResponse.json(
-      { success: false, error: err instanceof Error ? err.message : "Unknown error" },
+      { success: false, error: friendlyError(err instanceof Error ? err.message : "Unknown error") },
       { status: 500 }
     );
   }

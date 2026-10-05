@@ -6,6 +6,7 @@
 import { NextResponse } from "next/server";
 import { searchRead } from "@/lib/odoo-client";
 import { getCurrentUser } from "@/lib/auth";
+import { friendlyError } from "@/lib/not-configured";
 
 interface OdooCategory {
   id: number;
@@ -37,6 +38,6 @@ export async function GET() {
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return NextResponse.json({ error: friendlyError(msg) }, { status: 500 });
   }
 }

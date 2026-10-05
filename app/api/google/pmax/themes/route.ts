@@ -10,10 +10,11 @@ import { actorOf, fail, requireCompany, requireUser } from "@/lib/case/http"
 import { hasPermission } from "@/lib/permissions"
 import { applyThemes, createAssetGroup, draftAssetGroup, listNewAssetGroups, listThemeChanges, MAX_THEMES, readThemes, setAssetGroupState, undoThemes, type AssetGroupDraft } from "@/lib/pmax/themes"
 import { PMAX_CONFIRM_TEXT, PmaxControlError } from "@/lib/pmax/controls"
+import { friendlyError } from "@/lib/not-configured";
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 120
-const err = (e: unknown) => (e instanceof PmaxControlError ? NextResponse.json({ success: false, error: e.message }, { status: e.status }) : fail(e))
+const err = (e: unknown) => (e instanceof PmaxControlError ? NextResponse.json({ success: false, error: friendlyError(e.message) }, { status: e.status }) : fail(e))
 const strs = (x: unknown, max: number) => (Array.isArray(x) ? x.filter((v): v is string => typeof v === "string").slice(0, max) : [])
 
 export async function GET(request: NextRequest) {

@@ -28,6 +28,7 @@ import {
   type KeywordIntent,
 } from "@/lib/keyword-intent-split";
 import { pickCompany } from "@/lib/companies"
+import { friendlyError } from "@/lib/not-configured";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type GaqlRow = Record<string, any>;
@@ -285,6 +286,6 @@ export async function GET(req: NextRequest) {
     });
   } catch (error: unknown) {
     const msg = googleAdsErrorMessage(error);
-    return NextResponse.json({ success: false, error: msg }, { status: 500 });
+    return NextResponse.json({ success: false, error: friendlyError(msg) }, { status: 500 });
   }
 }

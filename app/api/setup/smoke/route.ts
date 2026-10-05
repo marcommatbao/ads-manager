@@ -3,6 +3,7 @@
 import { NextResponse } from "next/server"
 import { requireSetupAdmin } from "@/lib/setup/guard"
 import { runSmoke } from "@/lib/smoke/run"
+import { friendlyError } from "@/lib/not-configured";
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 300
@@ -14,6 +15,6 @@ export async function POST() {
     const r = await runSmoke()
     return NextResponse.json({ success: true, run: r.run })
   } catch (err) {
-    return NextResponse.json({ success: false, error: err instanceof Error ? err.message : "Tự kiểm lỗi" }, { status: 500 })
+    return NextResponse.json({ success: false, error: friendlyError(err instanceof Error ? err.message : "Tự kiểm lỗi") }, { status: 500 })
   }
 }

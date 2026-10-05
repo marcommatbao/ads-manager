@@ -18,6 +18,8 @@
 // trường nào gây lỗi.
 // ============================================================
 
+import { friendlyError } from "@/lib/not-configured";
+
 export interface GoogleAdsErrorDetail {
   /** Ví dụ "campaign_error: DUPLICATE_CAMPAIGN_NAME" — tra được thẳng trên tài liệu Google. */
   code: string;
@@ -163,7 +165,13 @@ function readFieldPath(location: unknown): string {
  * Bóc lỗi Google Ads ở mọi hình dạng đã gặp: GoogleAdsFailure thô, Error có
  * kèm `errors`, lỗi gRPC, hoặc một Error thường.
  */
+/** Đợt 22b: như describeGoogleAdsErrorRaw nhưng câu "chưa kết nối" đổi sang tiếng Việt dễ hiểu. */
 export function describeGoogleAdsError(err: unknown): GoogleAdsErrorInfo {
+  const raw = describeGoogleAdsErrorRaw(err);
+  return { ...raw, message: friendlyError(raw.message) };
+}
+
+function describeGoogleAdsErrorRaw(err: unknown): GoogleAdsErrorInfo {
   const anyErr = err as {
     message?: string;
     errors?: unknown;
@@ -219,5 +227,5 @@ export function describeGoogleAdsError(err: unknown): GoogleAdsErrorInfo {
 
 /** Rút gọn cho chỗ chỉ cần một chuỗi. */
 export function googleAdsErrorMessage(err: unknown): string {
-  return describeGoogleAdsError(err).message;
+  return friendlyError(describeGoogleAdsError(err).message); // Đợt 22b: "chưa kết nối" → câu tiếng Việt
 }

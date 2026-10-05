@@ -7,6 +7,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { isSuperAdmin } from "@/lib/permissions";
 import { JOBS_BY_ID } from "@/lib/jobs/registry";
 import type { JobId } from "@/lib/jobs/types";
+import { friendlyError } from "@/lib/not-configured";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -73,6 +74,6 @@ export async function POST(_req: NextRequest, { params }: RouteContext) {
     }, { status: res.ok ? 200 : 502 });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ success: false, error: msg, jobId: id }, { status: 500 });
+    return NextResponse.json({ success: false, error: friendlyError(msg), jobId: id }, { status: 500 });
   }
 }

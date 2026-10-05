@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { googleAdsClient, convertMicros } from "@/lib/google-client";
 import type { Campaign, ReportData } from "@/types/ads.types";
+import { isNotConfigured } from "@/lib/not-configured";
 
 const RESPONSE_HEADERS = {
   "Cache-Control": "no-store",
@@ -99,7 +100,7 @@ export async function GET(request: NextRequest) {
     const message = error instanceof Error ? error.message : "Unknown error";
 
     // Return empty data when credentials not configured (dev mode)
-    if (message.toLowerCase().includes("not configured")) {
+    if (isNotConfigured(message)) {
       return NextResponse.json(
         { campaigns: [], reportData: [] },
         { headers: RESPONSE_HEADERS }

@@ -18,6 +18,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { getCompaniesForRole } from "@/lib/permissions";
 import { getRuns } from "@/lib/automation-sim/store";
 import type { SimulationItem, SimulationStatus, SimCompany } from "@/lib/automation-sim/types";
+import { friendlyError } from "@/lib/not-configured";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -93,6 +94,6 @@ export async function GET(request: NextRequest) {
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     console.error("[GET /api/automation/simulate/candidates]", message);
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    return NextResponse.json({ success: false, error: friendlyError(message) }, { status: 500 });
   }
 }

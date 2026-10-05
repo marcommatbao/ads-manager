@@ -12,6 +12,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { gatherReportData, addReportHistory, type ReportConfig } from "@/lib/report-generator";
 import { toReportPDFProps } from "@/lib/report-pdf-adapter";
 import { ReportPDF } from "@/lib/report-pdf";
+import { friendlyError } from "@/lib/not-configured";
 
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
@@ -55,6 +56,6 @@ export async function POST(req: NextRequest) {
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";
     console.error("[reports/pdf] error:", message);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: friendlyError(message) }, { status: 500 });
   }
 }

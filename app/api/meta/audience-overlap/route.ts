@@ -10,6 +10,7 @@ import { findOverlappingAdSetPairs } from "@/lib/audience-overlap";
 import { getCurrentUser } from "@/lib/auth";
 import { getCompaniesForRole } from "@/lib/permissions";
 import { detectCompany } from "@/lib/company-detect";
+import { friendlyError, isNotConfigured } from "@/lib/not-configured";
 
 export async function GET() {
   const user = await getCurrentUser();
@@ -41,13 +42,13 @@ export async function GET() {
     // nên điều kiện `!json.success && json.error` ở trang không nổ, và giao diện
     // hiện "Không có cặp ad set nào tương đồng cao — đã kiểm tra 0 ad set":
     // một lời trấn an dựng từ việc chưa hề chạy được. Nói thẳng là chưa cấu hình.
-    if (message.toLowerCase().includes("not configured")) {
+    if (isNotConfigured(message)) {
       return NextResponse.json({
         success: false,
         configured: false,
         error: "Chưa kết nối Facebook — công cụ chưa đọc được ad set nào, đây KHÔNG phải kết quả 'không có trùng lặp'.",
       }, { status: 503 });
     }
-    return NextResponse.json({ success: false, configured: true, error: message }, { status: 500 });
+    return NextResponse.json({ success: false, configured: true, error: friendlyError(message) }, { status: 500 });
   }
 }

@@ -14,6 +14,7 @@ import { getCompanyPnl } from "@/lib/finance/company-pnl";
 import { getMonthKpi } from "@/lib/settings/kpi-store";
 import { buildKpiReportMessage } from "@/lib/finance/kpi-report";
 import { sendTelegramVia } from "@/lib/telegram";
+import { friendlyError } from "@/lib/not-configured";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -57,7 +58,7 @@ export async function GET(request: NextRequest) {
   } catch (err) {
     await guard.finish("failure", null, err);
     return NextResponse.json(
-      { success: false, error: err instanceof Error ? err.message : "Unknown error" },
+      { success: false, error: friendlyError(err instanceof Error ? err.message : "Unknown error") },
       { status: 500 }
     );
   }

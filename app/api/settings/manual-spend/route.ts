@@ -19,6 +19,7 @@ import {
   type ManualCompany,
 } from "@/lib/finance/manual-spend";
 import { isCompany } from "@/lib/companies/registry";
+import { friendlyError } from "@/lib/not-configured";
 
 export const dynamic = "force-dynamic";
 
@@ -76,7 +77,7 @@ export async function PUT(req: NextRequest) {
     });
   } catch (err) {
     if (err instanceof ManualSpendInputError) {
-      return NextResponse.json({ success: false, error: err.message }, { status: 400 });
+      return NextResponse.json({ success: false, error: friendlyError(err.message) }, { status: 400 });
     }
     throw err;
   }

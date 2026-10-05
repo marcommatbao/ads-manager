@@ -20,6 +20,7 @@ import {
   getCachedBriefing,
   setCachedBriefing,
 } from "@/lib/morning-briefing";
+import { friendlyError } from "@/lib/not-configured";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -57,7 +58,7 @@ export async function GET() {
     // pretending there is simply no briefing today.
     const message = err instanceof Error ? err.message : "Không tạo được bản tin buổi sáng";
     console.error("[automation/morning-briefing GET]", err);
-    return NextResponse.json({ success: false, error: message }, { status: 502 });
+    return NextResponse.json({ success: false, error: friendlyError(message) }, { status: 502 });
   }
 }
 
@@ -88,6 +89,6 @@ export async function POST() {
   } catch (err) {
     const message = err instanceof Error ? err.message : "Không tạo được bản tin buổi sáng";
     console.error("[automation/morning-briefing POST]", err);
-    return NextResponse.json({ success: false, error: message }, { status: 502 });
+    return NextResponse.json({ success: false, error: friendlyError(message) }, { status: 502 });
   }
 }

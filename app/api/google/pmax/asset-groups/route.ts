@@ -6,6 +6,7 @@ import { canAccessCompany } from "@/lib/permissions";
 import { buildAssetGroupOverviews } from "@/lib/pmax-insights/build-overview";
 import { parsePMaxDateRange } from "@/lib/google-pmax-client";
 import { pickCompany } from "@/lib/companies"
+import { friendlyError } from "@/lib/not-configured";
 
 export async function GET(req: NextRequest) {
   const user = await getCurrentUser();
@@ -25,6 +26,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ success: true, data: assetGroups });
   } catch (err) {
     console.error("[pmax/asset-groups]", err);
-    return NextResponse.json({ success: false, error: err instanceof Error ? err.message : "Unknown error" }, { status: 500 });
+    return NextResponse.json({ success: false, error: friendlyError(err instanceof Error ? err.message : "Unknown error") }, { status: 500 });
   }
 }

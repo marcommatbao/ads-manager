@@ -9,6 +9,7 @@ import { getGoogleAdsCustomer }      from "@/lib/google-ads-client"
 import { enumName }                  from "@/lib/google-ads-enums"
 import { metaClient, initMetaClient } from "@/lib/meta-client"
 import { detectCompany } from "@/lib/company-detect"
+import { friendlyError } from "@/lib/not-configured";
 
 function getDateDaysAgo(days: number): string {
   const d = new Date()
@@ -59,7 +60,7 @@ export async function GET(req: NextRequest) {
       dateRange = safeDateRange(searchParams.get("range"))
     } catch (err) {
       if (err instanceof InvalidGaqlInput) {
-        return NextResponse.json({ error: err.message }, { status: 400 })
+        return NextResponse.json({ error: friendlyError(err.message) }, { status: 400 })
       }
       throw err
     }
@@ -383,6 +384,6 @@ export async function GET(req: NextRequest) {
       ].filter(Boolean),
     })
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: friendlyError(error.message) }, { status: 500 })
   }
 }

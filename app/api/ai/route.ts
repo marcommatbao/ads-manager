@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { callGemini } from "@/lib/gemini";
 import { getCurrentUser } from "@/lib/auth";
 import type { AdCreative, Platform } from "@/types/ads.types";
+import { friendlyError } from "@/lib/not-configured";
 
 // ─────────────────────────────────────────────
 // Request body shape
@@ -111,7 +112,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: "GEMINI_API_KEY not configured. Add it to .env.local and restart.",
+        error: friendlyError("GEMINI_API_KEY not configured. Add it to .env.local and restart."),
       },
       { status: 401 }
     );

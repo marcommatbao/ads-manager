@@ -8,6 +8,7 @@ import { canAccessCompany, hasPermission } from "@/lib/permissions"
 import { safeDateRange, safeNumericId, safeResourceName, InvalidGaqlInput } from "@/lib/google-ads-guards"
 import { googleAdsErrorMessage } from "@/lib/google-ads-error";
 import { isCompany } from "@/lib/companies/registry";
+import { friendlyError } from "@/lib/not-configured";
 // Removed unused db
 
 // 24 giờ × 7 ngày = 168 ô
@@ -26,7 +27,7 @@ export async function GET(req: NextRequest) {
     dateRange  = safeDateRange(searchParams.get("range"))
   } catch (err) {
     if (err instanceof InvalidGaqlInput) {
-      return NextResponse.json({ error: err.message }, { status: 400 })
+      return NextResponse.json({ error: friendlyError(err.message) }, { status: 400 })
     }
     throw err
   }
@@ -341,7 +342,7 @@ export async function POST(req: NextRequest) {
     campaignResourceName = safeResourceName(rawCampaignResourceName)
   } catch (err) {
     if (err instanceof InvalidGaqlInput) {
-      return NextResponse.json({ error: err.message }, { status: 400 })
+      return NextResponse.json({ error: friendlyError(err.message) }, { status: 400 })
     }
     throw err
   }
@@ -487,7 +488,7 @@ export async function POST(req: NextRequest) {
     if (!g.entry) return NextResponse.json({ success: true, validated: true, schedulesApplied: 0, count: schedules.length })
     writeId = g.entry.id
   } catch (e) {
-    if (e instanceof WriteGuardError) return NextResponse.json({ success: false, error: e.message, needsConfirm: e.status === 428, validated: e.validated }, { status: e.status })
+    if (e instanceof WriteGuardError) return NextResponse.json({ success: false, error: friendlyError(e.message), needsConfirm: e.status === 428, validated: e.validated }, { status: e.status })
     throw e
   }
 

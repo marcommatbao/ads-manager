@@ -12,6 +12,7 @@ import { buildInterestPrompt } from "@/lib/audience-interest-prompt";
 import { isSupportedBucket } from "@/lib/audience-targeting-merge";
 import { pickBestMatch } from "@/lib/audience-name-match";
 import { META_GRAPH_BASE } from "@/lib/meta/graph-version";
+import { friendlyError } from "@/lib/not-configured";
 
 const META_BASE = META_GRAPH_BASE;
 
@@ -615,7 +616,7 @@ export async function POST(request: NextRequest) {
 
   const token = process.env.META_ACCESS_TOKEN;
   if (!token) {
-    return NextResponse.json({ success: false, error: "META_ACCESS_TOKEN not configured" }, { status: 401 });
+    return NextResponse.json({ success: false, error: friendlyError("META_ACCESS_TOKEN not configured") }, { status: 401 });
   }
 
   let body: {
@@ -773,6 +774,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(payload);
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json({ success: false, error: msg }, { status: 500 });
+    return NextResponse.json({ success: false, error: friendlyError(msg) }, { status: 500 });
   }
 }

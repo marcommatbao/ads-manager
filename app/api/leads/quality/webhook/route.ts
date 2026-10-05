@@ -8,6 +8,7 @@ import { ingestEvents, MAX_EVENTS_PER_CALL, uploadPending, verifyWebhookSecret, 
 import { PmaxControlError } from "@/lib/pmax/controls"
 import type { Company } from "@/lib/case/types"
 import { isCompany } from "@/lib/companies/registry";
+import { friendlyError } from "@/lib/not-configured";
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
@@ -29,7 +30,7 @@ export async function POST(request: NextRequest) {
     const upload = await uploadPending(co as Company).catch((e: unknown) => ({ error: e instanceof Error ? e.message : String(e) }))
     return NextResponse.json({ success: true, ...ingest, upload })
   } catch (e) {
-    if (e instanceof PmaxControlError) return NextResponse.json({ success: false, error: e.message }, { status: e.status })
+    if (e instanceof PmaxControlError) return NextResponse.json({ success: false, error: friendlyError(e.message) }, { status: e.status })
     return NextResponse.json({ success: false, error: "Lỗi máy chủ" }, { status: 500 })
   }
 }

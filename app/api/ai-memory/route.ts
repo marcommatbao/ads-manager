@@ -12,6 +12,7 @@ import {
   getLearningStats,
 } from "@/lib/ai-memory-engine";
 import { getCurrentUser } from "@/lib/auth";
+import { friendlyError } from "@/lib/not-configured";
 
 export const dynamic = "force-dynamic";
 
@@ -51,7 +52,7 @@ export async function POST() {
     return NextResponse.json(
       {
         success: false,
-        error: err instanceof Error ? err.message : "Unknown error",
+        error: friendlyError(err instanceof Error ? err.message : "Unknown error"),
       },
       { status: 500 }
     );

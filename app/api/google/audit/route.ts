@@ -3,6 +3,7 @@ import { GoogleAuditEngine } from "@/lib/google-audit-engine";
 import { getCurrentUser } from "@/lib/auth";
 import { canAccessCompany } from "@/lib/permissions";
 import { pickCompany } from "@/lib/companies"
+import { friendlyError } from "@/lib/not-configured";
 
 export async function GET(request: NextRequest) {
   const user = await getCurrentUser();
@@ -23,7 +24,7 @@ export async function GET(request: NextRequest) {
 
     if (!customerId) {
       return NextResponse.json(
-        { success: false, error: "Google Ads customer ID not configured" },
+        { success: false, error: friendlyError("Google Ads customer ID not configured") },
         { status: 500 }
       );
     }
@@ -35,7 +36,7 @@ export async function GET(request: NextRequest) {
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json(
-      { success: false, error: message },
+      { success: false, error: friendlyError(message) },
       { status: 500 }
     );
   }

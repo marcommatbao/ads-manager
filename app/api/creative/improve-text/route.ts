@@ -6,6 +6,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { creativeBrandPrompt } from "@/lib/brand/creative";
 import { isCompany } from "@/lib/companies";
 import { canAccessCompany } from "@/lib/permissions";
+import { friendlyError } from "@/lib/not-configured";
 
 interface ImproveRequest {
   headline: string;
@@ -33,7 +34,7 @@ export async function POST(request: NextRequest) {
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    return NextResponse.json({ success: false, error: "GEMINI_API_KEY not configured" }, { status: 401 });
+    return NextResponse.json({ success: false, error: friendlyError("GEMINI_API_KEY not configured") }, { status: 401 });
   }
 
   let body: ImproveRequest;

@@ -20,6 +20,7 @@ import { dropPlacements } from "@/lib/playbook/suggest";
 import { cleanIds, recordPlaybookUsage } from "@/lib/playbook/usage";
 import { hasPermission, canAccessCompany } from "@/lib/permissions";
 import { META_GRAPH_BASE } from "@/lib/meta/graph-version";
+import { friendlyError } from "@/lib/not-configured";
 
 const META_BASE = META_GRAPH_BASE;
 
@@ -34,7 +35,7 @@ export async function POST(request: NextRequest) {
   const adAccountId = process.env.META_AD_ACCOUNT_ID;
 
   if (!token || !adAccountId) {
-    return NextResponse.json({ success: false, error: "META credentials not configured" }, { status: 401 });
+    return NextResponse.json({ success: false, error: friendlyError("META credentials not configured") }, { status: 401 });
   }
 
   let config: LaunchConfig;
@@ -619,6 +620,6 @@ export async function POST(request: NextRequest) {
         : `  ⚠️ Không xóa được Campaign ${campaignId}: ${campaignRollback.error} — cần xóa thủ công trên Ads Manager`);
     }
 
-    return NextResponse.json({ success: false, error: message, log }, { status: 500 });
+    return NextResponse.json({ success: false, error: friendlyError(message), log }, { status: 500 });
   }
 }

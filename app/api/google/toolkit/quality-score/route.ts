@@ -19,6 +19,7 @@ import {
   todayStr,
 } from "@/lib/qs-history"
 import { pickCompany } from "@/lib/companies"
+import { friendlyError } from "@/lib/not-configured";
 
 // ── QS label mapping ──
 const QS_LABEL: Record<string, string> = {
@@ -63,7 +64,7 @@ async function handle(req: NextRequest, user: SessionUser): Promise<NextResponse
     try {
       campaignId = safeNumericId(searchParams.get("campaignId"))
     } catch (err) {
-      if (err instanceof InvalidGaqlInput) return NextResponse.json({ error: err.message }, { status: 400 })
+      if (err instanceof InvalidGaqlInput) return NextResponse.json({ error: friendlyError(err.message) }, { status: 400 })
       throw err
     }
     const filter     = searchParams.get("filter")     || "ALL"
@@ -508,7 +509,7 @@ async function handle(req: NextRequest, user: SessionUser): Promise<NextResponse
     })
   } catch (error: any) {
     return NextResponse.json(
-      { error: error.message },
+      { error: friendlyError(error.message) },
       { status: 500 }
     )
   }

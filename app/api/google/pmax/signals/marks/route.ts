@@ -6,10 +6,11 @@ import { NextRequest, NextResponse } from "next/server"
 import { actorOf, fail, requireCompany, requireUser } from "@/lib/case/http"
 import { addMark, beforeAfter, removeMark } from "@/lib/pmax/signals"
 import { PmaxControlError } from "@/lib/pmax/controls"
+import { friendlyError } from "@/lib/not-configured";
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 120
-const err = (e: unknown) => (e instanceof PmaxControlError ? NextResponse.json({ success: false, error: e.message }, { status: e.status }) : fail(e))
+const err = (e: unknown) => (e instanceof PmaxControlError ? NextResponse.json({ success: false, error: friendlyError(e.message) }, { status: e.status }) : fail(e))
 
 export async function GET(request: NextRequest) {
   const u = await requireUser()

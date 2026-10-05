@@ -10,7 +10,9 @@ import { googleAdsClient, convertMicros } from "@/lib/google-client";
 import { GOOGLE_CUSTOMER_IDS } from "@/lib/google-ads-client";
 import { detectCompany } from "@/lib/company-detect";
 import { fetchMbcRevenue, fetchMbiOrders } from "@/lib/finance/company-pnl";
+import { hasModule } from "@/lib/companies";
 import { isCompany } from "@/lib/companies"
+import { friendlyError } from "@/lib/not-configured";
 
 export const dynamic = "force-dynamic";
 
@@ -168,17 +170,19 @@ export async function GET(request: NextRequest) {
   let mbcRevenueError: string | null = null;
   let mbiOrders: number | null = null;
   let mbiOrdersError: string | null = null;
-  {
+  // Đợt 22b: Odoo / Report API là của Mắt Bão (gói matbao). Bản cài khách không gọi (trước đây mỗi lần mở Dashboard đều gọi
+  // rồi nhận lỗi "MATBAO_REPORT_API chưa cấu hình"); giao diện cũng đã ẩn hai ô này. Bản Mắt Bão: y nguyên.
+  if (hasModule("matbao")) {
     const isoFrom = `${from}T00:00:00Z`;
     const isoTo = new Date(new Date(`${to}T00:00:00Z`).getTime() + 86400000).toISOString();
     const [mbcRes, mbiRes] = await Promise.all([
       fetchMbcRevenue(isoFrom, isoTo).catch((e) => ({
         revenue: 0, orders: 0,
-        error: e instanceof Error ? e.message : "Lỗi không rõ khi lấy doanh thu MBC",
+        error: friendlyError(e instanceof Error ? e.message : "Lỗi không rõ khi lấy doanh thu MBC"),
       })),
       fetchMbiOrders(isoFrom, isoTo).catch((e) => ({
         orders: 0,
-        error: e instanceof Error ? e.message : "Lỗi không rõ khi lấy đơn hàng MBI",
+        error: friendlyError(e instanceof Error ? e.message : "Lỗi không rõ khi lấy đơn hàng MBI"),
       })),
     ]);
     if (mbcRes.error) mbcRevenueError = mbcRes.error; else mbcRevenue = mbcRes.revenue;

@@ -7,6 +7,7 @@ import { hasPermission } from "@/lib/permissions"
 import { designExperiment, launchExperiment, listExperiments, MAX_TEST_WEEKS, MIN_TEST_WEEKS, readCsvKpi, type KpiChoice } from "@/lib/pmax/geo-experiment"
 import { PMAX_CONFIRM_TEXT, PmaxControlError } from "@/lib/pmax/controls"
 import { gtmServiceEmail } from "@/lib/measure/gtm-api"
+import { friendlyError } from "@/lib/not-configured";
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 120
@@ -33,7 +34,7 @@ export async function GET(request: NextRequest) {
       canEdit: hasPermission(u.value.role, "can_edit"), confirmText: PMAX_CONFIRM_TEXT,
     })
   } catch (err) {
-    if (err instanceof PmaxControlError) return NextResponse.json({ success: false, error: err.message }, { status: err.status })
+    if (err instanceof PmaxControlError) return NextResponse.json({ success: false, error: friendlyError(err.message) }, { status: err.status })
     return fail(err)
   }
 }
@@ -50,7 +51,7 @@ export async function POST(request: NextRequest) {
     const experiment = await launchExperiment({ company: co.value, candidateId: b.candidateId as "hn" | "hcm" | "tinh", campaignIds, weeks: Number(b.weeks) || 4, kpi: choiceOf(b.source, b.ga4Event, b.ga4NewOnly), actor: actorOf(u.value), validateOnly: b.validateOnly !== false, confirmText: b.confirmText })
     return NextResponse.json({ success: true, validated: b.validateOnly !== false, experiment })
   } catch (err) {
-    if (err instanceof PmaxControlError) return NextResponse.json({ success: false, error: err.message }, { status: err.status })
+    if (err instanceof PmaxControlError) return NextResponse.json({ success: false, error: friendlyError(err.message) }, { status: err.status })
     return fail(err)
   }
 }

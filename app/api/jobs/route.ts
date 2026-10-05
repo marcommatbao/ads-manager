@@ -1,6 +1,7 @@
 // GET /api/jobs — all job states + registry metadata
 // Requires: authenticated user (all roles can view)
 
+import { schedulerHealth } from "@/lib/jobs/heartbeat";
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { isSuperAdmin } from "@/lib/permissions";
@@ -30,5 +31,6 @@ export async function GET() {
     meta,
     canControl: isSuperAdmin(user.role),
     nbaAutoApply: process.env.NBA_AUTO_APPLY ?? "dry_run",
+    scheduler: schedulerHealth(), // Đợt 22b: crond / tick còn chạy không
   });
 }

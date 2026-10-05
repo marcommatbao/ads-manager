@@ -7,6 +7,7 @@ import { pageIdsByCompany } from "@/lib/meta-accounts";
 import { getCurrentUser } from "@/lib/auth";
 import { canAccessCompany } from "@/lib/permissions";
 import { META_GRAPH_BASE } from "@/lib/meta/graph-version";
+import { friendlyError } from "@/lib/not-configured";
 
 // ID đọc từ biến môi trường (lib/meta-accounts.ts) — không để trong mã vì
 // repo này sẽ ở trạng thái công khai. Xem chú thích đầu file đó.
@@ -41,7 +42,7 @@ export async function GET(request: NextRequest) {
   const pageId = PAGE_IDS[company] ?? PAGE_IDS.MBC;
 
   if (!userToken) {
-    return NextResponse.json({ posts: [], error: "META_ACCESS_TOKEN not configured" });
+    return NextResponse.json({ posts: [], error: friendlyError("META_ACCESS_TOKEN not configured") });
   }
 
   // Get Page Access Token (required for New Page Experience)

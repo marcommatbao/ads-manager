@@ -9,6 +9,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { canAccessCompany } from "@/lib/permissions";
 import { fetchManualBidRecommendations } from "@/lib/google-manual-bid";
 import { pickCompany } from "@/lib/companies"
+import { friendlyError } from "@/lib/not-configured";
 
 export const maxDuration = 60;
 
@@ -30,6 +31,6 @@ export async function GET(req: NextRequest) {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[google/manual-bid]", message);
-    return NextResponse.json({ success: false, error: message }, { status: 502 });
+    return NextResponse.json({ success: false, error: friendlyError(message) }, { status: 502 });
   }
 }

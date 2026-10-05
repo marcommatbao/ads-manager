@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { metaClient } from "@/lib/meta-client";
 import type { Campaign, ReportData } from "@/types/ads.types";
 import { getCurrentUser } from "@/lib/auth";
+import { isNotConfigured } from "@/lib/not-configured";
 
 export async function GET(request: NextRequest) {
   const user = await getCurrentUser();
@@ -72,7 +73,7 @@ export async function GET(request: NextRequest) {
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";
     // Return empty data if credentials not configured (dev mode)
-    if (message.includes("not configured")) {
+    if (isNotConfigured(message)) {
       return NextResponse.json({ campaigns: [], reportData: [] });
     }
     return NextResponse.json(

@@ -19,6 +19,7 @@ import { hasPermission } from "@/lib/permissions";
 import { writeFileAtomicSync } from "@/lib/fs-atomic";
 import fs from "fs";
 import path from "path";
+import { friendlyError } from "@/lib/not-configured";
 
 export const dynamic = "force-dynamic";
 
@@ -157,7 +158,7 @@ export async function PATCH(req: NextRequest) {
     });
   } catch (err) {
     return NextResponse.json(
-      { success: false, error: err instanceof Error ? err.message : "Không lưu được" },
+      { success: false, error: friendlyError(err instanceof Error ? err.message : "Không lưu được") },
       { status: 500 },
     );
   }

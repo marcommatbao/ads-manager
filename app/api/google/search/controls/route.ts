@@ -13,10 +13,11 @@ import { activeSplitsBySource, recommendSearch } from "@/lib/search/recommend"
 import { allSplits, splitTargets } from "@/lib/search/split"
 import { PmaxControlError } from "@/lib/pmax/controls"
 import type { Company } from "@/lib/case/types"
+import { friendlyError } from "@/lib/not-configured";
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 120
-const err = (e: unknown) => (e instanceof PmaxControlError ? NextResponse.json({ success: false, error: e.message }, { status: e.status }) : fail(e))
+const err = (e: unknown) => (e instanceof PmaxControlError ? NextResponse.json({ success: false, error: friendlyError(e.message) }, { status: e.status }) : fail(e))
 
 async function build(company: Company, range: { from: string; to: string }) {
   const [x, negs] = await Promise.all([searchXray(company, range), readSearchNegatives(company)])

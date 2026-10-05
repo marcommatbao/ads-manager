@@ -24,6 +24,7 @@ import { getPriors as nbaPriors } from "@/lib/nba/feedback";
 import { applyEligible } from "@/lib/nba/auto-apply";
 import { META_GRAPH_BASE } from "@/lib/meta/graph-version";
 import { companyIds } from "@/lib/companies"
+import { friendlyError } from "@/lib/not-configured";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -210,7 +211,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: err instanceof Error ? err.message : "Unknown error",
+        error: friendlyError(err instanceof Error ? err.message : "Unknown error"),
         triggeredAt: new Date().toISOString(),
         duration: Date.now() - startTime,
       },

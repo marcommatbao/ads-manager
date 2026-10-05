@@ -21,9 +21,10 @@ import {
 } from "@/lib/creative-tracker";
 import { getCurrentUser } from "@/lib/auth";
 import { canAccessCompany, getCompaniesForRole, hasPermission } from "@/lib/permissions";
+import { friendlyError } from "@/lib/not-configured";
 
 function err(msg: string, code = 400) {
-  return NextResponse.json({ success: false, error: msg }, { status: code });
+  return NextResponse.json({ success: false, error: friendlyError(msg) }, { status: code });
 }
 
 // ─────────────────────────────────────────────

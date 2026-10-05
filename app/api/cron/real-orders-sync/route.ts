@@ -6,6 +6,7 @@ import { orderSourceReason } from "@/lib/orders/sources"
 import type { Company } from "@/lib/case/types"
 import { runRealOrderSync, summarize } from "@/lib/conversions/sync"
 import { companyIds } from "@/lib/companies"
+import { friendlyError } from "@/lib/not-configured";
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 300
@@ -29,6 +30,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: !failed, result: out })
   } catch (err) {
     await guard.finish("failure", null, err)
-    return NextResponse.json({ success: false, error: err instanceof Error ? err.message : "Unknown error" }, { status: 500 })
+    return NextResponse.json({ success: false, error: friendlyError(err instanceof Error ? err.message : "Unknown error") }, { status: 500 })
   }
 }

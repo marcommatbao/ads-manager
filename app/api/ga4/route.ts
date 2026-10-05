@@ -43,6 +43,7 @@ import {
   getAccessToken,
   invalidateAccessToken,
 } from "@/lib/ga4-oauth";
+import { friendlyError } from "@/lib/not-configured";
 
 // ── Persistent connection configs ───────────────────────────
 
@@ -257,7 +258,7 @@ export async function POST(req: NextRequest) {
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : "Failed to fetch GA4 data";
         return NextResponse.json(
-          { success: false, error: message },
+          { success: false, error: friendlyError(message) },
           { status: 500 }
         );
       }

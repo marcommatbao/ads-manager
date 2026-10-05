@@ -19,6 +19,7 @@ import { verifyMetaCampaignAccess } from "@/lib/meta-campaign-company";
 import { graphFetch, describeMetaError, isMetaTransientInsightError, isMetaPermissionError, ensureMetaTokenApp } from "@/lib/meta-client";
 import { sumConversionActions } from "@/lib/meta-conversion-goal";
 import { META_GRAPH_BASE } from "@/lib/meta/graph-version";
+import { friendlyError } from "@/lib/not-configured";
 
 const META_BASE = META_GRAPH_BASE;
 
@@ -330,7 +331,7 @@ async function applyGenderFocus(
       type: "focus_gender",
       label: `Tạo adset ${genderLabel} ưu tiên`,
       success: false,
-      error: err instanceof Error ? err.message : "Unknown error",
+      error: friendlyError(err instanceof Error ? err.message : "Unknown error"),
     };
   }
 }
@@ -574,7 +575,7 @@ export async function GET(request: NextRequest) {
 
   const token = process.env.META_ACCESS_TOKEN;
   if (!token) {
-    return NextResponse.json({ success: false, error: "META_ACCESS_TOKEN not configured" }, { status: 401 });
+    return NextResponse.json({ success: false, error: friendlyError("META_ACCESS_TOKEN not configured") }, { status: 401 });
   }
 
   const { searchParams } = new URL(request.url);
@@ -620,7 +621,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json({ success: false, error: msg }, { status: 500 });
+    return NextResponse.json({ success: false, error: friendlyError(msg) }, { status: 500 });
   }
 }
 
@@ -637,7 +638,7 @@ export async function POST(request: NextRequest) {
 
   const token = process.env.META_ACCESS_TOKEN;
   if (!token) {
-    return NextResponse.json({ success: false, error: "META_ACCESS_TOKEN not configured" }, { status: 401 });
+    return NextResponse.json({ success: false, error: friendlyError("META_ACCESS_TOKEN not configured") }, { status: 401 });
   }
 
   let body: ApplyRequest;

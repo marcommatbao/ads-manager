@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { fail, requireCompany, requireUser } from "@/lib/case/http"
 import { experimentStatus } from "@/lib/pmax/geo-experiment"
 import { PmaxControlError } from "@/lib/pmax/controls"
+import { friendlyError } from "@/lib/not-configured";
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 120
@@ -14,7 +15,7 @@ export async function GET(request: NextRequest) {
   const co = requireCompany(u.value, sp.get("company"))
   if (!co.ok) return co.response
   try { return NextResponse.json({ success: true, experiment: await experimentStatus(co.value, String(sp.get("id") ?? "")) }) } catch (err) {
-    if (err instanceof PmaxControlError) return NextResponse.json({ success: false, error: err.message }, { status: err.status })
+    if (err instanceof PmaxControlError) return NextResponse.json({ success: false, error: friendlyError(err.message) }, { status: err.status })
     return fail(err)
   }
 }

@@ -21,6 +21,7 @@ import { AUDIT_GUIDES } from "@/lib/google-audit-guide";
 import { googleAdsErrorMessage } from "@/lib/google-ads-error";
 import { GOOGLE_CUSTOMER_IDS } from "@/lib/google-ads-client"
 import { isCompany } from "@/lib/companies/registry";
+import { friendlyError } from "@/lib/not-configured";
 /** Ngưỡng "đã tiêu đáng kể" cho một search term trong 30 ngày.
  *
  *  micros: 1 đồng = 1.000.000 micros. Bản cũ đặt 200_000_000 và mô tả là
@@ -77,7 +78,7 @@ export async function POST(req: Request) {
 
     const customerId = GOOGLE_CUSTOMER_IDS[company];
     if (!customerId) {
-      return NextResponse.json({ success: false, error: "Google Ads customer ID not configured" }, { status: 500 });
+      return NextResponse.json({ success: false, error: friendlyError("Google Ads customer ID not configured") }, { status: 500 });
     }
 
     const customer = getGoogleAdsCustomer(company);
@@ -498,6 +499,6 @@ export async function POST(req: Request) {
   } catch (error: unknown) {
     const msg = googleAdsErrorMessage(error);
     console.error("[auto-fix] Error:", msg);
-    return NextResponse.json({ success: false, error: msg }, { status: 500 });
+    return NextResponse.json({ success: false, error: friendlyError(msg) }, { status: 500 });
   }
 }

@@ -28,6 +28,7 @@ import { buildJobState } from "@/lib/jobs/state";
 import { getJobDescriptor } from "@/lib/jobs/registry";
 import { decideAlert, decideConnectorAlert } from "@/lib/job-health-alerts";
 import type { JobId, JobState } from "@/lib/jobs/types";
+import { friendlyError } from "@/lib/not-configured";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 15;
@@ -221,7 +222,7 @@ export async function GET(request: NextRequest) {
   } catch (err) {
     await guard.finish("failure", null, err);
     return NextResponse.json(
-      { success: false, error: err instanceof Error ? err.message : "Unknown error" },
+      { success: false, error: friendlyError(err instanceof Error ? err.message : "Unknown error") },
       { status: 500 }
     );
   }

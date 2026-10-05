@@ -24,6 +24,7 @@ import { gatherCampaigns } from "@/lib/nba/gather";
 import { computeAdFatigueMap } from "@/lib/ads-content/fatigue";
 import type { AlertMetrics } from "@/lib/alert-rules";
 import type { Campaign } from "@/types/ads.types";
+import { isNotConfigured } from "@/lib/not-configured";
 
 function dateStr(d: Date): string {
   return d.toISOString().split("T")[0];
@@ -56,7 +57,7 @@ async function fatigueByCampaign(): Promise<Map<string, { level: FatigueLevel; m
     adMap = await computeAdFatigueMap();
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    if (!msg.toLowerCase().includes("not configured")) {
+    if (!isNotConfigured(msg)) {
       console.warn("[alert-metrics-gather] fatigue compute failed:", msg);
     }
     return out;

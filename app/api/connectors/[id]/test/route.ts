@@ -7,6 +7,7 @@ import { hasPermission, isAdmin } from "@/lib/permissions";
 import { runLiveCheck } from "@/lib/connectors/engine";
 import { CONNECTORS_BY_ID } from "@/lib/connectors/registry";
 import type { ConnectorId } from "@/lib/connectors/types";
+import { friendlyError } from "@/lib/not-configured";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -36,6 +37,6 @@ export async function POST(_req: NextRequest, { params }: RouteContext) {
     return NextResponse.json({ record });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return NextResponse.json({ error: friendlyError(msg) }, { status: 500 });
   }
 }

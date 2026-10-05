@@ -20,6 +20,7 @@ import { checkRecentCampaignMutation, recordCampaignMutation } from "@/lib/mutat
 
 import { googleAdsErrorMessage } from "@/lib/google-ads-error";
 import { pickCompany } from "@/lib/companies"
+import { friendlyError } from "@/lib/not-configured";
 export const maxDuration = 60;
 
 const MICROS = 1_000_000;
@@ -149,6 +150,6 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     const message = googleAdsErrorMessage(err);
     console.error("[google/manual-bid/apply]", message);
-    return NextResponse.json({ success: false, error: message }, { status: 502 });
+    return NextResponse.json({ success: false, error: friendlyError(message) }, { status: 502 });
   }
 }

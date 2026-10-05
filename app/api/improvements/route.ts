@@ -23,6 +23,7 @@ import { daysBackVN } from "@/lib/case/dates"
 import { META_GRAPH_BASE } from "@/lib/meta/graph-version"
 import { companyIds } from "@/lib/companies"
 import { isCompany } from "@/lib/companies/registry";
+import { friendlyError } from "@/lib/not-configured";
 
 // ─────────────────────────────────────
 // TYPES
@@ -1553,7 +1554,7 @@ JSON (CHỈ JSON): [{"id":"...","reasoning":"..."}]`
   } catch (error: any) {
     console.error("[Improvements] GET error:", error)
     return NextResponse.json(
-      { error: error.message, improvements: [], total: 0, high: 0, medium: 0 },
+      { error: friendlyError(error.message), improvements: [], total: 0, high: 0, medium: 0 },
       { status: 500 }
     )
   }

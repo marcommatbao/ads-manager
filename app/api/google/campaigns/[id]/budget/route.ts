@@ -11,6 +11,7 @@ import { hasPermission, canAccessCompany } from "@/lib/permissions";
 import { checkRecentCampaignMutation, recordCampaignMutation } from "@/lib/mutation-guard";
 
 import { googleAdsErrorMessage } from "@/lib/google-ads-error";
+import { friendlyError } from "@/lib/not-configured";
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -101,6 +102,6 @@ export async function PATCH(
     });
   } catch (error: unknown) {
     const message = googleAdsErrorMessage(error);
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    return NextResponse.json({ success: false, error: friendlyError(message) }, { status: 500 });
   }
 }

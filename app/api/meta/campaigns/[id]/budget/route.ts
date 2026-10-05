@@ -9,6 +9,7 @@ import { hasPermission, canAccessCompany } from "@/lib/permissions";
 import { detectCompany } from "@/lib/company-detect";
 import { checkRecentCampaignMutation, recordCampaignMutation } from "@/lib/mutation-guard";
 import { META_GRAPH_BASE } from "@/lib/meta/graph-version";
+import { friendlyError } from "@/lib/not-configured";
 
 export async function PATCH(
   request: NextRequest,
@@ -21,7 +22,7 @@ export async function PATCH(
   }
 
   const token = process.env.META_ACCESS_TOKEN;
-  if (!token) return NextResponse.json({ success: false, error: "META_ACCESS_TOKEN not configured" }, { status: 500 });
+  if (!token) return NextResponse.json({ success: false, error: friendlyError("META_ACCESS_TOKEN not configured") }, { status: 500 });
 
   try {
     const { id } = await params;
@@ -96,6 +97,6 @@ export async function PATCH(
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    return NextResponse.json({ success: false, error: friendlyError(message) }, { status: 500 });
   }
 }

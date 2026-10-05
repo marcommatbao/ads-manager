@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { actorOf, fail, requireCompany, requireUser } from "@/lib/case/http"
 import { GtmFixError, undoGtmFix } from "@/lib/measure/gtm-fix"
 import { tagDoctor } from "@/lib/measure/tag-doctor"
+import { friendlyError } from "@/lib/not-configured";
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
@@ -20,7 +21,7 @@ export async function POST(request: NextRequest) {
     await tagDoctor(co.value, { force: true }).catch(() => null)
     return NextResponse.json({ success: true, report })
   } catch (err) {
-    if (err instanceof GtmFixError) return NextResponse.json({ success: false, error: err.message }, { status: err.status })
+    if (err instanceof GtmFixError) return NextResponse.json({ success: false, error: friendlyError(err.message) }, { status: err.status })
     return fail(err)
   }
 }

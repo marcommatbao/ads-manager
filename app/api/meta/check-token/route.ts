@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { graphFetch, getMetaThrottleState, isMetaRateLimitError, readMetaRawUsageHeaders, readMetaLastRateLimitError, readPersistedRateLimitError } from "@/lib/meta-client";
 import { META_GRAPH_BASE } from "@/lib/meta/graph-version";
+import { friendlyError } from "@/lib/not-configured";
 
 export const dynamic = "force-dynamic";
 
@@ -72,7 +73,7 @@ export async function GET() {
       expiresIn: 0,
       warning: throttle.throttled,
       rateLimited: throttle.throttled,
-      error: msg,
+      error: friendlyError(msg),
       throttle,
     });
   }

@@ -15,6 +15,7 @@ import { getCachedBatch, normalizeQuery } from "@/lib/interest-resolution-cache"
 import { creativeBrandFor, creativeBrandPrompt, isLegacyCreativeCompany, profileProduct } from "@/lib/brand/creative";
 import { isCompany } from "@/lib/companies";
 import { canAccessCompany } from "@/lib/permissions";
+import { friendlyError } from "@/lib/not-configured";
 
 // ─── Product label map ────────────────────────────────────────────────────────
 
@@ -344,7 +345,7 @@ export async function POST(request: NextRequest) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     return NextResponse.json(
-      { success: false, error: "GEMINI_API_KEY not configured" },
+      { success: false, error: friendlyError("GEMINI_API_KEY not configured") },
       { status: 401 }
     );
   }

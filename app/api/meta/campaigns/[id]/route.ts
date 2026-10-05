@@ -5,6 +5,7 @@ import { canAccessCompany } from "@/lib/permissions";
 import { detectCompany } from "@/lib/company-detect";
 import { graphFetch, isMetaTransientInsightError, describeMetaError } from "@/lib/meta-client";
 import { META_GRAPH_BASE } from "@/lib/meta/graph-version";
+import { friendlyError } from "@/lib/not-configured";
 
 /** Gọi một endpoint insights có thử lại cho nhóm "Meta quá tải / hết giờ chờ".
  *
@@ -37,7 +38,7 @@ export async function GET(
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const token = process.env.META_ACCESS_TOKEN;
-  if (!token) return NextResponse.json({ error: "META_ACCESS_TOKEN not configured" }, { status: 500 });
+  if (!token) return NextResponse.json({ error: friendlyError("META_ACCESS_TOKEN not configured") }, { status: 500 });
 
   const { id } = await params;
   const { searchParams } = request.nextUrl;
@@ -199,6 +200,6 @@ export async function GET(
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: friendlyError(message) }, { status: 500 });
   }
 }

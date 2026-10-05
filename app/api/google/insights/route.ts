@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { googleAdsClient, convertMicros } from "@/lib/google-client";
 import { getCurrentUser } from "@/lib/auth";
 import type { ReportData } from "@/types/ads.types";
+import { friendlyError, isNotConfigured } from "@/lib/not-configured";
 
 export async function GET(request: NextRequest) {
   const user = await getCurrentUser();
@@ -44,11 +45,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: true, data });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    if (message.toLowerCase().includes("not configured")) {
+    if (isNotConfigured(message)) {
       return NextResponse.json({ success: false, data: [] });
     }
     return NextResponse.json(
-      { success: false, error: message },
+      { success: false, error: friendlyError(message) },
       { status: 500 }
     );
   }

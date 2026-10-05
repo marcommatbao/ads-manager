@@ -18,6 +18,7 @@ import { canAccessCompany } from "@/lib/permissions";
 import { gatherCampaigns } from "@/lib/nba/gather";
 import { getGroupsForCompany } from "@/lib/odoo-product-categories";
 import { adProductsForCompany, matchAdProduct, type Company } from "@/lib/ad-product-mapping";
+import { friendlyError } from "@/lib/not-configured";
 
 // ── Month → date range ───────────────────────────────────────
 
@@ -228,7 +229,7 @@ export async function GET(req: NextRequest) {
       unattributed: { metaSpend: 0, googleSpend: 0, totalSpend: 0 },
       brandAwareness: { metaSpend: 0, googleSpend: 0, totalSpend: 0 },
       totalSpend: 0,
-      error: msg,
+      error: friendlyError(msg),
     } satisfies AttributionResponse);
   }
 }

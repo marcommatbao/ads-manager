@@ -25,6 +25,7 @@ import { checkRecentCampaignMutation, recordCampaignMutation } from "@/lib/mutat
 import { recordBudgetApply, lastApplyFor, APPLY_COOLDOWN_DAYS } from "@/lib/pmax-insights/budget-apply-log";
 
 import { googleAdsErrorMessage } from "@/lib/google-ads-error";
+import { friendlyError } from "@/lib/not-configured";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
@@ -147,6 +148,6 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     const message = googleAdsErrorMessage(err);
     console.error("[pmax/apply-budget]", message);
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    return NextResponse.json({ success: false, error: friendlyError(message) }, { status: 500 });
   }
 }

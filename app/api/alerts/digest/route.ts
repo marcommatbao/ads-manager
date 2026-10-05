@@ -14,6 +14,7 @@ import { getAlerts } from "@/lib/alert-engine";
 import { getQualityScoreDropSummary } from "@/lib/quality-score-digest";
 import { buildDigestMessage } from "@/lib/alerts-digest-message";
 import { sendTelegram } from "@/lib/telegram";
+import { friendlyError } from "@/lib/not-configured";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -54,7 +55,7 @@ export async function GET(request: NextRequest) {
   } catch (err) {
     await guard.finish("failure", null, err);
     return NextResponse.json(
-      { success: false, error: err instanceof Error ? err.message : "Unknown error" },
+      { success: false, error: friendlyError(err instanceof Error ? err.message : "Unknown error") },
       { status: 500 }
     );
   }

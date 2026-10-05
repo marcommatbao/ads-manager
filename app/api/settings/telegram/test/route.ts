@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { sendTestMessage, verifyBotToken } from "@/lib/telegram";
 import { getCurrentUser } from "@/lib/auth";
 import { guardViewCredentials } from "@/lib/settings/guards";
+import { friendlyError } from "@/lib/not-configured";
 
 export async function POST(request: NextRequest) {
   const user = await getCurrentUser();
@@ -70,7 +71,7 @@ export async function POST(request: NextRequest) {
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json(
-      { success: false, error: message },
+      { success: false, error: friendlyError(message) },
       { status: 500 }
     );
   }

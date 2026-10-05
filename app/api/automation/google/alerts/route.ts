@@ -8,6 +8,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { getCompaniesForRole } from "@/lib/permissions";
 import fs from "fs";
 import path from "path";
+import { friendlyError } from "@/lib/not-configured";
 
 export async function GET(req: NextRequest) {
   const user = await getCurrentUser();
@@ -44,6 +45,6 @@ export async function GET(req: NextRequest) {
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json({ success: false, error: msg }, { status: 500 });
+    return NextResponse.json({ success: false, error: friendlyError(msg) }, { status: 500 });
   }
 }

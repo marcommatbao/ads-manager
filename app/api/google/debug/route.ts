@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { googleAdsClient } from "@/lib/google-client";
+import { friendlyError } from "@/lib/not-configured";
 
 export const dynamic = "force-dynamic";
 
@@ -48,6 +49,6 @@ export async function GET() {
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ ok: false, configured, error: message }, { status: 500 });
+    return NextResponse.json({ ok: false, configured, error: friendlyError(message) }, { status: 500 });
   }
 }

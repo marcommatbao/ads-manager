@@ -5,6 +5,7 @@ import { getCompaniesForRole } from "@/lib/permissions";
 import { detectCompany } from "@/lib/company-detect";
 import { resolveConversionActionTypes, buildGoalByCampaignMap, sumConversionActions } from "@/lib/meta-conversion-goal";
 import type { Campaign } from "@/types/ads.types";
+import { friendlyError, isNotConfigured } from "@/lib/not-configured";
 
 export async function GET(request: NextRequest) {
   const user = await getCurrentUser();
@@ -127,11 +128,11 @@ export async function GET(request: NextRequest) {
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    if (message.includes("not configured")) {
+    if (isNotConfigured(message)) {
       return NextResponse.json({ success: false, data: [] });
     }
     return NextResponse.json(
-      { success: false, error: message },
+      { success: false, error: friendlyError(message) },
       { status: 500 }
     );
   }

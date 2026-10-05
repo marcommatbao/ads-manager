@@ -14,6 +14,7 @@ import { normalizeMonth, monthToRange } from "@/lib/ads-content/month-range";
 import { getCached, setCached } from "@/lib/ads-content/cache";
 import { getAdsContentItems } from "@/lib/ads-content/aggregate";
 import type { AdsContentResponse } from "@/types/creative-content.types";
+import { friendlyError } from "@/lib/not-configured";
 
 export async function GET(req: NextRequest) {
   const user = await getCurrentUser();
@@ -61,7 +62,7 @@ export async function GET(req: NextRequest) {
   } catch (err) {
     console.error("[api/campaigns/ads-content] fatal error:", err);
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Failed to load Ads Content" },
+      { error: friendlyError(err instanceof Error ? err.message : "Failed to load Ads Content") },
       { status: 500 }
     );
   }

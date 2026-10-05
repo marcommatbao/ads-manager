@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { checkCronAuth } from "@/lib/cron-auth";
 import { startJobRun } from "@/lib/jobs/cron-guard";
 import { scanAllAutoFetchableSources } from "@/lib/policy-radar/scanner";
+import { friendlyError } from "@/lib/not-configured";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 45;
@@ -35,7 +36,7 @@ export async function GET(request: NextRequest) {
   } catch (err) {
     await guard.finish("failure", null, err);
     return NextResponse.json(
-      { success: false, error: err instanceof Error ? err.message : "Unknown error" },
+      { success: false, error: friendlyError(err instanceof Error ? err.message : "Unknown error") },
       { status: 500 }
     );
   }

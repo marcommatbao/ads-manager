@@ -12,6 +12,7 @@ import { safeDate, InvalidGaqlInput } from "@/lib/google-ads-guards";
 import { canAccessCompany } from "@/lib/permissions";
 
 import { googleAdsErrorMessage } from "@/lib/google-ads-error";
+import { friendlyError } from "@/lib/not-configured";
 const toVnd = (micros: unknown) => Number(micros ?? 0) / 1_000_000;
 
 export async function GET(
@@ -34,7 +35,7 @@ export async function GET(
     to   = safeDate(searchParams.get("to"), new Date().toISOString().slice(0, 10));
   } catch (err) {
     if (err instanceof InvalidGaqlInput) {
-      return NextResponse.json({ error: err.message }, { status: 400 });
+      return NextResponse.json({ error: friendlyError(err.message) }, { status: 400 });
     }
     throw err;
   }
@@ -179,6 +180,6 @@ export async function GET(
     });
   } catch (err) {
     const message = googleAdsErrorMessage(err);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: friendlyError(message) }, { status: 500 });
   }
 }

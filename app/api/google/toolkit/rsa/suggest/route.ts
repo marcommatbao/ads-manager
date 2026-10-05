@@ -7,6 +7,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
 import { callGemini } from "@/lib/gemini";
 import { GOOGLE_RSA_LIMITS, checkRsaCharLimits, formatViolationsForRetry } from "@/lib/creative-limits";
+import { friendlyError } from "@/lib/not-configured";
 
 interface SuggestRequest {
   headlines: string[];
@@ -28,7 +29,7 @@ export async function POST(request: NextRequest) {
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    return NextResponse.json({ success: false, error: "GEMINI_API_KEY not configured" }, { status: 401 });
+    return NextResponse.json({ success: false, error: friendlyError("GEMINI_API_KEY not configured") }, { status: 401 });
   }
 
   let body: SuggestRequest;

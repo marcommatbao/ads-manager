@@ -6,6 +6,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { canAccessCompany } from "@/lib/permissions";
 import { googleSearchAdsClient } from "@/lib/google-search-ads-client";
 import { pickCompany } from "@/lib/companies"
+import { friendlyError } from "@/lib/not-configured";
 
 export async function GET(req: NextRequest) {
   const user = await getCurrentUser();
@@ -26,6 +27,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ success: true, data: ads });
   } catch (err) {
     console.error("[rsa GET]", err);
-    return NextResponse.json({ success: false, error: err instanceof Error ? err.message : "Unknown error" }, { status: 502 });
+    return NextResponse.json({ success: false, error: friendlyError(err instanceof Error ? err.message : "Unknown error") }, { status: 502 });
   }
 }

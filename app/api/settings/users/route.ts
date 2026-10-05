@@ -14,6 +14,7 @@ import { writeAuditEntry } from "@/lib/settings/audit";
 import type { Role } from "@/lib/permissions";
 import type { CompanyAccess } from "@/lib/team";
 import { normalizePassword, passwordProblem } from "@/lib/password-policy";
+import { friendlyError } from "@/lib/not-configured";
 
 function companyAccessFromRole(role: Role): CompanyAccess[] {
   if (role === "super_admin") return ["ALL"];
@@ -46,7 +47,7 @@ export async function GET() {
     return NextResponse.json({ success: true, data: safe });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    return NextResponse.json({ success: false, error: friendlyError(message) }, { status: 500 });
   }
 }
 
@@ -131,6 +132,6 @@ export async function POST(request: NextRequest) {
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";
     const status = message.includes("đã tồn tại") ? 400 : 500;
-    return NextResponse.json({ success: false, error: message }, { status });
+    return NextResponse.json({ success: false, error: friendlyError(message) }, { status });
   }
 }

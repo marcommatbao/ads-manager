@@ -11,6 +11,7 @@ import { recordDecision } from "@/lib/decision-memory/recorder";
 import type { QueryFilter } from "@/lib/decision-memory/query";
 import type { RecordDecisionParams } from "@/lib/decision-memory/recorder";
 import { isCompany } from "@/lib/companies"
+import { friendlyError } from "@/lib/not-configured";
 
 export const dynamic = "force-dynamic";
 
@@ -96,7 +97,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, data: entry }, { status: 201 });
   } catch (err) {
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Failed to record decision" },
+      { error: friendlyError(err instanceof Error ? err.message : "Failed to record decision") },
       { status: 500 },
     );
   }

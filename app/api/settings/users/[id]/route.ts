@@ -14,6 +14,7 @@ import { writeAuditEntry, computeDiff } from "@/lib/settings/audit";
 import type { Role } from "@/lib/permissions";
 import type { MemberStatus, CompanyAccess } from "@/lib/team";
 import { normalizePassword, passwordProblem } from "@/lib/password-policy";
+import { friendlyError } from "@/lib/not-configured";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -130,7 +131,7 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
     return NextResponse.json({ success: true, data: safe });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    return NextResponse.json({ success: false, error: friendlyError(message) }, { status: 500 });
   }
 }
 
@@ -182,6 +183,6 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
     return NextResponse.json({ success: true });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    return NextResponse.json({ success: false, error: friendlyError(message) }, { status: 500 });
   }
 }

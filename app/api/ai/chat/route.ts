@@ -26,6 +26,7 @@ import { streamGeminiChat, generateWithTools, type ChatTurn, type GeminiContent 
 import { TOOL_DECLARATIONS, runTool } from "@/lib/ai-tools/registry";
 import { rateLimit } from "@/lib/rate-limit";
 import type { SessionUser } from "@/lib/auth";
+import { friendlyError } from "@/lib/not-configured";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -185,6 +186,6 @@ export async function POST(request: NextRequest) {
   } catch (err) {
     const message = err instanceof Error ? err.message : "Lỗi không xác định";
     console.error("[ai/chat]", err);
-    return NextResponse.json({ error: message }, { status: 502 });
+    return NextResponse.json({ error: friendlyError(message) }, { status: 502 });
   }
 }

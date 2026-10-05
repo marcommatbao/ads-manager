@@ -11,6 +11,7 @@ import { briefReferences } from "@/lib/playbook/suggest";
 import { saveDraft, listDrafts } from "@/lib/creative-brief/store";
 import { randomUUID } from "crypto";
 import type { BriefInput } from "@/lib/creative-brief/types";
+import { friendlyError } from "@/lib/not-configured";
 
 export const dynamic  = "force-dynamic";
 export const revalidate = 0;
@@ -60,7 +61,7 @@ export async function POST(request: NextRequest) {
     console.error("[POST /api/creative/brief]", message);
     // Compliance BLOCK errors → 422
     if (message.includes("blocked by compliance") || message.includes("does not belong")) {
-      return NextResponse.json({ success: false, error: message }, { status: 422 });
+      return NextResponse.json({ success: false, error: friendlyError(message) }, { status: 422 });
     }
     return NextResponse.json({ success: false, error: `Brief generation failed: ${message}` }, { status: 500 });
   }
@@ -85,6 +86,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: true, data: { drafts, total: drafts.length } });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    return NextResponse.json({ success: false, error: friendlyError(message) }, { status: 500 });
   }
 }

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { checkCronAuth } from "@/lib/cron-auth"
 import { startJobRun } from "@/lib/jobs/cron-guard"
 import { runSmoke } from "@/lib/smoke/run"
+import { friendlyError } from "@/lib/not-configured";
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 300
@@ -22,6 +23,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: !bad.length, result: summary, run: r.run })
   } catch (err) {
     await guard.finish("failure", null, err)
-    return NextResponse.json({ success: false, error: err instanceof Error ? err.message : "Unknown error" }, { status: 500 })
+    return NextResponse.json({ success: false, error: friendlyError(err instanceof Error ? err.message : "Unknown error") }, { status: 500 })
   }
 }

@@ -10,11 +10,12 @@ import { PmaxControlError } from "@/lib/pmax/controls"
 import { coverage } from "@/lib/conversions/real-orders"
 import { ingestOrders, maskRecent, MAX_ORDERS_PER_CALL, ORDER_SOURCES, orderSourceOf, orderSourceReason, parseOrderCsv, readStoredOrders, rotateOrderSecret, setOrderSource } from "@/lib/orders/sources"
 import type { OrderSourceId } from "@/lib/conversions/real-orders"
+import { friendlyError } from "@/lib/not-configured";
 
 export const dynamic = "force-dynamic"
 const MAX_CSV_BYTES = 2_000_000
 const MAX_CSV_ROWS = MAX_ORDERS_PER_CALL * 20
-const err = (e: unknown) => (e instanceof PmaxControlError ? NextResponse.json({ success: false, error: e.message }, { status: e.status }) : fail(e))
+const err = (e: unknown) => (e instanceof PmaxControlError ? NextResponse.json({ success: false, error: friendlyError(e.message) }, { status: e.status }) : fail(e))
 
 export async function GET(request: NextRequest) {
   const u = await requireUser()

@@ -12,6 +12,7 @@ import type { Campaign, CampaignMetrics } from "@/types/ads.types";
 import { promises as fsPromises } from "fs";
 import path from "path";
 import { META_GRAPH_BASE } from "@/lib/meta/graph-version";
+import { isNotConfigured } from "@/lib/not-configured";
 
 // ── Đếm chuyển đổi của Meta: CHỈ lấy tên TRẦN, tuyệt đối không thêm namespace ──
 //
@@ -300,7 +301,7 @@ async function gatherMeta(range: { from: string; to: string }): Promise<GatherOu
     return { campaigns: result, error: insights.error, staleAt: insights.staleAt };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    if (!msg.toLowerCase().includes("not configured")) console.warn("[nba/gather] meta failed:", msg);
+    if (!isNotConfigured(msg)) console.warn("[nba/gather] meta failed:", msg);
     // staleAt PHẢI là null ở đây: không lấy được campaign nào thì không có số
     // cũ nào đang được dùng. Bản trước để trạng thái cấp module rớt lại từ lần
     // gọi khác, nên nhánh này lặng lẽ biến thành "số cũ 0đ".
@@ -394,7 +395,7 @@ async function gatherGoogle(range: { from: string; to: string }): Promise<Gather
     return { campaigns: result, error: null };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    if (!msg.toLowerCase().includes("not configured")) console.warn("[nba/gather] google failed:", msg);
+    if (!isNotConfigured(msg)) console.warn("[nba/gather] google failed:", msg);
     return { campaigns: [], error: msg };
   }
 }

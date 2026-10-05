@@ -8,6 +8,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { getCompaniesForRole } from "@/lib/permissions";
 import fs from "fs";
 import path from "path";
+import { friendlyError } from "@/lib/not-configured";
 
 interface BudgetAction {
   company: string;
@@ -57,6 +58,6 @@ export async function GET(req: NextRequest) {
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error";
     console.error("[budget-history] Error:", msg);
-    return NextResponse.json({ success: false, error: msg }, { status: 500 });
+    return NextResponse.json({ success: false, error: friendlyError(msg) }, { status: 500 });
   }
 }

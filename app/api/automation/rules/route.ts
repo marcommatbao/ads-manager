@@ -13,6 +13,7 @@ import {
   runAutomationEngine,
   getExecutionLog,
 } from "@/lib/automation-engine";
+import { friendlyError } from "@/lib/not-configured";
 
 export async function GET() {
   const user = await getCurrentUser();
@@ -31,7 +32,7 @@ export async function GET() {
     return NextResponse.json({ success: true, data: { rules, executionLog } });
   } catch (err: unknown) {
     return NextResponse.json(
-      { success: false, error: err instanceof Error ? err.message : "Unknown error" },
+      { success: false, error: friendlyError(err instanceof Error ? err.message : "Unknown error") },
       { status: 500 }
     );
   }
@@ -138,7 +139,7 @@ export async function POST(request: NextRequest) {
     }
   } catch (err: unknown) {
     return NextResponse.json(
-      { success: false, error: err instanceof Error ? err.message : "Unknown error" },
+      { success: false, error: friendlyError(err instanceof Error ? err.message : "Unknown error") },
       { status: 500 }
     );
   }

@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { guardViewCredentials } from "@/lib/settings/guards";
 import { GoogleAdsApi } from "google-ads-api";
+import { friendlyError } from "@/lib/not-configured";
 
 // Đợt 21 A4 (soát bảo mật): khoá mới dán gửi qua THÂN POST, không qua URL (URL lọt vào log proxy + lịch sử trình duyệt).
 // GET vẫn chạy nhưng CHỈ kiểm khoá đã lưu (bỏ qua mọi khoá trên URL).
@@ -92,6 +93,6 @@ async function run(request: NextRequest, p: ParamGet) {
       message = e.message;
     }
 
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    return NextResponse.json({ ok: false, error: friendlyError(message) }, { status: 500 });
   }
 }

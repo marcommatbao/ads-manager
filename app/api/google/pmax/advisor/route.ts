@@ -16,6 +16,7 @@ import { upsertRecommendations, updateRecommendationState, getRecommendationById
 import { parsePMaxDateRange } from "@/lib/google-pmax-client";
 import type { RecommendationReviewState } from "@/lib/pmax-insights/types";
 import { pickCompany } from "@/lib/companies"
+import { friendlyError } from "@/lib/not-configured";
 
 export const maxDuration = 45;
 
@@ -87,7 +88,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ success: true, data: sorted });
   } catch (err) {
     console.error("[pmax/advisor GET]", err);
-    return NextResponse.json({ success: false, error: err instanceof Error ? err.message : "Unknown error" }, { status: 500 });
+    return NextResponse.json({ success: false, error: friendlyError(err instanceof Error ? err.message : "Unknown error") }, { status: 500 });
   }
 }
 

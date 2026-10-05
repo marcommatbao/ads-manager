@@ -28,6 +28,7 @@ import type {
   NbaRecommendationType, NbaFeedbackValue, NbaRecommendation,
 } from "@/lib/nba/types";
 import { companyIds } from "@/lib/companies"
+import { friendlyError } from "@/lib/not-configured";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -196,7 +197,7 @@ export async function GET(request: NextRequest) {
   } catch (err) {
     console.error("[nba/api GET]", err);
     return NextResponse.json(
-      { success: false, error: err instanceof Error ? err.message : "Lỗi engine NBA" },
+      { success: false, error: friendlyError(err instanceof Error ? err.message : "Lỗi engine NBA") },
       { status: 500 }
     );
   }

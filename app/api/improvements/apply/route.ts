@@ -22,6 +22,7 @@ import { checkRecentCampaignMutation, recordCampaignMutation } from "@/lib/mutat
 import { applyDeviceBidModifier, readDeviceCriteria, type BidDevice } from "@/lib/google-device-bid";
 import { googleAdsErrorMessage } from "@/lib/google-ads-error";
 import { recordApply, findUndoable, markUndone } from "@/lib/apply-undo-log";
+import { friendlyError } from "@/lib/not-configured";
 
 export type Company = string;
 
@@ -519,6 +520,6 @@ export async function POST(req: NextRequest) {
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";
     console.error("[improvements/apply] error:", message);
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    return NextResponse.json({ success: false, error: friendlyError(message) }, { status: 500 });
   }
 }

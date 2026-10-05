@@ -8,6 +8,7 @@ import { generateDraftSearchThemes, generateDraftCreativeBrief } from "@/lib/pma
 import { addDraftAction, getDraftActions, updateRecommendationState, getRecommendationById } from "@/lib/pmax-insights/store";
 import { parsePMaxDateRange } from "@/lib/google-pmax-client";
 import { pickCompany } from "@/lib/companies"
+import { friendlyError } from "@/lib/not-configured";
 
 export const maxDuration = 30;
 
@@ -90,6 +91,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true, data: draft });
   } catch (err) {
     console.error("[pmax/drafts POST]", err);
-    return NextResponse.json({ success: false, error: err instanceof Error ? err.message : "Unknown error" }, { status: 500 });
+    return NextResponse.json({ success: false, error: friendlyError(err instanceof Error ? err.message : "Unknown error") }, { status: 500 });
   }
 }

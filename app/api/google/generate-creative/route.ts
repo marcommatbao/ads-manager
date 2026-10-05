@@ -20,6 +20,7 @@ import fs from "fs";
 import { writeFileAtomicSync } from "@/lib/fs-atomic";
 import path from "path";
 import { companyLabel, companyUrl } from "@/lib/companies"
+import { friendlyError } from "@/lib/not-configured";
 
 export const dynamic = "force-dynamic";
 
@@ -320,6 +321,6 @@ export async function POST(request: NextRequest) {
     if (message.includes("GEMINI_TIMEOUT")) {
       return NextResponse.json({ success: false, error: "AI phản hồi quá lâu — vui lòng thử lại" }, { status: 504 });
     }
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    return NextResponse.json({ success: false, error: friendlyError(message) }, { status: 500 });
   }
 }

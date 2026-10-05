@@ -40,6 +40,7 @@ import {
 } from "@/lib/orders-notify";
 import { wasLeadRecentlyNotified } from "@/lib/leads-notify";
 import { odooUrl } from "@/lib/odoo-config";
+import { friendlyError } from "@/lib/not-configured";
 
 // Bounded label list for a job-history resultSummary line — e.g.
 // "S6537276(sent), S6537999(skip: no real name)" — capped so a run with
@@ -813,7 +814,7 @@ export async function GET(request: NextRequest) {
   } catch (err) {
     await guard.finish("failure", null, err);
     return NextResponse.json(
-      { success: false, error: err instanceof Error ? err.message : "Unknown error" },
+      { success: false, error: friendlyError(err instanceof Error ? err.message : "Unknown error") },
       { status: 500 }
     );
   }

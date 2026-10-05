@@ -32,6 +32,7 @@ import { applySimulationResult, getApplyMode } from "@/lib/automation-sim/apply"
 import { saveRun } from "@/lib/automation-sim/store";
 import type { SimContext, SimCompany, RecentRelatedChange, SimulationItem } from "@/lib/automation-sim/types";
 import { companyIds } from "@/lib/companies"
+import { friendlyError } from "@/lib/not-configured";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -171,7 +172,7 @@ export async function POST(request: NextRequest) {
         ruleId: rule.id, ruleName: rule.name,
         evaluated: 0, matched: 0, safeCount: 0, blockedCount: 0, manualReviewCount: 0,
         applyMode: mode, executed: 0, dryRun: 0, failed: 0,
-        candidates: [], blockedItems: [], error: message,
+        candidates: [], blockedItems: [], error: friendlyError(message),
       });
     }
   }

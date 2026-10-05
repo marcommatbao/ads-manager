@@ -7,6 +7,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { hasPermission, canAccessCompany, isSuperAdmin } from "@/lib/permissions";
 import { buildAudiencePayload, generateAudienceName, type AudienceConfig, type AudienceResult, type CustomerRecord } from "@/lib/audience-builder";
 import { META_GRAPH_BASE } from "@/lib/meta/graph-version";
+import { friendlyError } from "@/lib/not-configured";
 
 const BASE = META_GRAPH_BASE;
 
@@ -21,7 +22,7 @@ export async function POST(request: NextRequest) {
   const adAccountId = process.env.META_AD_ACCOUNT_ID;
 
   if (!token || !adAccountId) {
-    return NextResponse.json({ success: false, error: "META credentials not configured" }, { status: 500 });
+    return NextResponse.json({ success: false, error: friendlyError("META credentials not configured") }, { status: 500 });
   }
 
   let body: { config: AudienceConfig; customers: CustomerRecord[] };
@@ -146,7 +147,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, data: responseData });
   } catch (err) {
     return NextResponse.json(
-      { success: false, error: err instanceof Error ? err.message : "Unknown error" },
+      { success: false, error: friendlyError(err instanceof Error ? err.message : "Unknown error") },
       { status: 500 }
     );
   }

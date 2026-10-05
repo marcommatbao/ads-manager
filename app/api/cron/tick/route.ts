@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { checkCronAuth } from "@/lib/cron-auth"
 import { dueJobs } from "@/lib/jobs/tick"
+import { recordTick } from "@/lib/jobs/heartbeat"
 
 export const dynamic = "force-dynamic"
 
@@ -10,6 +11,7 @@ export async function GET(request: NextRequest) {
   const auth = checkCronAuth(request, "cron/tick")
   if (!auth.ok) return auth.response
   const now = new Date()
+  recordTick(now) // Đợt 22b: nhịp tim bộ hẹn giờ (Cài đặt → Cron Jobs báo khi ngừng)
   const due = dueJobs(now)
   const base = `http://127.0.0.1:${process.env.PORT || 3000}`
   if (due.length) console.log(`[cron/tick] ${now.toISOString().slice(0, 16)} gọi: ${due.map((j) => j.id).join(", ")}`)

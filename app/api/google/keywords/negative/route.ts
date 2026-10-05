@@ -11,6 +11,7 @@ import { googleAdsErrorMessage } from "@/lib/google-ads-error";
 import { createdNames, guardedMutate, WriteGuardError } from "@/lib/write-guard";
 import { GOOGLE_CUSTOMER_IDS } from "@/lib/google-ads-client"
 import { isCompany } from "@/lib/companies/registry";
+import { friendlyError } from "@/lib/not-configured";
 interface NegativeKeyword {
   keyword: string;
   matchType?: "EXACT" | "PHRASE" | "BROAD";
@@ -77,12 +78,12 @@ export async function POST(req: NextRequest) {
       if (!r.entry) return NextResponse.json({ success: true, validated: true, added: 0, failed: 0, count: ops.length });
       return NextResponse.json({ success: true, added: ops.length, failed: 0, writeId: r.entry.id, results: negatives.map((nk) => ({ keyword: nk.keyword, success: true })) });
     } catch (e) {
-      if (e instanceof WriteGuardError) return NextResponse.json({ success: false, error: e.message, needsConfirm: e.status === 428, validated: e.validated }, { status: e.status });
+      if (e instanceof WriteGuardError) return NextResponse.json({ success: false, error: friendlyError(e.message), needsConfirm: e.status === 428, validated: e.validated }, { status: e.status });
       throw e;
     }
   } catch (err) {
     const msg = googleAdsErrorMessage(err);
     console.error("[keywords/negative] Error:", msg);
-    return NextResponse.json({ success: false, error: msg }, { status: 500 });
+    return NextResponse.json({ success: false, error: friendlyError(msg) }, { status: 500 });
   }
 }

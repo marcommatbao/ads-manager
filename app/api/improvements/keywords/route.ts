@@ -31,6 +31,7 @@ import type {
 } from "@/types/keyword-insight";
 import { daysBackVN } from "@/lib/case/dates";
 import { pickCompany } from "@/lib/companies"
+import { friendlyError } from "@/lib/not-configured";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Row = any;
@@ -553,6 +554,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(applyQueryFilters(fullResponse, intentMatchFilter, matchTypeFilter));
   } catch (error: unknown) {
     const message = googleAdsErrorMessage(error);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: friendlyError(message) }, { status: 500 });
   }
 }

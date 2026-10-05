@@ -9,10 +9,11 @@ import { DEFAULT_VIEW_DAYS, MAX_RANGE_DAYS, parseRange } from "@/lib/case/dates"
 import { hasPermission } from "@/lib/permissions"
 import { applySwaps, draftReplacements, FIELD_LABEL, listSwaps, readAssetHealth, TEXT_LIMIT, undoSwaps } from "@/lib/pmax/assets"
 import { PMAX_CONFIRM_TEXT, PmaxControlError } from "@/lib/pmax/controls"
+import { friendlyError } from "@/lib/not-configured";
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 120
-const err = (e: unknown) => (e instanceof PmaxControlError ? NextResponse.json({ success: false, error: e.message }, { status: e.status }) : fail(e))
+const err = (e: unknown) => (e instanceof PmaxControlError ? NextResponse.json({ success: false, error: friendlyError(e.message) }, { status: e.status }) : fail(e))
 
 export async function GET(request: NextRequest) {
   const u = await requireUser()

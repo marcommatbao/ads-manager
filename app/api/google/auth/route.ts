@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { createOAuthState, oauthStateCookie } from "@/lib/oauth-state";
 import { guardEditCredentials } from "@/lib/settings/guards";
+import { friendlyError } from "@/lib/not-configured";
 
 const SCOPES = [
   "https://www.googleapis.com/auth/adwords",
@@ -19,7 +20,7 @@ export async function GET() {
   const clientId = process.env.GOOGLE_ADS_CLIENT_ID;
   if (!clientId) {
     return NextResponse.json(
-      { error: "GOOGLE_ADS_CLIENT_ID not configured" },
+      { error: friendlyError("GOOGLE_ADS_CLIENT_ID not configured") },
       { status: 500 }
     );
   }

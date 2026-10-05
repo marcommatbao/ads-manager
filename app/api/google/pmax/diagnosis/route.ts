@@ -9,6 +9,7 @@ import { buildCampaignOverviews, buildAssetGroupOverviews } from "@/lib/pmax-ins
 import { generateCampaignDiagnosis, generateAssetGroupDiagnosis } from "@/lib/pmax-insights/diagnosis";
 import { parsePMaxDateRange } from "@/lib/google-pmax-client";
 import { pickCompany } from "@/lib/companies"
+import { friendlyError } from "@/lib/not-configured";
 
 export const maxDuration = 30;
 
@@ -64,6 +65,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ success: true, data: diagnosis });
   } catch (err) {
     console.error("[pmax/diagnosis]", err);
-    return NextResponse.json({ success: false, error: err instanceof Error ? err.message : "Unknown error" }, { status: 500 });
+    return NextResponse.json({ success: false, error: friendlyError(err instanceof Error ? err.message : "Unknown error") }, { status: 500 });
   }
 }

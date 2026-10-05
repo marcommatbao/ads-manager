@@ -10,6 +10,7 @@ import { controlLexicon, customerIdOf, listControlExecutions, PMAX_CONFIRM_TEXT,
 import { AUTO_KIND_LABEL, recommend } from "@/lib/pmax/recommend"
 import { MAX_AUTO_PER_DAY, readAutoSettings } from "@/lib/pmax/auto"
 import type { Company } from "@/lib/case/types"
+import { friendlyError } from "@/lib/not-configured";
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 120
@@ -52,7 +53,7 @@ export async function POST(request: NextRequest) {
     const execution = await runControls({ company: co.value, proposals, ids, actor: actorOf(u.value), validateOnly: b.validateOnly !== false, confirmText: b.confirmText, customerId: customerIdOf(co.value) })
     return NextResponse.json({ success: true, execution })
   } catch (err) {
-    if (err instanceof PmaxControlError) return NextResponse.json({ success: false, error: err.message }, { status: err.status })
+    if (err instanceof PmaxControlError) return NextResponse.json({ success: false, error: friendlyError(err.message) }, { status: err.status })
     return fail(err)
   }
 }

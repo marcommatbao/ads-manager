@@ -12,6 +12,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { canAccessCompany } from "@/lib/permissions";
 import { detectCompany } from "@/lib/company-detect";
 import { META_GRAPH_BASE } from "@/lib/meta/graph-version";
+import { friendlyError } from "@/lib/not-configured";
 
 export const maxDuration = 60;
 
@@ -199,6 +200,6 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     console.error("[compare/route] Meta API error:", message);
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    return NextResponse.json({ success: false, error: friendlyError(message) }, { status: 500 });
   }
 }

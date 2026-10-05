@@ -18,6 +18,7 @@ import { resolveMatchType } from "@/lib/google-ads-helpers";
 import { googleAdsErrorMessage } from "@/lib/google-ads-error";
 import { daysBackVN } from "@/lib/case/dates";
 import { isCompany } from "@/lib/companies/registry";
+import { friendlyError } from "@/lib/not-configured";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
@@ -139,6 +140,6 @@ export async function GET(request: NextRequest) {
   } catch (err) {
     const message = googleAdsErrorMessage(err);
     console.error("[google/keywords/performance]", err);
-    return NextResponse.json({ success: false, error: message }, { status: 502 });
+    return NextResponse.json({ success: false, error: friendlyError(message) }, { status: 502 });
   }
 }

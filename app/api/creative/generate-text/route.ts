@@ -14,6 +14,7 @@ import { canAccessCompany } from "@/lib/permissions";
 import { getCurrentUser } from "@/lib/auth";
 import { checkCreativeLimits, formatViolationsForRetry } from "@/lib/creative-limits";
 import { runGeneratedCompliance } from "@/lib/creative-brief/compliance";
+import { friendlyError } from "@/lib/not-configured";
 
 interface GenerateTextRequest {
   product: string;
@@ -131,7 +132,7 @@ export async function POST(request: NextRequest) {
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    return NextResponse.json({ success: false, error: "GEMINI_API_KEY not configured" }, { status: 401 });
+    return NextResponse.json({ success: false, error: friendlyError("GEMINI_API_KEY not configured") }, { status: 401 });
   }
 
   let body: GenerateTextRequest;

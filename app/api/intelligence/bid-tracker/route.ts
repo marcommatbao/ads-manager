@@ -15,6 +15,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { bidTrackerEngine } from "@/lib/bid-tracker-engine";
 import { GOOGLE_CUSTOMER_IDS } from "@/lib/google-ads-client";
 import { canAccessCompany } from "@/lib/permissions";
+import { friendlyError } from "@/lib/not-configured";
 
 export async function GET(req: NextRequest) {
   const user = await getCurrentUser();
@@ -27,7 +28,7 @@ export async function GET(req: NextRequest) {
   }
   const customerId = GOOGLE_CUSTOMER_IDS[company];
   if (!customerId) {
-    return NextResponse.json({ success: false, error: "Google Ads customer ID not configured", data: [] }, { status: 500 });
+    return NextResponse.json({ success: false, error: friendlyError("Google Ads customer ID not configured"), data: [] }, { status: 500 });
   }
 
   try {
@@ -35,6 +36,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ success: true, data });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ success: false, error: message, data: [] }, { status: 500 });
+    return NextResponse.json({ success: false, error: friendlyError(message), data: [] }, { status: 500 });
   }
 }

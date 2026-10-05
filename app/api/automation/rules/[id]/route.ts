@@ -12,6 +12,7 @@ import {
 import { getCurrentUser } from "@/lib/auth";
 import { hasPermission, canAccessCompany, getCompaniesForRole } from "@/lib/permissions";
 import { canTouchRuleScope, ruleTouchesBudget } from "@/lib/automation-rule-permission";
+import { friendlyError } from "@/lib/not-configured";
 
 // ── GET: get a single rule by ID ──
 export async function GET(
@@ -31,7 +32,7 @@ export async function GET(
     return NextResponse.json({ success: true, data: rule });
   } catch (err: unknown) {
     return NextResponse.json(
-      { success: false, error: err instanceof Error ? err.message : "Unknown error" },
+      { success: false, error: friendlyError(err instanceof Error ? err.message : "Unknown error") },
       { status: 500 }
     );
   }
@@ -87,7 +88,7 @@ export async function PUT(
     return NextResponse.json({ success: true, data: updated });
   } catch (err: unknown) {
     return NextResponse.json(
-      { success: false, error: err instanceof Error ? err.message : "Unknown error" },
+      { success: false, error: friendlyError(err instanceof Error ? err.message : "Unknown error") },
       { status: 500 }
     );
   }
@@ -128,7 +129,7 @@ export async function DELETE(
     return NextResponse.json({ success: true });
   } catch (err: unknown) {
     return NextResponse.json(
-      { success: false, error: err instanceof Error ? err.message : "Unknown error" },
+      { success: false, error: friendlyError(err instanceof Error ? err.message : "Unknown error") },
       { status: 500 }
     );
   }
@@ -169,7 +170,7 @@ export async function PATCH(
     return NextResponse.json({ success: true, data: toggled });
   } catch (err: unknown) {
     return NextResponse.json(
-      { success: false, error: err instanceof Error ? err.message : "Unknown error" },
+      { success: false, error: friendlyError(err instanceof Error ? err.message : "Unknown error") },
       { status: 500 }
     );
   }

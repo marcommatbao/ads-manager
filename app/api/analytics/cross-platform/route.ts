@@ -21,6 +21,7 @@ import { canAccessCompany } from "@/lib/permissions";
 import { assessCoverage, type PlatformOutcome } from "@/lib/cross-platform-outcome";
 import { readGroup } from "@/lib/odoo-client";
 import { isCompany } from "@/lib/companies"
+import { friendlyError } from "@/lib/not-configured";
 
 export const dynamic = "force-dynamic";
 
@@ -210,6 +211,6 @@ export async function GET(request: NextRequest) {
   } catch (err) {
     const message = err instanceof Error ? err.message : "Lỗi không xác định";
     console.error("[analytics/cross-platform]", err);
-    return NextResponse.json({ success: false, error: message }, { status: 502 });
+    return NextResponse.json({ success: false, error: friendlyError(message) }, { status: 502 });
   }
 }

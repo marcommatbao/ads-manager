@@ -6,6 +6,7 @@ import { getGoogleAdsCustomer } from "@/lib/google-ads-client"
 import { enumName } from "@/lib/google-ads-enums"
 import { getCurrentUser } from "@/lib/auth"
 import { canAccessCompany } from "@/lib/permissions"
+import { friendlyError } from "@/lib/not-configured";
 
 // ── Segment analysis: Device / Location / Audience ──
 /**
@@ -40,7 +41,7 @@ export async function GET(req: NextRequest) {
     try {
       range = safeDateRange(searchParams.get("range"))
     } catch (err) {
-      if (err instanceof InvalidGaqlInput) return NextResponse.json({ error: err.message }, { status: 400 })
+      if (err instanceof InvalidGaqlInput) return NextResponse.json({ error: friendlyError(err.message) }, { status: 400 })
       throw err
     }
 
@@ -247,6 +248,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ success: false, error: "Unknown segment type" }, { status: 400 })
   } catch (error: any) {
     console.error("[Segments]", error)
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 })
+    return NextResponse.json({ success: false, error: friendlyError(error.message) }, { status: 500 })
   }
 }

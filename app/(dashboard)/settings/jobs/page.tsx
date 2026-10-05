@@ -29,6 +29,8 @@ interface JobMeta {
 }
 interface JobsResponse {
   states: JobState[]; meta: JobMeta[]; canControl: boolean; nbaAutoApply: string;
+  /** Đợt 22b: nhịp tim bộ hẹn giờ (crond → tick mỗi phút). Bản cũ của API không có → bỏ qua. */
+  scheduler?: { lastTickAt: string | null; ageSec: number | null; status: "ok" | "stale" | "warming_up" | "never" };
 }
 
 // ── Helpers ───────────────────────────────────────────────
@@ -598,6 +600,22 @@ export default function JobsPage() {
           </Button>
         </div>
       </div>
+
+      {/* Đợt 22b: bộ hẹn giờ ngừng → MỌI job tự động im lặng (kể cả job canh sức khoẻ) — chỉ trang này báo được. */}
+      {(data.scheduler?.status === "stale" || data.scheduler?.status === "never") && (
+        <div role="alert" className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4">
+          <AlertTriangle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-semibold text-red-800">Bộ hẹn giờ job đang KHÔNG chạy</p>
+            <p className="text-xs text-red-700 mt-0.5">
+              {data.scheduler.status === "never"
+                ? "Chưa thấy nhịp hẹn giờ nào kể từ khi ứng dụng khởi động"
+                : `Lần hẹn giờ gần nhất cách đây ${Math.round((data.scheduler.ageSec ?? 0) / 60)} phút`} — mọi job tự động (báo cáo, cảnh báo, tự kiểm…) đang dừng.
+              Thường do tiến trình hẹn giờ trong container không khởi động được: khởi động lại ứng dụng; nếu vẫn vậy, xem log khởi động (dòng &ldquo;crond&rdquo;).
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* High-risk warning if NBA_AUTO_APPLY=on */}
       {data.nbaAutoApply === "on" && (

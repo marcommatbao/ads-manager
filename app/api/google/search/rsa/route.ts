@@ -10,10 +10,11 @@ import { hasPermission } from "@/lib/permissions"
 import { draftRsa, editRsa, listRsaEdits, readRsa, undoRsa } from "@/lib/search/rsa"
 import { SEARCH_CONFIRM_TEXT } from "@/lib/search/controls"
 import { PmaxControlError } from "@/lib/pmax/controls"
+import { friendlyError } from "@/lib/not-configured";
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 120
-const err = (e: unknown) => (e instanceof PmaxControlError ? NextResponse.json({ success: false, error: e.message }, { status: e.status }) : fail(e))
+const err = (e: unknown) => (e instanceof PmaxControlError ? NextResponse.json({ success: false, error: friendlyError(e.message) }, { status: e.status }) : fail(e))
 type Line = { field: "HEADLINE" | "DESCRIPTION"; text: string }
 const lines = (x: unknown): Line[] => (Array.isArray(x) ? x.filter((l): l is Line => !!l && (l.field === "HEADLINE" || l.field === "DESCRIPTION") && typeof l.text === "string").slice(0, 10) : [])
 

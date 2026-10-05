@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { checkCronAuth } from "@/lib/cron-auth";
 import { startJobRun } from "@/lib/jobs/cron-guard";
 import { checkAllPendingWindows } from "@/lib/decision-memory/evaluator";
+import { friendlyError } from "@/lib/not-configured";
 
 export const dynamic  = "force-dynamic";
 export const revalidate = 0;
@@ -34,6 +35,6 @@ export async function POST(request: NextRequest) {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await jobGuard.finish("failure", null, err);
-    return NextResponse.json({ success: false, error: msg }, { status: 500 });
+    return NextResponse.json({ success: false, error: friendlyError(msg) }, { status: 500 });
   }
 }

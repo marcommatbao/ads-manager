@@ -11,6 +11,7 @@ import { hasPermission, canAccessCompany } from "@/lib/permissions";
 import { fbApiCall } from "@/lib/creative-pipeline";
 import { detectCompany } from "@/lib/company-detect";
 import { resolveMetaNodeOwner } from "@/lib/meta-campaign-company";
+import { friendlyError } from "@/lib/not-configured";
 
 export async function POST(request: NextRequest) {
   const user = await getCurrentUser();
@@ -20,7 +21,7 @@ export async function POST(request: NextRequest) {
   }
 
   const token = process.env.META_ACCESS_TOKEN;
-  if (!token) return NextResponse.json({ success: false, error: "META credentials not configured" }, { status: 401 });
+  if (!token) return NextResponse.json({ success: false, error: friendlyError("META credentials not configured") }, { status: 401 });
 
   let body: { adSetId?: string; targeting?: Record<string, unknown>; company?: string };
   try {
@@ -50,6 +51,6 @@ export async function POST(request: NextRequest) {
   } catch (err) {
     // Expected outcome if the interest IDs still haven't synced — not a
     // system error, just "not yet, try again later" for the caller to show.
-    return NextResponse.json({ success: false, error: err instanceof Error ? err.message : "Unknown error" }, { status: 200 });
+    return NextResponse.json({ success: false, error: friendlyError(err instanceof Error ? err.message : "Unknown error") }, { status: 200 });
   }
 }

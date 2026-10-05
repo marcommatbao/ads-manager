@@ -5,6 +5,7 @@ import { getGoogleAdsCustomer }      from "@/lib/google-ads-client"
 import { getCurrentUser }            from "@/lib/auth"
 import { canAccessCompany, hasPermission } from "@/lib/permissions"
 import { GOOGLE_CUSTOMER_IDS } from "@/lib/google-ads-client"
+import { friendlyError } from "@/lib/not-configured";
 
 export async function GET(req: NextRequest) {
   const user = await getCurrentUser()
@@ -18,7 +19,7 @@ export async function GET(req: NextRequest) {
   try {
     campaignId = safeNumericId(searchParams.get("campaignId"))
   } catch (err) {
-    if (err instanceof InvalidGaqlInput) return NextResponse.json({ error: err.message }, { status: 400 })
+    if (err instanceof InvalidGaqlInput) return NextResponse.json({ error: friendlyError(err.message) }, { status: 400 })
     throw err
   }
   // GAQL DURING only accepts a fixed literal set — LAST_90_DAYS isn't one
@@ -27,7 +28,7 @@ export async function GET(req: NextRequest) {
   try {
     dateRange = safeDateRange(searchParams.get("range"))
   } catch (err) {
-    if (err instanceof InvalidGaqlInput) return NextResponse.json({ error: err.message }, { status: 400 })
+    if (err instanceof InvalidGaqlInput) return NextResponse.json({ error: friendlyError(err.message) }, { status: 400 })
     throw err
   }
   const nSize      = parseInt(searchParams.get("n") || "1", 10)
@@ -211,7 +212,7 @@ export async function GET(req: NextRequest) {
   } catch (error: any) {
     console.error("N-Gram API error:", error)
     return NextResponse.json({
-      error: error.message,
+      error: friendlyError(error.message),
       avgCPA: 0,
       totalSavings: 0,
       ngramCount: 0,
@@ -299,7 +300,7 @@ export async function POST(req: NextRequest) {
     if (!r.entry) return NextResponse.json({ success: true, validated: true, appliedCount: 0, applied: [], errors: [], count: ops.length })
     return NextResponse.json({ success: true, appliedCount: list.length, applied: list.map((i) => i.ngram), errors: [], writeId: r.entry.id })
   } catch (e) {
-    if (e instanceof WriteGuardError) return NextResponse.json({ success: false, error: e.message, needsConfirm: e.status === 428, validated: e.validated, appliedCount: 0, applied: [], errors: [{ ngram: "*", error: e.message }] }, { status: e.status })
+    if (e instanceof WriteGuardError) return NextResponse.json({ success: false, error: friendlyError(e.message), needsConfirm: e.status === 428, validated: e.validated, appliedCount: 0, applied: [], errors: [{ ngram: "*", error: friendlyError(e.message) }] }, { status: e.status })
     throw e
   }
 }

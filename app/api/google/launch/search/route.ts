@@ -34,6 +34,7 @@ import { GEO_VIETNAM, DEFAULT_LANGUAGES, DEFAULT_GEO_TARGET_TYPE } from "@/lib/g
 import { checkBidding, buildBiddingResource, DEFAULT_AD_GROUP_CPC_VND, type BiddingConfig } from "@/lib/google-bidding";
 import { pickCompany } from "@/lib/companies"
 import { companyDisplayPath } from "@/lib/companies"
+import { friendlyError } from "@/lib/not-configured";
 
 // ── Helpers ──
 
@@ -856,7 +857,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: errorMessage,
+        error: friendlyError(errorMessage),
         details: errorDetails,
         code: err?.code ?? "LAUNCH_FAILED",
         requestId: gInfo.requestId,

@@ -7,9 +7,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { recordCampaignUsage, getSegmentById } from "@/lib/audience-tracker";
 import { canAccessCompany } from "@/lib/permissions";
+import { friendlyError } from "@/lib/not-configured";
 
 function err(msg: string, code = 400) {
-  return NextResponse.json({ success: false, error: msg }, { status: code });
+  return NextResponse.json({ success: false, error: friendlyError(msg) }, { status: code });
 }
 
 export async function POST(

@@ -10,6 +10,7 @@ import {
   invalidateAccessToken,
   listGA4Properties,
 } from "@/lib/ga4-oauth";
+import { friendlyError } from "@/lib/not-configured";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +40,6 @@ export async function GET() {
     invalidateAccessToken(oauth.refreshToken);
     const message = err instanceof Error ? err.message : "Không lấy được danh sách property";
     console.error("[ga4/properties]", err);
-    return NextResponse.json({ success: false, error: message }, { status: 502 });
+    return NextResponse.json({ success: false, error: friendlyError(message) }, { status: 502 });
   }
 }

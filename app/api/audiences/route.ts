@@ -15,6 +15,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getCompaniesForRole } from "@/lib/permissions";
 import { getAllSegments, type AudienceSegmentRecord } from "@/lib/audience-tracker";
+import { friendlyError } from "@/lib/not-configured";
 
 export const dynamic = "force-dynamic";
 
@@ -100,6 +101,6 @@ export async function GET(request: NextRequest) {
   } catch (err) {
     const message = err instanceof Error ? err.message : "Không đọc được thư viện đối tượng";
     console.error("[audiences]", err);
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    return NextResponse.json({ success: false, error: friendlyError(message) }, { status: 500 });
   }
 }
