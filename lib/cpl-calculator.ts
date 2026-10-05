@@ -223,6 +223,9 @@ export function classifyCPL(
   const thresholds = getCplThresholds();
   // If company is undetermined, fallback to MBC thresholds
   const t = thresholds[company ?? "MBC"];
+  // Đợt 23: công ty chưa có ngưỡng CPL (bản cài khách — ngưỡng chỉ dựng cho MBC/MBI) → "chưa đặt ngưỡng", KHÔNG ném lỗi.
+  // Trước đây `t` undefined → TypeError → bộ thu NBA bỏ CẢ tín hiệu CPL lẫn "chi tiền 0 chuyển đổi" của công ty đó, im lặng.
+  if (!t) return { level: "no_data", emoji: "⚪", label: "Chưa đặt ngưỡng CPL" };
 
   if (cpl <= t.good) {
     return { level: "good", emoji: "🟢", label: t.labels.good };

@@ -13,6 +13,7 @@ import { readLastRun } from "@/lib/smoke/run"
 import { getAllMembers } from "@/lib/team"
 import { allowedLoginDomains, savedLoginAllowlist } from "@/lib/login-domain"
 import { savedBrandProfile } from "@/lib/brand/store"
+import { listTargets } from "@/lib/case/targets"
 
 export const dynamic = "force-dynamic"
 
@@ -39,6 +40,8 @@ export async function GET() {
     metaPixelId: !!envFor(c.id, "NEXT_PUBLIC_META_PIXEL_ID"),
     metaPageId: !!envFor(c.id, "NEXT_PUBLIC_META_PAGE_ID"),
     brandProfile: !!savedBrandProfile(c.id),
+    // Đợt 23: chưa có mục tiêu → Xử lý chiến dịch hiện "chưa đặt mục tiêu" cho mọi chiến dịch, không bao giờ chấm đỏ.
+    caseTarget: listTargets().some((t) => t.company === c.id),
   }))
   const last = readLastRun()
   const smoke = last ? {

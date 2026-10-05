@@ -18,12 +18,18 @@ import { PRODUCT_LABEL } from "@/lib/case/product";
 import type { ProductGroup } from "@/lib/case/product";
 import type { Company } from "@/lib/case/types";
 import type { TargetBasis } from "@/lib/case/verdict";
+import { companyIds, companyLabel, hasPack } from "@/lib/companies/registry";
+import { useCompaniesVersion } from "@/lib/companies/use-companies";
 
 interface TargetRow { company: Company; group: ProductGroup; basis: TargetBasis; target: number; ceiling: number }
 type Draft = { basis: TargetBasis; target: string; ceiling: string };
 
 const GROUPS = Object.keys(PRODUCT_LABEL) as ProductGroup[];
-const COMPANIES: Company[] = ["MBI", "MBC"];
+// Đợt 23: công ty theo bản cài (trước đây ghim ["MBI","MBC"] → bản khách KHÔNG đặt được mục tiêu nào, Xử lý chiến dịch
+// không bao giờ chấm đỏ). Bản Mắt Bão: vẫn MBI rồi MBC như cũ.
+const companiesOf = (): Company[] => [...companyIds()].sort((a, b) => (a === "MBI" ? -1 : b === "MBI" ? 1 : 0)) as Company[];
+/** Nhóm sản phẩm là của Mắt Bão (Hosting, Tên miền, HĐĐT…) — công ty khác chỉ có "Mặc định" (áp cho mọi chiến dịch). */
+const groupsOf = (company: Company): ProductGroup[] => (hasPack(company, "matbao") ? GROUPS : ["DEFAULT"]);
 
 function keyOf(company: Company, group: ProductGroup) { return `${company}:${group}`; }
 
@@ -39,8 +45,10 @@ export default function CaseTargetsPage() {
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [prefilled, setPrefilled] = useState(false);
   const [savingCompany, setSavingCompany] = useState<Company | null>(null);
-  const [saveErr, setSaveErr] = useState<Record<Company, string | null>>({ MBI: null, MBC: null });
-  const [saveOk, setSaveOk] = useState<Record<Company, boolean>>({ MBI: false, MBC: false });
+  useCompaniesVersion();
+  const COMPANIES = companiesOf();
+  const [saveErr, setSaveErr] = useState<Record<Company, string | null>>({});
+  const [saveOk, setSaveOk] = useState<Record<Company, boolean>>({});
 
   useEffect(() => {
     if (prefilled || !data) return;
@@ -65,7 +73,7 @@ export default function CaseTargetsPage() {
   async function saveCompany(company: Company) {
     const rows: TargetRow[] = [];
     const errors: string[] = [];
-    for (const group of GROUPS) {
+    for (const group of groupsOf(company)) {
       const d = drafts[keyOf(company, group)];
       if (!d || (!d.target.trim() && !d.ceiling.trim())) continue; // bỏ trống = chưa muốn đặt
       const target = Number(d.target), ceiling = Number(d.ceiling);
@@ -91,7 +99,7 @@ export default function CaseTargetsPage() {
   }
 
   const rowsByCompany = useMemo(() => {
-    const m: Record<Company, TargetRow[]> = { MBI: [], MBC: [] };
+    const m: Record<Company, TargetRow[]> = Object.fromEntries(companiesOf().map((c) => [c, [] as TargetRow[]]));
     for (const r of data?.rows ?? []) m[r.company]?.push(r);
     return m;
   }, [data]);
@@ -124,8 +132,8 @@ export default function CaseTargetsPage() {
       {!isLoading && !error && data && COMPANIES.map((company) => (
         <div key={company} className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-2.5">
-            <span className="text-sm font-semibold text-slate-800">{company}</span>
-            <span className="text-xs text-slate-400">{rowsByCompany[company].length} sản phẩm đã có mục tiêu</span>
+            <span className="text-sm font-semibold text-slate-800">{company === "MBC" || company === "MBI" ? company : companyLabel(company)}</span>
+            <span className="text-xs text-slate-400">{(rowsByCompany[company] ?? []).length} sản phẩm đã có mục tiêu</span>
           </div>
           <table className="w-full text-sm">
             <thead>
@@ -137,7 +145,7 @@ export default function CaseTargetsPage() {
               </tr>
             </thead>
             <tbody>
-              {GROUPS.map((group) => {
+              {groupsOf(company).map((group) => {
                 const k = keyOf(company, group);
                 const d = drafts[k] ?? { basis: "cpa" as TargetBasis, target: "", ceiling: "" };
                 return (

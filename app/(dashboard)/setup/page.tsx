@@ -15,7 +15,7 @@ interface CompanyDefLite {
 }
 interface CompaniesCfg { orgName?: string; modules?: string[]; companies: CompanyDefLite[]; fallback: string }
 interface KeyInfo { id: KeyId; status: string; configComplete: boolean; lastSuccess: string | null; failureReason: string | null }
-interface PerCompany { id: string; label: string; googleCustomerId: boolean; metaPixelId: boolean; metaPageId: boolean; brandProfile: boolean }
+interface PerCompany { id: string; label: string; googleCustomerId: boolean; metaPixelId: boolean; metaPageId: boolean; brandProfile: boolean; caseTarget?: boolean }
 interface Member { id: string; email: string; name: string; role: string; company_access: string[]; is_active: boolean }
 interface SmokeSummary { at: string; ok: number; failed: { company: string; label: string; detail: string }[]; skipped: number }
 interface SmokeResult { company: string; id: string; label: string; ok: boolean; skipped?: boolean; ms: number; detail: string }
@@ -227,6 +227,7 @@ export default function SetupPage() {
   if (!done2) warnings.push("Chưa dán đủ khoá bắt buộc (Google Ads, Meta, Gemini).");
   if (!done3) warnings.push("Chưa kiểm tra kết nối thành công cho cả 3 khoá bắt buộc.");
   if (!done4) warnings.push("Chưa có lượt tự kiểm đạt (không lỗi, có ít nhất một truy vấn chạy được).");
+  if ((st.perCompany ?? []).some((p) => !p.caseTarget)) warnings.push("Chưa đặt mục tiêu chiến dịch (Xử lý chiến dịch → Mục tiêu) — tool sẽ không chấm được chiến dịch nào là kém.");
   if (!done5 || warn5) warnings.push(!done5 ? "Chưa có người dùng nào." : "Danh sách đăng nhập vẫn là mặc định (matbao.com) — kiểm tra lại tên miền được phép.");
 
   // ---- Hành động ----
@@ -410,16 +411,16 @@ export default function SetupPage() {
         {(st.perCompany ?? []).length > 0 && (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[480px] text-left text-sm">
-              <thead className="text-xs text-slate-500"><tr><th className="py-1 pr-2">Công ty</th><th className="px-2">Google customer ID</th><th className="px-2">Meta Pixel</th><th className="px-2">Meta Page</th><th className="px-2">Hồ sơ doanh nghiệp</th></tr></thead>
+              <thead className="text-xs text-slate-500"><tr><th className="py-1 pr-2">Công ty</th><th className="px-2">Google customer ID</th><th className="px-2">Meta Pixel</th><th className="px-2">Meta Page</th><th className="px-2">Hồ sơ doanh nghiệp</th><th className="px-2">Mục tiêu chiến dịch</th></tr></thead>
               <tbody className="divide-y divide-slate-100">
                 {(st.perCompany ?? []).map((p) => (
-                  <tr key={p.id}><td className="py-1.5 pr-2 font-medium text-slate-700">{p.label}</td><td className="px-2"><Tick ok={p.googleCustomerId} /></td><td className="px-2"><Tick ok={p.metaPixelId} /></td><td className="px-2"><Tick ok={p.metaPageId} /></td><td className="px-2"><Tick ok={p.brandProfile} /></td></tr>
+                  <tr key={p.id}><td className="py-1.5 pr-2 font-medium text-slate-700">{p.label}</td><td className="px-2"><Tick ok={p.googleCustomerId} /></td><td className="px-2"><Tick ok={p.metaPixelId} /></td><td className="px-2"><Tick ok={p.metaPageId} /></td><td className="px-2"><Tick ok={p.brandProfile} /></td><td className="px-2"><Tick ok={!!p.caseTarget} /></td></tr>
                 ))}
               </tbody>
             </table>
           </div>
         )}
-        <p className="text-xs text-slate-400">Các mã theo công ty nhập ở <Link href="/settings" className="underline">Cài đặt</Link>, mục “Mã theo công ty”. Hồ sơ doanh nghiệp (tuỳ chọn) nhập ở <Link href="/settings/brand-profile" className="underline">Hồ sơ doanh nghiệp</Link>.</p>
+        <p className="text-xs text-slate-400">Các mã theo công ty nhập ở <Link href="/settings" className="underline">Cài đặt</Link>, mục “Mã theo công ty”. Hồ sơ doanh nghiệp (tuỳ chọn) nhập ở <Link href="/settings/brand-profile" className="underline">Hồ sơ doanh nghiệp</Link>. <b>Mục tiêu chiến dịch</b> (chi phí/đơn hoặc ROAS mong muốn và mức trần) đặt ở <Link href="/xu-ly/muc-tieu" className="underline">Xử lý chiến dịch → Mục tiêu</Link> — chưa đặt thì tool không chấm được chiến dịch nào là kém.</p>
       </Step>
 
       {/* 3 */}

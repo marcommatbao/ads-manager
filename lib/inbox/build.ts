@@ -164,15 +164,28 @@ export function fromHealth(fixes: FixItem[]): InboxItem[] {
 
 // ── Phiên bị MỞ LẠI (đo lại 14 ngày: CPA không giảm) ─────────────
 export function fromBoard(rows: BoardRow[]): InboxItem[] {
-  return rows.filter((r) => r.state === "reopened").map((r): InboxItem => {
+  // Đợt 23: mốc 7 ngày đã XẤU ĐI (chưa tới mốc 14 ngày) → báo sớm, không đợi thêm một tuần tiền chạy.
+  const early = rows.filter((r) => r.state !== "reopened" && r.remeasure[0]?.done && r.remeasure[0].verdict === -1 && !r.remeasure[1]?.done).map((r): InboxItem => {
+    const m = r.remeasure[0]!
+    const detail = m.roasAfter !== null && m.roasAfter !== undefined
+      ? `ROAS ${m.roasBefore ?? "—"} → ${m.roasAfter}`
+      : `CPA ${m.cpaBefore ? vnd(m.cpaBefore) : "—"} → ${m.cpaAfter ? vnd(m.cpaAfter) : "chưa có đơn"}`
+    return {
+      key: `${r.company}:case:worse7_${r.id}`, company: r.company, source: "case", kind: 2,
+      title: `Đo 7 ngày: ${r.campaignName} đang XẤU ĐI sau khi xử lý`,
+      why: `${detail} (xấu hơn quá 10% so với lúc mở phiên). Xem lại việc đã áp — cân nhắc hoàn tác trước mốc 14 ngày.`,
+      money: null, moneyLabel: null, href: `/xu-ly/${r.id}`, hrefLabel: "Mở phiên", campaignIds: [r.campaignId],
+    }
+  })
+  return [...early, ...rows.filter((r) => r.state === "reopened").map((r): InboxItem => {
     const m = r.remeasure[1] ?? r.remeasure[0]
     return {
       key: `${r.company}:case:reopened_${r.id}`, company: r.company, source: "case", kind: 2,
       title: `Phiên bị mở lại: ${r.campaignName}`,
-      why: `Đo lại sau khi xử lý: CPA ${m?.cpaBefore ? vnd(m.cpaBefore) : "—"} → ${m?.cpaAfter ? vnd(m.cpaAfter) : "—"} — không giảm. Xem lại nguyên nhân / cân nhắc hoàn tác.`,
+      why: `Đo lại sau 14 ngày: ${m?.roasAfter !== null && m?.roasAfter !== undefined ? `ROAS ${m.roasBefore ?? "—"} → ${m.roasAfter}` : `CPA ${m?.cpaBefore ? vnd(m.cpaBefore) : "—"} → ${m?.cpaAfter ? vnd(m.cpaAfter) : "—"}`} — chưa đạt mục tiêu (cần về dưới trần hoặc tốt hơn ít nhất 10%). Xem lại nguyên nhân / cân nhắc hoàn tác.`,
       money: null, moneyLabel: null, href: `/xu-ly/${r.id}`, hrefLabel: "Mở phiên", campaignIds: [r.campaignId],
     }
-  })
+  })]
 }
 
 // ── NBA (chỉ Meta — Google đã có ở Search/PMax), gộp theo lý do ──────

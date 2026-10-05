@@ -21,7 +21,9 @@ const DAY = 86_400_000
 
 export type BoardState = "working" | "waiting" | "reopened" | "done"
 
-export interface BoardRemeasure { due: string; done: boolean; cpaBefore: number | null; cpaAfter: number | null; better: boolean | null }
+export interface BoardRemeasure { due: string; done: boolean; cpaBefore: number | null; cpaAfter: number | null; better: boolean | null
+  /** Đợt 23: kết quả chấm theo mục tiêu (lib/case/judge.ts) — 1 đạt · 0 chưa rõ · -1 xấu đi; null = đo theo cách cũ / chưa đo. */
+  verdict?: number | null; roasBefore?: number | null; roasAfter?: number | null }
 
 export interface BoardRow {
   id: string
@@ -56,7 +58,10 @@ export function boardRow(c: CampaignCase, now: number = Date.now()): BoardRow {
   const before = cpaBefore(c)
   const rm = c.remeasure.slice(0, 2).map((r): BoardRemeasure => {
     const after = r.result?.cpa ?? null
-    return { due: r.due, done: r.status === "done", cpaBefore: before, cpaAfter: after, better: r.status === "done" && after !== null && before !== null ? after < before : null }
+    const v = typeof r.result?.verdict === "number" ? r.result.verdict : null
+    // Đợt 23: có kết quả chấm mới thì dùng nó; kết quả đo trước Đợt 23 (không có verdict) giữ cách so cũ.
+    const better = r.status !== "done" ? null : v !== null ? v === 1 : after !== null && before !== null ? after < before : null
+    return { due: r.due, done: r.status === "done", cpaBefore: before, cpaAfter: after, better, verdict: v, roasBefore: r.result?.roasBefore ?? null, roasAfter: r.result?.roas ?? null }
   })
   const open = c.manualTasks.filter((t) => t.status === "open")
   const ages = open.map((t) => Math.floor((now - Date.parse(t.createdAt)) / DAY))

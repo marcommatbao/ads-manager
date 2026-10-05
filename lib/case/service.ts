@@ -20,6 +20,7 @@ import { diagnoseMeta, ODOO_GAP_RATIO, ODOO_MIN_META_PURCHASES } from "./causes-
 import { executeMetaActions, undoMetaExecution } from "./execute-meta"
 import { accountCampaignInsights, collectMetaEvidence, pickAction, PURCHASE_TYPES } from "./meta-evidence"
 import { createCase, listCases, readCase, updateCase, type CampaignCase, type Execution } from "./store"
+import { judgeRemeasure, VERDICT_CODE, type PerfSnap, type RemeasureVerdict } from "./judge"
 import { lexiconFor, targetFor } from "./targets"
 import type { CaseEvidence, Company, MetaEvidence, SearchEvidence } from "./types"
 import { compareVerdicts, verdictOf, type CampaignPerf, type CaseTarget, type Verdict } from "./verdict"
@@ -317,11 +318,11 @@ export async function runDueRemeasures(now: Date = new Date()): Promise<{ checke
     try {
       await updateCase(c.id, async (cur) => {
         const fresh = await collectFor(cur, { from: start, to: today })
-        const { result, beforeCpa, enabled } = remeasureResult(cur, fresh)
+        const { result, enabled, verdict } = remeasureResult(cur, fresh)
         let status = cur.status, step = cur.step
         const remeasure = cur.remeasure.map((r) => (due.includes(r) || (r.status === "pending" && r.due <= today) ? { ...r, status: "done" as const, result } : r))
         const isFinal = remeasure.every((r) => r.status === "done")
-        const improved = result.cpa !== null && (beforeCpa === null || result.cpa < beforeCpa)
+        const improved = verdict === "improved" // Đợt 23: không còn "giảm 1% là đạt" — xem lib/case/judge.ts
         if (isFinal && !improved && enabled) { status = "reopened"; step = 4; reopened++ }
         checked++
         return { next: { ...cur, remeasure, status, step }, result: null }
@@ -362,7 +363,18 @@ export function newAdsetComparison(cur: CampaignCase, fresh: MetaEvidence): Reco
 }
 
 /** Số đo lại của một phiên — so với bằng chứng lúc mở phiên. */
-function remeasureResult(cur: CampaignCase, fresh: CaseEvidence): { result: Record<string, number | null>; beforeCpa: number | null; enabled: boolean } {
+function remeasureResult(cur: CampaignCase, fresh: CaseEvidence): { result: Record<string, number | null>; beforeCpa: number | null; enabled: boolean; verdict: RemeasureVerdict } {
+  const r = remeasureRaw(cur, fresh)
+  // Đợt 23: chấm theo mục tiêu của phiên (CPA / ROAS) với ngưỡng thay đổi tối thiểu — xem lib/case/judge.ts.
+  const j = judgeRemeasure(cur.goal ? { basis: cur.goal.basis, target: cur.goal.target, ceiling: cur.goal.ceiling } : null, r.before, r.after)
+  const roasOf = (x: PerfSnap | null) => (x && x.cost > 0 ? Math.round((x.value / x.cost) * 100) / 100 : null)
+  return {
+    result: { ...r.result, verdict: VERDICT_CODE[j.verdict], ...(j.basis === "roas" ? { roasBefore: roasOf(r.before), roas: roasOf(r.after) } : {}) },
+    beforeCpa: r.beforeCpa, enabled: r.enabled, verdict: j.verdict,
+  }
+}
+
+function remeasureRaw(cur: CampaignCase, fresh: CaseEvidence): { result: Record<string, number | null>; beforeCpa: number | null; enabled: boolean; before: PerfSnap | null; after: PerfSnap } {
   if (fresh.kind === "meta") {
     const before = cur.evidence?.kind === "meta" ? cur.evidence.campaign : null
     const c = fresh.campaign
@@ -374,6 +386,8 @@ function remeasureResult(cur: CampaignCase, fresh: CaseEvidence): { result: Reco
       },
       beforeCpa: before && before.purchases > 0 ? before.cost / before.purchases : null,
       enabled: c.status === "ACTIVE",
+      before: before ? { cost: before.cost, orders: before.purchases, value: before.purchaseValue } : null,
+      after: { cost: c.cost, orders: c.purchases, value: c.purchaseValue },
     }
   }
   const ev = fresh as SearchEvidence
@@ -385,9 +399,12 @@ function remeasureResult(cur: CampaignCase, fresh: CaseEvidence): { result: Reco
       orders: ev.campaign.orders,
       cpa: ev.campaign.orders > 0 ? Math.round(ev.campaign.cost / ev.campaign.orders) : null,
       competitorSpend: Math.round(dx.causes.find((x) => x.id === "competitor-spend")?.money ?? 0),
+      orderValue: Math.round(ev.campaign.orderValue ?? 0),
     },
     beforeCpa: before && before.orders > 0 ? before.cost / before.orders : null,
     enabled: ev.campaign.status === "ENABLED",
+    before: before ? { cost: before.cost, orders: before.orders, value: before.orderValue ?? 0 } : null,
+    after: { cost: ev.campaign.cost, orders: ev.campaign.orders, value: ev.campaign.orderValue ?? 0 },
   }
 }
 

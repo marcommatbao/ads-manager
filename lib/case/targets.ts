@@ -59,7 +59,7 @@ export function targetFor(company: Company, group: ProductGroup): CaseTarget | n
 }
 
 export function validateTarget(t: Partial<TargetRow>): string | null {
-  if (!isCompany(t.company)) return "Công ty phải là MBC hoặc MBI"
+  if (!isCompany(t.company)) return "Công ty không có ở bản cài này"
   if (!t.group) return "Thiếu nhóm sản phẩm"
   if (t.basis !== "cpa" && t.basis !== "roas") return "Cách chấm phải là cpa hoặc roas"
   const target = Number(t.target), ceiling = Number(t.ceiling)

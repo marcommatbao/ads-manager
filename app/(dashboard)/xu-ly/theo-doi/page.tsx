@@ -232,6 +232,18 @@ export default function TheoDoiPage() {
 function RemeasureCell({ r }: { r: BoardRow["remeasure"][number] }) {
   if (!r) return <span className="text-slate-300">—</span>;
   if (!r.done) return <span className="text-xs text-slate-500">Chưa tới ngày {ddmmyyyy(r.due)}</span>;
+  // Đợt 23: có kết quả chấm theo mục tiêu (lib/case/judge.ts) → hiện đạt / chưa rõ / xấu hơn; phiên chấm ROAS hiện ROAS.
+  if (typeof r.verdict === "number") {
+    const roas = r.roasAfter !== null && r.roasAfter !== undefined;
+    return (
+      <span className="tabular-nums text-xs text-slate-700">
+        {roas ? <>ROAS {r.roasBefore ?? "—"} → {r.roasAfter}</> : <>{r.cpaBefore !== null ? vnd(r.cpaBefore) : "—"} → {r.cpaAfter !== null ? vnd(r.cpaAfter) : "0 đơn"}</>}{" "}
+        {r.verdict === 1 && <span className="font-semibold text-emerald-600">✓ đạt</span>}
+        {r.verdict === 0 && <span className="font-semibold text-amber-600" title="Thay đổi dưới 10% và chưa về mục tiêu">≈ chưa rõ</span>}
+        {r.verdict === -1 && <span className="font-semibold text-red-600">▲ xấu hơn</span>}
+      </span>
+    );
+  }
   if (r.cpaBefore === null || r.cpaAfter === null) return <span className="text-slate-300">—</span>;
   return (
     <span className="tabular-nums text-xs text-slate-700">

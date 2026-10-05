@@ -46,5 +46,5 @@ export function markSetupComplete(by: string): SetupState {
 
 /** Đường dẫn trang vẫn mở khi đang thiết lập: chính trình thiết lập + Cài đặt (dán khoá, người dùng, hồ sơ thương hiệu). */
 export function pageAllowedDuringSetup(pathname: string): boolean {
-  return pathname === "/setup" || pathname.startsWith("/setup/") || pathname === "/settings" || pathname.startsWith("/settings/") || pathname === "/doi-mat-khau"
+  return pathname === "/setup" || pathname.startsWith("/setup/") || pathname === "/settings" || pathname.startsWith("/settings/") || pathname === "/doi-mat-khau" || pathname === "/xu-ly/muc-tieu" /* Đợt 23: đặt mục tiêu chiến dịch ngay trong lúc thiết lập */
 }
