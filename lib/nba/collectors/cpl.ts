@@ -8,8 +8,8 @@ import type { Campaign } from "@/types/ads.types";
 import { classifyCPL } from "@/lib/cpl-calculator";
 import type { NbaSignal, NbaContext } from "../types";
 import { detectCompany, platformOf, isActive } from "./helpers";
+import { inLearning, MIN_CONV_FOR_CPL, ZERO_CONV_MIN_CLICKS, ZERO_CONV_MIN_SPEND_PERIOD } from "@/lib/data-sufficiency";
 
-const ZERO_CONV_SPEND_FLOOR = 50_000; // ₫ — tiêu > mức này mà 0 conv = đáng báo
 
 export function cplCollector(campaigns: Campaign[], ctx: NbaContext): NbaSignal[] {
   const allowed = new Set(ctx.companies);
@@ -23,9 +23,12 @@ export function cplCollector(campaigns: Campaign[], ctx: NbaContext): NbaSignal[
     const spend = c.metrics.spend ?? 0;
     const conv = c.metrics.conversions ?? 0;
     const platform = platformOf(c);
+    // Đợt 23: đang học → chưa chấm (số còn dao động mạnh; nền tảng đang dò).
+    if (inLearning(c as Parameters<typeof inLearning>[0])) continue;
 
     // ── Tiêu tiền không chuyển đổi ──
-    if (conv === 0 && spend > ZERO_CONV_SPEND_FLOOR) {
+    // Đợt 23: trước đây chi > 50K là báo — nay cần chi đủ lớn VÀ đủ lượt bấm mới kết luận "không chuyển đổi".
+    if (conv === 0 && spend > ZERO_CONV_MIN_SPEND_PERIOD && (c.metrics.clicks ?? 0) >= ZERO_CONV_MIN_CLICKS) {
       out.push({
         reasonCode: "ZERO_CONV_SPEND",
         company, platform,
@@ -48,7 +51,7 @@ export function cplCollector(campaigns: Campaign[], ctx: NbaContext): NbaSignal[
       continue;
     }
 
-    if (conv <= 0) continue;
+    if (conv < MIN_CONV_FOR_CPL) continue; // Đợt 23: 1–2 chuyển đổi chưa đủ để nói CPL đắt hay rẻ
     const cpl = spend / conv;
     const level = classifyCPL(cpl, company).level;
 

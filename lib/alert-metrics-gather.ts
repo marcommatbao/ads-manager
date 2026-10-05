@@ -25,6 +25,7 @@ import { computeAdFatigueMap } from "@/lib/ads-content/fatigue";
 import type { AlertMetrics } from "@/lib/alert-rules";
 import type { Campaign } from "@/types/ads.types";
 import { isNotConfigured } from "@/lib/not-configured";
+import { inLearning } from "@/lib/data-sufficiency";
 
 function dateStr(d: Date): string {
   return d.toISOString().split("T")[0];
@@ -113,6 +114,7 @@ function toAlertMetrics(
     status: c.status,
     fatigue_level: fatigue?.level,
     fatigue_message: fatigue?.message,
+    learning: inLearning(c as Parameters<typeof inLearning>[0]), // Đợt 23
   };
 }
 

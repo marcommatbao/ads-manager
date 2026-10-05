@@ -32,6 +32,7 @@ import {
   CVR_MIN_CLICKS, NO_DELIVERY_MIN_AGE_DAYS, BUDGET_MIN_VND, BUDGET_CUT_RATIO,
   TREND_MIN_DAYS, TREND_SIGNIFICANT_PCT, ADSET_WASTE_SHARE,
 } from "./campaign-benchmarks";
+import { MIN_CONV_FOR_CPL } from "./data-sufficiency";
 
 // ─────────────────────────────────────────────
 // Kiểu dữ liệu
@@ -353,6 +354,15 @@ function pillarGoal(input: AnalysisInput, goalKind: GoalKind, warnings: string[]
     }
 
     evidence.push(`Ngưỡng CPL nhóm ${group}: ${vnd(target)}`);
+    // Đợt 23: 1–2 lead chưa đủ để nói CPL đắt hay rẻ (một lead may / rủi làm CPL nhảy gấp đôi).
+    if (leadCount < MIN_CONV_FOR_CPL) {
+      return {
+        key: "goal", label: "Mục tiêu ↔ Kết quả", status: "unknown",
+        headline: `Mới có ${num(leadCount)} lead — chưa đủ để kết luận chi phí mỗi lead đắt hay rẻ`,
+        basis: `Cần từ ${MIN_CONV_FOR_CPL} lead trở lên mới so với ngưỡng ${vnd(target)} của nhóm ${group}.`,
+        evidence,
+      };
+    }
     const ratio = cpl! / target;
     if (ratio > 1.5) {
       findings.push({

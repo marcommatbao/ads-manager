@@ -7,6 +7,8 @@
 // Types
 // ─────────────────────────────────────────────
 
+import { MIN_CONV_FOR_CPL, ZERO_CONV_MIN_SPEND_24H } from "@/lib/data-sufficiency";
+
 export type AlertType =
   | "cpl_critical"
   | "cpl_warning"
@@ -39,6 +41,8 @@ export interface AlertMetrics {
   status: string;
   fatigue_level?: "healthy" | "warning" | "fatigued" | "critical";
   fatigue_message?: string;
+  /** Đợt 23: đang trong giai đoạn học → không chấm đỏ CPL / 0 chuyển đổi (lib/data-sufficiency.ts). */
+  learning?: boolean;
 }
 
 // Root-cause diagnosis attached after the alert fires (lib/root-cause.ts) —
@@ -101,13 +105,16 @@ function fmt(n: number): string {
 // Rules
 // ─────────────────────────────────────────────
 
+/** Đợt 23: CPL chỉ chấm khi đủ chuyển đổi và không đang học (trước đây 1 chuyển đổi đã đủ để báo đỏ). */
+const enoughForCpl = (d: AlertMetrics) => d.cpl > 0 && d.conversions >= MIN_CONV_FOR_CPL && !d.learning;
+
 export const ALERT_RULES: AlertRule[] = [
   // ── CPL Critical ──
   {
     type: "cpl_critical",
     severity: "critical",
     company: "MBC",
-    condition: (d) => d.cpl > 0 && d.cpl > 100_000,
+    condition: (d) => enoughForCpl(d) && d.cpl > 100_000,
     message: (d) =>
       `🔴 CPL ₫${fmt(d.cpl)} vượt ngưỡng MBC (₫100K) — ${d.campaign_name}`,
   },
@@ -115,7 +122,7 @@ export const ALERT_RULES: AlertRule[] = [
     type: "cpl_critical",
     severity: "critical",
     company: "MBI",
-    condition: (d) => d.cpl > 0 && d.cpl > 251_000,
+    condition: (d) => enoughForCpl(d) && d.cpl > 251_000,
     message: (d) =>
       `🔴 CPL ₫${fmt(d.cpl)} vượt ngưỡng MBI (₫251K) — ${d.campaign_name}`,
   },
@@ -125,7 +132,7 @@ export const ALERT_RULES: AlertRule[] = [
     type: "cpl_warning",
     severity: "warning",
     company: "MBC",
-    condition: (d) => d.cpl > 60_000 && d.cpl <= 100_000,
+    condition: (d) => enoughForCpl(d) && d.cpl > 60_000 && d.cpl <= 100_000,
     message: (d) =>
       `🟡 CPL ₫${fmt(d.cpl)} vùng theo dõi MBC (₫61K–99K) — ${d.campaign_name}`,
   },
@@ -133,7 +140,7 @@ export const ALERT_RULES: AlertRule[] = [
     type: "cpl_warning",
     severity: "warning",
     company: "MBI",
-    condition: (d) => d.cpl > 150_000 && d.cpl <= 251_000,
+    condition: (d) => enoughForCpl(d) && d.cpl > 150_000 && d.cpl <= 251_000,
     message: (d) =>
       `🟡 CPL ₫${fmt(d.cpl)} vùng theo dõi MBI (₫151K–250K) — ${d.campaign_name}`,
   },
@@ -170,7 +177,7 @@ export const ALERT_RULES: AlertRule[] = [
     type: "zero_conversions",
     severity: "warning",
     company: "ALL",
-    condition: (d) => d.conversions_24h === 0 && d.spend_24h > 50_000,
+    condition: (d) => d.conversions_24h === 0 && d.spend_24h > ZERO_CONV_MIN_SPEND_24H && !d.learning, // Đợt 23: trước đây 50K, cả khi đang học
     message: (d) =>
       `⚠️ 24h không có conversion — đang tiêu ₫${fmt(d.spend_24h)} — ${d.campaign_name}`,
   },
