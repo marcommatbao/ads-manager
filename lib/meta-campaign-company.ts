@@ -85,24 +85,24 @@ export async function verifyMetaCampaignAccess(
 // → admin_mbc tạm dừng / đổi ngân sách được nhóm của MBI. Phải tìm CHIẾN DỊCH CHA rồi mới suy ra công ty.
 // ─────────────────────────────────────────────
 export type MetaNodeKind = "campaign" | "child"
-export interface MetaNodeOwner { kind: MetaNodeKind; name: string; campaignName: string; dailyBudget?: string }
+export interface MetaNodeOwner { kind: MetaNodeKind; name: string; campaignName: string; dailyBudget?: string; status?: string }
 type FetchLike = (url: string) => Promise<{ ok: boolean; status: number; json: () => Promise<unknown> }>
 
 /**
  * Nhóm quảng cáo / quảng cáo trả `campaign{name}`; chiến dịch thì Meta báo lỗi "nonexisting field (campaign)" → hỏi lại
  * `objective` (trường chỉ chiến dịch có). Không xác định được → ném lỗi (người gọi phải TỪ CHỐI, không đoán).
  */
-export async function resolveMetaNodeOwner(id: string, token: string, opts: { withBudget?: boolean; fetchImpl?: FetchLike } = {}): Promise<MetaNodeOwner> {
+export async function resolveMetaNodeOwner(id: string, token: string, opts: { withBudget?: boolean; withStatus?: boolean; fetchImpl?: FetchLike } = {}): Promise<MetaNodeOwner> {
   if (!/^\d{5,25}$/.test(id)) throw new Error("Mã đối tượng Meta không hợp lệ")
   const get = opts.fetchImpl ?? ((u: string) => fetch(u))
-  const budget = opts.withBudget ? ",daily_budget" : ""
+  const budget = (opts.withBudget ? ",daily_budget" : "") + (opts.withStatus ? ",status" : "")
   const url = (fields: string) => `${META_GRAPH_BASE}/${id}?fields=${fields}&access_token=${encodeURIComponent(token)}`
-  type R = { name?: string; daily_budget?: string; objective?: string; campaign?: { name?: string }; error?: { message?: string } }
+  type R = { name?: string; daily_budget?: string; status?: string; objective?: string; campaign?: { name?: string }; error?: { message?: string } }
   const r1 = await get(url(`name${budget},campaign{name}`))
   const d1 = (await r1.json()) as R
-  if (r1.ok && !d1.error && d1.campaign?.name) return { kind: "child", name: String(d1.name ?? ""), campaignName: d1.campaign.name, dailyBudget: d1.daily_budget }
+  if (r1.ok && !d1.error && d1.campaign?.name) return { kind: "child", name: String(d1.name ?? ""), campaignName: d1.campaign.name, dailyBudget: d1.daily_budget, status: d1.status }
   const r2 = await get(url(`name${budget},objective`))
   const d2 = (await r2.json()) as R
-  if (r2.ok && !d2.error && d2.objective) return { kind: "campaign", name: String(d2.name ?? ""), campaignName: String(d2.name ?? ""), dailyBudget: d2.daily_budget }
+  if (r2.ok && !d2.error && d2.objective) return { kind: "campaign", name: String(d2.name ?? ""), campaignName: String(d2.name ?? ""), dailyBudget: d2.daily_budget, status: d2.status }
   throw new Error(d2.error?.message ?? d1.error?.message ?? "Không xác định được chiến dịch chứa đối tượng này")
 }

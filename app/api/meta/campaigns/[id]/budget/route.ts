@@ -87,6 +87,7 @@ export async function PATCH(
       rationale: `Đổi ngân sách Facebook thủ công bởi ${user.email}`,
       notes: `₫${oldVnd.toLocaleString("vi-VN")}/ngày → ₫${Math.round(dailyBudget).toLocaleString("vi-VN")}/ngày`,
       platform: "meta",
+      change: oldVnd > 0 ? { field: "daily_budget", before: oldVnd, after: Math.round(dailyBudget) } : undefined,
     });
 
     return NextResponse.json({

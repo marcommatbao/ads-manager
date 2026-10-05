@@ -71,11 +71,16 @@ export function recordCampaignMutation(params: {
    *  phép so xung đột (so theo entityId + company) nhưng sai dữ liệu, và chính
    *  chú thích đầu file này cảnh báo việc bơm nhiễu vào tín hiệu của NBA. */
   platform?: "meta" | "google_ads";
+  /** Đợt 23 (3c): giá trị trước/sau dạng máy đọc được — có thì trang "Đã làm & kết quả" cho bấm Hoàn tác.
+   *  status: chuỗi trạng thái của nền tảng (Meta ACTIVE/PAUSED, Google ENABLED/PAUSED); daily_budget: VND/ngày. */
+  change?: { field: "status" | "daily_budget"; before: string | number; after: string | number };
 }): void {
   recordDecision({
     source: params.source,
     event: params.event,
-    action: { notes: params.notes },
+    action: params.change
+      ? { notes: params.notes, field: params.change.field, valueBefore: params.change.before, valueAfter: params.change.after, unit: params.change.field === "daily_budget" ? "VND" : undefined }
+      : { notes: params.notes },
     target: {
       company: params.company,
       platform: params.platform ?? "google_ads",

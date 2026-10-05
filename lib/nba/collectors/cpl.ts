@@ -5,7 +5,8 @@
 // ============================================================
 
 import type { Campaign } from "@/types/ads.types";
-import { classifyCPL } from "@/lib/cpl-calculator";
+import { getCplThresholds } from "@/lib/cpl-calculator";
+import { costLevel, resolveTarget } from "@/lib/targets/resolve";
 import type { NbaSignal, NbaContext } from "../types";
 import { detectCompany, platformOf, isActive } from "./helpers";
 import { inLearning, MIN_CONV_FOR_CPL, ZERO_CONV_MIN_CLICKS, ZERO_CONV_MIN_SPEND_PERIOD } from "@/lib/data-sufficiency";
@@ -53,7 +54,10 @@ export function cplCollector(campaigns: Campaign[], ctx: NbaContext): NbaSignal[
 
     if (conv < MIN_CONV_FOR_CPL) continue; // Đợt 23: 1–2 chuyển đổi chưa đủ để nói CPL đắt hay rẻ
     const cpl = spend / conv;
-    const level = classifyCPL(cpl, company).level;
+    // Đợt 23 (3b): ngưỡng ở Xử lý chiến dịch → Mục tiêu (CPL thu lead) nếu đã nhập; chưa → ngưỡng cũ (suy từ KPI, như classifyCPL).
+    const old = getCplThresholds()[company];
+    const th = resolveTarget({ company, campaignName: c.name, goalKind: "leads", fallback: old ? { target: old.good, ceiling: old.warning, source: "cpl_calculator" } : null });
+    const level = th ? costLevel(cpl, th) : "no_data";
 
     if (level === "critical") {
       out.push({
@@ -63,7 +67,7 @@ export function cplCollector(campaigns: Campaign[], ctx: NbaContext): NbaSignal[
         entityId: c.id,
         entityName: c.name,
         title: `CPL "${c.name}" = ₫${Math.round(cpl).toLocaleString("vi-VN")} (đỏ)`,
-        explanation: `CPL vượt ngưỡng đỏ của ${company}. Rà soát targeting/creative hoặc giảm bid; nếu xấu kéo dài cân nhắc tạm dừng.`,
+        explanation: `CPL vượt ngưỡng đỏ của ${company}${th?.source === "case_target_cpl" ? ` (trần ₫${Math.round(th.ceiling).toLocaleString("vi-VN")} ở Mục tiêu)` : ""}. Rà soát targeting/creative hoặc giảm bid; nếu xấu kéo dài cân nhắc tạm dừng.`,
         evidence: [
           { metric: "CPL", current: Math.round(cpl), unit: "₫" },
           { metric: "conversions", current: conv, unit: "" },

@@ -26,7 +26,7 @@ export async function PUT(request: NextRequest) {
     if (err) return NextResponse.json({ success: false, error: `${r.company}/${r.group}: ${err}` }, { status: 400 })
   }
   try {
-    await saveTargets(rows.map((r) => ({ company: r.company!, group: r.group!, basis: r.basis!, target: Number(r.target), ceiling: Number(r.ceiling), aov: r.aov ?? null })), actorOf(u.value))
+    await saveTargets(rows.map((r) => ({ company: r.company!, group: r.group!, basis: r.basis!, target: Number(r.target), ceiling: Number(r.ceiling), aov: r.aov ?? null, cplTarget: r.cplTarget ?? null, cplCeiling: r.cplCeiling ?? null })), actorOf(u.value))
     return NextResponse.json({ success: true, rows: listTargets() })
   } catch (err) {
     return fail(err)

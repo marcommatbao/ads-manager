@@ -33,7 +33,7 @@ import {
   Receipt,
   Stethoscope,
   HeartPulse,
-  ListChecks,
+  ListChecks, History,
   ListTodo, CalendarRange, Target,
   BookOpenCheck,
   ScanLine,
@@ -95,6 +95,7 @@ const ALL_NAV_ITEMS: NavItem[] = [
   // ── XỬ LÝ CHIẾN DỊCH: phiên 7 bước từ phát hiện tới đo lại ──
   { label: "Xử lý chiến dịch", href: "/xu-ly", icon: Stethoscope, description: "Chiến dịch nào đang tiêu vượt mục tiêu, vì sao, và xử lý tới khi xong.", section: "Xử lý chiến dịch" },
   { label: "Theo dõi phiên", href: "/xu-ly/theo-doi", icon: ListChecks, description: "Mọi phiên đang mở, đang chờ đo lại, hoặc vừa mở lại vì đo lại không cải thiện.", section: "Xử lý chiến dịch" },
+  { label: "Đã làm & kết quả", href: "/xu-ly/da-lam", icon: History, description: "Mọi thay đổi tool đã ghi lên Google / Meta và kết quả đo lại sau 7 và 14 ngày.", section: "Xử lý chiến dịch" },
   { label: "Sổ kinh nghiệm", href: "/so-kinh-nghiem", icon: BookOpenCheck, description: "Học từ những gì đã thắng 180 ngày qua — dùng lại khi tạo chiến dịch mới.", section: "Xử lý chiến dịch" },
 
   // ── GOOGLE ADS ──

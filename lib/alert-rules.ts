@@ -8,6 +8,7 @@
 // ─────────────────────────────────────────────
 
 import { MIN_CONV_FOR_CPL, ZERO_CONV_MIN_SPEND_24H } from "@/lib/data-sufficiency";
+import { resolveTarget } from "@/lib/targets/resolve";
 
 export type AlertType =
   | "cpl_critical"
@@ -108,59 +109,38 @@ function fmt(n: number): string {
 /** Đợt 23: CPL chỉ chấm khi đủ chuyển đổi và không đang học (trước đây 1 chuyển đổi đã đủ để báo đỏ). */
 const enoughForCpl = (d: AlertMetrics) => d.cpl > 0 && d.conversions >= MIN_CONV_FOR_CPL && !d.learning;
 
+/** Mốc cũ của luật cảnh báo (trước Đợt 23) — dùng khi chưa nhập CPL ở Mục tiêu, để bản Mắt Bão giữ nguyên. */
+const LEGACY_ALERT_CPL: Record<string, { target: number; ceiling: number }> = { MBC: { target: 60_000, ceiling: 100_000 }, MBI: { target: 150_000, ceiling: 251_000 } };
+function cplTargetOf(d: AlertMetrics): { target: number; ceiling: number } | null {
+  const old = LEGACY_ALERT_CPL[d.company];
+  return resolveTarget({ company: d.company, campaignName: d.campaign_name, goalKind: "leads", fallback: old ? { ...old, source: "alert_rules" } : null });
+}
+const k = (n: number) => `${Math.round(n / 1000)}K`;
+
 export const ALERT_RULES: AlertRule[] = [
-  // ── CPL Critical ──
+  // ── CPL (Đợt 23 3b) ──
+  // Ngưỡng: Xử lý chiến dịch → Mục tiêu (CPL thu lead) nếu đã nhập; chưa → mốc cũ MBC 60K/100K, MBI 150K/251K (câu báo y như cũ).
+  // Công ty khác chưa nhập mục tiêu → không có luật CPL (như trước).
   {
     type: "cpl_critical",
     severity: "critical",
-    company: "MBC",
-    condition: (d) => enoughForCpl(d) && d.cpl > 100_000,
-    message: (d) =>
-      `🔴 CPL ₫${fmt(d.cpl)} vượt ngưỡng MBC (₫100K) — ${d.campaign_name}`,
-  },
-  {
-    type: "cpl_critical",
-    severity: "critical",
-    company: "MBI",
-    condition: (d) => enoughForCpl(d) && d.cpl > 251_000,
-    message: (d) =>
-      `🔴 CPL ₫${fmt(d.cpl)} vượt ngưỡng MBI (₫251K) — ${d.campaign_name}`,
-  },
-
-  // ── CPL Warning ──
-  {
-    type: "cpl_warning",
-    severity: "warning",
-    company: "MBC",
-    condition: (d) => enoughForCpl(d) && d.cpl > 60_000 && d.cpl <= 100_000,
-    message: (d) =>
-      `🟡 CPL ₫${fmt(d.cpl)} vùng theo dõi MBC (₫61K–99K) — ${d.campaign_name}`,
+    company: "ALL",
+    condition: (d) => { const t = cplTargetOf(d); return !!t && enoughForCpl(d) && d.cpl > t.ceiling; },
+    message: (d) => { const t = cplTargetOf(d)!; return `🔴 CPL ₫${fmt(d.cpl)} vượt ngưỡng ${d.company} (₫${k(t.ceiling)}) — ${d.campaign_name}`; },
   },
   {
     type: "cpl_warning",
     severity: "warning",
-    company: "MBI",
-    condition: (d) => enoughForCpl(d) && d.cpl > 150_000 && d.cpl <= 251_000,
-    message: (d) =>
-      `🟡 CPL ₫${fmt(d.cpl)} vùng theo dõi MBI (₫151K–250K) — ${d.campaign_name}`,
-  },
-
-  // ── CPL Recovered ──
-  {
-    type: "cpl_recovered",
-    severity: "info",
-    company: "MBC",
-    condition: (d) => d.cpl > 0 && d.cpl <= 60_000 && d.conversions >= 3,
-    message: (d) =>
-      `🟢 CPL ₫${fmt(d.cpl)} trở về vùng tốt MBC — ${d.campaign_name}`,
+    company: "ALL",
+    condition: (d) => { const t = cplTargetOf(d); return !!t && enoughForCpl(d) && d.cpl > t.target && d.cpl <= t.ceiling; },
+    message: (d) => { const t = cplTargetOf(d)!; return `🟡 CPL ₫${fmt(d.cpl)} vùng theo dõi ${d.company} (₫${k(t.target + 1000)}–${k(t.ceiling - 1000)}) — ${d.campaign_name}`; },
   },
   {
     type: "cpl_recovered",
     severity: "info",
-    company: "MBI",
-    condition: (d) => d.cpl > 0 && d.cpl <= 150_000 && d.conversions >= 3,
-    message: (d) =>
-      `🟢 CPL ₫${fmt(d.cpl)} trở về vùng tốt MBI — ${d.campaign_name}`,
+    company: "ALL",
+    condition: (d) => { const t = cplTargetOf(d); return !!t && d.cpl > 0 && d.cpl <= t.target && d.conversions >= 3; },
+    message: (d) => `🟢 CPL ₫${fmt(d.cpl)} trở về vùng tốt ${d.company} — ${d.campaign_name}`,
   },
 
   // ── Budget Low / Budget Depleted ──

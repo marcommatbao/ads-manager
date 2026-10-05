@@ -21,8 +21,9 @@ import type { TargetBasis } from "@/lib/case/verdict";
 import { companyIds, companyLabel, hasPack } from "@/lib/companies/registry";
 import { useCompaniesVersion } from "@/lib/companies/use-companies";
 
-interface TargetRow { company: Company; group: ProductGroup; basis: TargetBasis; target: number; ceiling: number }
-type Draft = { basis: TargetBasis; target: string; ceiling: string };
+interface TargetRow { company: Company; group: ProductGroup; basis: TargetBasis; target: number; ceiling: number; cplTarget?: number | null; cplCeiling?: number | null }
+// Đợt 23 (3a): + CPL mục tiêu / CPL trần cho chiến dịch thu lead (tuỳ chọn).
+type Draft = { basis: TargetBasis; target: string; ceiling: string; cplTarget?: string; cplCeiling?: string };
 
 const GROUPS = Object.keys(PRODUCT_LABEL) as ProductGroup[];
 // Đợt 23: công ty theo bản cài (trước đây ghim ["MBI","MBC"] → bản khách KHÔNG đặt được mục tiêu nào, Xử lý chiến dịch
@@ -54,7 +55,11 @@ export default function CaseTargetsPage() {
     if (prefilled || !data) return;
     const next: Record<string, Draft> = {};
     for (const r of data.rows) {
-      next[keyOf(r.company, r.group)] = { basis: r.basis, target: String(r.target), ceiling: String(r.ceiling) };
+      next[keyOf(r.company, r.group)] = {
+        basis: r.basis,
+        target: Number(r.target) > 0 ? String(r.target) : "", ceiling: Number(r.ceiling) > 0 ? String(r.ceiling) : "",
+        cplTarget: r.cplTarget ? String(r.cplTarget) : "", cplCeiling: r.cplCeiling ? String(r.cplCeiling) : "",
+      };
     }
     setDrafts(next);
     setPrefilled(true);
@@ -75,11 +80,19 @@ export default function CaseTargetsPage() {
     const errors: string[] = [];
     for (const group of groupsOf(company)) {
       const d = drafts[keyOf(company, group)];
-      if (!d || (!d.target.trim() && !d.ceiling.trim())) continue; // bỏ trống = chưa muốn đặt
-      const target = Number(d.target), ceiling = Number(d.ceiling);
-      const err = validateDraft(d.basis, target, ceiling);
+      const hasSales = !!d && (!!d.target.trim() || !!d.ceiling.trim());
+      const hasCpl = !!d && (!!d.cplTarget?.trim() || !!d.cplCeiling?.trim());
+      if (!d || (!hasSales && !hasCpl)) continue; // bỏ trống = chưa muốn đặt
+      const target = hasSales ? Number(d.target) : 0, ceiling = hasSales ? Number(d.ceiling) : 0;
+      const err = hasSales ? validateDraft(d.basis, target, ceiling) : null;
       if (err) { errors.push(`${PRODUCT_LABEL[group]}: ${err}`); continue; }
-      rows.push({ company, group, basis: d.basis, target, ceiling });
+      let cplTarget: number | null = null, cplCeiling: number | null = null;
+      if (hasCpl) {
+        cplTarget = Number(d.cplTarget); cplCeiling = Number(d.cplCeiling);
+        if (!(cplTarget > 0) || !(cplCeiling > 0)) { errors.push(`${PRODUCT_LABEL[group]}: CPL mục tiêu và CPL trần phải cùng > 0`); continue; }
+        if (cplTarget > cplCeiling) { errors.push(`${PRODUCT_LABEL[group]}: CPL mục tiêu phải ≤ CPL trần`); continue; }
+      }
+      rows.push({ company, group, basis: d.basis, target, ceiling, cplTarget, cplCeiling });
     }
     if (errors.length > 0) { setSaveErr((p) => ({ ...p, [company]: errors.join(" · ") })); return; }
     if (rows.length === 0) { setSaveErr((p) => ({ ...p, [company]: "Chưa có dòng nào để lưu — điền ít nhất một sản phẩm" })); return; }
@@ -142,6 +155,8 @@ export default function CaseTargetsPage() {
                 <th className="px-3 py-2 font-medium">Cách chấm</th>
                 <th className="px-3 py-2 text-right font-medium">Mục tiêu</th>
                 <th className="px-3 py-2 text-right font-medium">Trần</th>
+                <th className="px-3 py-2 text-right font-medium" title="Chiến dịch thu lead (khách hàng tiềm năng) — tuỳ chọn">CPL mục tiêu</th>
+                <th className="px-3 py-2 text-right font-medium" title="Chi phí mỗi lead tối đa — vượt mức này bị chấm đỏ">CPL trần</th>
               </tr>
             </thead>
             <tbody>
@@ -183,6 +198,26 @@ export default function CaseTargetsPage() {
                         aria-label={`Trần ${PRODUCT_LABEL[group]} ${company}`}
                         value={d.ceiling}
                         onChange={(e) => setDraft(company, group, { ceiling: e.target.value })}
+                        className="ml-auto w-28 text-right tabular-nums"
+                      />
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      <Input
+                        inputMode="numeric"
+                        aria-label={`CPL mục tiêu ${PRODUCT_LABEL[group]} ${company}`}
+                        placeholder="—"
+                        value={d.cplTarget ?? ""}
+                        onChange={(e) => setDraft(company, group, { cplTarget: e.target.value })}
+                        className="ml-auto w-28 text-right tabular-nums"
+                      />
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      <Input
+                        inputMode="numeric"
+                        aria-label={`CPL trần ${PRODUCT_LABEL[group]} ${company}`}
+                        placeholder="—"
+                        value={d.cplCeiling ?? ""}
+                        onChange={(e) => setDraft(company, group, { cplCeiling: e.target.value })}
                         className="ml-auto w-28 text-right tabular-nums"
                       />
                     </td>

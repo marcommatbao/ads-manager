@@ -18,6 +18,7 @@ import type { CampaignCase } from "@/lib/case/store"
 import type { DecisionMemoryEntry } from "@/lib/decision-memory/types"
 import type { BudgetApplyRecord } from "@/lib/pmax-insights/budget-apply-log"
 import { companyIds } from "@/lib/companies"
+import { undoableReason } from "@/lib/writes/undo"
 
 export type WritePlatform = "google" | "meta"
 export interface WriteEvent {
@@ -39,11 +40,14 @@ export interface WriteEvent {
   link: string
   /** Nguồn tự đo lại (phiên xử lý, bản tách) — không đo lần hai. */
   ownOutcome: "case" | "split" | null
+  /** Đợt 23 (3c): bấm Hoàn tác được trên trang "Đã làm & kết quả" (POST /api/writes/undo). */
+  undoable?: boolean
 }
 
 export const SOURCE_LABELS: Record<string, string> = {
   guard: "Search / toolkit", pmax: "PMax · việc nên làm", search: "Search · việc nên làm", split: "Search · tách chiến dịch",
   case: "Phiên xử lý", dm: "Ngân sách / bật-tắt / tự động", pmax_budget: "PMax · ngân sách (AI Advisor)",
+  undo_log: "Improvements / NBA tự áp",
 }
 
 // ── Tên tài nguyên Google → chiến dịch ───────────────────────
@@ -128,7 +132,16 @@ export function fromDecision(d: DecisionMemoryEntry): WriteEvent | null {
   const cid = d.target.entityType === "campaign" ? d.target.entityId : d.target.parentId ?? null
   const src = d.source
   const by = src.type === "human_manual" ? src.actor : src.type === "cron_auto_apply" ? `tự động · ${src.jobId}` : src.type === "automation_rule" ? `luật · ${src.ruleName}` : src.type === "nba_engine" ? "NBA tự áp" : src.type
-  return { id: `dm:${d.id}`, source: "dm", sourceLabel: SOURCE_LABELS.dm, at: d.createdAt, company: d.target.company, platform, by, label: `${d.target.entityName}: ${d.event}${d.action.notes ? ` — ${d.action.notes}` : ""}`, campaignIds: cid ? [cid] : [], pending: [], accountLevel: false, undoneAt: null, link: "/", ownOutcome: null }
+  return { id: `dm:${d.id}`, source: "dm", sourceLabel: SOURCE_LABELS.dm, at: d.createdAt, company: d.target.company, platform, by, label: `${d.target.entityName}: ${d.event}${d.action.notes ? ` — ${d.action.notes}` : ""}`, campaignIds: cid ? [cid] : [], pending: [], accountLevel: false, undoneAt: d.undoneAt ?? null, link: "/", ownOutcome: null, undoable: undoableReason(d) === null }
+}
+
+/** Đợt 23 (3c): nhật ký hoàn tác của Improvements + NBA tự áp (lib/apply-undo-log.ts) — trước đây KHÔNG vào luồng đo lại
+ *  nên các việc cấp từ khoá (tạm dừng / đổi giá thầu / thêm phủ định) không bao giờ được đo 7/14 ngày. */
+export function fromUndoLog(u: { id: string; improvementId: string; company: string; action: string; resourceName: string; label?: string; appliedAt: string; undoneAt?: string }): WriteEvent | null {
+  const r = parseResources(u.resourceName)
+  if (!r.campaignIds.length && !r.pending.length && !r.accountLevel) return null
+  const nba = u.improvementId.startsWith("nba")
+  return { id: `undo_log:${u.id}`, source: "undo_log", sourceLabel: SOURCE_LABELS.undo_log, at: u.appliedAt, company: u.company as Company, platform: u.resourceName.startsWith("customers/") ? "google" : "meta", by: nba ? "NBA tự áp" : "Improvements", label: `${u.label ?? u.resourceName}: ${u.action}`, ...r, undoneAt: u.undoneAt ?? null, link: nba ? "/" : "/improvements", ownOutcome: null }
 }
 
 export function fromPmaxBudget(b: BudgetApplyRecord): WriteEvent {
@@ -166,6 +179,7 @@ export async function collectWrites(now: Date = new Date(), opts: { persist?: bo
   await add("search-splits", async () => { const { allSplits } = await import("@/lib/search/split"); return allSplits().flatMap((s) => [fromSplit(s), ...fromSplitAssets(s)]) })
   await add("cases", async () => { const { listCases } = await import("@/lib/case/store"); return listCases().flatMap(fromCase) })
   await add("decision-memory", async () => { const { readAll } = await import("@/lib/decision-memory/store"); return readAll().map(fromDecision) })
+  await add("undo-log", async () => { const { recentApplies } = await import("@/lib/apply-undo-log"); return recentApplies(5000).map(fromUndoLog) })
   await add("pmax-budget", async () => { const { readBudgetApplies } = await import("@/lib/pmax-insights/budget-apply-log"); return (await readBudgetApplies()).map(fromPmaxBudget) })
   const cutoff = now.getTime() - FEED_KEEP_DAYS * 86_400_000
   const events = mergeEvents([...readFeedFile(), ...fresh]).filter((e) => Date.parse(e.at) >= cutoff)

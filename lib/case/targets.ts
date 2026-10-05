@@ -26,6 +26,10 @@ export interface TargetRow extends CaseTarget {
   group: ProductGroup
   /** Giá trị đơn trung bình dùng để đề xuất mục tiêu (tham khảo, không dùng để chấm). */
   aov?: number | null
+  /** Đợt 23 (3a): ngưỡng CHI PHÍ MỖI LEAD cho chiến dịch thu lead của nhóm này — bỏ trống = chưa đặt (dùng ngưỡng cũ của từng nơi).
+   *  Dòng có thể CHỈ có CPL (target/ceiling = 0: chưa đặt mục tiêu bán hàng). */
+  cplTarget?: number | null
+  cplCeiling?: number | null
   updatedBy: string
   updatedAt: string
 }
@@ -52,7 +56,7 @@ export function listTargets(): TargetRow[] {
 
 /** Mục tiêu của (công ty, nhóm); không có thì lấy (công ty, DEFAULT); vẫn không có → null. */
 export function targetFor(company: Company, group: ProductGroup): CaseTarget | null {
-  const rows = listTargets()
+  const rows = listTargets().filter((r) => Number(r.target) > 0 && Number(r.ceiling) > 0) // Đợt 23: dòng chỉ có CPL không phải mục tiêu bán hàng
   const hit = rows.find((r) => r.company === company && r.group === group)
     ?? rows.find((r) => r.company === company && r.group === "DEFAULT")
   return hit ? { basis: hit.basis, target: hit.target, ceiling: hit.ceiling } : null
@@ -63,6 +67,15 @@ export function validateTarget(t: Partial<TargetRow>): string | null {
   if (!t.group) return "Thiếu nhóm sản phẩm"
   if (t.basis !== "cpa" && t.basis !== "roas") return "Cách chấm phải là cpa hoặc roas"
   const target = Number(t.target), ceiling = Number(t.ceiling)
+  // Đợt 23 (3a): CPL cho chiến dịch thu lead — tuỳ chọn, nhưng đã điền thì đủ cả hai và mục tiêu ≤ trần.
+  const hasCpl = t.cplTarget != null || t.cplCeiling != null
+  if (hasCpl) {
+    const ct = Number(t.cplTarget), cc = Number(t.cplCeiling)
+    if (!(ct > 0) || !(cc > 0)) return "CPL mục tiêu và CPL trần phải cùng > 0"
+    if (ct > cc) return "CPL mục tiêu phải ≤ CPL trần"
+  }
+  // Dòng chỉ đặt CPL (chưa có mục tiêu bán hàng) → hợp lệ.
+  if (hasCpl && !(target > 0) && !(ceiling > 0)) return null
   if (!(target > 0) || !(ceiling > 0)) return "Mục tiêu và trần phải > 0"
   if (t.basis === "cpa" && target > ceiling) return "Chi phí/đơn mục tiêu phải ≤ trần"
   if (t.basis === "roas" && target < ceiling) return "ROAS mục tiêu phải ≥ ROAS trần"
@@ -75,7 +88,8 @@ export async function saveTargets(rows: Omit<TargetRow, "updatedBy" | "updatedAt
     const cur = listTargets()
     for (const r of rows) {
       const i = cur.findIndex((x) => x.company === r.company && x.group === r.group)
-      const next: TargetRow = { ...r, target: Number(r.target), ceiling: Number(r.ceiling), updatedBy: actor, updatedAt: now }
+      const cpl = r.cplTarget != null && r.cplCeiling != null ? { cplTarget: Number(r.cplTarget), cplCeiling: Number(r.cplCeiling) } : { cplTarget: null, cplCeiling: null }
+      const next: TargetRow = { ...r, target: Number(r.target) || 0, ceiling: Number(r.ceiling) || 0, ...cpl, updatedBy: actor, updatedAt: now }
       if (i >= 0) cur[i] = next
       else cur.push(next)
     }

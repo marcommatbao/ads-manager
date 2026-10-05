@@ -40,7 +40,7 @@ export async function POST(
     // campaign and vice versa).
     // Công ty lấy từ CHIẾN DỊCH CHA (nhóm/quảng cáo không mang tiền tố công ty — audit 30/09).
     let owner;
-    try { owner = await resolveMetaNodeOwner(id, token); }
+    try { owner = await resolveMetaNodeOwner(id, token, { withStatus: true }); }
     catch (e) { return NextResponse.json({ success: false, error: `Không xác minh được công ty: ${e instanceof Error ? e.message : String(e)}` }, { status: 403 }); }
     const nameData = { name: owner.name };
     const campaignCompany = detectCompany(owner.campaignName);
@@ -59,7 +59,7 @@ export async function POST(
       throw new Error(data.error?.message ?? `Meta API error ${res.status}`);
     }
     // Đợt 15b: ghi dấu vết để đo lại 7/14 ngày.
-    recordCampaignMutation({ source: { type: "human_manual", actor: user.email || user.name || user.id }, event: status === "PAUSED" ? "campaign.pause" : "campaign.resume", company: campaignCompany, campaignId: id, campaignName: nameData.name ?? id, rationale: "Bật/tắt chiến dịch từ bảng Campaigns", platform: "meta" });
+    recordCampaignMutation({ source: { type: "human_manual", actor: user.email || user.name || user.id }, event: status === "PAUSED" ? "campaign.pause" : "campaign.resume", company: campaignCompany, campaignId: id, campaignName: nameData.name ?? id, rationale: "Bật/tắt chiến dịch từ bảng Campaigns", platform: "meta", change: owner.status ? { field: "status", before: owner.status, after: status } : undefined });
 
     return NextResponse.json({
       success: true,

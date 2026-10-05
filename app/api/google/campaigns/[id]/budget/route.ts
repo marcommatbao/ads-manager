@@ -90,6 +90,7 @@ export async function PATCH(
       rationale: `Đổi ngân sách thủ công bởi ${user.email}`,
       notes: `₫${oldVnd.toLocaleString("vi-VN")}/ngày → ₫${Math.round(dailyBudget).toLocaleString("vi-VN")}/ngày`,
       platform: "google_ads",
+      change: oldVnd > 0 ? { field: "daily_budget", before: oldVnd, after: Math.round(dailyBudget) } : undefined,
     });
 
     return NextResponse.json({

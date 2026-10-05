@@ -13,6 +13,7 @@ import { hasPermission, canAccessCompany } from "@/lib/permissions";
 import { googleAdsErrorMessage } from "@/lib/google-ads-error";
 import { recordCampaignMutation } from "@/lib/mutation-guard";
 import { friendlyError } from "@/lib/not-configured";
+import { googleStatusName } from "@/lib/writes/undo";
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -48,7 +49,7 @@ export async function POST(
     // "customers/{cid}/campaigns/{id}" — same pattern already proven in
     // app/api/google/audit/auto-fix/route.ts.
     const rows = await customer.query(`
-      SELECT campaign.resource_name, campaign.name FROM campaign WHERE campaign.id = ${campaignId}
+      SELECT campaign.resource_name, campaign.name, campaign.status FROM campaign WHERE campaign.id = ${campaignId}
     `);
     const resourceName = rows[0]?.campaign?.resource_name as string | undefined;
     if (!resourceName) {
@@ -62,7 +63,7 @@ export async function POST(
       status: googleStatus,
     }]);
     // Đợt 15b: bật/tắt chiến dịch trước đây KHÔNG để lại dấu vết → không đo lại được hiệu quả.
-    recordCampaignMutation({ source: { type: "human_manual", actor: user.email || user.name || user.id }, event: googleStatus === "PAUSED" ? "campaign.pause" : "campaign.resume", company, campaignId: String(campaignId), campaignName: String(rows[0]?.campaign?.name ?? campaignId), rationale: "Bật/tắt chiến dịch từ bảng Campaigns", platform: "google_ads" });
+    recordCampaignMutation({ source: { type: "human_manual", actor: user.email || user.name || user.id }, event: googleStatus === "PAUSED" ? "campaign.pause" : "campaign.resume", company, campaignId: String(campaignId), campaignName: String(rows[0]?.campaign?.name ?? campaignId), rationale: "Bật/tắt chiến dịch từ bảng Campaigns", platform: "google_ads", change: googleStatusName(rows[0]?.campaign?.status) ? { field: "status", before: googleStatusName(rows[0]?.campaign?.status)!, after: googleStatus } : undefined });
 
     return NextResponse.json({
       success: true,

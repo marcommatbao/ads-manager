@@ -230,6 +230,10 @@ export interface DecisionMemoryEntry {
   reviewedBy?:        string;
   reviewedAt?:        string;
   manualOverride?:    ManualOverride;
+
+  /** Đợt 23 (3c): đã hoàn tác từ trang "Đã làm & kết quả" (POST /api/writes/undo). */
+  undoneAt?:          string;
+  undoneBy?:          string;
 }
 
 // ── File shape ────────────────────────────────────────────

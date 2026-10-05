@@ -24,6 +24,7 @@ import { META_GRAPH_BASE } from "@/lib/meta/graph-version"
 import { companyIds } from "@/lib/companies"
 import { isCompany } from "@/lib/companies/registry";
 import { friendlyError } from "@/lib/not-configured";
+import { leadCostTarget } from "@/lib/targets/resolve";
 
 // ─────────────────────────────────────
 // TYPES
@@ -688,7 +689,7 @@ export async function GET(req: NextRequest) {
         const spend  = (kw.metrics?.cost_micros  || 0) / 1_000_000
         const conv   = kw.metrics?.conversions || 0
         const clicks = kw.metrics?.clicks      || 0
-        const target = getCPLTarget(kw.campaign?.name || "")
+        const target = leadCostTarget(co, kw.campaign?.name || "", getCPLTarget(kw.campaign?.name || "")) // Đợt 23 (3b)
 
         if (conv === 0 && spend >= target * 0.5 && clicks >= 5) {
           improvements.push({
@@ -1005,7 +1006,7 @@ export async function GET(req: NextRequest) {
         const spend  = (kw.metrics?.cost_micros || 0) / 1_000_000
         const conv   = kw.metrics?.conversions || 0
         const cpl    = conv > 0 ? spend / conv : 0
-        const target = getCPLTarget(kw.campaign?.name || "")
+        const target = leadCostTarget(co, kw.campaign?.name || "", getCPLTarget(kw.campaign?.name || "")) // Đợt 23 (3b)
 
         if (conv < 3 || cpl === 0) continue
 
@@ -1338,7 +1339,7 @@ export async function GET(req: NextRequest) {
       }
 
       // Ad set tốt → scale
-      const target = getCPLTarget(adset.campaign || "")
+      const target = leadCostTarget(company, adset.campaign || "", getCPLTarget(adset.campaign || "")) // Đợt 23 (3b)
       if (cpl > 0 && cpl < target * 0.7 && adset.leads >= 5 && freq < 3 && adset.spend < 5_000_000) {
         improvements.push({
           id:           `FB_SCALE_${id}`,

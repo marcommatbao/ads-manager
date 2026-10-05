@@ -34,6 +34,7 @@ import {
   type AnalysisPlatform,
   type CampaignAnalysis,
 } from "@/lib/campaign-analysis";
+import { resolveTarget } from "@/lib/targets/resolve";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -241,6 +242,12 @@ export async function GET(
     adsets: detail.adsets ?? [],
     daily: detail.daily ?? [],
     period,
+    // Đợt 23 (3b): CPL mục tiêu ở Xử lý chiến dịch → Mục tiêu (chỉ khi đã nhập; chưa → ngưỡng cũ trong analyzeCampaign).
+    leadTarget: (() => {
+      if (!effectiveCompany) return null;
+      const t = resolveTarget({ company: effectiveCompany, campaignName: detail.campaign.name, goalKind: "leads" });
+      return t && t.source === "case_target_cpl" ? { target: t.target, ceiling: t.ceiling, source: t.source } : null;
+    })(),
   };
 
   const analysis = analyzeCampaign(input);

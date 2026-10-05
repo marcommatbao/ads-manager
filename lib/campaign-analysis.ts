@@ -82,6 +82,9 @@ export interface AnalysisInput {
   adsets: AnalysisAdset[];
   daily: AnalysisDaily[];
   period: { from: string; to: string };
+  /** Đợt 23 (3b): CPL mục tiêu / trần từ Xử lý chiến dịch → Mục tiêu (lib/targets/resolve.ts). Thiếu → ngưỡng cũ
+   *  CPL_TARGETS_JSON (vượt 1,5 lần là kém) — module này thuần, route truyền vào. */
+  leadTarget?: { target: number; ceiling: number; source: string } | null;
 }
 
 export interface Pillar {
@@ -311,7 +314,8 @@ function pillarGoal(input: AnalysisInput, goalKind: GoalKind, warnings: string[]
   if (goalKind === "leads") {
     const leadCount = input.platform === "google" ? m.conversions : m.leads;
     const cpl = div(m.spend, leadCount);
-    const target = getCPLTarget(input.campaign.name);
+    const own = input.leadTarget && input.leadTarget.target > 0 && input.leadTarget.ceiling > 0 ? input.leadTarget : null;
+    const target = own ? own.target : getCPLTarget(input.campaign.name);
     const group = detectProductGroup(input.campaign.name);
 
     evidence.push(`Số lead: ${num(leadCount)}`);
@@ -353,7 +357,7 @@ function pillarGoal(input: AnalysisInput, goalKind: GoalKind, warnings: string[]
       };
     }
 
-    evidence.push(`Ngưỡng CPL nhóm ${group}: ${vnd(target)}`);
+    evidence.push(own ? `Mục tiêu CPL (Xử lý chiến dịch → Mục tiêu): ${vnd(own.target)}, trần ${vnd(own.ceiling)}` : `Ngưỡng CPL nhóm ${group}: ${vnd(target)}`);
     // Đợt 23: 1–2 lead chưa đủ để nói CPL đắt hay rẻ (một lead may / rủi làm CPL nhảy gấp đôi).
     if (leadCount < MIN_CONV_FOR_CPL) {
       return {
@@ -364,7 +368,9 @@ function pillarGoal(input: AnalysisInput, goalKind: GoalKind, warnings: string[]
       };
     }
     const ratio = cpl! / target;
-    if (ratio > 1.5) {
+    // Có mục tiêu ở Xử lý chiến dịch: vượt TRẦN là kém, vượt mục tiêu là hơi đắt. Không có: như cũ (vượt 1,5 lần ngưỡng là kém).
+    const overCeiling = own ? cpl! > own.ceiling : ratio > 1.5;
+    if (overCeiling) {
       findings.push({
         id: "cpl-over",
         severity: "critical",
@@ -394,7 +400,7 @@ function pillarGoal(input: AnalysisInput, goalKind: GoalKind, warnings: string[]
       return {
         key: "goal", label: "Mục tiêu ↔ Kết quả", status: "bad",
         headline: `Lead quá đắt: ${vnd(cpl!)} so với ngưỡng ${vnd(target)}`,
-        basis: `So CPL thực tế với ngưỡng nhóm sản phẩm "${group}". Vượt quá 1,5 lần là kém.`,
+        basis: own ? `So CPL thực tế với mục tiêu ở Xử lý chiến dịch → Mục tiêu. Vượt trần ${vnd(own.ceiling)} là kém.` : `So CPL thực tế với ngưỡng nhóm sản phẩm "${group}". Vượt quá 1,5 lần là kém.`,
         evidence,
       };
     }

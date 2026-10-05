@@ -19,8 +19,8 @@ export const LAG_DAYS = 3
 /** Biên dao động ngẫu nhiên: thay đổi phải vượt Z × sai số chuẩn của log(tỉ lệ CPA). Đo 29/09: Brand-Vn KHÔNG ai sửa mà CPA tuần
  *  sau vẫn +17% (293 → 227 đơn) — ngưỡng cứng 15% sẽ báo XẤU giả. Sai số theo Poisson: √(1/đơn trước + 1/đơn sau + nhóm so sánh). */
 export const NOISE_Z = 1.96, MAX_NOISE_SE = 0.5
-export type Verdict = "tot" | "xau" | "khong_doi" | "chua_ro"
-export const VERDICT_LABEL: Record<Verdict, string> = { tot: "✓ Tốt", xau: "✕ Xấu", khong_doi: "= Không đổi", chua_ro: "○ Chưa rõ" }
+import type { Verdict } from "./verdict"
+export { VERDICT_LABEL, type Verdict } from "./verdict"
 
 export interface Metrics { cost: number; orders: number }
 export interface CampaignMetrics extends Metrics { channel: string }
