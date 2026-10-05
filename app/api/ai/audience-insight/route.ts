@@ -168,7 +168,7 @@ interface AudienceInsightRequest {
  * cùng ad set nên đây là PHÉP GÁN, không phải phép đo từng sở thích. Giấu điều
  * đó đi sẽ khiến AI (và người đọc kết quả) tin con số chắc hơn mức nó xứng đáng.
  */
-function buildPerformanceBlock(c: PromptCandidates | null): string {
+function buildPerformanceBlock(c: PromptCandidates | null, legacy = true): string {
   if (!c) return "";
   // Ưu tiên tên TIẾNG ANH khi có: AI đề xuất sở thích bằng tiếng Anh, nên đưa
   // tên tiếng Anh vào prompt thì thứ nó học được cũng là thứ nó sẽ viết ra —
@@ -189,18 +189,20 @@ Cách dùng số này:
   chọn nó chỉ vì nó rẻ ở sản phẩm khác.
 - Được phép đề xuất sở thích chưa từng chạy nếu nó bám sản phẩm — nhưng khi có
   hai lựa chọn tương đương, ưu tiên cái đã có số liệu tốt.
-- CẢNH BÁO TỪ SỐ LIỆU THẬT: nhóm sở thích mô tả DOANH NGHIỆP NÓI CHUNG ("Small
+${legacy ? `- CẢNH BÁO TỪ SỐ LIỆU THẬT: nhóm sở thích mô tả DOANH NGHIỆP NÓI CHUNG ("Small
   business", "Business software", "Home business", "Entrepreneurship") đang đắt
   hơn rõ rệt so với nhóm mô tả ĐÚNG VIỆC người mua đang làm ("Web hosting",
   "Web development", "Web design"). Nếu bạn định chọn một sở thích thuộc nhóm
   chung chung, hãy tự hỏi có sở thích nào mô tả cụ thể hơn nhu cầu sản phẩm
   không — và chọn cái cụ thể hơn.
-- LƯU Ý GIỚI HẠN: chi phí được chia đều cho các sở thích trong cùng ad set, nên
+` : ""}- LƯU Ý GIỚI HẠN: chi phí được chia đều cho các sở thích trong cùng ad set, nên
   đây là phép GÁN chứ không phải phép đo riêng từng sở thích. Dùng để xếp thứ tự
   ưu tiên, không dùng để khẳng định một con số chính xác.`;
 }
 
-/** knowledge: khối kiến thức sản phẩm (legacy = kho Mắt Bão; khác = hồ sơ thương hiệu của công ty). */
+/** knowledge: khối kiến thức sản phẩm (legacy = kho Mắt Bão; khác = hồ sơ thương hiệu của công ty).
+ *  A3.5 (nối 05/10/2026): khối "SỐ LIỆU ĐÃ ĐO ĐƯỢC" (buildPerformanceBlock) viết từ commit e6fb4fc nhưng CHƯA TỪNG được gọi —
+ *  phân khúc chưa bao giờ học từ CPL thật dù báo cáo đã dựng. `perf` chỉ có ở nhánh Facebook (xem usePerf trong POST). */
 function buildPrompt(body: AudienceInsightRequest, productName: string, perf: PromptCandidates | null, lens: string, knowledge: string, legacy: boolean): string {
   const adSetCount = Math.min(body.adSetCount ?? 3, 4);
   // Vẫn dùng để đưa tên đối thủ vào NGỮ CẢNH cho AI hiểu thị trường. Khối
@@ -240,7 +242,7 @@ function buildPrompt(body: AudienceInsightRequest, productName: string, perf: Pr
       ? `\n\nQUAN TRỌNG — funnelStage: tất cả phân khúc dùng funnelStage "${funnelStage}".`
       : "";
 
-  return `Chuyên gia quảng cáo B2B VN. Tạo ${adSetCount} phân khúc đối tượng cho: ${ctx.join(", ")}.${knowledge}${legacy ? "" : "\n\nLƯU Ý: các ví dụ về tên miền / hosting trong hướng dẫn dưới đây CHỈ minh hoạ cách làm — sản phẩm của bạn là sản phẩm ở trên, đừng đề xuất gì về tên miền / hosting."}
+  return `Chuyên gia quảng cáo B2B VN. Tạo ${adSetCount} phân khúc đối tượng cho: ${ctx.join(", ")}.${knowledge}${buildPerformanceBlock(perf, legacy)}${legacy ? "" : "\n\nLƯU Ý: các ví dụ về tên miền / hosting trong hướng dẫn dưới đây CHỈ minh hoạ cách làm — sản phẩm của bạn là sản phẩm ở trên, đừng đề xuất gì về tên miền / hosting."}
 
 QUAN TRỌNG — góc nhìn phân khúc: ưu tiên phân chia đối tượng theo góc nhìn "${lens}" cho lần phân tích này, thay vì lặp lại các phân khúc mẫu quen thuộc (TP.HCM/Hà Nội/Đà Nẵng, 25-45 tuổi, "CEO/Giám đốc") — chỉ giữ mẫu quen thuộc đó nếu nó thực sự là lựa chọn phù hợp nhất, không phải vì đó là lựa chọn an toàn/mặc định.
 
