@@ -1,6 +1,6 @@
 "use client";
 
-import { hasModule } from "@/lib/companies/registry";
+import { companyIds, companyLabel, hasModule } from "@/lib/companies/registry";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import MetricsCard from "@/components/MetricsCard";
@@ -1129,7 +1129,9 @@ function BudgetRedistributionCard() {
 
 
 function computeCompanyStats(allCampaigns: Campaign[]) {
-  const groups: Record<string, Campaign[]> = { MBC: [], MBI: [] };
+  // Đợt 21: nhóm theo công ty của bản cài (trước đây ghim MBC + MBI → bản khách hiện "MBC 0 / MBI 0", không có công ty mình).
+  // Bản Mắt Bão: companyIds() = ["MBC","MBI"] → cùng 2 thẻ, cùng thứ tự, cùng nội dung.
+  const groups: Record<string, Campaign[]> = Object.fromEntries(companyIds().map((co) => [co, [] as Campaign[]]));
   for (const c of allCampaigns) {
     // Use pre-computed company field first (set by Google API route),
     // then fall back to detectCompany with accountName for Google,
@@ -1146,10 +1148,15 @@ function computeCompanyStats(allCampaigns: Campaign[]) {
     const roas = totalSpend > 0 ? camps.reduce((s, c) => s + (c.metrics?.roas ?? 0) * (c.metrics?.spend ?? 0), 0) / totalSpend : 0;
     return { campaigns: active.length, spend: totalSpend, ctr, roas };
   };
-  return [
-    { company: "MBC", fullName: "Mat Bao Corporation", ...summarize(groups.MBC), accent: "text-blue-700", accentBg: "bg-blue-50", accentBorder: "border-blue-200" },
-    { company: "MBI", fullName: "Mat Bao Invest", ...summarize(groups.MBI), accent: "text-violet-700", accentBg: "bg-violet-50", accentBorder: "border-violet-200" },
-  ];
+  const LEGACY_CARD: Record<string, { fullName: string; accent: string; accentBg: string; accentBorder: string }> = {
+    MBC: { fullName: "Mat Bao Corporation", accent: "text-blue-700", accentBg: "bg-blue-50", accentBorder: "border-blue-200" },
+    MBI: { fullName: "Mat Bao Invest", accent: "text-violet-700", accentBg: "bg-violet-50", accentBorder: "border-violet-200" },
+  };
+  return companyIds().map((co) => ({
+    company: co,
+    ...(LEGACY_CARD[co] ?? { fullName: companyLabel(co), accent: "text-slate-700", accentBg: "bg-slate-50", accentBorder: "border-slate-200" }),
+    ...summarize(groups[co] ?? []),
+  }));
 }
 
 function CompanySplitCards({ allCampaigns, currency, isLoading, onSelect }: {
@@ -1467,14 +1474,15 @@ export default function DashboardPage() {
       const isGoogle = selectedPlatform === "all" || selectedPlatform === "google";
 
       // ── Fetch Facebook + Google in parallel ──
-      const [metaSummaryRes, metaInsightsRes, metaCampaignsRes, googleSummaryRes, googleInsightsRes, googleCampMbcRes, googleCampMbiRes] = await Promise.all([
+      // Đợt 21 A3b: chiến dịch Google theo MỌI công ty của bản cài (trước đây ghim MBC + MBI → bản khách trống).
+      const googleCos = companyIds();
+      const [metaSummaryRes, metaInsightsRes, metaCampaignsRes, googleSummaryRes, googleInsightsRes, ...googleCampRes] = await Promise.all([
         isFb ? fetch(`/api/meta/summary?from=${from}&to=${to}`) : null,
         isFb ? fetch(`/api/meta/insights?from=${from}&to=${to}`) : null,
         isFb ? fetch(`/api/meta/campaigns?status=ACTIVE&from=${from}&to=${to}`) : null,
         isGoogle ? fetch(`/api/google/summary?from=${from}&to=${to}`).catch(() => null) : null,
         isGoogle ? fetch(`/api/google/insights?from=${from}&to=${to}`).catch(() => null) : null,
-        isGoogle ? fetch(`/api/google/campaigns?company=MBC&from=${from}&to=${to}`).catch(() => null) : null,
-        isGoogle ? fetch(`/api/google/campaigns?company=MBI&from=${from}&to=${to}`).catch(() => null) : null,
+        ...googleCos.map((co) => (isGoogle ? fetch(`/api/google/campaigns?company=${encodeURIComponent(co)}&from=${from}&to=${to}`).catch(() => null) : null)),
       ]);
 
       // Handle 401 — Facebook not configured
@@ -1513,10 +1521,7 @@ export default function DashboardPage() {
       }
 
       // Parse Google campaigns (new route format: { success, campaigns })
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const googleCampMbcJson = (isGoogle && googleCampMbcRes?.ok) ? await googleCampMbcRes.json().catch(() => null) : null;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const googleCampMbiJson = (isGoogle && googleCampMbiRes?.ok) ? await googleCampMbiRes.json().catch(() => null) : null;
+      const googleCampJsons = await Promise.all(googleCampRes.map((r) => ((isGoogle && r?.ok) ? r.json().catch(() => null) : null)));
 
       // Track Google connection issues
       if (isGoogle && !isGoogleOk && !googleSummaryRes?.ok) {
@@ -1594,7 +1599,7 @@ export default function DashboardPage() {
           startDate: "", endDate: null,
           company: gc.company,
           channelType: GCHANNEL[gc.channelType] ?? "",
-          accountName: gc.company === "MBC" ? "Mắt Bão - VND" : "MIFI Active",
+          accountName: gc.company === "MBC" ? "Mắt Bão - VND" : gc.company === "MBI" ? "MIFI Active" : companyLabel(gc.company ?? ""), // Đợt 21: công ty khác không bị gắn nhãn MIFI
           accountId: "",
           metrics: {
             impressions: gc.metrics?.impressions ?? 0,
@@ -1607,7 +1612,7 @@ export default function DashboardPage() {
           },
         }));
       };
-      const gCampaigns = [...normalizeGG(googleCampMbcJson), ...normalizeGG(googleCampMbiJson)];
+      const gCampaigns = googleCampJsons.flatMap((j) => normalizeGG(j));
       setCampaigns([...fbCampaigns, ...gCampaigns]);
 
     } catch (err: unknown) {

@@ -18,7 +18,8 @@
 // luôn được giao với quyền thật của người đang chat.
 // ─────────────────────────────────────────────
 import type { SessionUser } from "@/lib/auth";
-import { getCompaniesForRole } from "@/lib/permissions";
+import { getCompaniesForRole, canAccessCompany } from "@/lib/permissions";
+import { creativeBrandFor, isLegacyCreativeCompany } from "@/lib/brand/creative";
 // Kiểu lấy TỪ CHÍNH nguồn trả dữ liệu, không khai lại ở đây. Khai lại là mở
 // đường cho sai tên trường: sai tên thì `undefined` lặng lẽ đi tới model, ra
 // câu trả lời trống — hoặc tệ hơn, model diễn giải quanh chỗ trống nghe như
@@ -426,6 +427,16 @@ const PRODUCT_IDS = [
   "sale-ai", "hoa-don-dien-tu", "chu-ky-so", "hop-dong-dien-tu", "hoa-don-ecom",
 ] as const;
 
+/** Đợt 21 A3b: sản phẩm theo hồ sơ doanh nghiệp của các công ty NGOÀI gói Mắt Bão (bản cài khách) → `custom_<tên>`. */
+function profileProductIds(): { id: string; company: string }[] {
+  const out: { id: string; company: string }[] = [];
+  for (const co of companyIds()) {
+    if (isLegacyCreativeCompany(co)) continue;
+    for (const p of creativeBrandFor(co).products) out.push({ id: p.id, company: co });
+  }
+  return out;
+}
+
 const DRAFT_NOTE =
   "BẢN NHÁP do AI viết — chưa đăng, chưa lưu, chưa áp vào tài khoản quảng cáo nào. " +
   "Người dùng tự xem lại rồi tự áp dụng trong Creative Studio.";
@@ -742,7 +753,7 @@ const analyzeAudienceSegments: ToolDef = {
     parameters: {
       type: "object",
       properties: {
-        productId: { type: "string", enum: [...PRODUCT_IDS] },
+        get productId() { return { type: "string", enum: [...(companyIds().some(isLegacyCreativeCompany) ? PRODUCT_IDS : []), ...profileProductIds().map((x) => x.id)] } },
         campaignObjective: { type: "string", description: "Mục tiêu chiến dịch" },
         funnelStage: { type: "string", description: "TOFU | MOFU | BOFU, hoặc 'TOFU+MOFU'" },
         platform: { type: "string", enum: ["facebook", "google", "both"], description: "Mặc định facebook" },
@@ -751,10 +762,17 @@ const analyzeAudienceSegments: ToolDef = {
     },
   },
   handler: async (args, ctx) => {
-    const productId = enumStr(args.productId, PRODUCT_IDS);
+    // Đợt 21 A3b: sản phẩm Mắt Bão (kho kiến thức) HOẶC sản phẩm trong hồ sơ của công ty bản cài khách mà người này được xem.
+    const own = profileProductIds().filter((x) => canAccessCompany(ctx.user, x.company));
+    const legacyId = companyIds().some(isLegacyCreativeCompany) ? enumStr(args.productId, PRODUCT_IDS) : null;
+    const ownHit = legacyId ? null : own.find((x) => x.id === args.productId) ?? null;
+    const productId = legacyId ?? ownHit?.id ?? null;
     if (!productId) {
+      const allowed = [...(companyIds().some(isLegacyCreativeCompany) ? PRODUCT_IDS : []), ...own.map((x) => x.id)];
       return {
-        error: `productId phải là một trong: ${PRODUCT_IDS.join(", ")}. Hỏi người dùng sản phẩm nào, đừng đoán.`,
+        error: allowed.length
+          ? `productId phải là một trong: ${allowed.join(", ")}. Hỏi người dùng sản phẩm nào, đừng đoán.`
+          : "Chưa có sản phẩm nào — Super Admin cần điền sản phẩm ở Cài đặt → Hồ sơ doanh nghiệp.",
       };
     }
     const platform = enumStr(args.platform, ["facebook", "google", "both"] as const) ?? "facebook";
@@ -773,6 +791,7 @@ const analyzeAudienceSegments: ToolDef = {
         "/api/ai/audience-insight",
         {
           productId,
+          ...(ownHit ? { company: ownHit.company } : {}),
           campaignObjective: str(args.campaignObjective),
           funnelStage: str(args.funnelStage),
           platform,

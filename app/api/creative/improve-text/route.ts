@@ -3,6 +3,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { callGemini } from "@/lib/gemini";
 import { getCurrentUser } from "@/lib/auth";
+import { creativeBrandPrompt } from "@/lib/brand/creative";
+import { isCompany } from "@/lib/companies";
+import { canAccessCompany } from "@/lib/permissions";
 
 interface ImproveRequest {
   headline: string;
@@ -20,6 +23,8 @@ interface ImproveRequest {
   usp?: string;
   socialProof?: string;
   offer?: string;
+  /** Đợt 21 A3b: công ty đang làm creative (khối hồ sơ thương hiệu). Thiếu = cách cũ. */
+  company?: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -36,6 +41,10 @@ export async function POST(request: NextRequest) {
     body = await request.json();
   } catch {
     return NextResponse.json({ success: false, error: "Invalid JSON" }, { status: 400 });
+  }
+  // Đợt 21 A3b: công ty gửi lên phải là công ty người này được xem (khối thương hiệu đọc theo công ty đó).
+  if (body.company !== undefined && (!isCompany(body.company) || !canAccessCompany(user, body.company))) {
+    return NextResponse.json({ success: false, error: "Không có quyền với công ty này" }, { status: 403 });
   }
 
   const weakDimensions = Object.entries(body.scores)
@@ -71,10 +80,11 @@ Cải thiện creative. ${isFacebook
 
 JSON (không markdown):
 {"headline":"...","primaryText":"...","description":"...","cta":"...","score":8,"reason":"lý do ngắn"}`;
+  const promptWithBrand = prompt + creativeBrandPrompt(body.company); // Đợt 21 A3b
 
   try {
     const geminiRes = await callGemini(
-      prompt,
+      promptWithBrand,
       { temperature: 0.7, maxOutputTokens: 1024, responseMimeType: "application/json", thinkingBudget: 0 },
       apiKey
     );

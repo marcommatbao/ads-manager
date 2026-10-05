@@ -12,6 +12,9 @@ import { log } from "@/lib/logger";
 import { verifyGrounding } from "@/lib/audience-grounding";
 import { readCachedPerformance, selectPromptCandidates, type PromptCandidates } from "@/lib/audience-performance";
 import { getCachedBatch, normalizeQuery } from "@/lib/interest-resolution-cache";
+import { creativeBrandFor, creativeBrandPrompt, isLegacyCreativeCompany, profileProduct } from "@/lib/brand/creative";
+import { isCompany } from "@/lib/companies";
+import { canAccessCompany } from "@/lib/permissions";
 
 // ─── Product label map ────────────────────────────────────────────────────────
 
@@ -115,6 +118,8 @@ function pickSegmentationLens(): string {
 
 interface AudienceInsightRequest {
   productId: string;
+  /** Đợt 21 A3b: công ty đang làm creative. Thiếu / công ty gói Mắt Bão → cách cũ (kho kiến thức Mắt Bão). */
+  company?: string;
   campaignObjective?: string;
   funnelStage?: string;
   adSetCount?: number;
@@ -194,7 +199,8 @@ Cách dùng số này:
   ưu tiên, không dùng để khẳng định một con số chính xác.`;
 }
 
-function buildPrompt(body: AudienceInsightRequest, productName: string, perf: PromptCandidates | null, lens: string): string {
+/** knowledge: khối kiến thức sản phẩm (legacy = kho Mắt Bão; khác = hồ sơ thương hiệu của công ty). */
+function buildPrompt(body: AudienceInsightRequest, productName: string, perf: PromptCandidates | null, lens: string, knowledge: string, legacy: boolean): string {
   const adSetCount = Math.min(body.adSetCount ?? 3, 4);
   // Vẫn dùng để đưa tên đối thủ vào NGỮ CẢNH cho AI hiểu thị trường. Khối
   // "competitorIntelligence" riêng đã GỠ ngày 16/09/2026: giao diện hiện nó bị
@@ -233,7 +239,7 @@ function buildPrompt(body: AudienceInsightRequest, productName: string, perf: Pr
       ? `\n\nQUAN TRỌNG — funnelStage: tất cả phân khúc dùng funnelStage "${funnelStage}".`
       : "";
 
-  return `Chuyên gia quảng cáo B2B VN. Tạo ${adSetCount} phân khúc đối tượng cho: ${ctx.join(", ")}.${buildProductKnowledge(body.productId)}
+  return `Chuyên gia quảng cáo B2B VN. Tạo ${adSetCount} phân khúc đối tượng cho: ${ctx.join(", ")}.${knowledge}${legacy ? "" : "\n\nLƯU Ý: các ví dụ về tên miền / hosting trong hướng dẫn dưới đây CHỈ minh hoạ cách làm — sản phẩm của bạn là sản phẩm ở trên, đừng đề xuất gì về tên miền / hosting."}
 
 QUAN TRỌNG — góc nhìn phân khúc: ưu tiên phân chia đối tượng theo góc nhìn "${lens}" cho lần phân tích này, thay vì lặp lại các phân khúc mẫu quen thuộc (TP.HCM/Hà Nội/Đà Nẵng, 25-45 tuổi, "CEO/Giám đốc") — chỉ giữ mẫu quen thuộc đó nếu nó thực sự là lựa chọn phù hợp nhất, không phải vì đó là lựa chọn an toàn/mặc định.
 
@@ -360,7 +366,18 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const productName = resolveProductName(body.productId);
+  // Đợt 21 A3b: công ty ngoài gói Mắt Bão → CHỈ hồ sơ thương hiệu của công ty đó (không kho kiến thức / nhãn sản phẩm Mắt Bão).
+  if (body.company !== undefined && (!isCompany(body.company) || !canAccessCompany(user, body.company))) {
+    return NextResponse.json({ success: false, error: "Không có quyền với công ty này" }, { status: 403 });
+  }
+  const legacy = !body.company || isLegacyCreativeCompany(body.company);
+  const ownProduct = legacy ? null : profileProduct(body.company!, body.productId);
+  const productName = legacy ? resolveProductName(body.productId) : (ownProduct?.label ?? body.productId.replace(/^custom_/, ""));
+  const ownBrand = legacy ? null : creativeBrandFor(body.company!);
+  const ownCorpus: string[] | null = ownBrand ? [ownProduct?.label ?? "", ownProduct?.description ?? "", ownBrand.persona, ...ownBrand.strengths] : null;
+  const knowledge = legacy
+    ? buildProductKnowledge(body.productId)
+    : `\n\nKIẾN THỨC SẢN PHẨM THẬT (từ HỒ SƠ DOANH NGHIỆP của công ty — chỉ dùng đúng các ý này):${ownProduct?.description ? `\nMô tả sản phẩm: ${ownProduct.description}` : ""}${creativeBrandPrompt(body.company)}`;
 
   // A3.5 — nạp hiệu quả ĐÃ ĐO ĐƯỢC vào prompt. CHỈ đọc file đã lưu; sinh phân
   // khúc KHÔNG BAO GIỜ được tự gọi Meta. Chưa dựng báo cáo lần nào thì khối này
@@ -385,7 +402,7 @@ export async function POST(request: NextRequest) {
   // Bốc góc nhìn Ở ĐÂY thay vì bên trong buildPrompt, để còn trả được ra UI —
   // không nói ra thì người đọc không hiểu vì sao lần này toàn phân khúc theo tỉnh.
   const lens = pickSegmentationLens();
-  const prompt = buildPrompt(body, productName, perfCandidates, lens);
+  const prompt = buildPrompt(body, productName, perfCandidates, lens, knowledge, legacy);
 
   try {
     const geminiRes = await callGemini(
@@ -452,7 +469,8 @@ export async function POST(request: NextRequest) {
         topOffers?: string[];
         realCustomerQuestions?: Array<{ question?: string }>;
       } | undefined>;
-      const kb = kbMap[body.productId.replace(/^custom_/, "")];
+      // Đợt 21 A3b: kho ưu đãi là của Mắt Bão — công ty khác không đối chiếu (tránh "custom_hosting" khớp nhầm kho Mắt Bão).
+      const kb = legacy ? kbMap[body.productId.replace(/^custom_/, "")] : undefined;
       const offerText = [
         ...(kb?.topOffers ?? []),
         ...(kb?.realCustomerQuestions ?? []).map((q) => q.question ?? ""),
@@ -547,6 +565,7 @@ export async function POST(request: NextRequest) {
         [...(perfCandidates?.best ?? []), ...(perfCandidates?.worst ?? [])],
         perfCandidates?.medianCpl ?? null,
         idByName,
+        ownCorpus, // Đợt 21 A3b: bản khách đối chiếu với hồ sơ doanh nghiệp, không với kho Mắt Bão
       );
       // Đưa việc "đã can thiệp danh sách từ khoá phủ định" lên cùng chỗ với các
       // cảnh báo khác, để nó không nằm riêng một góc không ai đọc.

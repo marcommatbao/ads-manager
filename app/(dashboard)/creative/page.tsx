@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef, Suspense } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, Suspense } from "react";
 import { defaultPixelId, pagePixelMap, pageIdsByCompany, pixelOptions } from "@/lib/meta-accounts";
 import { isHiddenPage } from "@/lib/hidden-pages";
 import {
@@ -11,7 +11,7 @@ import {
   Globe, Cloud, Briefcase, Bot, Edit3,
   Shield, FileText, GraduationCap, Mail, Eye,
   BookOpen, Link2, Library, Rocket, Settings, FolderTree,
-  Calendar, Building2,
+  Calendar, Building2, Package,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -39,24 +39,26 @@ import { labelForStandardEvent, normalizeStandardEvent } from "@/lib/meta-pixel-
 // ─────────────────────────────────────────────
 
 import {
-  PRODUCTS_BY_COMPANY,
   ALL_PRODUCTS_LIST,
-  FB_OBJECTIVE_OPTIONS,
   OBJECTIVES,
   PLATFORMS,
   TONES,
   MAX_TONES,
   STORAGE_KEY,
   PRODUCT_PREFILLS,
+  fbObjectiveOptions,
+  legacyProducts,
+  companyActiveClass,
+  CUSTOM_PRODUCT_OPTION,
 } from "./_constants";
-import type { AudienceInsightData, AudienceSegment, MetaAudience } from "./_types";
-import { fmtVND, formatReach } from "./_utils";
+import type { AudienceInsightData, AudienceSegment, MetaAudience, BrandData } from "./_types";
+import { fmtVND, formatReach, customProductName } from "./_utils";
 import { DraftNameEditor } from "./components/DraftNameEditor";
 import { DraftPicker } from "./components/DraftPicker";
 import { StepIndicator } from "./components/StepIndicator";
 import { ScoreBadge, CreativePlatformBadge } from "./components/ScoreBadge";
 import { CreativeCard } from "./components/CreativeCard";
-import { companyIds, companyLabel } from "@/lib/companies/registry";
+import { companyIds, companyLabel, companyDef, fallbackCompany, isCompany } from "@/lib/companies/registry";
 
 
 // ─────────────────────────────────────────────
@@ -87,7 +89,27 @@ function CreativeAIPageInner() {
   const [platform, setPlatform] = useState("facebook");
   const [usp, setUsp] = useState("");
   const [socialProof, setSocialProof] = useState("");
-  const [company, setCompany] = useState<string>("MBC");
+  // Mặc định MBC nếu bản cài có MBC; không thì công ty đầu tiên của bản cài (khách không có MBC).
+  const [company, setCompany] = useState<string>(() => (companyIds().includes("MBC") ? "MBC" : fallbackCompany()));
+  // Hồ sơ thương hiệu theo công ty (GET /api/creative/brand) — cache theo công ty.
+  const [brandByCompany, setBrandByCompany] = useState<Record<string, BrandData>>({});
+  const [brandLoading, setBrandLoading] = useState(false);
+  const [brandError, setBrandError] = useState<string | null>(null);
+  const brand: BrandData | null = brandByCompany[company] ?? null;
+  // legacy = backend nói vậy (data.legacy). Chưa tải xong → tạm coi công ty có hằng số riêng là legacy để vẽ y như cũ.
+  const isLegacy = brand ? brand.legacy : legacyProducts(company).length > 0;
+  const brandProducts = isLegacy ? [] : (brand?.products ?? []);
+  /** Nhãn sản phẩm: bảng cố định (legacy) → sản phẩm trong hồ sơ → `custom_<tên>` → id. */
+  const productLabel = useCallback((id: string): string =>
+    ALL_PRODUCTS_LIST.find(p => p.id === id)?.label
+    ?? brand?.products.find(p => p.id === id)?.label
+    ?? customProductName(id), [brand]);
+  /** Công ty ngoài bản Mắt Bão: gửi thêm `company` để backend nạp đúng hồ sơ. Legacy: không thêm gì. */
+  const companyBody = useMemo(() => (isLegacy ? {} : { company }), [isLegacy, company]);
+  // Ô chọn sản phẩm: legacy = bảng cố định; ngoài bản Mắt Bão = sản phẩm trong hồ sơ + ô "Tuỳ chỉnh".
+  const pickerProducts: Array<{ id: string; label: string; icon: typeof Globe; badge: string | null; url?: string }> = isLegacy
+    ? legacyProducts(company)
+    : [...brandProducts.map(bp => ({ id: bp.id, label: bp.label, icon: Package, badge: null, url: bp.url })), CUSTOM_PRODUCT_OPTION];
   // Tracks which product triggered smart pre-fill (null = no pre-fill applied)
   const [prefillSource, setPrefillSource] = useState<string | null>(null);
 
@@ -255,7 +277,7 @@ function CreativeAIPageInner() {
     if (ref === 'fatigue') {
       setFatigueRef(paramProduct || 'campaign');
     }
-    if (paramCompany === 'MBC' || paramCompany === 'MBI') {
+    if (isCompany(paramCompany)) {
       setCompany(paramCompany);
     }
     if (paramProduct) {
@@ -356,6 +378,11 @@ function CreativeAIPageInner() {
   const [startDate, setStartDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [endDate, setEndDate] = useState("");
   const [destinationUrl, setDestinationUrl] = useState("https://www.matbao.net");
+  // Công ty ngoài bản Mắt Bão: bỏ URL mặc định của Mắt Bão, dùng tên miền trong hồ sơ.
+  useEffect(() => {
+    if (!brand || brand.legacy) return;
+    setDestinationUrl(cur => (cur === "https://www.matbao.net" ? (brand.domain ? `https://${brand.domain}` : "") : cur));
+  }, [brand]);
   const [preflightResult, setPreflightResult] = useState<PreflightResult | null>(null);
   const [isLaunching, setIsLaunching] = useState(false);
   const [launchLog, setLaunchLog] = useState<string[]>([]);
@@ -644,6 +671,30 @@ function CreativeAIPageInner() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
   }
 
+  // ── Hồ sơ thương hiệu: tải mỗi khi đổi công ty (cache theo công ty) ──
+  useEffect(() => {
+    if (brandByCompany[company]) { setBrandError(null); return; }
+    let cancelled = false;
+    setBrandLoading(true);
+    setBrandError(null);
+    (async () => {
+      try {
+        const res = await fetch(`/api/creative/brand?company=${encodeURIComponent(company)}`);
+        const json = await res.json() as { success?: boolean; data?: BrandData; error?: string };
+        if (cancelled) return;
+        if (!res.ok || !json.success || !json.data) throw new Error(json.error || `HTTP ${res.status}`);
+        const data = json.data;
+        setBrandByCompany(prev => ({ ...prev, [company]: data }));
+      } catch (e) {
+        if (!cancelled) setBrandError(e instanceof Error ? e.message : "Không tải được hồ sơ doanh nghiệp");
+      } finally {
+        if (!cancelled) setBrandLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [company]);
+
   // ── Step 2: Auto-fetch audience insight ──
   const fetchAudienceInsight = useCallback(async () => {
     let productId: string | null = selectedProduct;
@@ -669,6 +720,7 @@ function CreativeAIPageInner() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           productId,
+          ...companyBody,
           // Nền tảng quyết định Bước 2 sinh bộ nhắm mục tiêu NÀO. Chọn Google mà
           // vẫn sinh interests/behaviors của Meta là vừa vô dụng vừa dạy sai.
           platform,
@@ -719,6 +771,7 @@ function CreativeAIPageInner() {
       setAudienceLoading(false);
     }
   }, [
+    companyBody,
     selectedProduct, customProduct, objective,
     funnelStages, adSetCount, dailyBudget, totalDays,
     currentCustomerDesc, currentCustomerPainPoints, currentCustomerMotivation, currentCustomerLanguage,
@@ -765,7 +818,7 @@ function CreativeAIPageInner() {
 
     const productName = selectedProduct === "custom"
       ? customProduct
-      : ALL_PRODUCTS_LIST.find(p => p.id === selectedProduct)?.label ?? selectedProduct;
+      : productLabel(selectedProduct);
 
     const aiSegments = audienceData?.audienceSegments
       .filter((_, i) => selectedSegments.includes(i)) ?? [];
@@ -814,6 +867,7 @@ function CreativeAIPageInner() {
               offer,
               platform: plat,
               objective: OBJECTIVES.find(o => o.value === objective)?.label ?? objective,
+              ...companyBody,
             }),
           });
 
@@ -906,7 +960,7 @@ function CreativeAIPageInner() {
     // sách phụ thuộc thì nó giữ bản CŨ — tệp Meta vừa chọn bị bỏ im lặng,
     // creative vẫn sinh ra bình thường nên không có gì báo. Cùng loại với lỗi
     // stale closure vừa làm Preflight báo thiếu logo dù logo đã tải lên.
-  }, [audienceData, selectedSegments, selectedProduct, customProduct, platform, objective, offer, selectedTones, usp, socialProof, metaAudienceList, selectedMetaAudienceIds]);
+  }, [audienceData, selectedSegments, selectedProduct, customProduct, platform, objective, offer, selectedTones, usp, socialProof, metaAudienceList, selectedMetaAudienceIds, companyBody, productLabel]);
 
   // ── Toggle creative selection for Step 4 ──
   function toggleCreativeSelection(index: number) {
@@ -923,7 +977,7 @@ function CreativeAIPageInner() {
     try {
       const productName = selectedProduct === "custom"
         ? customProduct
-        : ALL_PRODUCTS_LIST.find(p => p.id === selectedProduct)?.label ?? selectedProduct;
+        : productLabel(selectedProduct);
       const res = await fetch("/api/creative/generate-text", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -937,6 +991,7 @@ function CreativeAIPageInner() {
           usp, socialProof, offer,
           platform: cr.platform,
           objective: OBJECTIVES.find(o => o.value === objective)?.label ?? objective,
+          ...companyBody,
         }),
       });
       const json = await res.json();
@@ -966,7 +1021,7 @@ function CreativeAIPageInner() {
     try {
       const productName = selectedProduct === "custom"
         ? customProduct
-        : ALL_PRODUCTS_LIST.find(p => p.id === selectedProduct)?.label ?? selectedProduct;
+        : productLabel(selectedProduct);
       const res = await fetch("/api/creative/improve-text", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -984,6 +1039,7 @@ function CreativeAIPageInner() {
           tone: cr.tone,
           toneLabel: cr.toneLabel,
           usp, socialProof, offer,
+          ...companyBody,
         }),
       });
       const json = await res.json();
@@ -1042,8 +1098,17 @@ function CreativeAIPageInner() {
   const canProceedStep1 = selectedProduct && (selectedProduct !== "custom" || customProduct.trim());
 
   // Smart pre-fill: when selecting a product, auto-fill empty fields with product-specific defaults
+  // Legacy: bảng PRODUCT_PREFILLS như cũ. Ngoài bản Mắt Bão: chỉ lấy từ hồ sơ doanh nghiệp (không bịa gì thêm).
+  function prefillFor(productId: string): (typeof PRODUCT_PREFILLS)[string] | null {
+    if (isLegacy) return PRODUCT_PREFILLS[productId] ?? null;
+    if (!brand || productId === "custom") return null;
+    const usp = brand.strengths.join("; ");
+    if (!usp && !brand.persona) return null;
+    return { usp, socialProof: "", customerDesc: brand.persona, painPoints: "", motivation: "", competitors: "" };
+  }
+
   function applyPrefill(productId: string) {
-    const fill = PRODUCT_PREFILLS[productId];
+    const fill = prefillFor(productId);
     if (!fill) return;
     if (!usp.trim())                    setUsp(fill.usp);
     if (!socialProof.trim())            setSocialProof(fill.socialProof);
@@ -1055,7 +1120,7 @@ function CreativeAIPageInner() {
   }
 
   function clearPrefill() {
-    const fill = prefillSource ? PRODUCT_PREFILLS[prefillSource] : null;
+    const fill = prefillSource ? prefillFor(prefillSource) : null;
     if (!fill) { setPrefillSource(null); return; }
     if (usp === fill.usp)                           setUsp("");
     if (socialProof === fill.socialProof)           setSocialProof("");
@@ -1073,7 +1138,7 @@ function CreativeAIPageInner() {
     try {
       const productName = selectedProduct === "custom"
         ? customProduct
-        : ALL_PRODUCTS_LIST.find(p => p.id === selectedProduct)?.label ?? selectedProduct;
+        : productLabel(selectedProduct);
 
       const res = await fetch("/api/audience-library", {
         method: "POST",
@@ -1274,7 +1339,7 @@ function CreativeAIPageInner() {
                     setCompany(c);
                     setSelectedProduct("");
                     setPrefillSource(null);
-                    const available = FB_OBJECTIVE_OPTIONS[c].map(o => o.key);
+                    const available = fbObjectiveOptions(c, brandByCompany[c]?.legacy).map(o => o.key);
                     if (!available.includes(objectiveKey)) {
                       setObjectiveKey(available[0]);
                       setObjective(available[0]);
@@ -1283,7 +1348,7 @@ function CreativeAIPageInner() {
                     className={cn(
                       "rounded-lg border px-4 py-1.5 text-xs font-semibold transition-all",
                       company === c
-                        ? c === "MBC" ? "border-blue-500 bg-blue-600 text-white shadow-sm" : "border-violet-500 bg-violet-600 text-white shadow-sm"
+                        ? `${companyActiveClass(c, companyDef(c)?.color)} shadow-sm`
                         : "border-slate-200 text-slate-500 hover:border-slate-400 bg-white"
                     )}
                   >{c}</button>
@@ -1292,7 +1357,7 @@ function CreativeAIPageInner() {
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-              {PRODUCTS_BY_COMPANY[company].map(p => {
+              {pickerProducts.map(p => {
                 const Icon = p.icon;
                 const isSelected = selectedProduct === p.id;
                 return (
@@ -1301,6 +1366,7 @@ function CreativeAIPageInner() {
                     onClick={() => {
                       setSelectedProduct(p.id);
                       applyPrefill(p.id);
+                      if (p.url) setDestinationUrl(p.url);
                     }}
                     className={cn(
                       "relative flex flex-col items-center gap-2 rounded-xl border-2 p-4 text-center transition-all hover:shadow-md",
@@ -1333,6 +1399,20 @@ function CreativeAIPageInner() {
                 );
               })}
             </div>
+
+            {/* Hồ sơ doanh nghiệp: đang tải / lỗi / chưa có sản phẩm (chỉ công ty ngoài bản Mắt Bão) */}
+            {brandLoading && !brand && !isLegacy && (
+              <p className="mt-3 flex items-center gap-1.5 text-xs text-slate-500"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Đang tải hồ sơ doanh nghiệp…</p>
+            )}
+            {brandError && !isLegacy && (
+              <p role="alert" className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">Không tải được hồ sơ doanh nghiệp: {brandError}</p>
+            )}
+            {!isLegacy && brand && brandProducts.length === 0 && (
+              <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                Chưa có sản phẩm trong hồ sơ — Super Admin vào Cài đặt → Hồ sơ doanh nghiệp để thêm.{" "}
+                <Link href={`/settings/brand-profile?company=${encodeURIComponent(company)}`} className="font-semibold underline">Mở Hồ sơ doanh nghiệp</Link>
+              </p>
+            )}
 
             {/* Custom product input */}
             {selectedProduct === "custom" && (
@@ -1393,7 +1473,7 @@ function CreativeAIPageInner() {
             <div>
               <h3 className="text-sm font-semibold text-slate-700 mb-3">🎯 Mục tiêu chính <span className="text-[10px] text-slate-400 font-normal">(chọn 1)</span></h3>
               <div className="space-y-2">
-                {FB_OBJECTIVE_OPTIONS[company].map(o => {
+                {fbObjectiveOptions(company, brand?.legacy).map(o => {
                   const Icon = o.icon;
                   const isSelected = objectiveKey === o.key;
                   return (
@@ -1461,7 +1541,7 @@ function CreativeAIPageInner() {
                   value={destinationUrl}
                   onChange={e => setDestinationUrl(e.target.value)}
                   className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400"
-                  placeholder="https://matbao.net/ten-mien-vn"
+                  placeholder={isLegacy ? "https://matbao.net/ten-mien-vn" : "https://website-cua-ban.vn/trang-san-pham"}
                 />
               </div>
             )}
@@ -1475,7 +1555,7 @@ function CreativeAIPageInner() {
             {prefillSource && prefillSource !== "custom" && (
               <div className="flex items-center justify-between rounded-lg bg-green-50 border border-green-200 px-3 py-2">
                 <p className="text-xs text-green-700 font-medium">
-                  ✨ Đã điền sẵn template cho <strong>{ALL_PRODUCTS_LIST.find(p => p.id === prefillSource)?.label ?? prefillSource}</strong> — chỉnh sửa nếu cần
+                  ✨ Đã điền sẵn template cho <strong>{productLabel(prefillSource)}</strong> — chỉnh sửa nếu cần
                 </p>
                 <button
                   type="button"
@@ -1636,7 +1716,7 @@ function CreativeAIPageInner() {
                     maxLength={150}
                     value={competitorNames}
                     onChange={e => setCompetitorNames(e.target.value)}
-                    placeholder="VD: Vietnix, VNPT, PA Vietnam, Mắt Bão"
+                    placeholder={isLegacy ? "VD: Vietnix, VNPT, PA Vietnam, Mắt Bão" : "Tên đối thủ (tuỳ chọn)"}
                     className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400"
                   />
                 </div>
@@ -2729,7 +2809,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
                 {TONES.map(t => {
                   const isSelected = selectedTones.includes(t.id);
-                  const isRecommended = t.bestFor.includes(selectedProduct);
+                  const isRecommended = isLegacy && t.bestFor.includes(selectedProduct);
                   const isDisabled = !isSelected && selectedTones.length >= MAX_TONES;
                   return (
                     <button
@@ -2771,15 +2851,15 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                         </span>
                       </div>
                       <span className="text-[10px] text-slate-400 leading-tight">{t.description}</span>
-                      {/* Sample hook — shown on hover or when selected */}
-                      <span className={cn(
+                      {/* Sample hook — shown on hover or when selected (câu mẫu là nội dung Mắt Bão → chỉ legacy) */}
+                      {isLegacy && <span className={cn(
                         "text-[10px] italic leading-tight mt-0.5 transition-all",
                         isSelected
                           ? "text-amber-700 opacity-100"
                           : "text-slate-300 opacity-0 group-hover/tone:opacity-100"
                       )}>
                         &ldquo;{t.sampleHook}&rdquo;
-                      </span>
+                      </span>}
                     </button>
                   );
                 })}
@@ -3195,7 +3275,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                     variant="outline" size="sm" className="gap-1.5 text-xs border-amber-200 text-amber-700 hover:bg-amber-50"
                     onClick={() => {
                       const briefData: BriefData = {
-                        productName: selectedProduct === "custom" ? customProduct : (ALL_PRODUCTS_LIST.find(p => p.id === selectedProduct)?.label ?? selectedProduct),
+                        productName: selectedProduct === "custom" ? customProduct : (productLabel(selectedProduct)),
                         objective: OBJECTIVES.find(o => o.value === objective)?.label ?? objective,
                         platform: platform === "both" ? "Facebook + Google" : platform === "facebook" ? "Facebook" : "Google",
                         bestTimeToRun: audienceData?.bestTimeToRun,
@@ -3213,7 +3293,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                     variant="outline" size="sm" className="gap-1.5 text-xs border-green-200 text-green-600 hover:bg-green-50"
                     onClick={() => {
                       const briefData: BriefData = {
-                        productName: selectedProduct === "custom" ? customProduct : (ALL_PRODUCTS_LIST.find(p => p.id === selectedProduct)?.label ?? selectedProduct),
+                        productName: selectedProduct === "custom" ? customProduct : (productLabel(selectedProduct)),
                         objective: OBJECTIVES.find(o => o.value === objective)?.label ?? objective,
                         platform: platform === "both" ? "Facebook + Google" : platform === "facebook" ? "Facebook" : "Google",
                         bestTimeToRun: audienceData?.bestTimeToRun,
@@ -3374,7 +3454,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                         setCreativeResults(prev => prev.map((c, idx) => idx === i ? { ...c, ...updated } as CreativeResult : c));
                         setCreatives(prev => prev.map((c, idx) => idx === i ? { ...c, ...updated } : c));
                       }}
-                      product={selectedProduct === "custom" ? customProduct : (ALL_PRODUCTS_LIST.find(p => p.id === selectedProduct)?.label ?? selectedProduct)}
+                      product={selectedProduct === "custom" ? customProduct : (productLabel(selectedProduct))}
                       selectedTones={selectedTones}
                       segment={cr.segmentName}
                     />
@@ -3391,7 +3471,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                       {previewOpenIndex === i && (
                         <div className="mt-2 flex justify-center">
                           <FBAdPreview
-                            pageName={company === "MBC" ? "MBC Vietnam" : company === "MBI" ? "MBI Vietnam" : companyLabel(company)}
+                            pageName={isLegacy ? (company === "MBC" ? "MBC Vietnam" : company === "MBI" ? "MBI Vietnam" : companyLabel(company)) : (brand?.brandName || companyLabel(company))}
                             primaryText={cr.primaryText}
                             imageUrl={cr.imageUrl}
                             headline={cr.headline}
@@ -3582,7 +3662,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                 <Button
                   onClick={() => {
                     const productName = selectedProduct === "custom" ? customProduct
-                      : ALL_PRODUCTS_LIST.find(p => p.id === selectedProduct)?.label ?? selectedProduct;
+                      : productLabel(selectedProduct);
                     setCampaignName(generateCampaignName(company, productName));
                     setStep(4);
                   }}
@@ -3775,7 +3855,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                       className={cn(
                         "flex-1 rounded-lg border px-4 py-2.5 text-xs font-semibold transition-all",
                         company === c
-                          ? c === "MBC" ? "border-blue-500 bg-blue-600 text-white" : "border-violet-500 bg-violet-600 text-white"
+                          ? companyActiveClass(c, companyDef(c)?.color)
                           : "border-slate-200 text-slate-500 bg-white"
                       )}
                     >{c}</button>
@@ -3950,7 +4030,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                   value={destinationUrl}
                   onChange={e => setDestinationUrl(e.target.value)}
                   className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400"
-                  placeholder="https://www.matbao.net"
+                  placeholder={isLegacy ? "https://www.matbao.net" : "https://website-cua-ban.vn"}
                 />
                 {/* UTM Auto-builder toggle */}
                 <label className="flex items-center gap-2 cursor-pointer">

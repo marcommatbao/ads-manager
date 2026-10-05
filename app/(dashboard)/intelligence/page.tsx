@@ -1,5 +1,6 @@
 "use client";
 
+import { companyIds } from "@/lib/companies/registry";
 import { useState, useEffect, useCallback } from "react";
 import {
   RefreshCw, Loader2, AlertTriangle, TrendingUp, TrendingDown,
@@ -716,7 +717,9 @@ export default function IntelligencePage() {
 
   // Fetch Bid Issues separately
   useEffect(() => {
-     fetch('/api/intelligence/bid-tracker?company=MBC')
+     // Đợt 21: trước đây ghim MBC → bản cài khách 403, bảng luôn trống. Bản Mắt Bão: vẫn MBC.
+     const bidCo = companyIds().includes("MBC") ? "MBC" : companyIds()[0];
+     fetch(`/api/intelligence/bid-tracker?company=${encodeURIComponent(bidCo ?? "")}`)
      .then(res => res.json())
      .then(data => { if(data.success) setBidIssues(data.data); })
      .finally(() => setLoadingBid(false));

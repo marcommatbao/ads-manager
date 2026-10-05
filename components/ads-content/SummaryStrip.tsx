@@ -1,5 +1,6 @@
 "use client";
 
+import { companyIds, companyLabel } from "@/lib/companies/registry";
 import { cn, formatNumber } from "@/lib/utils";
 import type { CreativeItem } from "@/types/creative-content.types";
 
@@ -27,8 +28,8 @@ export function SummaryStrip({ items, isLoading }: { items: CreativeItem[]; isLo
   const totalCreatives = items.length;
   const facebookCount = items.filter((i) => i.platform === "facebook").length;
   const googleCount = items.filter((i) => i.platform === "google_search" || i.platform === "google_pmax").length;
-  const mbcCount = items.filter((i) => i.company === "MBC").length;
-  const mbiCount = items.filter((i) => i.company === "MBI").length;
+  // Đợt 21: một ô / công ty của bản cài (trước đây ghim MBC + MBI → bản khách hiện 0 / 0). Bản Mắt Bão: cùng 2 ô MBC, MBI.
+  const perCompany = companyIds().map((co) => ({ co, n: items.filter((i) => i.company === co).length }));
 
   return (
     <div className={cn("grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6")}>
@@ -36,8 +37,9 @@ export function SummaryStrip({ items, isLoading }: { items: CreativeItem[]; isLo
       <SummaryTile label="Tổng creative có spend" value={formatNumber(totalCreatives)} isLoading={isLoading} />
       <SummaryTile label="Facebook" value={formatNumber(facebookCount)} isLoading={isLoading} />
       <SummaryTile label="Google (Search + PMax)" value={formatNumber(googleCount)} isLoading={isLoading} />
-      <SummaryTile label="MBC" value={formatNumber(mbcCount)} isLoading={isLoading} />
-      <SummaryTile label="MBI" value={formatNumber(mbiCount)} isLoading={isLoading} />
+      {perCompany.map(({ co, n }) => (
+        <SummaryTile key={co} label={co === "MBC" || co === "MBI" ? co : companyLabel(co)} value={formatNumber(n)} isLoading={isLoading} />
+      ))}
     </div>
   );
 }

@@ -190,3 +190,51 @@ export const PRODUCT_PREFILLS: Record<string, {
     competitors: "MISA Ecom, VNPT Invoice API, BKAV Invoice",
   },
 };
+
+// ─────────────────────────────────────────────
+// Công ty KHÔNG thuộc bản Mắt Bão (đợt 21) — không đụng hằng số riêng MBC/MBI
+// ─────────────────────────────────────────────
+
+/** Mục tiêu chung cho công ty ngoài MBC/MBI (nhãn trung tính, không nhắc sản phẩm Mắt Bão). */
+export const GENERIC_FB_OBJECTIVE_OPTIONS: Array<{
+  key: string; label: string; description: string; icon: typeof DollarSign;
+}> = [
+  { key: "OUTCOME_SALES",   label: "Doanh số",              description: "Mua trực tiếp online — tối ưu cho conversion", icon: DollarSign },
+  { key: "OUTCOME_LEADS",   label: "Khách hàng tiềm năng", description: "Thu thập form đăng ký, tư vấn",                icon: Users },
+  { key: "OUTCOME_TRAFFIC", label: "Lưu lượng truy cập",   description: "Đưa người vào website đọc",                    icon: BarChart3 },
+];
+
+/** Mục tiêu theo công ty — luôn có giá trị (không bao giờ undefined). `legacy=false` = công ty ngoài bản Mắt Bão. */
+export function fbObjectiveOptions(company: string, legacy?: boolean) {
+  return (legacy === false ? undefined : FB_OBJECTIVE_OPTIONS[company]) ?? GENERIC_FB_OBJECTIVE_OPTIONS;
+}
+
+/** Sản phẩm cố định theo công ty — luôn có giá trị. */
+export function legacyProducts(company: string) {
+  return PRODUCTS_BY_COMPANY[company] ?? [];
+}
+
+/** Lớp màu nút công ty cho id không có trong bản Mắt Bão (Tailwind cần chuỗi tĩnh nên liệt kê). */
+const COMPANY_COLOR_ACTIVE: Record<string, string> = {
+  blue: "border-blue-500 bg-blue-600 text-white",
+  indigo: "border-indigo-500 bg-indigo-600 text-white",
+  violet: "border-violet-500 bg-violet-600 text-white",
+  emerald: "border-emerald-500 bg-emerald-600 text-white",
+  green: "border-green-500 bg-green-600 text-white",
+  red: "border-red-500 bg-red-600 text-white",
+  orange: "border-orange-500 bg-orange-600 text-white",
+  amber: "border-amber-500 bg-amber-600 text-white",
+  rose: "border-rose-500 bg-rose-600 text-white",
+  teal: "border-teal-500 bg-teal-600 text-white",
+  cyan: "border-cyan-500 bg-cyan-600 text-white",
+  sky: "border-sky-500 bg-sky-600 text-white",
+};
+export function companyActiveClass(id: string, color: string | undefined): string {
+  if (id === "MBC") return "border-blue-500 bg-blue-600 text-white";
+  if (id === "MBI") return "border-violet-500 bg-violet-600 text-white";
+  return COMPANY_COLOR_ACTIVE[color ?? ""] ?? "border-slate-600 bg-slate-700 text-white";
+}
+
+/** Ô "Tuỳ chỉnh" (gõ tay) — luôn có ở công ty ngoài bản Mắt Bão, sau các sản phẩm trong hồ sơ. */
+export const CUSTOM_PRODUCT_OPTION: { id: string; label: string; icon: typeof Globe; badge: string | null } =
+  { id: "custom", label: "Tuỳ chỉnh", icon: Edit3, badge: null };

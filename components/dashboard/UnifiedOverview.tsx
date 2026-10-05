@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useAdsStore } from "@/store/useAdsStore";
+import { hasModule } from "@/lib/companies/registry";
 
 // ── Types ──
 interface UnifiedSummary {
@@ -196,6 +197,9 @@ export default function UnifiedOverview() {
           </div>
         </div>
 
+        {/* Đợt 22: hai ô Odoo của Mắt Bão (đơn MBI / doanh thu MBC) chỉ ở bản cài có gói matbao — bản khách từng thấy
+            "Doanh thu MBC (thật)" + lỗi MATBAO_REPORT_API. Bản Mắt Bão: y nguyên. */}
+        {hasModule("matbao") && (<>
         {/* Đơn hàng MBI (thật) — LUÔN hiện, không phụ bộ lọc company ở trên:
             MBI đo hiệu quả bằng đơn hàng (không có doanh thu để đo), nên đây
             là sự thật cố định của MBI chứ không phải số bị lọc theo phạm vi. */}
@@ -250,6 +254,7 @@ export default function UnifiedOverview() {
             </>
           )}
         </div>
+        </>)}
       </div>
 
     </div>

@@ -53,6 +53,16 @@ import {
   Copy,
 } from "lucide-react";
 import { getCompany, getFrequencyStatus, getLearningPhaseStatus, getCampaignDuration } from "@/lib/campaign-utils";
+import { companyIds, companyLabel } from "@/lib/companies/registry";
+
+/** Đợt 21: công ty của chiến dịch — theo tiền tố tên như cũ; bản cài CHỈ MỘT công ty (khách) thì mọi chiến dịch thuộc công ty đó.
+ *  Bản Mắt Bão (2 công ty): y như getCompany(). */
+function companyOfCampaign(name: string): string | null {
+  const byName = getCompany(name);
+  if (byName) return byName;
+  const ids = companyIds();
+  return ids.length === 1 ? ids[0] : null;
+}
 import { quickFatigueCheck, FATIGUE_BADGES, OBJECTIVE_LABELS } from "@/lib/fatigue-detector";
 
 // ─────────────────────────────────────────────
@@ -453,6 +463,8 @@ function SkeletonRow() {
 // ─────────────────────────────────────────────
 function getCplBadge(cpl: number | null, company: string | null, cur: string) {
   if (cpl === null || isNaN(cpl)) return { bg: "bg-slate-100", text: "text-slate-500", label: "⚪ —" };
+  // Đợt 21: ngưỡng tĩnh này là của MBC / MBI. Công ty khác chưa có ngưỡng → chỉ hiện số, không tô xanh/đỏ (không đoán).
+  if (company !== null && company !== "MBC" && company !== "MBI") return { bg: "bg-slate-100", text: "text-slate-600", label: fmtSpend(cpl, cur) };
   const th = company === "MBI" ? { good: 150000, warning: 250000 } : { good: 60000, warning: 99000 };
   
   if (cpl <= th.good) return { bg: "bg-emerald-100", text: "text-emerald-700", label: `🟢 ${fmtSpend(cpl, cur)}` };
@@ -635,10 +647,10 @@ export default function CampaignTable({ campaigns, isLoading = false, currency =
 
   // ── Company counts (for company filter pills) ──
   const companyCounts = useMemo(() => {
-    const counts: Record<string, { count: number; spend: number }> = { MBC: { count: 0, spend: 0 }, MBI: { count: 0, spend: 0 } };
+    const counts: Record<string, { count: number; spend: number }> = Object.fromEntries(companyIds().map((co) => [co, { count: 0, spend: 0 }]));
     for (const c of campaigns) {
-      const co = getCompany(c.name);
-      if (co) { counts[co].count++; counts[co].spend += c.metrics.spend; }
+      const co = companyOfCampaign(c.name);
+      if (co && counts[co]) { counts[co].count++; counts[co].spend += c.metrics.spend; }
     }
     return counts;
   }, [campaigns]);
@@ -655,7 +667,7 @@ export default function CampaignTable({ campaigns, isLoading = false, currency =
       if (platform !== "all" && c.platform !== platform) return false;
       if (search && !c.name.toLowerCase().includes(search.toLowerCase())) return false;
       // Company filter
-      if (companyFilter !== "all" && getCompany(c.name) !== companyFilter) return false;
+      if (companyFilter !== "all" && companyOfCampaign(c.name) !== companyFilter) return false;
       // Health filter
       if (healthFilter !== "all") {
         if (healthFilter === "paused") return c.status === "PAUSED";
@@ -779,20 +791,16 @@ export default function CampaignTable({ campaigns, isLoading = false, currency =
             className={cn("rounded-full px-3 py-1 text-[11px] font-semibold transition-colors",
               companyFilter === "all" ? "bg-slate-700 text-white shadow-sm" : "text-slate-400 hover:text-slate-600")}
           >Tất cả</button>
-          <button
-            onClick={() => setCompanyFilter("MBC")}
-            className={cn("rounded-full px-3 py-1 text-[11px] font-semibold transition-colors",
-              companyFilter === "MBC" ? "bg-blue-600 text-white shadow-sm" : "text-slate-400 hover:text-slate-600")}
-          >
-            🏢 MBC ({companyCounts.MBC.count} · ₫{fmtSpendShort(companyCounts.MBC.spend)})
-          </button>
-          <button
-            onClick={() => setCompanyFilter("MBI")}
-            className={cn("rounded-full px-3 py-1 text-[11px] font-semibold transition-colors",
-              companyFilter === "MBI" ? "bg-purple-600 text-white shadow-sm" : "text-slate-400 hover:text-slate-600")}
-          >
-            🏢 MBI ({companyCounts.MBI.count} · ₫{fmtSpendShort(companyCounts.MBI.spend)})
-          </button>
+          {companyIds().map((co) => (
+            <button
+              key={co}
+              onClick={() => setCompanyFilter(co)}
+              className={cn("rounded-full px-3 py-1 text-[11px] font-semibold transition-colors",
+                companyFilter === co ? `${co === "MBC" ? "bg-blue-600" : co === "MBI" ? "bg-purple-600" : "bg-slate-700"} text-white shadow-sm` : "text-slate-400 hover:text-slate-600")}
+            >
+              🏢 {co === "MBC" || co === "MBI" ? co : companyLabel(co)} ({companyCounts[co]?.count ?? 0} · ₫{fmtSpendShort(companyCounts[co]?.spend ?? 0)})
+            </button>
+          ))}
         </div>
       </div>
 
@@ -1119,7 +1127,7 @@ export default function CampaignTable({ campaigns, isLoading = false, currency =
                           <TableCell className="text-right">
                             {(() => {
                                const cplVal = m.conversions > 0 ? m.spend / m.conversions : null;
-                               const b = getCplBadge(cplVal, getCompany(c.name), currency);
+                               const b = getCplBadge(cplVal, companyOfCampaign(c.name), currency);
                                return (
                                  <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold", b.bg, b.text)} title="Pixel only">
                                    {b.label}

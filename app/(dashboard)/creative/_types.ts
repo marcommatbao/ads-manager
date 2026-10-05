@@ -123,3 +123,19 @@ export interface AudienceInsightData {
   };
   campaignStrategy?: CampaignStrategy;
 }
+
+/** Hồ sơ thương hiệu của một công ty — GET /api/creative/brand?company=… */
+export interface BrandProduct { id: string; label: string; description?: string; url?: string }
+export interface BrandData {
+  company: string;
+  /** true = công ty bản Mắt Bão (MBC/MBI): giữ nguyên hằng số cũ, `products` rỗng. */
+  legacy: boolean;
+  hasProfile: boolean;
+  brandName: string;
+  domain: string;
+  persona: string;
+  strengths: string[];
+  tone?: string;
+  forbidden: string[];
+  products: BrandProduct[];
+}

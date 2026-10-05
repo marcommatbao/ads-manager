@@ -8,6 +8,9 @@ import { getInsightsForToneSegment } from "@/lib/creative-tracker";
 import { callGemini, type GeminiResponse } from "@/lib/gemini";
 import { scoreCreative } from "@/lib/creative-scorer";
 import { getRelevantMemories, buildMemoryPromptSection } from "@/lib/ai-memory-engine";
+import { creativeBrandPrompt } from "@/lib/brand/creative";
+import { isCompany } from "@/lib/companies";
+import { canAccessCompany } from "@/lib/permissions";
 import { getCurrentUser } from "@/lib/auth";
 import { checkCreativeLimits, formatViolationsForRetry } from "@/lib/creative-limits";
 import { runGeneratedCompliance } from "@/lib/creative-brief/compliance";
@@ -141,6 +144,10 @@ export async function POST(request: NextRequest) {
   if (!body.product || !body.platform) {
     return NextResponse.json({ success: false, error: "product and platform are required" }, { status: 400 });
   }
+  // Đợt 21 A3b: công ty gửi lên phải là công ty người này được xem (khối thương hiệu đọc theo công ty đó).
+  if (body.company !== undefined && (!isCompany(body.company) || !canAccessCompany(user, body.company))) {
+    return NextResponse.json({ success: false, error: "Không có quyền với công ty này" }, { status: 403 });
+  }
 
   // Pull relevant AI memories (non-blocking — generation continues if this fails)
   let memorySection = "";
@@ -157,7 +164,8 @@ export async function POST(request: NextRequest) {
     // Memory injection is best-effort — never block generation
   }
 
-  const prompt = memorySection + buildPrompt(body);
+  // Đợt 21 A3b: công ty ngoài gói Mắt Bão → thêm khối hồ sơ thương hiệu (MBC/MBI: chuỗi rỗng — lời nhắc cũ y nguyên).
+  const prompt = memorySection + buildPrompt(body) + creativeBrandPrompt(body.company);
 
   interface GeneratedFields {
     headline: string;

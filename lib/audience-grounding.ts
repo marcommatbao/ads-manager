@@ -218,15 +218,21 @@ export function verifyGrounding(
    * khớp chính xác. Cache đã có sẵn cặp tên↔id từ những lần resolve trước.
    */
   interestIdByName: Map<string, string> = new Map(),
+  /** Đợt 21 A3b: bản cài khách — nguồn nội bộ là HỒ SƠ DOANH NGHIỆP của công ty, KHÔNG tra kho kiến thức Mắt Bão
+   *  (tránh sản phẩm khách tên "hosting" khớp nhầm kho của Mắt Bão). null = cách cũ. */
+  ownCorpus: string[] | null = null,
 ): GroundingReport {
-  const kb = getKbEntry(productId);
-  const kbCorpus = buildKbCorpus(kb);
+  const own = ownCorpus ? ownCorpus.map((x) => x.trim()).filter(Boolean) : null;
+  const kb = own ? null : getKbEntry(productId);
+  const kbCorpus = own ?? buildKbCorpus(kb);
+  const hasSource = own ? own.length > 0 : !!kb;
   const manualCorpus = manualInputs.filter(Boolean);
 
   const globalWarnings: string[] = [];
-  if (!kb) {
-    globalWarnings.push(
-      `Không có kiến thức sản phẩm cho "${productId}" trong products-knowledge — toàn bộ phân khúc dưới đây là suy luận của AI, không có nguồn nội bộ nào để đối chiếu.`,
+  if (!hasSource) {
+    globalWarnings.push(own
+      ? "Hồ sơ doanh nghiệp chưa có mô tả sản phẩm / điểm mạnh / khách hàng mục tiêu — toàn bộ phân khúc dưới đây là suy luận của AI, không có nguồn nội bộ nào để đối chiếu. Bổ sung ở Cài đặt → Hồ sơ doanh nghiệp."
+      : `Không có kiến thức sản phẩm cho "${productId}" trong products-knowledge — toàn bộ phân khúc dưới đây là suy luận của AI, không có nguồn nội bộ nào để đối chiếu.`,
     );
   }
 
@@ -388,7 +394,7 @@ export function verifyGrounding(
     }
 
     const kbGroundedCount = evidence.filter((e) => e.sourceType === "kb_grounded").length;
-    if (kb && kbGroundedCount === 0) {
+    if (hasSource && kbGroundedCount === 0) {
       warnings.push("Không có căn cứ nào truy được về kiến thức sản phẩm — phân khúc này hoàn toàn do AI suy luận.");
     }
 
@@ -442,7 +448,7 @@ export function verifyGrounding(
 
   return {
     productId,
-    kbAvailable: Boolean(kb),
+    kbAvailable: hasSource,
     segments: segmentReports,
     globalWarnings,
     hasWarnings,

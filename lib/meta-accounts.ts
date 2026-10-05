@@ -21,13 +21,18 @@
 // giải quyết được gì.
 // ============================================================
 
-import { publicIdFromConfig } from "@/lib/companies/registry";
+import { allCompanyDefs, companyDef, companyIds, publicIdFromConfig } from "@/lib/companies/registry";
 
 export type MetaCompany = string;
 
-/** Các công ty có fanpage/pixel Meta để chạy campaign (SALE_AI chỉ có pixel + GA4). */
-export const META_PAGE_COMPANIES: readonly MetaCompany[] = ["MBC", "MBI"] as const;
-export const ALL_COMPANIES: readonly MetaCompany[] = ["MBC", "MBI", "SALE_AI"] as const;
+/** Các công ty có fanpage/pixel Meta để chạy campaign = công ty CHẠY QUẢNG CÁO của bản cài (SALE_AI chỉ có pixel + GA4).
+ *  Đợt 21 (làm sạch MBC/MBI): trước đây ghim ["MBC","MBI"] → bản cài khách có ô chọn Trang / Pixel RỖNG và
+ *  metaAccountsConfigured() = false. Bản Mắt Bão: vẫn đúng ["MBC","MBI"] (đối chứng tests/case/dot21-golden.test.ts). */
+export const metaPageCompanies = (): MetaCompany[] => companyIds();
+/** Mọi công ty của bản cài, kể cả công ty không chạy quảng cáo (bản Mắt Bão: MBC, MBI, SALE_AI). */
+export const allMetaCompanies = (): MetaCompany[] => allCompanyDefs().map((c) => c.id);
+/** Hậu tố biến môi trường của công ty (bản Mắt Bão: trùng mã công ty). */
+const suf = (company: MetaCompany): string => companyDef(company)?.envSuffix ?? company;
 
 export interface MetaAccountIds {
   pageId: string;
@@ -101,14 +106,14 @@ function env(name: string): string {
 
 export function metaAccountIds(company: MetaCompany): MetaAccountIds {
   return {
-    pageId:  env(`NEXT_PUBLIC_META_PAGE_ID_${company}`),
-    pixelId: env(`NEXT_PUBLIC_META_PIXEL_ID_${company}`),
+    pageId:  env(`NEXT_PUBLIC_META_PAGE_ID_${suf(company)}`),
+    pixelId: env(`NEXT_PUBLIC_META_PIXEL_ID_${suf(company)}`),
   };
 }
 
 /** Pixel mặc định theo công ty. Rỗng = chưa cấu hình. */
 export function defaultPixelId(company: string): string {
-  return ALL_COMPANIES.includes(company as MetaCompany)
+  return allMetaCompanies().includes(company as MetaCompany)
     ? metaAccountIds(company as MetaCompany).pixelId
     : "";
 }
@@ -116,7 +121,7 @@ export function defaultPixelId(company: string): string {
 /** Page ID theo công ty, dạng bản đồ — thay cho hằng PAGE_IDS cũ. */
 export function pageIdsByCompany(): Record<string, string> {
   const out: Record<string, string> = {};
-  for (const c of META_PAGE_COMPANIES) {
+  for (const c of metaPageCompanies()) {
     const id = metaAccountIds(c).pageId;
     if (id) out[c] = id;
   }
@@ -126,7 +131,7 @@ export function pageIdsByCompany(): Record<string, string> {
 /** Page ID → Pixel ID, để tự chọn pixel khi đổi fanpage. */
 export function pagePixelMap(): Record<string, string> {
   const out: Record<string, string> = {};
-  for (const c of META_PAGE_COMPANIES) {
+  for (const c of metaPageCompanies()) {
     const { pageId, pixelId } = metaAccountIds(c);
     if (pageId && pixelId) out[pageId] = pixelId;
   }
@@ -136,10 +141,10 @@ export function pagePixelMap(): Record<string, string> {
 /** Danh sách pixel cho ô chọn. Nhãn lấy từ env để tên site cũng không nằm trong mã. */
 export function pixelOptions(): Array<{ id: string; label: string }> {
   const opts: Array<{ id: string; label: string }> = [];
-  for (const c of META_PAGE_COMPANIES) {
+  for (const c of metaPageCompanies()) {
     const { pixelId } = metaAccountIds(c);
     if (!pixelId) continue;
-    const label = env(`NEXT_PUBLIC_META_PIXEL_LABEL_${c}`) || c;
+    const label = env(`NEXT_PUBLIC_META_PIXEL_LABEL_${suf(c)}`) || c;
     opts.push({ id: pixelId, label: `${label} — ${pixelId}` });
   }
   return opts;
@@ -152,13 +157,13 @@ export function metaAccountsConfigured(): boolean {
 
 /** Tên hiển thị của fanpage. Lấy từ env để tên công ty/site cũng không nằm trong mã. */
 export function pageLabel(company: MetaCompany): string {
-  return env(`NEXT_PUBLIC_META_PAGE_LABEL_${company}`) || company;
+  return env(`NEXT_PUBLIC_META_PAGE_LABEL_${suf(company)}`) || company;
 }
 
 /** Danh sách fanpage đã biết — thay cho hằng FALLBACK_PAGES / PAGE_IDS cũ. */
 export function knownPages(): Array<{ id: string; name: string }> {
   const out: Array<{ id: string; name: string }> = [];
-  for (const c of META_PAGE_COMPANIES) {
+  for (const c of metaPageCompanies()) {
     const id = metaAccountIds(c).pageId;
     if (id) out.push({ id, name: pageLabel(c) });
   }
@@ -170,7 +175,7 @@ export function knownPages(): Array<{ id: string; name: string }> {
  * (nằm trong mã nguồn website) nhưng không nên nằm trong repo công khai.
  */
 export function ga4MeasurementId(company: MetaCompany): string {
-  return env(`NEXT_PUBLIC_GA4_MEASUREMENT_ID_${company}`);
+  return env(`NEXT_PUBLIC_GA4_MEASUREMENT_ID_${suf(company)}`);
 }
 
 export interface Ga4Ids {
@@ -190,11 +195,11 @@ export interface Ga4Ids {
  * hình rất dễ dán đúng số đó.
  */
 export function ga4Ids(company: MetaCompany): Ga4Ids {
-  const rawProp = env(`NEXT_PUBLIC_GA4_PROPERTY_ID_${company}`);
+  const rawProp = env(`NEXT_PUBLIC_GA4_PROPERTY_ID_${suf(company)}`);
   const propertyId = !rawProp ? "" : /^properties\//.test(rawProp) ? rawProp : `properties/${rawProp}`;
   return {
     propertyId,
-    streamId: env(`NEXT_PUBLIC_GA4_STREAM_ID_${company}`),
+    streamId: env(`NEXT_PUBLIC_GA4_STREAM_ID_${suf(company)}`),
     measurementId: ga4MeasurementId(company),
   };
 }

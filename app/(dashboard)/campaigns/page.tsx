@@ -1,5 +1,6 @@
 "use client";
 
+import { companyIds } from "@/lib/companies/registry";
 import { useState, useEffect, useMemo } from "react";
 import CampaignTable from "@/components/CampaignTable";
 import { useAdsStore, detectCompany, type CompanyFilter } from "@/store/useAdsStore";
@@ -139,18 +140,19 @@ export default function CampaignsPage() {
     try {
       const q = `from=${dateRange.from}&to=${dateRange.to}`;
 
-      // Fetch Facebook (active + paused) and Google (MBC + MBI) in parallel
-      const [metaActiveRes, metaPausedRes, googleMbcRes, googleMbiRes] = await Promise.all([
+      // Fetch Facebook (active + paused) and Google (mỗi công ty của bản cài) in parallel.
+      // Đợt 21 A3b: trước đây ghim MBC + MBI → bản cài khách KHÔNG BAO GIỜ thấy chiến dịch Google của mình.
+      // Bản Mắt Bão: companyIds() = ["MBC","MBI"] cùng thứ tự → yêu cầu + nhãn lỗi y nguyên.
+      const googleCos = companyIds();
+      const [metaActiveRes, metaPausedRes, ...googleRes] = await Promise.all([
         fetch(`/api/meta/campaigns?status=ACTIVE&${q}`, { cache: 'no-store' }),
         fetch(`/api/meta/campaigns?status=PAUSED&${q}`, { cache: 'no-store' }),
-        fetch(`/api/google/campaigns?company=MBC&${q}`, { cache: 'no-store' }).catch(() => null),
-        fetch(`/api/google/campaigns?company=MBI&${q}`, { cache: 'no-store' }).catch(() => null),
+        ...googleCos.map((co) => fetch(`/api/google/campaigns?company=${encodeURIComponent(co)}&${q}`, { cache: 'no-store' }).catch(() => null)),
       ]);
       
       const metaActiveData = await metaActiveRes.json();
       const metaPausedData = await metaPausedRes.json();
-      const googleMbcData = googleMbcRes ? await googleMbcRes.json().catch(() => ({ success: false, campaigns: [] })) : { success: false, campaigns: [] };
-      const googleMbiData = googleMbiRes ? await googleMbiRes.json().catch(() => ({ success: false, campaigns: [] })) : { success: false, campaigns: [] };
+      const googleDatas = await Promise.all(googleRes.map((r) => (r ? r.json().catch(() => ({ success: false, campaigns: [] })) : { success: false, campaigns: [] })));
 
       // API /api/google/campaigns already returns fully normalized Campaign objects
       // (status: "ACTIVE"|"PAUSED"|"ARCHIVED", metrics with correct field names)
@@ -180,8 +182,7 @@ export default function CampaignsPage() {
       };
 
       const googleCampaigns = [
-        ...normalizeGoogleCampaigns(googleMbcData),
-        ...normalizeGoogleCampaigns(googleMbiData),
+        ...googleDatas.flatMap((d) => normalizeGoogleCampaigns(d)),
       ];
 
       // Lý do cột "Người dùng" trống, để bảng nói thật thay vì im lặng.
@@ -193,7 +194,7 @@ export default function CampaignsPage() {
         metaPausedData?.conversionGoalsUnavailable === true,
       );
 
-      const uuErr = [googleMbcData?.uniqueUsersError, googleMbiData?.uniqueUsersError]
+      const uuErr = googleDatas.map((d) => d?.uniqueUsersError)
         .filter((e: unknown): e is string => typeof e === "string" && e.length > 0);
       setUniqueUsersError(uuErr.length > 0 ? Array.from(new Set(uuErr)).join(" | ") : null);
 
@@ -221,8 +222,7 @@ export default function CampaignsPage() {
       const syncErrors = [
         asRealError(metaActiveData, "Meta (Active)"),
         asRealError(metaPausedData, "Meta (Paused)"),
-        asRealError(googleMbcData, "Google MBC"),
-        asRealError(googleMbiData, "Google MBI"),
+        ...googleDatas.map((d, i) => asRealError(d, `Google ${googleCos[i]}`)),
       ].filter((e): e is string => !!e);
 
       if (syncErrors.length > 0) {

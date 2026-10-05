@@ -91,8 +91,12 @@ const vnd = (n: number) => new Intl.NumberFormat("vi-VN").format(Math.round(n));
 export default function AutomationSettingsPage() {
   const storeCompany = useAdsStore((s) => s.selectedCompany);
   // The store allows "all"; this page configures one company at a time.
+  // Đợt 21: bản cài khách không có MBC/MBI → công ty đang chọn / công ty đầu tiên (trước đây luôn rơi về "MBC" → 403).
+  // Bản Mắt Bão: y như cũ (MBI → MBI, còn lại → MBC).
   const [company, setCompany] = useState<Company>(
-    storeCompany === "MBI" ? "MBI" : "MBC",
+    storeCompany === "MBI" ? "MBI"
+      : companyIds().includes("MBC") ? "MBC"
+      : (isCompany(storeCompany) ? storeCompany : companyIds()[0]) as Company,
   );
 
   const [settings, setSettings] = useState<SettingsResponse | null>(null);
