@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2, Save, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/Toast";
+import { orderedCompanyIds } from "@/lib/companies/registry";
 
 type Company = string;
 
@@ -35,7 +36,8 @@ interface ApiResponse {
 }
 
 const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
-const COMPANIES: Company[] = ["MBC", "MBI"];
+// Đợt 25: công ty theo bản cài (bản Mắt Bão y như cũ)
+const COMPANIES: Company[] = orderedCompanyIds(["MBC", "MBI"]) as Company[];
 
 const fmt = (n: number) => n.toLocaleString("vi-VN");
 const keyOf = (month: string, company: string, channel: string) => `${month}|${company}|${channel}`;
@@ -43,7 +45,7 @@ const keyOf = (month: string, company: string, channel: string) => `${month}|${c
 export default function ManualSpendPage() {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
-  const [company, setCompany] = useState<Company>("MBC");
+  const [company, setCompany] = useState<Company>(() => orderedCompanyIds(["MBC"])[0] ?? "MBC");
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState<Record<string, string>>({});

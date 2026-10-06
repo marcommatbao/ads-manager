@@ -27,6 +27,10 @@ import { KIND_LABEL, SOURCE_LABEL, STATUS_LABEL } from "@/lib/inbox/labels";
 import type { InboxKind, InboxSource } from "@/lib/inbox/build";
 import type { InboxStatus, InboxView } from "@/lib/inbox/store";
 import type { Company } from "@/lib/case/types";
+import { orderedCompanyIds, companyLabel } from "@/lib/companies/registry";
+
+// Đợt 25: công ty theo bản cài (bản Mắt Bão y như cũ)
+const coText = (id: string) => (id === "MBC" || id === "MBI" ? id : companyLabel(id));
 
 // ── Kiểu dữ liệu trả về từ GET /api/inbox (xem app/api/inbox/route.ts) ──
 interface InboxApiResponse {
@@ -238,8 +242,9 @@ export default function ViecHomNayPage() {
                     <SelectTrigger aria-label="Công ty"><SelectValue>{(v: string) => (v === "ALL" ? "Tất cả" : v)}</SelectValue></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="ALL">Tất cả</SelectItem>
-                      <SelectItem value="MBC">MBC</SelectItem>
-                      <SelectItem value="MBI">MBI</SelectItem>
+                      {orderedCompanyIds(["MBC", "MBI"]).map((c) => (
+                        <SelectItem key={c} value={c}>{coText(c)}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>

@@ -33,6 +33,12 @@ export const hasPack = (id: string, pack: string): boolean => !!companyDef(id)?.
  * Chuẩn hoá mã công ty từ đầu vào: hợp lệ → giữ, không → công ty mặc định của bản cài.
  * Thay mẫu cũ `x === "MBI" ? "MBI" : "MBC"` — bản Mắt Bão cho ra đúng như cũ (MBI→MBI, còn lại→MBC).
  */
+/** Đợt 25: công ty của bản cài theo thứ tự ưu tiên `preferred` (mã không có ở bản cài bị bỏ, mã còn lại nối sau).
+ *  Thay cho các danh sách viết cứng ["MBI","MBC"]: bản Mắt Bão ra ĐÚNG thứ tự cũ; bản khách ra công ty của mình. */
+export const orderedCompanyIds = (preferred: string[] = []): string[] => {
+  const ids = companyIds()
+  return [...preferred.filter((p) => ids.includes(p)), ...ids.filter((i) => !preferred.includes(i))]
+}
 export const pickCompany = (raw: unknown): string => (isCompany(raw) ? raw : fallbackCompany())
 
 /** Tên hiển thị / URL gốc / đường dẫn hiển thị quảng cáo của công ty KHÔNG có chuỗi riêng trong mã (công ty mới của bản cài). */

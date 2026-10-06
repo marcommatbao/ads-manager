@@ -183,7 +183,7 @@ export async function GET(
 
   if (platform === "google" && !company) {
     return NextResponse.json(
-      { error: "Thiếu thông tin công ty (MBC/MBI) để đọc chiến dịch Google" },
+      { error: "Thiếu thông tin công ty để đọc chiến dịch Google" },
       { status: 400 }
     );
   }

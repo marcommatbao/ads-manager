@@ -15,6 +15,10 @@ import {
   Check, Clock, X, ThumbsUp, ThumbsDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { orderedCompanyIds, companyLabel } from "@/lib/companies/registry";
+
+// Đợt 25: công ty theo bản cài (bản Mắt Bão y như cũ)
+const coText = (id: string) => (id === "MBC" || id === "MBI" ? id : companyLabel(id));
 
 type ExecMode = "advisory_only" | "manual_action" | "auto_apply_candidate";
 
@@ -188,7 +192,7 @@ export default function NbaTriage() {
 
       {/* Filters */}
       <div className="flex flex-wrap gap-2 mb-4 text-xs">
-        <Select value={company} onChange={setCompany} options={[["", "Mọi công ty"], ["MBC", "MBC"], ["MBI", "MBI"]]} />
+        <Select value={company} onChange={setCompany} options={[["", "Mọi công ty"], ...orderedCompanyIds(["MBC", "MBI"]).map((c) => [c, coText(c)] as [string, string])]} />
         <Select value={platform} onChange={setPlatform} options={[["", "Mọi nền"], ["facebook", "Facebook"], ["google", "Google"]]} />
         <Select value={mode} onChange={setMode} options={[["", "Mọi chế độ"], ["advisory_only", "Tư vấn"], ["manual_action", "Làm tay"], ["auto_apply_candidate", "Tự áp"]]} />
         <Select value={type} onChange={setType} options={[["", "Mọi loại"], ...Object.entries(TYPE_LABEL)]} />

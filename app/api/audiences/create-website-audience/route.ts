@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
     // FALLBACK_PIXELS) — there is no single "both" pixel to build a
     // WEBSITE audience rule from.
     return NextResponse.json(
-      { success: false, error: "web_visitors yêu cầu chọn đúng 1 công ty (MBC hoặc MBI) để xác định Pixel" },
+      { success: false, error: "web_visitors yêu cầu chọn đúng 1 công ty để xác định Pixel" },
       { status: 400 }
     );
   }

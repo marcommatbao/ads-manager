@@ -1,6 +1,6 @@
 "use client";
 
-import { companyIds } from "@/lib/companies/registry";
+import { companyIds, orderedCompanyIds, companyLabel } from "@/lib/companies/registry";
 import { useState, useEffect, useMemo } from "react";
 import CampaignTable from "@/components/CampaignTable";
 import { useAdsStore, detectCompany, type CompanyFilter } from "@/store/useAdsStore";
@@ -512,7 +512,7 @@ export default function CampaignsPage() {
 
       {/* Company Filter */}
       <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-white p-0.5 shadow-sm w-fit max-w-full overflow-x-auto flex-nowrap scrollbar-hide">
-        {(["all", "MBC", "MBI"] as CompanyFilter[]).map(c => (
+        {(["all", ...orderedCompanyIds(["MBC", "MBI"])] as CompanyFilter[]).map(c => ( // Đợt 25: công ty theo bản cài
           <button key={c} onClick={() => setSelectedCompany(c)}
             className={cn("rounded-full px-4 py-1.5 text-xs font-medium transition-colors",
               selectedCompany === c
@@ -521,7 +521,7 @@ export default function CampaignsPage() {
                   : "bg-slate-700 text-white shadow-sm"
                 : "text-slate-500 hover:text-slate-700")}
           >
-            {c === "all" ? "Tất cả" : `🏢 ${c}`}
+            {c === "all" ? "Tất cả" : `🏢 ${c === "MBC" || c === "MBI" ? c : companyLabel(c)}`}
           </button>
         ))}
       </div>

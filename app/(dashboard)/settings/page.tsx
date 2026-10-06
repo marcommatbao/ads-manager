@@ -1,7 +1,7 @@
 "use client";
 
 import { CompanyIntegrationIds } from "@/components/settings/CompanyIntegrationIds";
-import { isCompany } from "@/lib/companies/registry";
+import { isCompany, hasModule } from "@/lib/companies/registry";
 import { useCompaniesVersion } from "@/lib/companies/use-companies";
 import { useState, useEffect } from "react";
 import {
@@ -914,7 +914,8 @@ function SettingsContent() {
 
       <ServiceKeys canEdit={perms.canEditCredentials} />
 
-      <CompanyMappingTable />
+      {/* Đợt 25: bảng tên miền MBC / MBI / Sale.AI là của Mắt Bão — bản khách dùng khối "Mã theo công ty" */}
+      {hasModule("matbao") && <CompanyMappingTable />}
 
       {/* Connector Health panel — visible to all who can view credentials */}
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-5">

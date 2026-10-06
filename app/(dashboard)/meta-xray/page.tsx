@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 import { DateRangeControl, type DateRangeValue } from "@/components/DateRangeControl";
 import { DEFAULT_VIEW_DAYS, MAX_RANGE_DAYS, isYmd, lastDays } from "@/lib/case/dates";
 import { MetaXrayView } from "@/components/meta/MetaXrayView";
-import { companyIds } from "@/lib/companies/registry";
+import { companyIds, orderedCompanyIds } from "@/lib/companies/registry";
 
 type Company = string;
 
@@ -40,7 +40,7 @@ export default function MetaXrayPage() {
 function MetaXrayPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [company, setCompany] = useState<Company>("MBC");
+  const [company, setCompany] = useState<Company>(() => orderedCompanyIds(["MBC"])[0] ?? "MBC") // Đợt 25: công ty theo bản cài (bản Mắt Bão y như cũ);
   const [range, setRange] = useState<DateRangeValue>(() => initialRange(searchParams));
 
   function handleRangeChange(next: DateRangeValue) {

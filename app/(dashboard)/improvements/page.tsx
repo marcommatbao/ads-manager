@@ -214,6 +214,7 @@ const CheckIcon = ({ size, strokeWidth = 2 }: { size: number, strokeWidth?: numb
 // Add missing exports for backward compatibility if needed, or just let it be.
 import { detectPlatform, Improvement, Platform, Priority } from "@/types/improvements"
 import { ActionPlanPanel } from "./ActionPlanPanel"
+import { orderedCompanyIds } from "@/lib/companies/registry";
 
 // ─────────────────────────────────────
 // MAIN PAGE
@@ -238,7 +239,7 @@ export default function ImprovementsPage() {
   const fetchImprovements = useCallback(async () => {
     useImprovementsStore.getState().setLoading(true)
     try {
-      const co = company || "MBC"
+      const co = company || (orderedCompanyIds(["MBC"])[0] ?? "MBC") // Đợt 25: công ty theo bản cài (bản Mắt Bão y như cũ)
       const res = await fetch(`/api/improvements?company=${co}`)
       if (res.ok) {
         const data = await res.json()

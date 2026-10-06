@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
   const company = searchParams.get("company") as string | null;
 
   if (!company || !isCompany(company)) {
-    return NextResponse.json({ error: "company parameter required (MBC|MBI)" }, { status: 400 });
+    return NextResponse.json({ error: "Thiếu công ty" }, { status: 400 });
   }
 
   // Viewers can only see their own company silo — was checking the
@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
   }
 
   if (!isCompany(body.target.company)) {
-    return NextResponse.json({ error: "target.company must be MBC or MBI" }, { status: 400 });
+    return NextResponse.json({ error: "Công ty không có ở bản cài này" }, { status: 400 });
   }
 
   // Force source to human_manual with the calling user's identity

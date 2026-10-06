@@ -23,6 +23,7 @@ import { useState } from "react";
 import useSWR from "swr";
 import { Wallet, TrendingUp, Receipt, AlertTriangle, RefreshCw, Info, Scale } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { orderedCompanyIds } from "@/lib/companies/registry";
 
 interface Row { campaign: string; orders: number; revenue: number; aov: number }
 interface Report {
@@ -97,7 +98,7 @@ export default function RevenueAttributionPage() {
   const now = new Date();
   const [from, setFrom] = useState(ymd(new Date(now.getFullYear(), now.getMonth(), 1)));
   const [to, setTo] = useState(ymd(now));
-  const [company, setCompany] = useState<Company>("MBC");
+  const [company, setCompany] = useState<Company>(() => orderedCompanyIds(["MBC"])[0] ?? "MBC") // Đợt 25: công ty theo bản cài (bản Mắt Bão y như cũ);
 
   const { data, isLoading, isValidating, mutate } = useSWR(
     `from=${from}&to=${to}&company=${company}`,

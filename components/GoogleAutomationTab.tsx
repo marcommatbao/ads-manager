@@ -11,7 +11,7 @@ import { resolveMatchType } from "@/lib/google-ads-helpers";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/Toast";
 import { useGuardedWrite, type GuardedCall } from "@/components/ConfirmWriteDialog";
-import { companyIds, companyLabel } from "@/lib/companies/registry";
+import { companyIds, companyLabel, orderedCompanyIds } from "@/lib/companies/registry";
 
 // ── Types ──
 
@@ -93,7 +93,7 @@ const CPL_THRESHOLDS = {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 export default function GoogleAutomationTab() {
-  const [company, setCompany] = useState<string>("MBC");
+  const [company, setCompany] = useState<string>(() => orderedCompanyIds(["MBC"])[0] ?? "MBC") // Đợt 25: công ty theo bản cài (bản Mắt Bão y như cũ);
   const [loading, setLoading] = useState(true);
 
   // Data

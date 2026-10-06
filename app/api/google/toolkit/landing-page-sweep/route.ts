@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const company = (searchParams.get("company") || "MBC") as string;
   if (!isCompany(company)) {
-    return NextResponse.json({ error: "company phải là MBC hoặc MBI" }, { status: 400 });
+    return NextResponse.json({ error: "Công ty không có ở bản cài này" }, { status: 400 });
   }
   if (!canAccessCompany(user, company)) {
     return NextResponse.json({ error: "Không có quyền xem công ty này" }, { status: 403 });

@@ -12,6 +12,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { Loader2, Link2, RefreshCw, Trash2, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { orderedCompanyIds, companyLabel } from "@/lib/companies/registry";
+
+// Đợt 25: công ty theo bản cài (bản Mắt Bão y như cũ)
+const coText = (id: string) => (id === "MBC" || id === "MBI" ? id : companyLabel(id));
 
 type Company = string /* mã công ty hoặc "ALL" */;
 
@@ -256,8 +260,9 @@ export default function GA4SettingsPage() {
                   className="mt-1 block rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800"
                 >
                   <option value="ALL">Cả hai</option>
-                  <option value="MBC">MBC</option>
-                  <option value="MBI">MBI</option>
+                  {orderedCompanyIds(["MBC", "MBI"]).map((c) => (
+                    <option key={c} value={c}>{coText(c)}</option>
+                  ))}
                 </select>
               </label>
               <button
@@ -314,8 +319,9 @@ export default function GA4SettingsPage() {
                     className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs text-slate-700"
                   >
                     <option value="ALL">Cả hai</option>
-                    <option value="MBC">MBC</option>
-                    <option value="MBI">MBI</option>
+                    {orderedCompanyIds(["MBC", "MBI"]).map((c) => (
+                      <option key={c} value={c}>{coText(c)}</option>
+                    ))}
                   </select>
                   <button
                     onClick={() => post("disconnect_property", { id: c.id })}

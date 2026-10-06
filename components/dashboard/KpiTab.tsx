@@ -6,7 +6,7 @@ import { TrendingUp, TrendingDown, Minus, ChevronLeft, ChevronRight, ChevronDown
 import { cn } from "@/lib/utils";
 import type { RevenueByProductResponse, ProductCategoryRevenue } from "@/app/api/odoo/revenue-by-product/route";
 import type { AttributionResponse, ProductAttribution, AdProductSpend } from "@/app/api/attribution/by-product/route";
-import { companyIds } from "@/lib/companies/registry";
+import { companyIds, orderedCompanyIds } from "@/lib/companies/registry";
 
 // ── Formatters ────────────────────────────────────────────────
 
@@ -377,7 +377,7 @@ function AdSpendByProduct({
 // ── Main KpiTab ───────────────────────────────────────────────
 
 export function KpiTab() {
-  const [company,          setCompany]          = useState<string>("MBC");
+  const [company,          setCompany]          = useState<string>(() => orderedCompanyIds(["MBC"])[0] ?? "MBC") // Đợt 25: công ty theo bản cài (bản Mắt Bão y như cũ);
   const [month,            setMonth]            = useState<string>(currentMonth);
   const [revData,          setRevData]          = useState<RevenueByProductResponse | null>(null);
   /** Doanh thu do MARKETING mang về — KHÁC HẲN doanh thu công ty.

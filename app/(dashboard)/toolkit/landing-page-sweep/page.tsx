@@ -20,7 +20,7 @@ import { useState, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Link2Off, Loader2, AlertTriangle, RefreshCw, Info, CheckCircle2, HelpCircle, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { companyIds } from "@/lib/companies/registry";
+import { companyIds, orderedCompanyIds } from "@/lib/companies/registry";
 
 interface SweepRow {
   url: string;
@@ -56,7 +56,7 @@ const vnd = (n: number) => `₫${Math.round(n).toLocaleString("vi-VN")}`;
 const num = (n: number) => Math.round(n).toLocaleString("vi-VN");
 
 export default function LandingPageSweepPage() {
-  const [company, setCompany] = useState<string>("MBC");
+  const [company, setCompany] = useState<string>(() => orderedCompanyIds(["MBC"])[0] ?? "MBC") // Đợt 25: công ty theo bản cài (bản Mắt Bão y như cũ);
   const [days, setDays] = useState<"7" | "14" | "30">("30");
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(false);

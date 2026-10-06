@@ -58,7 +58,7 @@ import { DraftPicker } from "./components/DraftPicker";
 import { StepIndicator } from "./components/StepIndicator";
 import { ScoreBadge, CreativePlatformBadge } from "./components/ScoreBadge";
 import { CreativeCard } from "./components/CreativeCard";
-import { companyIds, companyLabel, companyDef, fallbackCompany, isCompany } from "@/lib/companies/registry";
+import { companyIds, companyLabel, companyDef, fallbackCompany, isCompany, orderedCompanyIds } from "@/lib/companies/registry";
 
 
 // ─────────────────────────────────────────────
@@ -2920,7 +2920,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
               setLoadingPosts(true);
               try {
                 const params = new URLSearchParams({
-                  company: company || "MBC",
+                  company: company || (orderedCompanyIds(["MBC"])[0] ?? "MBC"), // Đợt 25: công ty theo bản cài (bản Mắt Bão y như cũ)
                   days: String(dayRange),
                   search: searchPostText,
                   mediaOnly: String(filterMediaOnly),

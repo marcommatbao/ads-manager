@@ -44,7 +44,7 @@ export async function GET(
   }
 
   if (!company) {
-    return NextResponse.json({ error: "Thiếu company (MBC/MBI)" }, { status: 400 });
+    return NextResponse.json({ error: "Thiếu công ty" }, { status: 400 });
   }
   if (!canAccessCompany(user, company)) {
     return NextResponse.json({ error: "Access denied for this company" }, { status: 403 });

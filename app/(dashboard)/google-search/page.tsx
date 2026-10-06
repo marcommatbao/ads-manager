@@ -28,7 +28,7 @@ import { SearchTermsTab } from "@/components/search/SearchTermsTab";
 import { SearchXrayTab } from "@/components/search/SearchXrayTab";
 import { SearchRsaTab } from "@/components/search/SearchRsaTab";
 import { SearchLogTab } from "@/components/search/SearchLogTab";
-import { companyIds } from "@/lib/companies/registry";
+import { companyIds, orderedCompanyIds } from "@/lib/companies/registry";
 
 type Company = string;
 
@@ -58,7 +58,7 @@ export default function GoogleSearchPage() {
 function GoogleSearchPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [company, setCompany] = useState<Company>("MBC");
+  const [company, setCompany] = useState<Company>(() => orderedCompanyIds(["MBC"])[0] ?? "MBC") // Đợt 25: công ty theo bản cài (bản Mắt Bão y như cũ);
   const [tab, setTab] = useState<TabId>(() => initialTab(searchParams));
   // Khoảng ngày dùng chung cho X-quang + RSA — tab Cụm tìm kiếm tự quản khoảng
   // ngày riêng của nó (bên trong SearchTermsTab), không đụng state này.

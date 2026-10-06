@@ -1,6 +1,6 @@
 "use client";
 
-import { companyIds, companyLabel as companyName } from "@/lib/companies/registry";
+import { companyIds, companyLabel as companyName, hasModule } from "@/lib/companies/registry";
 import { useState, useMemo, useCallback } from "react";
 import useSWR from "swr";
 import { formatDistanceToNow } from "date-fns";
@@ -265,11 +265,15 @@ interface UserFormData {
   status: MemberStatus;
 }
 
+// Đợt 25: vai trò theo công ty (admin_mbc / viewer_mbi…) chỉ hiện khi bản cài có công ty đó; bản Mắt Bão y như cũ.
+const visibleRoles = () => { const ids = companyIds(); return ALL_ROLES.filter((r) => !(r.endsWith("_mbc") && !ids.includes("MBC")) && !(r.endsWith("_mbi") && !ids.includes("MBI"))) };
+const hasMbc = () => companyIds().includes("MBC");
 const DEFAULT_FORM: UserFormData = {
   email: "",
   name: "",
-  role: "viewer_mbc",
-  company_access: ["MBC"],
+  // Đợt 25: bản khách không có vai trò viewer_mbc → mặc định "viewer" + công ty đầu tiên của bản cài (getter: đọc lúc dùng).
+  get role() { return hasMbc() ? "viewer_mbc" : "viewer" },
+  get company_access() { return hasMbc() ? ["MBC"] : [companyIds()[0] ?? "MBC"] },
   password: "",
   telegram_chat_id: "",
   status: "active",
@@ -356,7 +360,7 @@ function UserForm({ data, onChange, isEdit, onResetPassword, submitting }: UserF
             <SelectValue placeholder="Chọn role" />
           </SelectTrigger>
           <SelectContent>
-            {ALL_ROLES.filter((r) => !(r.endsWith("_mbc") && !ids.includes("MBC")) && !(r.endsWith("_mbi") && !ids.includes("MBI"))).map((r) => {
+            {visibleRoles().map((r) => {
               const cfg = ROLE_CONFIG[r];
               return (
                 <SelectItem key={r} value={r}>
@@ -525,7 +529,7 @@ function PermissionMatrix() {
     "can_view_cpl",
     "can_input_offline",
     "can_edit_thresholds",
-  ];
+  ].filter((k) => hasModule("matbao") || (k !== "can_view_cpl" && k !== "can_input_offline")) as PermissionKey[]; // Đợt 25: CPL tracking / đơn offline là gói Mắt Bão
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
@@ -540,7 +544,7 @@ function PermissionMatrix() {
               <th className="py-3 pl-5 pr-4 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                 Quyền
               </th>
-              {ALL_ROLES.map((r) => {
+              {visibleRoles().map((r) => {
                 const cfg = ROLE_CONFIG[r];
                 return (
                   <th key={r} className="px-3 py-3 text-center text-[11px] font-semibold uppercase tracking-wider">
@@ -564,7 +568,7 @@ function PermissionMatrix() {
                 <td className="py-3 pl-5 pr-4 text-[13px] text-slate-700">
                   {PERMISSION_LABELS[pk]}
                 </td>
-                {ALL_ROLES.map((r) => {
+                {visibleRoles().map((r) => {
                   const perms = getPermissions(r);
                   const has = perms[pk];
                   return (

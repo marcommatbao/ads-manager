@@ -15,6 +15,7 @@ import {
   ScanLine, HeartPulse, Images, Split,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { companyIds, companyLabel } from "@/lib/companies/registry";
 
 // ─────────────────────────────────────────────
 // Data
@@ -856,6 +857,25 @@ const ROLES = [
   },
 ];
 
+// Đợt 25: hướng dẫn theo bản cài — "MBC / MBI" trong chữ đổi thành công ty của bản cài; vai trò theo công ty chỉ hiện khi bản
+// cài có công ty đó (bản khách: Admin / Viewer chung). Bản Mắt Bão: chữ y nguyên.
+function coText(s: string): string {
+  const ids = companyIds()
+  if (ids.includes("MBC") && ids.includes("MBI")) return s
+  const list = ids.map(companyLabel).join(" / ")
+  return s.replace(/MBC\s*\/\s*MBI|MBC hoặc MBI/g, list).replace(/\((?:hiện )?chỉ MBI[^)]*\)/g, "")
+}
+function rolesForInstall() {
+  const ids = companyIds()
+  const keep = ROLES.filter((r) => !/MBC$/.test(r.role) || ids.includes("MBC")).filter((r) => !/MBI$/.test(r.role) || ids.includes("MBI"))
+  if (ids.includes("MBC") || ids.includes("MBI")) return keep
+  return [
+    ...keep,
+    { role: "Admin", color: "bg-blue-100 text-blue-800 border-blue-200", access: "Xem và chỉnh sửa dữ liệu các công ty được giao. Không quản lý được users" },
+    { role: "Viewer", color: "bg-slate-100 text-slate-700 border-slate-200", access: "Chỉ xem dữ liệu các công ty được giao. Không thể thay đổi cài đặt" },
+  ]
+}
+
 // ─────────────────────────────────────────────
 // Feature Card
 // ─────────────────────────────────────────────
@@ -903,7 +923,7 @@ function FeatureCard({ feature }: { feature: Feature }) {
           {/* Dùng để làm gì */}
           <div>
             <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Dùng để làm gì</p>
-            <p className="text-sm text-slate-600 leading-relaxed">{feature.description}</p>
+            <p className="text-sm text-slate-600 leading-relaxed">{coText(feature.description)}</p>
           </div>
 
           {/* Khi nào dùng */}
@@ -947,7 +967,7 @@ function FeatureCard({ feature }: { feature: Feature }) {
                       <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-blue-500 text-[9px] font-bold text-white mt-0.5">
                         {i + 1}
                       </span>
-                      {step}
+                      {coText(step)}
                     </li>
                   ))}
                 </ol>
@@ -961,7 +981,7 @@ function FeatureCard({ feature }: { feature: Feature }) {
               {feature.tips.map((tip, i) => (
                 <div key={i} className="flex gap-2 rounded-lg bg-emerald-50 border border-emerald-100 px-3 py-2 text-xs text-emerald-700">
                   <CheckCircle2 size={13} className="shrink-0 mt-0.5 text-emerald-500" />
-                  {tip}
+                  {coText(tip)}
                 </div>
               ))}
             </div>
@@ -1137,7 +1157,7 @@ export default function GuidePage() {
           <section key={g.id} id={g.id} className="space-y-3 scroll-mt-4">
             <div>
               <h2 className="text-base font-bold text-slate-900">{g.label}</h2>
-              <p className="text-xs text-slate-500">{g.intro}</p>
+              <p className="text-xs text-slate-500">{coText(g.intro)}</p>
             </div>
             {g.features.map((f) => (
               <div key={f.id} id={f.id} className="scroll-mt-4">
@@ -1162,7 +1182,7 @@ export default function GuidePage() {
             Phân quyền theo Role
           </h2>
           <div className="space-y-2">
-            {ROLES.map((r) => (
+            {rolesForInstall().map((r) => (
               <div key={r.role} className="flex items-start gap-3 rounded-lg border border-slate-100 p-3">
                 <span className={cn("rounded-full border px-2.5 py-1 text-[10px] font-bold shrink-0", r.color)}>
                   {r.role}
@@ -1192,7 +1212,7 @@ export default function GuidePage() {
             ].map((tip, i) => (
               <li key={i} className="flex gap-2 text-xs text-blue-700">
                 <CheckCircle2 size={13} className="shrink-0 mt-0.5 text-blue-400" />
-                {tip}
+                {coText(tip)}
               </li>
             ))}
           </ul>

@@ -16,6 +16,7 @@ import { addDays, vnDate } from "@/lib/case/dates"
 import { sendSystemAlert } from "@/lib/system-alert"
 import type { Company } from "@/lib/case/types"
 import { companyIds } from "@/lib/companies"
+import { jobInInstall } from "./store"
 
 export interface SystemMorning { level: "danger" | "warning" | "good"; title: string; facts: { title: string; value: string }[] }
 const BOOT_AT = new Date(Date.now() - process.uptime() * 1000)
@@ -41,7 +42,7 @@ export async function runSystemMorning(now = new Date()): Promise<{ sent: boolea
   let ok = 0, paused = 0
   for (const s of states) {
     const d = JOB_REGISTRY.find((j) => j.id === s.jobId)
-    if (!d || d.schedulingStatus !== "auto" || d.id === "system_morning") continue
+    if (!d || d.schedulingStatus !== "auto" || d.id === "system_morning" || !jobInInstall(d.id)) continue // Đợt 25: bỏ job không thuộc bản cài
     if (!s.enabled) { paused++; continue }
     const missed = d.cronExpr ? missedRun({ cronExpr: d.cronExpr, maxDurationSec: d.maxDurationSec, lastRunAt: s.lastRunAt, now, bootAt: BOOT_AT }) : null
     if (missed) bad.push(`${d.displayName}: ${s.lastRunAt ? "lỡ lịch" : "CHƯA TỪNG chạy"}`)

@@ -6,6 +6,7 @@ import { Loader2, AlertTriangle, RefreshCw, Target, Monitor, MapPin, Calendar } 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { useSession } from "@/components/SessionProvider";
+import { orderedCompanyIds } from "@/lib/companies/registry";
 
 type SegmentType = "device" | "location" | "adschedule";
 type Company = string;
@@ -75,7 +76,7 @@ function BarRow({ row, max, rank }: { row: SegmentRow; max: number; rank: number
 }
 
 export default function SegmentsPage() {
-  const [company, setCompany]   = useState<Company>("MBC");
+  const [company, setCompany]   = useState<Company>(() => orderedCompanyIds(["MBC"])[0] ?? "MBC"); // Đợt 25: công ty theo bản cài (bản Mắt Bão y như cũ)
   // Chỉ hiện công ty người này được xem. Trước đây nút bấm cứng cả MBC lẫn MBI,
   // nên người chỉ có quyền một bên vẫn thấy nút bên kia và bấm vào là nhận 403.
   const { user } = useSession();

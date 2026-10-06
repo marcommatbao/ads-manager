@@ -27,7 +27,7 @@ import { DEFAULT_VIEW_DAYS, MAX_RANGE_DAYS, isYmd, lastDays, rangeDays } from "@
 import type { Company } from "@/lib/case/types";
 import type { MetaHealth } from "@/lib/measure/meta-health";
 import type { GoogleHealth } from "@/lib/measure/google-health";
-import { hasModule } from "@/lib/companies/registry";
+import { hasModule, orderedCompanyIds, companyLabel } from "@/lib/companies/registry";
 import { isCompany } from "@/lib/companies/registry";
 
 type Platform = "facebook" | "google" | "tags" | "orders";
@@ -82,7 +82,7 @@ function DoLuongPageInner() {
   const { user } = useSession();
   const allowedCompanies = resolveCompanyScope(user?.companies, user?.role);
   const [platform, setPlatform] = useState<Platform>(() => initialPlatform(searchParams));
-  const [company, setCompany] = useState<Company>(() => initialCompany(searchParams) ?? "MBI");
+  const [company, setCompany] = useState<Company>(() => initialCompany(searchParams) ?? (orderedCompanyIds(["MBI"])[0] ?? "MBI")) // Đợt 25: công ty theo bản cài (bản Mắt Bão y như cũ);
   const [range, setRange] = useState<DateRangeValue>(() => initialRange(searchParams));
   const [pullError, setPullError] = useState<string | null>(null);
   const [pulling, setPulling] = useState(false);
@@ -188,7 +188,7 @@ function DoLuongPageInner() {
         <div>
           <div className="mb-1 text-xs font-medium text-slate-400">Công ty</div>
           <div role="tablist" aria-label="Công ty" className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
-            {(["MBI", "MBC"] as Company[]).map((v) => {
+            {(orderedCompanyIds(["MBI", "MBC"]) as Company[]).map((v) => {
               const allowed = allowedCompanies.includes(v);
               return (
                 <button
@@ -202,7 +202,7 @@ function DoLuongPageInner() {
                     effectiveCompany === v ? "bg-blue-600 text-white" : allowed ? "text-slate-600 hover:bg-slate-50" : "cursor-not-allowed text-slate-300",
                   )}
                 >
-                  {v}
+                  {v === "MBC" || v === "MBI" ? v : companyLabel(v)}
                 </button>
               );
             })}

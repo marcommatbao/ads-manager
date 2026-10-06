@@ -21,7 +21,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/components/Toast";
 import { cn } from "@/lib/utils";
 import type { CampaignBidSummary, KeywordBidRec, BidVerdict } from "@/lib/google-manual-bid";
-import { companyIds } from "@/lib/companies/registry";
+import { companyIds, orderedCompanyIds } from "@/lib/companies/registry";
 
 const fetcher = (url: string) => fetch(url).then(async (r) => {
   const j = await r.json();
@@ -110,7 +110,7 @@ function KeywordRow({
 
 export default function ManualBidPage() {
   const { toast } = useToast();
-  const [company, setCompany] = useState<string>("MBC");
+  const [company, setCompany] = useState<string>(() => orderedCompanyIds(["MBC"])[0] ?? "MBC") // Đợt 25: công ty theo bản cài (bản Mắt Bão y như cũ);
   const [days, setDays] = useState(30);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [applying, setApplying] = useState<string | null>(null);

@@ -23,6 +23,7 @@ import { DateRangeControl, type DateRangeValue } from "@/components/DateRangeCon
 import { DEFAULT_VIEW_DAYS, MAX_RANGE_DAYS, MIN_CASE_DAYS, isYmd, lastDays, rangeDays } from "@/lib/case/dates";
 import type { Company } from "@/lib/case/types";
 import type { OverviewRow, Platform } from "@/lib/case/service";
+import { orderedCompanyIds, companyLabel } from "@/lib/companies/registry";
 
 /** Đọc `?from=&to=` từ URL ở LẦN RENDER ĐẦU (reload/back) — không hợp lệ thì về mặc định 30 ngày. */
 function initialRange(sp: ReturnType<typeof useSearchParams>): DateRangeValue {
@@ -47,7 +48,7 @@ function XuLyOverviewPageInner() {
   const searchParams = useSearchParams();
   const { user } = useSession();
   const allowedCompanies = resolveCompanyScope(user?.companies, user?.role);
-  const [company, setCompany] = useState<Company>("MBI");
+  const [company, setCompany] = useState<Company>(() => orderedCompanyIds(["MBI"])[0] ?? "MBI"); // Đợt 25: công ty theo bản cài (bản Mắt Bão y như cũ)
   const [channel, setChannel] = useState<Platform>("google");
   const [range, setRange] = useState<DateRangeValue>(() => initialRange(searchParams));
   const [openingId, setOpeningId] = useState<string | null>(null);
@@ -146,7 +147,7 @@ function XuLyOverviewPageInner() {
         <div>
           <div className="mb-1 text-xs font-medium text-slate-400">Công ty</div>
           <div role="tablist" aria-label="Công ty" className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
-            {(["MBI", "MBC"] as Company[]).map((v) => {
+            {(orderedCompanyIds(["MBI", "MBC"]) as Company[]).map((v) => {
               const allowed = allowedCompanies.includes(v);
               return (
                 <button
@@ -160,7 +161,7 @@ function XuLyOverviewPageInner() {
                     effectiveCompany === v ? "bg-blue-600 text-white" : allowed ? "text-slate-600 hover:bg-slate-50" : "cursor-not-allowed text-slate-300",
                   )}
                 >
-                  {v}
+                  {v === "MBC" || v === "MBI" ? v : companyLabel(v)}
                 </button>
               );
             })}

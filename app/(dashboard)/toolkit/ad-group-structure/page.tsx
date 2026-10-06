@@ -6,7 +6,7 @@ import { Layers, Loader2, XCircle, AlertTriangle, Info, ChevronDown, ChevronRigh
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { isHiddenPage } from "@/lib/hidden-pages";
-import { companyIds } from "@/lib/companies/registry";
+import { companyIds, orderedCompanyIds } from "@/lib/companies/registry";
 
 interface KeywordEntry {
   text: string; matchType: string; intent: string; matchedOn: string | null;
@@ -50,7 +50,7 @@ const INTENT_COLOR: Record<string, string> = {
 const vnd = (n: number) => n.toLocaleString("vi-VN") + "₫";
 
 export default function AdGroupStructurePage() {
-  const [company, setCompany] = useState<string>("MBC");
+  const [company, setCompany] = useState<string>(() => orderedCompanyIds(["MBC"])[0] ?? "MBC") // Đợt 25: công ty theo bản cài (bản Mắt Bão y như cũ);
   const [brand, setBrand] = useState("");
   const [competitor, setCompetitor] = useState("");
   const [loading, setLoading] = useState(false);

@@ -5,6 +5,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Search } from "lucide-react";
 import { recentMonths } from "@/lib/ads-content/month-range";
 import type { AdsContentFilters } from "@/lib/ads-content/filtering";
+import { orderedCompanyIds, companyLabel } from "@/lib/companies/registry";
+
+// Đợt 25: công ty theo bản cài (bản Mắt Bão y như cũ)
+const coText = (id: string) => (id === "MBC" || id === "MBI" ? id : companyLabel(id));
 
 interface AdsContentFilterBarProps {
   month: string;
@@ -67,9 +71,10 @@ export function AdsContentFilterBar({
         <Select value={filters.company} onValueChange={(v) => set("company", v as AdsContentFilters["company"])}>
           <SelectTrigger className="h-9 w-[110px] border-slate-200 text-sm"><SelectValue placeholder="Công ty" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">MBC + MBI</SelectItem>
-            <SelectItem value="MBC">MBC</SelectItem>
-            <SelectItem value="MBI">MBI</SelectItem>
+            <SelectItem value="all">{orderedCompanyIds(["MBC", "MBI"]).map(coText).join(" + ")}</SelectItem>
+            {orderedCompanyIds(["MBC", "MBI"]).map((c) => (
+              <SelectItem key={c} value={c}>{coText(c)}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
 

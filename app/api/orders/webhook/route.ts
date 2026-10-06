@@ -15,7 +15,7 @@ const MAX_BODY_BYTES = 1_000_000
 
 export async function POST(request: NextRequest) {
   const co = request.nextUrl.searchParams.get("company")
-  if (!isCompany(co)) return NextResponse.json({ success: false, error: "company phải là MBC hoặc MBI" }, { status: 400 })
+  if (!isCompany(co)) return NextResponse.json({ success: false, error: "Công ty không có ở bản cài này" }, { status: 400 })
   const auth = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim() ?? null
   // Lọc rẻ TRƯỚC bộ đếm tần suất (bộ đếm ghi tệp mỗi lần gọi): không có khoá đúng khuôn thì trả 401 luôn.
   if (!auth || !/^ord_[A-Za-z0-9_-]{30,40}$/.test(auth)) return NextResponse.json({ success: false, error: "Sai hoặc thiếu khoá webhook" }, { status: 401 })

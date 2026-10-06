@@ -4,6 +4,7 @@ import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2, Eye, EyeOff, Zap } from "lucide-react";
 import { safeCallbackPath } from "@/lib/safe-redirect";
+import { brandText } from "@/lib/companies/brand-text";
 
 function LoginForm() {
   const router = useRouter();
@@ -65,7 +66,7 @@ function LoginForm() {
             AdsCommand
           </h1>
           <p className="text-sm text-slate-400 mt-1">
-            MBC & MBI Ad Management Platform
+            {brandText().tagline}
           </p>
         </div>
 
@@ -146,7 +147,7 @@ function LoginForm() {
 
         {/* Footer */}
         <p className="text-center text-xs text-slate-500 mt-6">
-          © 2026 AdsCommand · Powered by MBC & MBI
+          {brandText().footer}
         </p>
       </div>
     </div>

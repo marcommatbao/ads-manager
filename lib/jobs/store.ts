@@ -10,7 +10,8 @@ import path from "path";
 import { withFileLock } from "@/lib/file-lock";
 import { writeFileAtomic } from "@/lib/fs-atomic";
 import { hasModule } from "@/lib/companies";
-import { JOB_MODULE, moduleOfJob } from "@/lib/companies/modules";
+import { JOB_COMPANY, JOB_MODULE, companyOfJob, moduleOfJob } from "@/lib/companies/modules";
+import { companyIds } from "@/lib/companies/registry";
 import { setupPending } from "@/lib/setup/state";
 import { JOBS_BY_ID } from "./registry";
 import type {
@@ -52,13 +53,23 @@ export function getJobControl(id: JobId): JobControlRecord {
   // Đợt 21 A2: job thuộc mô-đun TẮT ở bản cài → không chạy (bản Mắt Bão bật đủ mô-đun → không đổi).
   const mod = moduleOfJob(id);
   if (mod && !hasModule(mod)) return { jobId: id, enabled: false, pausedAt: null, pausedBy: "mô-đun", pauseReason: `Mô-đun "${mod}" không bật ở bản cài này` };
+  // Đợt 25: job của một công ty cụ thể (Quality Score MBC / MBI) — bản cài không có công ty đó thì không chạy.
+  const co = companyOfJob(id);
+  if (co && !companyIds().includes(co)) return { jobId: id, enabled: false, pausedAt: null, pausedBy: "công ty", pauseReason: `Bản cài này không có công ty ${co}` };
   const file = readControlFile();
   return file.controls[id] ?? { jobId: id, enabled: true, pausedAt: null, pausedBy: null, pauseReason: null };
+}
+
+/** Đợt 25: job có thuộc bản cài này không (mô-đun bật + công ty có mặt). Trang Cron Jobs / Sức khoẻ ẨN job không thuộc bản cài. */
+export function jobInInstall(id: string): boolean {
+  const mod = moduleOfJob(id), co = companyOfJob(id);
+  return (!mod || hasModule(mod)) && (!co || companyIds().includes(co));
 }
 
 export function getAllJobControls(): Partial<Record<JobId, JobControlRecord>> {
   const c = { ...readControlFile().controls };
   for (const [id, mod] of Object.entries(JOB_MODULE)) if (mod && !hasModule(mod)) c[id as JobId] = getJobControl(id as JobId);
+  for (const [id, co] of Object.entries(JOB_COMPANY)) if (co && !companyIds().includes(co)) c[id as JobId] = getJobControl(id as JobId);
   for (const id of envDisabledJobs()) c[id as JobId] = envPaused(id as JobId);
   if (setupPending()) for (const id of Object.keys(JOBS_BY_ID)) if (id !== "query_smoke") c[id as JobId] = getJobControl(id as JobId);
   return c;

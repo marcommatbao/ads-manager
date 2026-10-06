@@ -14,6 +14,6 @@ export const PROD_CHECKLIST: CheckItem[] = [
   { id: "pmax_assets", area: "PMax Insights → Asset", href: "/google-pmax?tab=assets", steps: "Tích 1 dòng yếu → \"Viết bản thay (Gemini)\".", expect: "Có 1–3 phương án tiếng Việt kèm số ký tự. Không bấm Áp dụng." },
   { id: "meta_xray", area: "Meta X-quang", href: "/meta-xray", steps: "Mở trang (tốn 2 lượt gọi Meta).", expect: "Có số Từ lượt bấm / Chỉ xem / GA4; bảng chiến dịch có cờ đỏ ở chiến dịch chỉ-xem." },
   { id: "meta_case", area: "Meta → Mở phiên xử lý", href: "/meta-xray", steps: "Bấm \"Mở phiên xử lý\" ở việc P1 → đi hết bước tới Kiểm trước.", expect: "Phiên có nguyên nhân \"… chỉ xem\" và việc \"Tạo nhóm mới … CHỈ tính lượt bấm 7 ngày\"; Kiểm trước qua. KHÔNG ghi." },
-  { id: "adsbot", area: "AdsBot", href: "/", steps: "Hỏi: \"PMax MBC có tạo đơn thật không, thí nghiệm đang ra sao?\"", expect: "Trả lời có số (không trả rỗng), nhắc thí nghiệm Hà Nội." },
+  { id: "adsbot", area: "AdsBot", href: "/", steps: "Hỏi: \"PMax có tạo đơn thật không, thí nghiệm đang ra sao?\"", expect: "Trả lời có số (không trả rỗng), nhắc thí nghiệm Hà Nội." },
   { id: "mornings", area: "Báo sáng (Teams)", href: "/settings/health", steps: "Sáng hôm sau kiểm kênh Teams IT.", expect: "08:00 thẻ đường lead form ↔ CRM; 08:05 thẻ báo sáng hệ thống. Thiếu thẻ nào = báo lại." },
 ]

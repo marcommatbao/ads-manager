@@ -7,13 +7,15 @@ import { getCurrentUser } from "@/lib/auth";
 import { isSuperAdmin } from "@/lib/permissions";
 import { buildJobStates } from "@/lib/jobs/state";
 import { ACTIVE_JOBS as JOB_REGISTRY } from "@/lib/jobs/registry";
+import { jobInInstall } from "@/lib/jobs/store";
 
 export async function GET() {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const states  = buildJobStates();
-  const meta    = JOB_REGISTRY.map(d => ({
+  // Đợt 25: bản khách không thấy job của Mắt Bão (Lead/Order Notify matbao.in, Quality Score MBC/MBI…).
+  const states  = buildJobStates().filter((s) => jobInInstall(s.jobId));
+  const meta    = JOB_REGISTRY.filter((d) => jobInInstall(d.id)).map(d => ({
     id:                   d.id,
     displayName:          d.displayName,
     description:          d.description,

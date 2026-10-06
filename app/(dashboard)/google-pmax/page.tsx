@@ -10,7 +10,7 @@ import { useToast } from "@/components/Toast";
 import { PmaxXrayView } from "@/components/pmax/PmaxXrayView";
 import { PmaxExperimentView } from "@/components/pmax/PmaxExperimentView";
 import { PmaxAssetsView } from "@/components/pmax/PmaxAssetsView";
-import { companyIds, companyLabel } from "@/lib/companies/registry";
+import { companyIds, companyLabel, orderedCompanyIds } from "@/lib/companies/registry";
 
 interface PMaxDateRange { from: string; to: string }
 
@@ -627,7 +627,7 @@ function PMaxInsightsPageInner() {
   const dateRange = useAdsStore((s) => s.dateRange);
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [company, setCompany] = useState<string>("MBC");
+  const [company, setCompany] = useState<string>(() => orderedCompanyIds(["MBC"])[0] ?? "MBC") // Đợt 25: công ty theo bản cài (bản Mắt Bão y như cũ);
   // Deep link `?tab=xray` (thẻ cảnh báo ở Tổng quan) đọc Ở LẦN RENDER ĐẦU —
   // sau đó người dùng tự đổi tab bằng thanh tab, không đồng bộ ngược lại URL
   // (cùng quy ước với /do-luong: chỉ platform/tab đọc 1 lần, range mới ghi ngược).

@@ -40,7 +40,7 @@ async function run(request: NextRequest, p: ParamGet) {
 
   const customerIds = [customerIdMBC, customerIdMBI].filter(Boolean) as string[];
   if (customerIds.length === 0) {
-    return NextResponse.json({ ok: false, error: "At least one Customer ID (MBC or MBI) is required" });
+    return NextResponse.json({ ok: false, error: "Cần ít nhất một mã khách hàng Google Ads" });
   }
 
   try {

@@ -100,7 +100,7 @@ export async function GET(req: NextRequest) {
   const company = (searchParams.get("company") ?? "MBC") as string;
 
   if (!isCompany(company)) {
-    return NextResponse.json({ error: "company must be MBC or MBI" }, { status: 400 });
+    return NextResponse.json({ error: "Công ty không có ở bản cài này" }, { status: 400 });
   }
   if (!canAccessCompany(user, company)) {
     return NextResponse.json({ error: "Access denied for this company" }, { status: 403 });

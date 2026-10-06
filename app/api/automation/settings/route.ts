@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const company = parseCompany(request.nextUrl.searchParams.get("company"));
-  if (!company) return NextResponse.json({ error: "company phải là MBC hoặc MBI" }, { status: 400 });
+  if (!company) return NextResponse.json({ error: "Công ty không có ở bản cài này" }, { status: 400 });
   if (!canAccessCompany(user, company)) {
     return NextResponse.json({ error: "Access denied for this company" }, { status: 403 });
   }
@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
   }
 
   const company = parseCompany(body.company ?? null);
-  if (!company) return NextResponse.json({ error: "company phải là MBC hoặc MBI" }, { status: 400 });
+  if (!company) return NextResponse.json({ error: "Công ty không có ở bản cài này" }, { status: 400 });
   if (!canAccessCompany(user, company)) {
     return NextResponse.json({ error: "Access denied for this company" }, { status: 403 });
   }

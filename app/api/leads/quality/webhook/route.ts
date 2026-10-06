@@ -15,7 +15,7 @@ export const maxDuration = 60
 
 export async function POST(request: NextRequest) {
   const co = request.nextUrl.searchParams.get("company")
-  if (!isCompany(co)) return NextResponse.json({ success: false, error: "company phải là MBC hoặc MBI" }, { status: 400 })
+  if (!isCompany(co)) return NextResponse.json({ success: false, error: "Công ty không có ở bản cài này" }, { status: 400 })
   const rl = await rateLimit(`lead-quality:${getClientIp(request)}`, 60, 60_000)
   if (!rl.allowed) return NextResponse.json({ success: false, error: "Quá nhiều lần gọi — thử lại sau 1 phút" }, { status: 429 })
   const auth = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim() ?? null

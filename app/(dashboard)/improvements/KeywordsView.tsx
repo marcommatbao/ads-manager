@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { KeywordTable } from "@/components/KeywordTable";
 import { cn } from "@/lib/utils";
 import type { KeywordInsight, KeywordInsightsResponse, IntentMatch, KwMatchType } from "@/types/keyword-insight";
+import { orderedCompanyIds } from "@/lib/companies/registry";
 
 interface KeywordsViewProps {
   company: string | "all";
@@ -75,7 +76,7 @@ export function KeywordsView({ company, showToast }: KeywordsViewProps) {
   const [campaignFilter, setCampaignFilter] = useState<string>("ALL");
   const [pacingByCampaign, setPacingByCampaign] = useState<Map<string, CampaignPacing>>(new Map());
 
-  const co = company === "all" ? "MBC" : company;
+  const co = company === "all" ? (orderedCompanyIds(["MBC"])[0] ?? "MBC") : company /* Đợt 25: công ty theo bản cài */;
 
   useEffect(() => {
     let cancelled = false;

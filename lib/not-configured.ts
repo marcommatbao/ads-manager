@@ -11,6 +11,8 @@ const PATTERNS: RegExp[] = [
   /no refresh token/i,
   /customer ids? (?:not )?configured/i,
   /credentials not configured/i,
+  // Đợt 25: câu tiếng Việt của chính ta — "<TÊN_BIẾN> chưa cấu hình" (vd META_AD_ACCOUNT_ID chưa cấu hình).
+  /\b[A-Z][A-Z0-9]*_[A-Z0-9_]+ chưa cấu hình/,
 ]
 
 export function isNotConfigured(message: unknown): boolean {

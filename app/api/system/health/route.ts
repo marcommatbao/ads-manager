@@ -14,6 +14,7 @@ import { sendSystemAlert } from "@/lib/system-alert"
 import { lastNumbersCheck } from "@/lib/jobs/numbers-check"
 import { appVersionLabel } from "@/lib/version"
 import { dataVersionResult } from "@/lib/data-version"
+import { jobInInstall } from "@/lib/jobs/store"
 
 export const dynamic = "force-dynamic"
 const BOOT_AT = new Date(Date.now() - process.uptime() * 1000)
@@ -23,7 +24,7 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   const now = new Date()
   const states = new Map(buildJobStates().map((s) => [s.jobId, s]))
-  const jobs = JOB_REGISTRY.map((d) => {
+  const jobs = JOB_REGISTRY.filter((d) => jobInInstall(d.id)).map((d) => { // Đợt 25: ẩn job không thuộc bản cài
     const s = states.get(d.id)!
     const auto = d.schedulingStatus === "auto"
     const scheduledBy = !auto ? "manual" : ENTRYPOINT_ENDPOINTS.has(d.endpoint.split("?")[0]) ? "entrypoint" : "tick"

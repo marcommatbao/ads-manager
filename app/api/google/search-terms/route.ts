@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
 
   const companyParam = (request.nextUrl.searchParams.get("company") ?? "MBC").toUpperCase();
   if (!isCompany(companyParam)) {
-    return NextResponse.json({ success: false, error: "company phải là MBC hoặc MBI" }, { status: 400 });
+    return NextResponse.json({ success: false, error: "Công ty không có ở bản cài này" }, { status: 400 });
   }
   const company = companyParam as string;
   if (!canAccessCompany(user, company)) {

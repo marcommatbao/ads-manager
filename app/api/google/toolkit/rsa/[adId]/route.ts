@@ -51,7 +51,7 @@ export async function PATCH(
 
   const company = body.company;
   if (!company) {
-    return NextResponse.json({ success: false, error: "Thiếu company (MBC/MBI)" }, { status: 400 });
+    return NextResponse.json({ success: false, error: "Thiếu công ty" }, { status: 400 });
   }
   if (!canAccessCompany(user, company)) {
     return NextResponse.json({ success: false, error: "Access denied for this company" }, { status: 403 });

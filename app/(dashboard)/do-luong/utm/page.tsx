@@ -32,6 +32,7 @@ import type { Company } from "@/lib/case/types";
 import type { MetaHealth } from "@/lib/measure/meta-health";
 import type { GoogleHealth } from "@/lib/measure/google-health";
 import type { LinkSuggestion } from "@/lib/measure/utm-suggest";
+import { orderedCompanyIds, companyLabel } from "@/lib/companies/registry";
 
 type Platform = AdPlatform;
 type HealthResponse =
@@ -70,7 +71,7 @@ function DoLuongUtmPageInner() {
   const { toast } = useToast();
   const allowedCompanies = resolveCompanyScope(user?.companies, user?.role);
   const canEdit = !!user && hasPermission(user.role, "can_edit_thresholds");
-  const [company, setCompany] = useState<Company>("MBI");
+  const [company, setCompany] = useState<Company>(() => orderedCompanyIds(["MBI"])[0] ?? "MBI") // Đợt 25: công ty theo bản cài (bản Mắt Bão y như cũ);
   const [platform, setPlatform] = useState<Platform>("facebook");
   const [range, setRange] = useState<DateRangeValue>(() => initialRange(searchParams));
   const effectiveCompany = allowedCompanies.includes(company) ? company : allowedCompanies[0];
@@ -111,7 +112,7 @@ function DoLuongUtmPageInner() {
   }
 
   function addRow() {
-    setDraft((d) => [...d, { company: effectiveCompany ?? "MBI", platform, label: "", url: "" }]);
+    setDraft((d) => [...d, { company: effectiveCompany ?? (orderedCompanyIds(["MBI"])[0] ?? "MBI"), platform, label: "", url: "" }]);
   }
 
   function removeRow(idx: number) {
@@ -191,7 +192,7 @@ function DoLuongUtmPageInner() {
         <div>
           <div className="mb-1 text-xs font-medium text-slate-400">Công ty</div>
           <div role="tablist" aria-label="Công ty" className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
-            {(["MBI", "MBC"] as Company[]).map((v) => {
+            {(orderedCompanyIds(["MBI", "MBC"]) as Company[]).map((v) => {
               const allowed = allowedCompanies.includes(v);
               return (
                 <button
@@ -205,7 +206,7 @@ function DoLuongUtmPageInner() {
                     effectiveCompany === v ? "bg-blue-600 text-white" : allowed ? "text-slate-600 hover:bg-slate-50" : "cursor-not-allowed text-slate-300",
                   )}
                 >
-                  {v}
+                  {v === "MBC" || v === "MBI" ? v : companyLabel(v)}
                 </button>
               );
             })}

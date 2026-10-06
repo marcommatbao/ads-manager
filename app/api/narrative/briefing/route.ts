@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
   const company = searchParams.get("company") as string | null;
 
   if (!company || !isCompany(company)) {
-    return NextResponse.json({ error: "company parameter required (MBC|MBI)" }, { status: 400 });
+    return NextResponse.json({ error: "Thiếu công ty" }, { status: 400 });
   }
 
   const allowed = getCompaniesForRole(user);
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
   }
 
   if (!body.company || !isCompany(body.company)) {
-    return NextResponse.json({ error: "company required (MBC|MBI)" }, { status: 400 });
+    return NextResponse.json({ error: "Thiếu công ty" }, { status: 400 });
   }
   if (!body.entityId || !body.outcomeLabel) {
     return NextResponse.json({ error: "Required: entityId, outcomeLabel" }, { status: 400 });

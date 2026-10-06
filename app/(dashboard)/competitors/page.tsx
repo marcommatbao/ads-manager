@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/Toast";
 import type { CompetitorAd, GapInsight, AdAngle } from "@/lib/competitor-config";
 import { AD_ANGLES } from "@/lib/competitor-config";
+import { orderedCompanyIds } from "@/lib/companies/registry";
 
 // ─────────────────────────────────────────────
 // Types for API responses
@@ -68,7 +69,7 @@ function AddCompetitorModal({
           domain: domain.trim(),
           fbPageUrl: fbPageUrl.trim(),
           category,
-          trackingFor: ["MBC", "MBI"],
+          trackingFor: orderedCompanyIds(["MBC", "MBI"]), // Đợt 25: công ty theo bản cài (bản Mắt Bão y như cũ)
         }),
       });
       if (res.ok) {

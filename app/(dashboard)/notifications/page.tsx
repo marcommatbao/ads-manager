@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
+import { orderedCompanyIds, companyLabel } from "@/lib/companies/registry";
 
 // ─────────────────────────────────────────────
 // Types
@@ -262,7 +263,7 @@ export default function NotificationsPage() {
           ))}
         </div>
         <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg max-w-full overflow-x-auto flex-nowrap scrollbar-hide">
-          {(["all", "MBC", "MBI"] as const).map((c) => (
+          {(["all", ...orderedCompanyIds(["MBC", "MBI"])] as string[]).map((c) => ( // Đợt 25: công ty theo bản cài
             <button
               key={c}
               onClick={() => setCompanyFilter(c)}
@@ -275,7 +276,7 @@ export default function NotificationsPage() {
                   : "text-slate-500 hover:text-slate-700"
               )}
             >
-              {c === "all" ? "Tất cả" : c}
+              {c === "all" ? "Tất cả" : c === "MBC" || c === "MBI" ? c : companyLabel(c)}
             </button>
           ))}
         </div>

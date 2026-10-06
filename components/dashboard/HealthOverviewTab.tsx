@@ -26,6 +26,7 @@ import { cn } from "@/lib/utils";
 import type { CardTone, FixItem, HealthOverview, StatusCard } from "@/lib/overview/health";
 import type { ChangeLevel, MonitorChange } from "@/lib/monitor/measure-monitor";
 import type { LeadFlow, LeadFlowStatus } from "@/lib/monitor/lead-flow";
+import { orderedCompanyIds, companyLabel } from "@/lib/companies/registry";
 
 type CompanyFilter = string /* mã công ty hoặc "ALL" */;
 type HealthResponse = { success: true } & HealthOverview;
@@ -408,7 +409,7 @@ function LeadFlowEditorRow({ flow, onChange, onRemove }: { flow: LeadFlow; onCha
         <Input className="w-28" placeholder="Mã (a-z0-9_)" value={flow.id} onChange={(e) => onChange({ id: e.target.value })} />
         <Input className="w-56 flex-1" placeholder="Tên hiển thị" value={flow.label} onChange={(e) => onChange({ label: e.target.value })} />
         <div role="tablist" aria-label="Công ty" className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
-          {(["MBI", "MBC"] as const).map((c) => (
+          {(orderedCompanyIds(["MBI", "MBC"]) as ("MBI" | "MBC")[]).map((c) => (
             <button
               key={c}
               type="button"
@@ -417,7 +418,7 @@ function LeadFlowEditorRow({ flow, onChange, onRemove }: { flow: LeadFlow; onCha
               onClick={() => onChange({ company: c })}
               className={cn("rounded-md px-2.5 py-1 text-xs font-semibold transition-colors", flow.company === c ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-50")}
             >
-              {c}
+              {c === "MBC" || c === "MBI" ? c : companyLabel(c)}
             </button>
           ))}
         </div>

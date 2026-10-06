@@ -6,7 +6,7 @@ import { ShieldCheck, Loader2, RefreshCw, AlertTriangle, CheckCircle, XCircle, W
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import type { AuditResult } from "@/lib/google-audit-engine";
-import { companyIds, companyLabel } from "@/lib/companies/registry";
+import { companyIds, companyLabel, orderedCompanyIds } from "@/lib/companies/registry";
 
 interface PreviewItem { label: string; detail: string }
 
@@ -29,7 +29,7 @@ interface FixState {
 }
 
 export default function GoogleAuditPage() {
-  const [company, setCompany] = useState<string>("MBC");
+  const [company, setCompany] = useState<string>(() => orderedCompanyIds(["MBC"])[0] ?? "MBC") // Đợt 25: công ty theo bản cài (bản Mắt Bão y như cũ);
   const [loading, setLoading] = useState(true);
   const [result, setResult] = useState<AuditResult | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);

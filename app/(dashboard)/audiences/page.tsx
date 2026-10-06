@@ -23,6 +23,7 @@ import {
   type AudienceResult,
   type CustomerRecord,
 } from "@/lib/audience-builder";
+import { orderedCompanyIds } from "@/lib/companies/registry";
 
 // ─────────────────────────────────────────────
 // Step indicator
@@ -73,7 +74,7 @@ export default function AudiencesPage() {
   const [source, setSource] = useState<AudienceSource>("offline_orders");
 
   // Step 2
-  const [company, setCompany] = useState<string | "both">("MBC");
+  const [company, setCompany] = useState<string | "both">(() => orderedCompanyIds(["MBC"])[0] ?? "MBC") // Đợt 25: công ty theo bản cài (bản Mắt Bão y như cũ);
   const [days, setDays] = useState(90);
   const [minAmount, setMinAmount] = useState(500000);
 
@@ -702,7 +703,7 @@ export default function AudiencesPage() {
                     <Building2 className="h-3.5 w-3.5 text-slate-400" /> Công ty
                   </label>
                   <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-0.5 w-fit">
-                    {(["MBC", "MBI", "both"] as const).map(c => (
+                    {([...orderedCompanyIds(["MBC", "MBI"]), "both"] as const).map(c => (
                       <button
                         key={c}
                         onClick={() => setCompany(c)}

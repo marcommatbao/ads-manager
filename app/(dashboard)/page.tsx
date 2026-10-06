@@ -1,6 +1,6 @@
 "use client";
 
-import { companyIds, companyLabel, hasModule } from "@/lib/companies/registry";
+import { companyIds, companyLabel, hasModule, orderedCompanyIds } from "@/lib/companies/registry";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import MetricsCard from "@/components/MetricsCard";
@@ -620,7 +620,7 @@ function BudgetPacingCard() {
 
       {/* ── Tabs ── */}
       <div className="flex items-center gap-1 px-5 pb-4">
-        {(["all", "MBC", "MBI"] as BudgetTab[]).map((t) => (
+        {(["all", ...orderedCompanyIds(["MBC", "MBI"])] as BudgetTab[]).map((t) => ( // Đợt 25: công ty theo bản cài
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -633,7 +633,7 @@ function BudgetPacingCard() {
                 : "text-slate-400 hover:text-slate-600 bg-slate-50"
             )}
           >
-            {t === "all" ? "Tổng" : t}
+            {t === "all" ? "Tổng" : t === "MBC" || t === "MBI" ? t : companyLabel(t)}
           </button>
         ))}
 
@@ -1713,7 +1713,7 @@ export default function DashboardPage() {
                 <p className="text-xs text-slate-400">Lịch tổng quan · {summary.periodLabel}</p>
               )}
               <div className="flex items-center gap-0.5 rounded-full border border-slate-200 bg-white p-0.5 shadow-sm">
-                {(["all", "MBC", "MBI"] as CompanyFilter[]).map(c => (
+                {(["all", ...orderedCompanyIds(["MBC", "MBI"])] as CompanyFilter[]).map(c => ( // Đợt 25: công ty theo bản cài
                   <button
                     key={c}
                     onClick={() => setSelectedCompany(c)}
@@ -1726,7 +1726,7 @@ export default function DashboardPage() {
                         : "text-slate-400 hover:text-slate-600"
                     )}
                   >
-                    {c === "all" ? "Tất cả" : c}
+                    {c === "all" ? "Tất cả" : c === "MBC" || c === "MBI" ? c : companyLabel(c)}
                   </button>
                 ))}
               </div>

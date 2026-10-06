@@ -1,24 +1,9 @@
 // Dashboard route group — includes AppShell (Sidebar + Header)
 import AppShell from "@/components/AppShell";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { companiesConfig } from "@/lib/companies";
-import { DEFAULT_COMPANIES } from "@/lib/companies/defaults";
-import { publicIdsFromEnv } from "@/lib/companies/public-ids";
+import { companiesBootScript } from "@/lib/companies/boot-script";
 
-/**
- * Đợt 21 A3b — nạp cấu hình công ty của BẢN CÀI vào trình duyệt TRƯỚC khi React chạy.
- * Trước đây trình duyệt bắt đầu bằng mặc định Mắt Bão (MBC/MBI) rồi mới tải /api/companies → ở bản khách lần vẽ đầu
- * lệch với máy chủ (React #418) và trang kịp gọi API cho "MBC" (400/403; bản nháp Creative tự lưu dưới MBC).
- * Bản Mắt Bão: cấu hình = mặc định → KHÔNG chèn gì, HTML y nguyên. `<` thoát thành \u003c (nhãn công ty do người dùng nhập).
- */
-function companiesBootScript(): string | null {
-  const cfg = companiesConfig();
-  if (JSON.stringify(cfg) === JSON.stringify(DEFAULT_COMPANIES)) return null;
-  // Kèm mã công khai (pixel / trang / GA4) — trước đây chỉ có sau khi CompaniesBoot tải xong, mà CompaniesBoot nay KHÔNG vẽ lại
-  // khi cấu hình đã khớp → ô chọn Trang / Pixel ở Creative sẽ rỗng mãi.
-  const esc = (v: unknown) => JSON.stringify(v).replace(/</g, "\\u003c");
-  return `window.__adsCompanies=${esc({ current: cfg, refresh: null })};window.__adsPublicIds=${esc(publicIdsFromEnv())};`;
-}
+// Đợt 21 A3b: chèn cấu hình công ty của bản cài trước khi React chạy — lib/companies/boot-script.ts.
 
 export default function DashboardLayout({
   children,

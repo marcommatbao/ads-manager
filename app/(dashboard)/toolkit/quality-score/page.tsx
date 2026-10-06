@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useSession } from "@/components/SessionProvider";
 import { EditRsaModal } from "@/components/EditRsaModal";
+import { orderedCompanyIds } from "@/lib/companies/registry";
 
 interface KWComponent {
   expectedCTR: string;
@@ -144,7 +145,7 @@ function TrendIcon({ trend, prevQS, prevDate }: { trend: string; prevQS?: number
 type FilterType = "ALL" | "POOR" | "DECLINING" | "GOOD";
 
 export default function QualityScorePage() {
-  const [company, setCompany] = useState<string>("MBC");
+  const [company, setCompany] = useState<string>(() => orderedCompanyIds(["MBC"])[0] ?? "MBC") // Đợt 25: công ty theo bản cài (bản Mắt Bão y như cũ);
   // Chỉ hiện công ty người này được xem. Trước đây nút bấm cứng cả MBC lẫn MBI,
   // nên người chỉ có quyền một bên vẫn thấy nút bên kia và bấm vào là nhận 403.
   const { user } = useSession();

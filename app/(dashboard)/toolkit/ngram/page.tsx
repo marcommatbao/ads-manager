@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { useSession } from "@/components/SessionProvider";
 import { useToast } from "@/components/Toast";
 import { useGuardedWrite, type GuardedCall } from "@/components/ConfirmWriteDialog";
+import { orderedCompanyIds } from "@/lib/companies/registry";
 
 // ============================================================
 // N-Gram Finder — wired to the real GAQL-backed API
@@ -187,7 +188,7 @@ function NGramColumn({
 }
 
 export default function NgramPage() {
-  const [company, setCompany] = useState<string>("MBC");
+  const [company, setCompany] = useState<string>(() => orderedCompanyIds(["MBC"])[0] ?? "MBC") // Đợt 25: công ty theo bản cài (bản Mắt Bão y như cũ);
   // Chỉ hiện công ty người này được xem. Trước đây nút bấm cứng cả MBC lẫn MBI,
   // nên người chỉ có quyền một bên vẫn thấy nút bên kia và bấm vào là nhận 403.
   const { user } = useSession();

@@ -67,3 +67,6 @@ function longest(table: [string, ModuleId][], path: string): ModuleId | null {
 export const moduleOfPage = (path: string): ModuleId | null => longest(PAGE_MODULE, path)
 export const moduleOfApi = (path: string): ModuleId | null => longest(API_MODULE, path)
 export const moduleOfJob = (id: string): ModuleId | null => JOB_MODULE[id as JobId] ?? null
+/** Đợt 25: job gắn cứng MỘT công ty (gọi endpoint với ?company=…) — bản cài không có công ty đó thì job không thuộc bản cài. */
+export const JOB_COMPANY: Partial<Record<JobId, string>> = { quality_score_mbc: "MBC", quality_score_mbi: "MBI" }
+export const companyOfJob = (id: string): string | null => JOB_COMPANY[id as JobId] ?? null

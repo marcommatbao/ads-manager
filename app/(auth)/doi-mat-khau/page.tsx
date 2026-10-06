@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Loader2, Eye, EyeOff, Zap } from "lucide-react";
+import { brandText } from "@/lib/companies/brand-text";
 
 interface SessionResponse {
   authenticated?: boolean;
@@ -121,7 +122,7 @@ export default function ChangePasswordPage() {
             </div>
           </div>
           <h1 className="text-2xl font-bold text-white tracking-tight">AdsCommand</h1>
-          <p className="text-sm text-slate-400 mt-1">MBC & MBI Ad Management Platform</p>
+          <p className="text-sm text-slate-400 mt-1">{brandText().tagline}</p>
         </div>
 
         <form
@@ -244,7 +245,7 @@ export default function ChangePasswordPage() {
         </form>
 
         <p className="text-center text-xs text-slate-500 mt-6">
-          © 2026 AdsCommand · Powered by MBC & MBI
+          {brandText().footer}
         </p>
       </div>
     </div>

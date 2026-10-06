@@ -60,7 +60,7 @@ export async function PUT(req: NextRequest) {
 
   const company = body.company as ManualCompany;
   if (!isCompany(company)) {
-    return NextResponse.json({ success: false, error: "company phải là MBC hoặc MBI" }, { status: 400 });
+    return NextResponse.json({ success: false, error: "Công ty không có ở bản cài này" }, { status: 400 });
   }
   if (!canAccessCompany(user, company)) {
     return NextResponse.json({ success: false, error: "Không có quyền với công ty này" }, { status: 403 });

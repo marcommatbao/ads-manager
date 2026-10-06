@@ -8,6 +8,7 @@ import { CaseError } from "./service"
 import { readCase, type CampaignCase } from "./store"
 import type { Company } from "./types"
 import { isCompany } from "@/lib/companies/registry";
+import { friendlyError, isNotConfigured } from "@/lib/not-configured"
 
 export type Guarded<T> = { ok: true; value: T } | { ok: false; response: NextResponse }
 
@@ -22,7 +23,7 @@ export async function requireUser(perm?: PermissionKey): Promise<Guarded<Session
 
 export function requireCompany(user: SessionUser, company: unknown): Guarded<Company> {
   if (!isCompany(company)) {
-    return { ok: false, response: NextResponse.json({ success: false, error: "Thiếu công ty (MBC/MBI)" }, { status: 400 }) }
+    return { ok: false, response: NextResponse.json({ success: false, error: "Thiếu công ty hoặc công ty không có ở bản cài này" }, { status: 400 }) }
   }
   if (!canAccessCompany(user, company)) {
     return { ok: false, response: NextResponse.json({ success: false, error: "Không có quyền với công ty này" }, { status: 403 }) }
@@ -49,6 +50,8 @@ export function fail(err: unknown): NextResponse {
   if (err instanceof CaseError) return NextResponse.json({ success: false, error: err.message }, { status: err.status })
   const e = err as { errors?: { message?: string }[]; message?: string }
   const msg = e?.errors?.[0]?.message ?? e?.message ?? "Lỗi không xác định"
+  // Đợt 25: "chưa kết nối" là trạng thái, không phải sự cố — câu dễ hiểu, không ghi log lỗi.
+  if (isNotConfigured(msg)) return NextResponse.json({ success: false, error: friendlyError(msg), notConfigured: true }, { status: 500 })
   console.error("[cases]", msg)
   return NextResponse.json({ success: false, error: msg }, { status: msg === "Không tìm thấy phiên" ? 404 : 500 })
 }

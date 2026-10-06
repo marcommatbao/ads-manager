@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { useSession } from "@/components/SessionProvider";
 import { useToast } from "@/components/Toast";
 import { useGuardedWrite } from "@/components/ConfirmWriteDialog";
+import { orderedCompanyIds } from "@/lib/companies/registry";
 
 const DAY_LABELS = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
@@ -87,7 +88,7 @@ function formatVND(v: number) {
 
 export default function DaypartingPage() {
   const { toast } = useToast();
-  const [company, setCompany] = useState<string>("MBC");
+  const [company, setCompany] = useState<string>(() => orderedCompanyIds(["MBC"])[0] ?? "MBC") // Đợt 25: công ty theo bản cài (bản Mắt Bão y như cũ);
   // Chỉ hiện công ty người này được xem. Trước đây nút bấm cứng cả MBC lẫn MBI,
   // nên người chỉ có quyền một bên vẫn thấy nút bên kia và bấm vào là nhận 403.
   const { user } = useSession();
