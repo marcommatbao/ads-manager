@@ -1,0 +1,80 @@
+// Đợt 26a — đọc số Meta cho trang So sánh tệp đối tượng. Ngân sách lượt gọi (app Meta bậc development ~60 lượt/giờ):
+// mỗi chiến dịch 1 lượt (cấu trúc nhóm + mẫu quảng cáo) + 1 lượt số liệu theo nhóm cho CẢ các chiến dịch; đệm 10 phút.
+import { detectCompany } from "@/lib/company-detect"
+import { adAccountId, metaGet, metaGetAll } from "@/lib/case/meta-graph"
+import { optEventOf, pickAction, PURCHASE_TYPES } from "@/lib/case/meta-evidence"
+import { META_LEAD_TYPES, metaGoalKind, type GoalKind } from "@/lib/case/goal-kind"
+import { compareGroup, type CompareAdset, type CompareGroup } from "./audience-compare"
+
+type Row = Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
+export const MAX_COMPARE_CAMPAIGNS = 3
+
+export interface CompareResult {
+  company: string
+  range: { from: string; to: string }
+  campaigns: { id: string; name: string; objective: string; goalKind: GoalKind; status: string }[]
+  groups: CompareGroup[]
+  /** Chiến dịch khác loại kết quả (mua vs lead) — so riêng từng nhóm, không trộn. */
+  mixedKinds: boolean
+  fetchedAt: string
+}
+
+const memo = new Map<string, { at: number; v: CompareResult }>()
+
+export async function compareAudiences(company: string, campaignIds: string[], range: { from: string; to: string }, opts: { force?: boolean } = {}): Promise<CompareResult> {
+  const ids = [...new Set(campaignIds)].filter((x) => /^\d{5,25}$/.test(x))
+  if (ids.length < 2 || ids.length > MAX_COMPARE_CAMPAIGNS) throw new Error(`Chọn 2–${MAX_COMPARE_CAMPAIGNS} chiến dịch để so sánh`)
+  const key = `${company}|${[...ids].sort().join(",")}|${range.from}|${range.to}`
+  const hit = memo.get(key)
+  if (!opts.force && hit && Date.now() - hit.at < 600_000) return hit.v
+
+  const camps: Row[] = []
+  for (const id of ids) {
+    const c = await metaGet<Row>(id, {
+      fields: "id,name,objective,status,adsets.limit(100){id,name,status,optimization_goal,promoted_object,learning_stage_info,targeting},ads.limit(300){adset_id,status,creative{id}}",
+    })
+    // Công ty lấy từ TÊN chiến dịch phía Meta — không tin danh sách client gửi (cùng luật các route ghi Meta).
+    if (detectCompany(String(c.name ?? "")) !== company) throw new Error(`Chiến dịch “${c.name ?? id}” không thuộc công ty đang chọn`)
+    camps.push(c)
+  }
+  const ins = await metaGetAll<Row>(`act_${adAccountId()}/insights`, {
+    level: "adset", time_range: JSON.stringify({ since: range.from, until: range.to }),
+    filtering: JSON.stringify([{ field: "campaign.id", operator: "IN", value: ids }]),
+    fields: "adset_id,campaign_id,spend,impressions,reach,frequency,inline_link_clicks,actions,action_values", limit: "500",
+  })
+  const insBy = new Map(ins.map((r) => [String(r.adset_id), r]))
+
+  const rows: CompareAdset[] = []
+  for (const c of camps) {
+    const kind = metaGoalKind(String(c.objective ?? ""))
+    const types = kind === "leads" ? META_LEAD_TYPES : PURCHASE_TYPES
+    const creatives = new Map<string, Set<string>>()
+    for (const ad of (c.ads?.data ?? []) as Row[]) {
+      if (!ad.creative?.id) continue
+      const s = creatives.get(String(ad.adset_id)) ?? new Set<string>()
+      s.add(String(ad.creative.id)); creatives.set(String(ad.adset_id), s)
+    }
+    for (const a of (c.adsets?.data ?? []) as Row[]) {
+      const r = insBy.get(String(a.id)) ?? {}
+      const ev = optEventOf(a.promoted_object, String(a.optimization_goal ?? ""))
+      rows.push({
+        id: String(a.id), name: String(a.name ?? ""), campaignId: String(c.id), campaignName: String(c.name ?? ""), goalKind: kind,
+        status: String(a.status ?? ""), optEventKey: `${a.optimization_goal ?? ""}|${ev.type}|${ev.customName ?? ""}`, optEventLabel: ev.label,
+        learning: a.learning_stage_info?.status ? String(a.learning_stage_info.status) : null,
+        targeting: (a.targeting ?? {}) as Record<string, unknown>, creativeIds: [...(creatives.get(String(a.id)) ?? [])],
+        spend: Number(r.spend) || 0, impressions: Number(r.impressions) || 0, reach: Number(r.reach) || 0,
+        frequency: r.frequency != null ? Number(r.frequency) : null, linkClicks: Number(r.inline_link_clicks) || 0,
+        results: pickAction(r.actions, types), value: kind === "leads" ? 0 : pickAction(r.action_values, PURCHASE_TYPES),
+      })
+    }
+  }
+  const kinds = [...new Set(rows.map((r) => r.goalKind))]
+  const v: CompareResult = {
+    company, range,
+    campaigns: camps.map((c) => ({ id: String(c.id), name: String(c.name ?? ""), objective: String(c.objective ?? ""), goalKind: metaGoalKind(String(c.objective ?? "")), status: String(c.status ?? "") })),
+    groups: kinds.map((k) => compareGroup(k, rows.filter((r) => r.goalKind === k))),
+    mixedKinds: kinds.length > 1, fetchedAt: new Date().toISOString(),
+  }
+  memo.set(key, { at: Date.now(), v })
+  return v
+}

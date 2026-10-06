@@ -52,6 +52,7 @@ import {
   CUSTOM_PRODUCT_OPTION,
 } from "./_constants";
 import type { AudienceInsightData, AudienceSegment, MetaAudience, BrandData } from "./_types";
+import type { WinningAudience } from "@/lib/meta/winning-audiences";
 import { fmtVND, formatReach, customProductName } from "./_utils";
 import { DraftNameEditor } from "./components/DraftNameEditor";
 import { DraftPicker } from "./components/DraftPicker";
@@ -148,6 +149,22 @@ function CreativeAIPageInner() {
   const [metaAudienceLoading, setMetaAudienceLoading] = useState(false);
   const [metaAudienceError, setMetaAudienceError] = useState<string | null>(null);
   const [selectedMetaAudienceIds, setSelectedMetaAudienceIds] = useState<Set<string>>(new Set());
+  // Đợt 26c — "Tệp thắng đã lưu" từ trang So sánh tệp đối tượng: chọn thì tạo Ad Set bằng ĐÚNG cấu hình nhắm chọn đã lưu.
+  const [winningList, setWinningList] = useState<WinningAudience[]>([]);
+  const [winningLoaded, setWinningLoaded] = useState(false);
+  const [selectedWinningIds, setSelectedWinningIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    setWinningList([]); setWinningLoaded(false); setSelectedWinningIds(new Set());
+  }, [company]);
+  useEffect(() => {
+    if (step2Tab !== "meta" || winningLoaded) return;
+    let alive = true;
+    fetch(`/api/meta/winning-audiences?company=${encodeURIComponent(company)}`)
+      .then(r => r.json())
+      .then(j => { if (alive) { setWinningList(Array.isArray(j?.rows) ? j.rows : []); setWinningLoaded(true); } })
+      .catch(() => { if (alive) { setWinningList([]); setWinningLoaded(true); } });
+    return () => { alive = false; };
+  }, [step2Tab, winningLoaded, company]);
   // Tệp LOẠI TRỪ — vd tệp khách đã mua, để chiến dịch chỉ đuổi theo khách mới.
   // Tách hẳn khỏi selectedMetaAudienceIds (tệp để NHẮM): một tệp có thể vừa
   // không được nhắm vừa phải bị loại trừ, và gộp hai việc vào một danh sách
@@ -807,7 +824,7 @@ function CreativeAIPageInner() {
   }, [step, selectedProduct, fetchAudienceInsight]);
 
   // ── Step 3: Generate Creatives (multi-tone × multi-segment) ──
-  const totalSegmentCount = selectedSegments.length + selectedMetaAudienceIds.size;
+  const totalSegmentCount = selectedSegments.length + selectedMetaAudienceIds.size + selectedWinningIds.size;
   const totalCreativeCount = totalSegmentCount * selectedTones.length * (platform === "both" ? 2 : 1);
 
   const generate = useCallback(async () => {
@@ -835,7 +852,24 @@ function CreativeAIPageInner() {
         painPoints: [],
         estimatedCTR: "1.5-2.5%",
       }));
-    const segments = [...aiSegments, ...metaSegmentsForGenerate];
+    const winningSegmentsForGenerate: AudienceSegment[] = winningList
+      .filter(w => selectedWinningIds.has(w.id))
+      .map(w => {
+        const t = w.targeting as { age_min?: number; age_max?: number; genders?: number[] };
+        const g = t.genders ?? [];
+        return {
+          segmentName: w.name,
+          size: "N/A",
+          priority: 1,
+          funnelStage: "MOFU" as const,
+          demographics: { age: `${t.age_min ?? 18}-${t.age_max ?? 65}`, gender: g.length === 1 ? (g[0] === 1 ? "Nam" : "Nữ") : "Tất cả", location: ["Toàn quốc"], income: "" },
+          psychographics: { interests: [], behaviors: [], jobTitles: [] },
+          facebookTargeting: { interests: [], behaviors: [], jobTitles: [], excludeAudiences: [] },
+          painPoints: [],
+          estimatedCTR: "1.5-2.5%",
+        };
+      });
+    const segments = [...aiSegments, ...metaSegmentsForGenerate, ...winningSegmentsForGenerate];
 
     const platformsToGenerate = platform === "both" ? ["facebook", "google"] : [platform];
 
@@ -960,7 +994,7 @@ function CreativeAIPageInner() {
     // sách phụ thuộc thì nó giữ bản CŨ — tệp Meta vừa chọn bị bỏ im lặng,
     // creative vẫn sinh ra bình thường nên không có gì báo. Cùng loại với lỗi
     // stale closure vừa làm Preflight báo thiếu logo dù logo đã tải lên.
-  }, [audienceData, selectedSegments, selectedProduct, customProduct, platform, objective, offer, selectedTones, usp, socialProof, metaAudienceList, selectedMetaAudienceIds, companyBody, productLabel]);
+  }, [audienceData, selectedSegments, selectedProduct, customProduct, platform, objective, offer, selectedTones, usp, socialProof, metaAudienceList, selectedMetaAudienceIds, winningList, selectedWinningIds, companyBody, productLabel]);
 
   // ── Toggle creative selection for Step 4 ──
   function toggleCreativeSelection(index: number) {
@@ -1130,7 +1164,7 @@ function CreativeAIPageInner() {
     if (competitorNames === fill.competitors)       setCompetitorNames("");
     setPrefillSource(null);
   }
-  const canProceedStep2 = selectedProduct === "custom" || selectedSegments.length > 0 || selectedMetaAudienceIds.size > 0;
+  const canProceedStep2 = selectedProduct === "custom" || selectedSegments.length > 0 || selectedMetaAudienceIds.size > 0 || selectedWinningIds.size > 0;
 
   // ── Save Segment to Library ──
   async function saveSegmentToLibrary(seg: AudienceSegment, index: number) {
@@ -2051,6 +2085,43 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
           {/* Meta Saved Audiences Tab */}
           {step2Tab === "meta" && (
             <div className="space-y-4">
+              {/* Đợt 26c — Tệp thắng đã lưu (từ trang "So sánh tệp đối tượng") */}
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-semibold text-emerald-800">🏆 Dùng tệp thắng đã lưu</p>
+                </div>
+                {winningLoaded && winningList.length === 0 && (
+                  <p className="text-xs text-slate-500">Chưa có tệp thắng nào được lưu cho công ty này. Vào &ldquo;So sánh tệp đối tượng&rdquo; để so và lưu.</p>
+                )}
+                {winningList.map(w => {
+                  const on = selectedWinningIds.has(w.id);
+                  return (
+                    <button
+                      key={w.id}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() => setSelectedWinningIds(prev => {
+                        const next = new Set(prev);
+                        if (next.has(w.id)) next.delete(w.id); else next.add(w.id);
+                        return next;
+                      })}
+                      className={cn(
+                        "w-full text-left rounded-lg border-2 bg-white px-3 py-2 transition-all",
+                        on ? "border-emerald-500 ring-2 ring-emerald-100" : "border-slate-200 hover:border-slate-300"
+                      )}
+                    >
+                      <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                        {on ? "✓" : "＋"} {w.name}
+                        <span className="rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-0.5">Tệp thắng</span>
+                      </span>
+                      <span className="block text-xs text-slate-500 mt-0.5">{w.summary}</span>
+                    </button>
+                  );
+                })}
+                {selectedWinningIds.size > 0 && (
+                  <p className="text-xs font-medium text-emerald-800">Đã chọn {selectedWinningIds.size} tệp thắng → mỗi tệp tạo 1 Ad Set với đúng cấu hình nhắm chọn đã lưu.</p>
+                )}
+              </div>
               {metaAudienceLoading && (
                 <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-6">
                   <Loader2 className="h-5 w-5 animate-spin text-amber-700" />
@@ -5039,7 +5110,27 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                         customAudienceIds: [a.id],
                         excludeCustomAudienceIds: excludeAudienceIdList.length > 0 ? excludeAudienceIdList : undefined,
                       }));
-                    const segments: LaunchSegment[] = [...aiLaunchSegments, ...metaLaunchSegments];
+                    const winningLaunchSegments: LaunchSegment[] = winningList
+                      .filter(w => selectedWinningIds.has(w.id))
+                      .map(w => {
+                        const t = w.targeting as { age_min?: number; age_max?: number; genders?: number[] };
+                        const g = t.genders ?? [];
+                        return {
+                          segmentName: w.name,
+                          funnelStage: "MOFU" as const,
+                          demographics: {
+                            ageMin: t.age_min ?? 18,
+                            ageMax: t.age_max ?? 65,
+                            gender: (g.length === 1 ? (g[0] === 1 ? "male" : "female") : "all") as "all" | "male" | "female",
+                            locations: [],
+                          },
+                          interests: [],
+                          behaviors: [],
+                          winningAudienceId: w.id,
+                          excludeCustomAudienceIds: excludeAudienceIdList.length > 0 ? excludeAudienceIdList : undefined,
+                        };
+                      });
+                    const segments: LaunchSegment[] = [...aiLaunchSegments, ...metaLaunchSegments, ...winningLaunchSegments];
                     const objConf = OBJECTIVE_MAP[objectiveKey] || OBJECTIVE_MAP.OUTCOME_LEADS;
                     const config: LaunchConfig = {
                       campaignName, objectiveKey, objective: objectiveKey, company,

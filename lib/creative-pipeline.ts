@@ -124,6 +124,8 @@ export interface LaunchSegment {
    *  If provided, mapSegmentToFBTargeting will use these directly
    *  instead of re-calling the FB search API. */
   resolvedInterestIds?: Array<{ id: string; name: string }>;
+  /** Đợt 26c: phân khúc lấy từ "tệp thắng" đã lưu (lib/meta/winning-audiences.ts) — tạo nhóm bằng ĐÚNG cấu hình nhắm chọn đó. */
+  winningAudienceId?: string;
   /** Saved Meta Custom Audience IDs — when set, targeting uses custom_audiences
    *  instead of interests/behaviors. */
   customAudienceIds?: string[];

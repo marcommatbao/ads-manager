@@ -37,6 +37,7 @@ import {
   ListTodo, CalendarRange, Target,
   BookOpenCheck,
   ScanLine,
+  Scale,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSession } from "@/components/SessionProvider";
@@ -105,6 +106,7 @@ const ALL_NAV_ITEMS: NavItem[] = [
 
   // ── FACEBOOK / META ──
   { label: "Meta X-quang",  href: "/meta-xray",     icon: ScanLine, roles: ADMIN_ROLES, description: "Đơn Meta báo tách bấm thật vs chỉ xem, đối chiếu GA4, việc nên làm cho từng chiến dịch.", section: "Facebook / Meta" },
+  { label: "So sánh tệp đối tượng", href: "/so-sanh-tep", icon: Scale, roles: ADMIN_ROLES, description: "So các nhóm quảng cáo Meta theo chi phí mỗi kết quả để chọn tệp thắng và lưu lại dùng cho lần tạo sau.", section: "Facebook / Meta" },
   { label: "Creative đơn thật", href: "/creative-don-that", icon: Target, roles: ADMIN_ROLES, description: "Mẫu quảng cáo nào thật sự ra đơn — chấm theo đơn đã thu tiền / lượt bấm, không theo số Meta tự báo.", section: "Facebook / Meta", module: "orders" },
 
   // ── ĐO LƯỜNG & ĐƠN THẬT: số có đáng tin không, đơn đã thu tiền về Google/Meta ──

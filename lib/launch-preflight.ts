@@ -305,6 +305,7 @@ export function runPreflightMeta(config: LaunchConfig, company: string): Preflig
       "Quay lại Step 2 và tạo/chọn segment");
   } else {
     const emptyInterestSegs = config.segments.filter(s =>
+      !s.winningAudienceId && // Đợt 26c: tệp thắng mang sẵn nhắm chọn đã lưu
       (!s.interests        || s.interests.length === 0) &&
       (!s.behaviors        || s.behaviors.length === 0) &&
       (!s.customAudienceIds || s.customAudienceIds.length === 0) &&

@@ -21,6 +21,7 @@ import { cleanIds, recordPlaybookUsage } from "@/lib/playbook/usage";
 import { hasPermission, canAccessCompany } from "@/lib/permissions";
 import { META_GRAPH_BASE } from "@/lib/meta/graph-version";
 import { friendlyError } from "@/lib/not-configured";
+import { getWinning } from "@/lib/meta/winning-audiences";
 
 const META_BASE = META_GRAPH_BASE;
 
@@ -87,6 +88,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "No creatives selected", log }, { status: 400 });
     }
 
+    // Đợt 26c: tệp thắng phải còn và cùng công ty — kiểm TRƯỚC khi tạo bất cứ thứ gì trên Meta (không để chiến dịch tạo dở).
+    const badWinning = config.segments.filter((sg) => sg.winningAudienceId && getWinning(sg.winningAudienceId)?.company !== config.company);
+    if (badWinning.length) {
+      return NextResponse.json({ success: false, error: `Tệp thắng không còn hoặc không thuộc công ty này: ${badWinning.map((sg) => sg.segmentName).join(", ")} — chọn lại tệp`, log }, { status: 400 });
+    }
+
     // Preflight validation — hard-block on errors
     const preflight = runPreflightMeta(config, config.company ?? "MBC");
     if (preflight.status === "blocked") {
@@ -144,13 +151,27 @@ export async function POST(request: NextRequest) {
       // Use pre-resolved interest IDs from the UI (user-selected or auto-resolved in Step 4).
       // These come directly from FB's own interest search so are already valid.
       // Only fall back to re-resolving via text search when no pre-resolved IDs exist.
-      const { targeting, unresolvedLocations } = await mapSegmentToFBTargeting(
-        segment,
-        token,
-        config.objectiveKey,
-        config.includeInstagram ?? false,
-        config.useAdvantageAudience ?? false
-      );
+      // Đợt 26c: tệp thắng đã lưu → dùng NGUYÊN cấu hình nhắm chọn đã chạy tốt (không dựng lại từ chữ). Tệp của công ty khác → dừng.
+      const saved = segment.winningAudienceId ? getWinning(segment.winningAudienceId) : null;
+      if (segment.winningAudienceId && (!saved || saved.company !== config.company)) {
+        throw new Error(`Tệp thắng “${segment.segmentName}” không còn hoặc không thuộc công ty này — chọn lại tệp`);
+      }
+      const { targeting, unresolvedLocations } = saved
+        ? { targeting: structuredClone(saved.targeting) as unknown as Awaited<ReturnType<typeof mapSegmentToFBTargeting>>["targeting"], unresolvedLocations: [] as string[] }
+        : await mapSegmentToFBTargeting(
+          segment,
+          token,
+          config.objectiveKey,
+          config.includeInstagram ?? false,
+          config.useAdvantageAudience ?? false
+        );
+      // Loại trừ tệp chọn ở LẦN CHẠY NÀY (vd khách cũ) vẫn phải áp — gộp với loại trừ có sẵn trong tệp đã lưu.
+      if (saved && segment.excludeCustomAudienceIds?.length) {
+        const t = targeting as unknown as { excluded_custom_audiences?: { id: string }[] };
+        const ids = new Set([...(t.excluded_custom_audiences ?? []).map((x) => String(x.id)), ...segment.excludeCustomAudienceIds.map(String)]);
+        t.excluded_custom_audiences = [...ids].map((id) => ({ id }));
+      }
+      if (saved) addLog(`🏆 Dùng tệp thắng đã lưu “${saved.name}” (${saved.summary}) — lưu ${saved.savedAt.slice(0, 10)}${saved.droppedKeys.length ? `; bỏ trường app không ghi được: ${saved.droppedKeys.join(", ")}` : ""}`);
 
       // Đợt 7b — bỏ vị trí đã chọn loại (Sổ kinh nghiệm "Nên tránh" hoặc người dùng tick).
       // dropPlacements không bao giờ để nhóm hết chỗ hiển thị.
