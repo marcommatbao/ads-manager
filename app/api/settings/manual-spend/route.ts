@@ -10,9 +10,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { hasPermission, canAccessCompany } from "@/lib/permissions";
 import { writeAuditEntry } from "@/lib/settings/audit";
 import {
-  MANUAL_CHANNELS,
-  MANUAL_CHANNEL_LABEL,
-  ManualSpendInputError,
+  manualChannelLabel, ManualSpendInputError,
   readManualSpend,
   upsertManualSpend,
   type ManualChannel,
@@ -20,6 +18,7 @@ import {
 } from "@/lib/finance/manual-spend";
 import { isCompany } from "@/lib/companies/registry";
 import { friendlyError } from "@/lib/not-configured";
+import { adChannels } from "@/lib/settings/ad-channels";
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +37,8 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     success: true,
     entries: visible,
-    channels: MANUAL_CHANNELS.map((c) => ({ id: c, label: MANUAL_CHANNEL_LABEL[c] })),
+    // Đợt 27: kênh theo sổ kênh (gốc + tự thêm ở trang KPI, bỏ kênh đã ẩn) + "Kênh khác".
+    channels: [...adChannels().filter((c) => c.source === "manual" && !c.hidden).map((c) => c.key), "other"].map((c) => ({ id: c, label: manualChannelLabel(c) })),
     canEdit: hasPermission(user.role, "can_edit"),
   });
 }

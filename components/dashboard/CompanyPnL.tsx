@@ -8,29 +8,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { DollarSign, RefreshCw, AlertTriangle, TrendingUp, ShoppingCart, Percent, Calendar, ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { BUILTIN_AD_CHANNELS, OTHER_CHANNEL, channelLabel, type AdChannelDef } from "@/lib/settings/ad-channels-def";
 
-/** Kênh đặt được trần ngân sách (Settings → KPI). */
-const BUDGET_CHANNELS = ["google", "facebook", "tiktok", "zalo"] as const;
-type BudgetChannel = (typeof BUDGET_CHANNELS)[number];
-type ChannelBudget = Record<BudgetChannel, number>;
-
-/** Kênh có chi phí thực tế — thêm "other" (Kênh khác) vốn không đặt trần được. */
-const SPEND_CHANNELS = [...BUDGET_CHANNELS, "other"] as const;
-type SpendChannel = (typeof SPEND_CHANNELS)[number];
-type ChannelSpend = Record<SpendChannel, number>;
-
-const CHANNEL_LABEL: Record<SpendChannel, string> = {
-  google: "Google",
-  facebook: "Facebook",
-  tiktok: "TikTok",
-  zalo: "Zalo",
-  other: "Kênh khác",
-};
-
-/** Kênh lấy số tự động qua API — hai kênh còn lại do người khai tay theo tháng. */
-const AUTO_CHANNELS = new Set<SpendChannel>(["google", "facebook"]);
-
-const EMPTY_CHANNEL_SPEND: ChannelSpend = { google: 0, facebook: 0, tiktok: 0, zalo: 0, other: 0 };
+/** Kênh đặt được trần ngân sách (Settings → KPI) — lấy từ sổ kênh dùng chung (`channels` của GET /api/settings/kpi). */
+type ChannelBudget = Record<string, number>;
+type ChannelSpend = Record<string, number>;
 
 interface MbcPnl {
   company: "MBC";
@@ -118,6 +100,7 @@ export default function CompanyPnL() {
     adSpendMbc: number; adSpendMbi: number; revenueMbc: number; ordersMbi: number;
     mbcByChannel?: ChannelBudget; mbiByChannel?: ChannelBudget;
   } | null>(null);
+  const [channels, setChannels] = useState<AdChannelDef[]>(BUILTIN_AD_CHANNELS);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -152,6 +135,7 @@ export default function CompanyPnL() {
         const y = month.slice(0, 4); const mi = Number(month.slice(5, 7)) - 1;
         const kr = await fetch(`/api/settings/kpi?year=${y}`);
         const kt = await kr.text(); const kj = kt ? JSON.parse(kt) : {};
+        if (kj.success && Array.isArray(kj.channels) && kj.channels.length > 0) setChannels(kj.channels);
         const mk = kj.success && Array.isArray(kj.months) ? kj.months[mi] : null;
         setKpi(mk ? {
           adSpendMbc: mk.adSpendMbc || 0, adSpendMbi: mk.adSpendMbi || 0,
@@ -251,8 +235,8 @@ export default function CompanyPnL() {
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {mbc && <MbcCard d={mbc} adSpendTarget={kpi?.adSpendMbc} revenueTarget={kpi?.revenueMbc} channelTargets={kpi?.mbcByChannel} derived={data?.targets?.derived} manualExcluded={data?.manualExcluded} cmp={data?.comparison} />}
-          {mbi && <MbiCard d={mbi} adSpendTarget={kpi?.adSpendMbi} ordersTarget={kpi?.ordersMbi} channelTargets={kpi?.mbiByChannel} derived={data?.targets?.derived} manualExcluded={data?.manualExcluded} cmp={data?.comparison} />}
+          {mbc && <MbcCard d={mbc} adSpendTarget={kpi?.adSpendMbc} revenueTarget={kpi?.revenueMbc} channelTargets={kpi?.mbcByChannel} derived={data?.targets?.derived} manualExcluded={data?.manualExcluded} cmp={data?.comparison} channels={channels} />}
+          {mbi && <MbiCard d={mbi} adSpendTarget={kpi?.adSpendMbi} ordersTarget={kpi?.ordersMbi} channelTargets={kpi?.mbiByChannel} derived={data?.targets?.derived} manualExcluded={data?.manualExcluded} cmp={data?.comparison} channels={channels} />}
           {!mbc && !mbi && <p className="text-sm text-slate-400 py-6 text-center col-span-2">Không có dữ liệu công ty bạn được xem.</p>}
         </div>
       )}
@@ -260,7 +244,8 @@ export default function CompanyPnL() {
   );
 }
 
-function SpendRow({ g, f, t, accent, fbError, ggError, fbStaleAt, manualExcluded, spendDelta, byChannel, budget }: {
+function SpendRow({ g, f, t, accent, fbError, ggError, fbStaleAt, manualExcluded, spendDelta, byChannel, budget, channels }: {
+  channels: AdChannelDef[];
   g: number; f: number; t: number; accent: string;
   fbError?: string | null; ggError?: string | null;
   /** Chi phí Facebook là số cũ đọc lúc này — số ĐÚNG, chỉ không mới. */
@@ -296,21 +281,26 @@ function SpendRow({ g, f, t, accent, fbError, ggError, fbStaleAt, manualExcluded
   // Thiếu bảng theo kênh (payload cũ còn trong bộ đệm) thì chỉ dựng lại hai kênh
   // đo được — KHÔNG suy ngược phần còn lại thành TikTok/Zalo, vì phần chênh có
   // thể là bất cứ kênh nào người ta đã khai.
+  const budgetKeys = channels.map(c => c.key);
+  const spendKeys = [...budgetKeys, OTHER_CHANNEL.key];
+  const emptySpend: ChannelSpend = Object.fromEntries(spendKeys.map(k => [k, 0]));
+  /** Kênh lấy số tự động qua API — các kênh còn lại do người khai tay theo tháng. */
+  const isAuto = (k: string) => channels.find(c => c.key === k)?.source === "api";
   const spend: ChannelSpend = byChannel
-    ? { ...EMPTY_CHANNEL_SPEND, ...byChannel }
-    : { ...EMPTY_CHANNEL_SPEND, google: g, facebook: f };
+    ? { ...emptySpend, ...byChannel }
+    : { ...emptySpend, google: g, facebook: f };
 
   // Google/Facebook luôn hiện (đo tự động, 0đ là 0đ thật). Kênh nhập tay chỉ
   // hiện khi có tiêu hoặc có trần — bày một ô Zalo 0đ quanh năm chỉ tổ rối.
   // Chế độ tuần: số nhập tay không nằm trong kỳ nên không bày ô nào cả, tránh
   // hiểu nhầm "tuần này TikTok tiêu 0đ".
-  const visibleChannels = SPEND_CHANNELS.filter(ch => {
-    if (AUTO_CHANNELS.has(ch)) return true;
+  const visibleChannels = spendKeys.filter(ch => {
+    if (isAuto(ch)) return true;
     if (manualExcluded) return false;
     return spend[ch] > 0 || (ch !== "other" && (budget?.[ch] ?? 0) > 0);
   });
 
-  const overspent = BUDGET_CHANNELS
+  const overspent = budgetKeys
     .filter(ch => (budget?.[ch] ?? 0) > 0 && spend[ch] > budget![ch])
     .map(ch => ({ ch, over: spend[ch] - budget![ch] }));
 
@@ -320,12 +310,12 @@ function SpendRow({ g, f, t, accent, fbError, ggError, fbStaleAt, manualExcluded
         {visibleChannels.map(ch => {
           const unavailable = (ch === "facebook" && fbUnavailable) || (ch === "google" && !!ggError);
           const label =
-            ch === "facebook" && staleLabel ? "Facebook (số cũ)" : CHANNEL_LABEL[ch];
+            ch === "facebook" && staleLabel ? "Facebook (số cũ)" : channelLabel(channels, ch);
           return (
             <ChannelCell
               key={ch}
               label={label}
-              manual={!AUTO_CHANNELS.has(ch)}
+              manual={!isAuto(ch)}
               actual={spend[ch]}
               target={ch === "other" ? 0 : budget?.[ch] ?? 0}
               value={unavailable ? "—" : fmtVND(spend[ch])}
@@ -337,7 +327,7 @@ function SpendRow({ g, f, t, accent, fbError, ggError, fbStaleAt, manualExcluded
       </div>
       <div className="grid grid-cols-1 gap-2">
         <Cell
-          label={anyError ? "Tổng chi phí (thiếu)" : `Tổng chi phí = ${visibleChannels.map(c => CHANNEL_LABEL[c]).join(" + ")}`}
+          label={anyError ? "Tổng chi phí (thiếu)" : `Tổng chi phí = ${visibleChannels.map(c => channelLabel(channels, c)).join(" + ")}`}
           value={fmtVND(t)} strong accent={accent} delta={spendDelta} money
         />
       </div>
@@ -346,7 +336,7 @@ function SpendRow({ g, f, t, accent, fbError, ggError, fbStaleAt, manualExcluded
         // dò từng ô — nên nhắc lại thành một dòng riêng.
         <p className="rounded-lg bg-red-50 border border-red-200 px-2.5 py-1.5 text-[10px] text-red-800">
           Vượt trần kênh:{" "}
-          {overspent.map(o => `${CHANNEL_LABEL[o.ch]} +${fmtVND(o.over)}`).join(" · ")}
+          {overspent.map(o => `${channelLabel(channels, o.ch)} +${fmtVND(o.over)}`).join(" · ")}
           {" "}— trần đặt ở <strong>Settings → KPI</strong>.
         </p>
       )}
@@ -529,11 +519,11 @@ function KpiBar({ label, actual, target, money, higherIsBetter, derived }: { lab
   );
 }
 
-function MbcCard({ d, adSpendTarget, revenueTarget, channelTargets, derived, manualExcluded, cmp }: { d: MbcPnl; adSpendTarget?: number; revenueTarget?: number; channelTargets?: ChannelBudget; derived?: boolean; manualExcluded?: boolean; cmp?: PnlComparison }) {
+function MbcCard({ d, adSpendTarget, revenueTarget, channelTargets, derived, manualExcluded, cmp, channels }: { channels: AdChannelDef[]; d: MbcPnl; adSpendTarget?: number; revenueTarget?: number; channelTargets?: ChannelBudget; derived?: boolean; manualExcluded?: boolean; cmp?: PnlComparison }) {
   return (
     <div className="rounded-2xl border border-blue-200 bg-blue-50/30 p-4" style={{ borderLeftWidth: 3, borderLeftColor: "#2563eb" }}>
       <h3 className="text-sm font-bold text-blue-700 mb-3">🏢 MBC — đo theo doanh thu</h3>
-      <SpendRow g={d.spendGoogle} f={d.spendFacebook} t={d.totalSpend} accent="text-blue-700" fbError={d.spendFacebookError} ggError={d.spendGoogleError} fbStaleAt={d.spendFacebookStaleAt} manualExcluded={manualExcluded} spendDelta={cmp?.MBC.totalSpend} byChannel={d.spendByChannel} budget={channelTargets} />
+      <SpendRow g={d.spendGoogle} f={d.spendFacebook} t={d.totalSpend} accent="text-blue-700" fbError={d.spendFacebookError} ggError={d.spendGoogleError} fbStaleAt={d.spendFacebookStaleAt} manualExcluded={manualExcluded} spendDelta={cmp?.MBC.totalSpend} byChannel={d.spendByChannel} budget={channelTargets} channels={channels} />
       {d.revenueSourceError && (
         <div className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 mb-2">
           <AlertTriangle className="h-3 w-3 shrink-0" />
@@ -554,11 +544,11 @@ function MbcCard({ d, adSpendTarget, revenueTarget, channelTargets, derived, man
   );
 }
 
-function MbiCard({ d, adSpendTarget, ordersTarget, channelTargets, derived, manualExcluded, cmp }: { d: MbiPnl; adSpendTarget?: number; ordersTarget?: number; channelTargets?: ChannelBudget; derived?: boolean; manualExcluded?: boolean; cmp?: PnlComparison }) {
+function MbiCard({ d, adSpendTarget, ordersTarget, channelTargets, derived, manualExcluded, cmp, channels }: { channels: AdChannelDef[]; d: MbiPnl; adSpendTarget?: number; ordersTarget?: number; channelTargets?: ChannelBudget; derived?: boolean; manualExcluded?: boolean; cmp?: PnlComparison }) {
   return (
     <div className="rounded-2xl border border-violet-200 bg-violet-50/30 p-4" style={{ borderLeftWidth: 3, borderLeftColor: "#7c3aed" }}>
       <h3 className="text-sm font-bold text-violet-700 mb-3">🏢 MBI — đo theo đơn hàng</h3>
-      <SpendRow g={d.spendGoogle} f={d.spendFacebook} t={d.totalSpend} accent="text-violet-700" fbError={d.spendFacebookError} ggError={d.spendGoogleError} fbStaleAt={d.spendFacebookStaleAt} manualExcluded={manualExcluded} spendDelta={cmp?.MBI.totalSpend} byChannel={d.spendByChannel} budget={channelTargets} />
+      <SpendRow g={d.spendGoogle} f={d.spendFacebook} t={d.totalSpend} accent="text-violet-700" fbError={d.spendFacebookError} ggError={d.spendGoogleError} fbStaleAt={d.spendFacebookStaleAt} manualExcluded={manualExcluded} spendDelta={cmp?.MBI.totalSpend} byChannel={d.spendByChannel} budget={channelTargets} channels={channels} />
       {d.ordersSourceError && (
         <div className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 mb-2">
           <AlertTriangle className="h-3 w-3 shrink-0" />

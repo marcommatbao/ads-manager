@@ -13,26 +13,31 @@ import { promises as fsp, readFileSync, existsSync } from "fs";
 import { writeFileAtomic } from "@/lib/fs-atomic";
 import path from "path";
 import { withFileLock } from "@/lib/file-lock";
+import { adChannels, kpiChannelKeys } from "@/lib/settings/ad-channels";
 
 const FILE = path.join(process.cwd(), "data", "kpi-targets.json");
 const LOCK_KEY = "kpi-targets";
 
-/** Các kênh đặt được trần ngân sách. Danh sách đóng — để không sinh ra 5 biến
- *  thể "Tiktok / TikTok / tik tok" như chỗ khai chi phí tay từng suýt gặp. */
+/** Kênh GỐC đặt được trần ngân sách. Đợt 27: thêm kênh (ChatGPT, Microsoft…) ở trang KPI — sổ kênh dùng chung
+ *  lib/settings/ad-channels.ts; mã kênh sinh một lần từ tên nên không sinh biến thể "Tiktok / TikTok / tik tok". */
 export const KPI_CHANNELS = ["google", "facebook", "tiktok", "zalo"] as const;
-export type KpiChannel = (typeof KPI_CHANNELS)[number];
+export type KpiChannel = string;
 
-export const KPI_CHANNEL_LABEL: Record<KpiChannel, string> = {
+export const KPI_CHANNEL_LABEL: Record<string, string> = {
   google: "Google",
   facebook: "Facebook",
   tiktok: "TikTok",
   zalo: "Zalo",
 };
+/** Tên kênh (cả kênh tự thêm). */
+export const kpiChannelLabel = (key: string): string => adChannels().find((c) => c.key === key)?.label ?? KPI_CHANNEL_LABEL[key] ?? key;
 
 /** Trần ngân sách theo kênh (₫). 0 = chưa đặt trần cho kênh đó. */
-export type ChannelBudget = Record<KpiChannel, number>;
+export type ChannelBudget = Record<string, number>;
 
+/** 4 kênh gốc = 0. Có kênh tự thêm → dùng emptyChannelBudget(). */
 export const EMPTY_CHANNEL_BUDGET: ChannelBudget = { google: 0, facebook: 0, tiktok: 0, zalo: 0 };
+export const emptyChannelBudget = (): ChannelBudget => Object.fromEntries(kpiChannelKeys().map((k) => [k, 0]));
 
 export interface MonthKpi {
   revenueMbc: number;  // doanh thu MBC mục tiêu (₫)
@@ -53,7 +58,7 @@ export const EMPTY_MONTH: MonthKpi = {
 
 /** Tổng tiền đã phân bổ cho các kênh. */
 export function sumChannelBudget(b: Partial<ChannelBudget> | undefined): number {
-  return KPI_CHANNELS.reduce((s, ch) => s + (Number(b?.[ch]) || 0), 0);
+  return kpiChannelKeys().reduce((s, ch) => s + (Number(b?.[ch]) || 0), 0);
 }
 
 interface YearKpi { months: Record<string, MonthKpi>; updatedAt?: string; updatedBy?: string }
@@ -79,8 +84,9 @@ function readDB(): KpiDB {
 }
 
 function normChannels(b: Partial<ChannelBudget> | undefined): ChannelBudget {
-  const out = { ...EMPTY_CHANNEL_BUDGET };
-  for (const ch of KPI_CHANNELS) out[ch] = Math.max(0, Math.round(Number(b?.[ch]) || 0));
+  // Đợt 27: mọi kênh trong sổ (kể cả kênh tự thêm / đã ẩn) — trước đây chỉ giữ 4 kênh gốc nên số kênh mới sẽ bị xoá khi lưu.
+  const out: ChannelBudget = {};
+  for (const ch of kpiChannelKeys()) out[ch] = Math.max(0, Math.round(Number(b?.[ch]) || 0));
   return out;
 }
 
@@ -95,6 +101,13 @@ function normMonth(m: Partial<MonthKpi> | undefined): MonthKpi {
     adSpendMbcByChannel: normChannels(m?.adSpendMbcByChannel),
     adSpendMbiByChannel: normChannels(m?.adSpendMbiByChannel),
   };
+}
+
+/** Đợt 27: kênh này có trần > 0 ở BẤT KỲ tháng nào đã lưu không (chặn ẩn kênh đang có số). */
+export function channelHasKpiValues(key: string): boolean {
+  const db = readDB();
+  return Object.values(db).some((y) => Object.values(y?.months ?? {}).some((m) =>
+    (Number(m?.adSpendMbcByChannel?.[key]) || 0) > 0 || (Number(m?.adSpendMbiByChannel?.[key]) || 0) > 0));
 }
 
 /** View đầy đủ 12 tháng + 4 quý (tự cộng) cho 1 năm. */

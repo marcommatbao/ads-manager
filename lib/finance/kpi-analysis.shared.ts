@@ -12,7 +12,8 @@
 
 /** Kênh hiển thị = 4 kênh đặt được trần + "Kênh khác" (có chi nhưng không đặt trần). */
 export const ANALYSIS_CHANNELS = ["google", "facebook", "tiktok", "zalo", "other"] as const;
-export type AnalysisChannel = (typeof ANALYSIS_CHANNELS)[number];
+/** Đợt 27: thêm kênh tự đặt (ChatGPT, Microsoft…) → mã kênh là chuỗi bất kỳ trong sổ kênh. */
+export type AnalysisChannel = string;
 
 /** Kênh không có API — số thực tế là do người khai tay ở Settings. */
 export type MonthStatus =

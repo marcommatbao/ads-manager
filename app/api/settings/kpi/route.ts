@@ -11,6 +11,7 @@ import { kpiForbiddenChanges } from "@/lib/settings/kpi-scope";
 import { getKpiYear, saveKpiYear, type MonthKpi } from "@/lib/settings/kpi-store";
 import { writeAuditEntry, writeAuditSnapshot, computeDiff } from "@/lib/settings/audit";
 import { validateKpiYear } from "@/lib/settings/validators/kpi";
+import { adChannels } from "@/lib/settings/ad-channels";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -26,7 +27,8 @@ export async function GET(request: NextRequest) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const year = parseYear(request.nextUrl.searchParams.get("year"));
   const canEdit = isAdmin(user.role) || isSuperAdmin(user.role);
-  return NextResponse.json({ success: true, canEdit, ...getKpiYear(year) });
+  // Đợt 27: kèm sổ kênh (gốc + tự thêm) — trang KPI / Tổng quan / P&L dựng cột kênh theo danh sách này.
+  return NextResponse.json({ success: true, canEdit, canManageChannels: isSuperAdmin(user.role), channels: adChannels(), ...getKpiYear(year) });
 }
 
 export async function PUT(request: NextRequest) {

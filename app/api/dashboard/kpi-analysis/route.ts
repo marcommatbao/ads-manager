@@ -27,7 +27,7 @@ import { callGemini, redactApiKeys } from "@/lib/gemini";
 import { writeFileAtomic } from "@/lib/fs-atomic";
 import { buildKpiFacts, type KpiFacts } from "@/lib/finance/kpi-analysis-facts";
 import { factsToTable, PROMPT_RULES, parseNarrative, type KpiAiNarrative } from "@/lib/finance/kpi-analysis-prompt";
-import { EMPTY_CHANNEL_BUDGET, type MonthKpi } from "@/lib/settings/kpi-store";
+import { emptyChannelBudget, type MonthKpi } from "@/lib/settings/kpi-store";
 import type { MonthActual } from "@/app/api/dashboard/kpi-actuals/route";
 
 export const dynamic = "force-dynamic";
@@ -58,7 +58,7 @@ function num(v: unknown): number {
 
 function channelBudget(v: unknown): Record<string, number> {
   const src = (v ?? {}) as Record<string, unknown>;
-  const out: Record<string, number> = { ...EMPTY_CHANNEL_BUDGET };
+  const out: Record<string, number> = emptyChannelBudget(); // Đợt 27: gồm kênh tự thêm
   for (const k of Object.keys(out)) out[k] = num(src[k]);
   return out;
 }

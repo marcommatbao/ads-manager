@@ -14,29 +14,22 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Save, RefreshCw, AlertTriangle, CheckCircle2, Lock, ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { BUILTIN_AD_CHANNELS, type AdChannelDef } from "@/lib/settings/ad-channels-def";
 
-const CHANNELS = ["google", "facebook", "tiktok", "zalo"] as const;
-type Channel = (typeof CHANNELS)[number];
-type ChannelBudget = Record<Channel, number>;
-
-const CHANNEL_LABEL: Record<Channel, string> = {
-  google: "Google",
-  facebook: "Facebook",
-  tiktok: "TikTok",
-  zalo: "Zalo",
-};
+// Danh sách kênh lấy từ sổ kênh dùng chung (GET /api/settings/kpi trả `channels`); kênh gốc là giá trị khởi tạo.
+type Channel = string;
+type ChannelBudget = Record<string, number>;
 
 /** Kênh nào có số liệu chi phí thực tế tự động, kênh nào phải khai tay. Nói ra
  *  ngay tại chỗ nhập trần, vì đặt trần cho một kênh không ai khai chi phí thì
  *  thanh tiến độ mãi mãi là 0% — trông như đang tiêu rất ít. */
-const CHANNEL_SOURCE: Record<Channel, string> = {
-  google: "Chi phí thực tế lấy tự động qua Google Ads API",
-  facebook: "Chi phí thực tế lấy tự động qua Meta API",
-  tiktok: "Chi phí thực tế phải khai tay ở Settings → Chi phí kênh khác",
-  zalo: "Chi phí thực tế phải khai tay ở Settings → Chi phí kênh khác",
-};
+const channelSource = (c: AdChannelDef): string =>
+  c.key === "google" ? "Chi phí thực tế lấy tự động qua Google Ads API"
+    : c.key === "facebook" ? "Chi phí thực tế lấy tự động qua Meta API"
+      : "Chi phí thực tế phải khai tay ở Settings → Chi phí kênh khác";
 
-const EMPTY_CHANNELS: ChannelBudget = { google: 0, facebook: 0, tiktok: 0, zalo: 0 };
+const emptyChannels = (chs: AdChannelDef[]): ChannelBudget =>
+  Object.fromEntries(chs.map(c => [c.key, 0]));
 
 interface MonthKpi {
   revenueMbc: number;
@@ -47,11 +40,11 @@ interface MonthKpi {
   adSpendMbiByChannel: ChannelBudget;
 }
 
-const EMPTY: MonthKpi = {
+const emptyMonth = (chs: AdChannelDef[]): MonthKpi => ({
   revenueMbc: 0, adSpendMbc: 0, adSpendMbi: 0, ordersMbi: 0,
-  adSpendMbcByChannel: { ...EMPTY_CHANNELS },
-  adSpendMbiByChannel: { ...EMPTY_CHANNELS },
-};
+  adSpendMbcByChannel: emptyChannels(chs),
+  adSpendMbiByChannel: emptyChannels(chs),
+});
 
 const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
 const QUARTERS = [
@@ -66,7 +59,7 @@ type TotalField = "revenueMbc" | "adSpendMbc" | "adSpendMbi" | "ordersMbi";
 type ChannelField = "adSpendMbcByChannel" | "adSpendMbiByChannel";
 
 const sumChannels = (b: ChannelBudget | undefined) =>
-  CHANNELS.reduce((s, ch) => s + (b?.[ch] ?? 0), 0);
+  Object.values(b ?? {}).reduce((s, v) => s + (Number(v) || 0), 0);
 
 /** Một công ty = một ô tổng + một bảng phân bổ kênh. */
 const SPEND_SIDES: { total: TotalField; channels: ChannelField; label: string }[] = [
@@ -77,7 +70,13 @@ const SPEND_SIDES: { total: TotalField; channels: ChannelField; label: string }[
 export default function KpiSettingsPage() {
   const now = new Date().getFullYear();
   const [year, setYear] = useState(now);
-  const [months, setMonths] = useState<MonthKpi[]>(() => MONTHS.map(() => ({ ...EMPTY })));
+  const [channels, setChannels] = useState<AdChannelDef[]>(BUILTIN_AD_CHANNELS);
+  const [canManageChannels, setCanManageChannels] = useState(false);
+  const [newChannel, setNewChannel] = useState("");
+  const [chBusy, setChBusy] = useState(false);
+  const [chError, setChError] = useState<string | null>(null);
+  const [chNote, setChNote] = useState<string | null>(null);
+  const [months, setMonths] = useState<MonthKpi[]>(() => MONTHS.map(() => emptyMonth(BUILTIN_AD_CHANNELS)));
   const [canEdit, setCanEdit] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -95,14 +94,17 @@ export default function KpiSettingsPage() {
       const text = await res.text();
       const json = text ? JSON.parse(text) : {};
       if (!res.ok || !json.success) throw new Error(json.error ?? `Lỗi tải KPI (HTTP ${res.status})`);
+      const chs: AdChannelDef[] = Array.isArray(json.channels) && json.channels.length > 0 ? json.channels : BUILTIN_AD_CHANNELS;
+      setChannels(chs);
+      setCanManageChannels(!!json.canManageChannels);
       setMonths((json.months as Partial<MonthKpi>[]).map(m => ({
-        ...EMPTY,
+        ...emptyMonth(chs),
         ...m,
         // Tháng lưu trước khi có tính năng này không có hai trường kênh — phải
         // bồi vào, nếu không mọi ô kênh đọc ra undefined và React đổi input từ
         // controlled sang uncontrolled giữa chừng.
-        adSpendMbcByChannel: { ...EMPTY_CHANNELS, ...(m.adSpendMbcByChannel ?? {}) },
-        adSpendMbiByChannel: { ...EMPTY_CHANNELS, ...(m.adSpendMbiByChannel ?? {}) },
+        adSpendMbcByChannel: { ...emptyChannels(chs), ...(m.adSpendMbcByChannel ?? {}) },
+        adSpendMbiByChannel: { ...emptyChannels(chs), ...(m.adSpendMbiByChannel ?? {}) },
       })));
       setCanEdit(!!json.canEdit);
     } catch (err) {
@@ -127,6 +129,54 @@ export default function KpiSettingsPage() {
   // Tháng nào phân bổ quá tay thì chặn nút Lưu ngay tại trình duyệt — server
   // cũng chặn (validateKpiYear), nhưng báo tại chỗ thì người nhập sửa được
   // ngay thay vì bấm Lưu rồi mới biết.
+  // Kênh hiện ra bảng: kênh chưa ẩn + kênh đã ẩn mà vẫn còn số (để tổng không chứa số vô hình).
+  const rowChannels = useMemo(() => channels.filter(c => !c.hidden || months.some(m =>
+    (m?.adSpendMbcByChannel?.[c.key] ?? 0) !== 0 || (m?.adSpendMbiByChannel?.[c.key] ?? 0) !== 0)), [channels, months]);
+  const manualLabels = useMemo(() => channels.filter(c => c.source === "manual" && !c.hidden).map(c => c.label), [channels]);
+  const customChannels = useMemo(() => channels.filter(c => !c.builtIn), [channels]);
+
+  const addChannel = async () => {
+    const label = newChannel.trim();
+    if (!label || chBusy) return;
+    setChBusy(true); setChError(null); setChNote(null);
+    try {
+      const res = await fetch("/api/settings/ad-channels", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ label }),
+      });
+      const text = await res.text();
+      const json = text ? JSON.parse(text) : {};
+      if (!res.ok || !json.channel) throw new Error(json.error ?? `Thêm kênh thất bại (HTTP ${res.status})`);
+      const list: AdChannelDef[] = json.channels ?? [...channels, json.channel];
+      setChannels(list);
+      // Thêm số 0 cho kênh mới vào từng tháng, giữ nguyên các ô đang sửa dở.
+      setMonths(prev => prev.map(m => ({
+        ...m,
+        adSpendMbcByChannel: { ...emptyChannels(list), ...m.adSpendMbcByChannel },
+        adSpendMbiByChannel: { ...emptyChannels(list), ...m.adSpendMbiByChannel },
+      })));
+      setNewChannel("");
+      setChNote(`Đã thêm kênh “${json.channel.label ?? label}” — nhập trần rồi bấm Lưu KPI; chi phí thực tế khai ở Settings → Chi phí kênh khác`);
+    } catch (err) {
+      setChError(err instanceof Error ? err.message : "Lỗi kết nối");
+    } finally { setChBusy(false); }
+  };
+
+  const toggleChannel = async (c: AdChannelDef) => {
+    if (chBusy) return;
+    setChBusy(true); setChError(null); setChNote(null);
+    try {
+      const res = await fetch("/api/settings/ad-channels", {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key: c.key, hidden: !c.hidden }),
+      });
+      const text = await res.text();
+      const json = text ? JSON.parse(text) : {};
+      if (!res.ok || !json.channels) throw new Error(json.error ?? `Đổi trạng thái kênh thất bại (HTTP ${res.status})`);
+      setChannels(json.channels);
+    } catch (err) {
+      setChError(err instanceof Error ? err.message : "Lỗi kết nối");
+    } finally { setChBusy(false); }
+  };
+
   const overAllocated = useMemo(() => {
     const out: { month: number; label: string; over: number }[] = [];
     months.forEach((m, i) => {
@@ -216,6 +266,36 @@ export default function KpiSettingsPage() {
         </div>
       )}
 
+      {!loading && canManageChannels && (
+        <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              value={newChannel} onChange={e => setNewChannel(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") addChannel(); }}
+              maxLength={40} placeholder="vd: ChatGPT Ads, Microsoft Ads" aria-label="Tên kênh quảng cáo mới"
+              className="w-64 border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-amber-400"
+            />
+            <button type="button" onClick={addChannel} disabled={chBusy || !newChannel.trim()}
+              className="px-3 py-1.5 rounded-lg bg-amber-500 text-amber-950 text-xs font-semibold hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed">
+              + Thêm kênh quảng cáo
+            </button>
+          </div>
+          {chError && <p className="text-red-700" role="alert">{chError}</p>}
+          {chNote && <p className="text-emerald-700" role="status">{chNote}</p>}
+          {customChannels.length > 0 && (
+            <ul className="flex flex-wrap gap-2">
+              {customChannels.map(c => (
+                <li key={c.key} className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1">
+                  <span className={cn("font-medium", c.hidden ? "text-slate-400 line-through" : "text-slate-700")}>{c.label}</span>
+                  <button type="button" onClick={() => toggleChannel(c)} disabled={chBusy}
+                    className="text-amber-700 hover:underline disabled:opacity-50">{c.hidden ? "Hiện" : "Ẩn"}</button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
       {!loading && (
         <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-xs text-blue-900 space-y-1">
           <p>
@@ -224,8 +304,7 @@ export default function KpiSettingsPage() {
             <em> chưa phân bổ</em>.
           </p>
           <p>
-            Chi phí thực tế của <strong>Google và Facebook</strong> hệ thống tự lấy qua API. <strong>TikTok và
-            Zalo</strong> không có API — phải khai ở <em>Settings → Chi phí kênh khác</em>, không khai thì trần
+            Chi phí thực tế của <strong>Google và Facebook</strong> hệ thống tự lấy qua API. <strong>{manualLabels.length > 0 ? manualLabels.join(" và ") : "TikTok và Zalo"}</strong> không có API — phải khai ở <em>Settings → Chi phí kênh khác</em>, không khai thì trần
             đặt ở đây luôn hiện 0%.
           </p>
         </div>
@@ -292,18 +371,23 @@ export default function KpiSettingsPage() {
                       ))}
                     </tr>
 
-                    {expanded && CHANNELS.map(ch => (
+                    {expanded && rowChannels.map(chDef => {
+                      const ch = chDef.key;
+                      return (
                       <tr key={`${side.channels}-${ch}`} className="bg-slate-50/50">
-                        <td className="sticky left-0 z-10 bg-slate-50 px-3 py-1 text-[11px] text-slate-500 whitespace-nowrap" title={CHANNEL_SOURCE[ch]}>
-                          <span className="text-slate-300 mr-1">└</span>{CHANNEL_LABEL[ch]}
-                          {(ch === "tiktok" || ch === "zalo") && (
-                            <span className="ml-1 text-[9px] text-amber-600" title={CHANNEL_SOURCE[ch]}>(nhập tay)</span>
+                        <td className="sticky left-0 z-10 bg-slate-50 px-3 py-1 text-[11px] text-slate-500 whitespace-nowrap" title={channelSource(chDef)}>
+                          <span className="text-slate-300 mr-1">└</span>{chDef.label}
+                          {chDef.source === "manual" && (
+                            <span className="ml-1 text-[9px] text-amber-600" title={channelSource(chDef)}>(nhập tay)</span>
+                          )}
+                          {chDef.hidden && (
+                            <span className="ml-1 text-[9px] text-slate-400">(đã ẩn)</span>
                           )}
                         </td>
                         {MONTHS.map((m, i) => (
                           <td key={m} className={cn("px-1 py-0.5", m % 3 === 1 && "border-l border-slate-200")}>
                             <input
-                              type="number" min={0} disabled={!canEdit}
+                              type="number" min={0} disabled={!canEdit || !!chDef.hidden}
                               value={months[i]?.[side.channels]?.[ch] || ""}
                               onChange={e => setChannelCell(i, side.channels, ch, e.target.value)}
                               className="w-full min-w-[88px] text-right tabular-nums rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[11px] focus:outline-none focus:border-amber-400 disabled:bg-slate-100 disabled:text-slate-500"
@@ -312,7 +396,8 @@ export default function KpiSettingsPage() {
                           </td>
                         ))}
                       </tr>
-                    ))}
+                      );
+                    })}
 
                     {expanded && (
                       <tr className="bg-slate-50/50 border-b border-slate-200">
@@ -374,7 +459,7 @@ export default function KpiSettingsPage() {
                 <thead>
                   <tr className="text-[11px] uppercase text-slate-400">
                     <th className="text-left font-semibold px-2 py-1.5">Công ty</th>
-                    {CHANNELS.map(ch => <th key={ch} className="text-right font-semibold px-2 py-1.5">{CHANNEL_LABEL[ch]}</th>)}
+                    {rowChannels.map(c => <th key={c.key} className="text-right font-semibold px-2 py-1.5">{c.label}</th>)}
                     <th className="text-right font-semibold px-2 py-1.5">Chưa phân bổ</th>
                     <th className="text-right font-semibold px-2 py-1.5">Tổng Chi QC</th>
                   </tr>
@@ -382,14 +467,14 @@ export default function KpiSettingsPage() {
                 <tbody>
                   {SPEND_SIDES.map(side => {
                     const total = yearTotal(side.total);
-                    const allocated = CHANNELS.reduce((s, ch) => s + yearChannel(side.channels, ch), 0);
+                    const allocated = channels.reduce((s, c) => s + yearChannel(side.channels, c.key), 0);
                     const rest = total - allocated;
                     return (
                       <tr key={side.total} className="border-t border-slate-100">
                         <td className="px-2 py-2 text-xs font-semibold text-slate-600 whitespace-nowrap">{side.label}</td>
-                        {CHANNELS.map(ch => (
-                          <td key={ch} className="px-2 py-2 text-right text-xs tabular-nums text-slate-700">
-                            {fmt(yearChannel(side.channels, ch))}đ
+                        {rowChannels.map(c => (
+                          <td key={c.key} className="px-2 py-2 text-right text-xs tabular-nums text-slate-700">
+                            {fmt(yearChannel(side.channels, c.key))}đ
                           </td>
                         ))}
                         <td className={cn("px-2 py-2 text-right text-xs tabular-nums font-semibold", rest < 0 ? "text-red-600" : "text-slate-400")}>

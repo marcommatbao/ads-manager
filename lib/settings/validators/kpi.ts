@@ -5,9 +5,10 @@
 // Nhỏ hơn thì hợp lệ — phần chênh là tiền chưa phân bổ.
 
 import {
-  KPI_CHANNELS, KPI_CHANNEL_LABEL, sumChannelBudget,
+  kpiChannelLabel, sumChannelBudget,
   type MonthKpi, type ChannelBudget,
 } from "@/lib/settings/kpi-store";
+import { kpiChannelKeys } from "@/lib/settings/ad-channels";
 
 export interface ValidationError {
   field: string;
@@ -39,14 +40,18 @@ export function validateMonthKpi(month: number, kpi: Partial<MonthKpi>): Validat
     const byChannel = kpi[side.key] as Partial<ChannelBudget> | undefined;
     if (byChannel === undefined) continue;
 
-    for (const ch of KPI_CHANNELS) {
+    // Đợt 27: kênh lạ (không có trong sổ kênh) → báo lỗi, không lặng lẽ bỏ số.
+    for (const ch of Object.keys(byChannel)) {
+      if (!kpiChannelKeys().includes(ch)) errors.push({ field: `${pfx}.${side.key}.${ch}`, message: `Kênh “${ch}” không có trong danh sách kênh — tải lại trang KPI` });
+    }
+    for (const ch of kpiChannelKeys()) {
       const v = byChannel[ch];
       if (v === undefined) continue;
       const n = Number(v);
       if (isNaN(n) || n < 0 || !Number.isFinite(n)) {
         errors.push({
           field: `${pfx}.${side.key}.${ch}`,
-          message: `Ngân sách ${KPI_CHANNEL_LABEL[ch]} (${side.label}) tháng ${month} phải là số không âm`,
+          message: `Ngân sách ${kpiChannelLabel(ch)} (${side.label}) tháng ${month} phải là số không âm`,
         });
       }
     }

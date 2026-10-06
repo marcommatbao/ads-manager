@@ -7,9 +7,10 @@
 // thêm chế độ tuần chỉ là chuyện dựng khoảng khác, không phải nguồn dữ liệu khác.
 // ─────────────────────────────────────────────
 import {
-  getMonthKpi, KPI_CHANNELS, EMPTY_CHANNEL_BUDGET,
+  getMonthKpi, emptyChannelBudget,
   type MonthKpi, type ChannelBudget,
 } from "@/lib/settings/kpi-store";
+import { kpiChannelKeys } from "@/lib/settings/ad-channels";
 
 export type PeriodMode = "month" | "week" | "rolling28";
 
@@ -176,8 +177,8 @@ export function targetsForPeriod(b: PeriodBounds): PeriodTargets {
   // Trần theo kênh cũng chỉ tồn tại ở mức tháng → chia đều theo ngày y hệt tổng,
   // nếu không thì thanh "kênh" và thanh "tổng" của cùng một tuần sẽ đo bằng hai
   // thước khác nhau.
-  const accMbc: ChannelBudget = { ...EMPTY_CHANNEL_BUDGET };
-  const accMbi: ChannelBudget = { ...EMPTY_CHANNEL_BUDGET };
+  const accMbc: ChannelBudget = emptyChannelBudget(); // Đợt 27: gồm cả kênh tự thêm
+  const accMbi: ChannelBudget = emptyChannelBudget();
 
   // Chạy theo daysInPeriod (7 cho tuần, 28 cho cửa sổ trượt) — cả hai đều có thể
   // vắt qua nhiều tháng nên phải cộng theo từng ngày của đúng tháng ngày đó thuộc về.
@@ -191,15 +192,15 @@ export function targetsForPeriod(b: PeriodBounds): PeriodTargets {
     acc.adSpendMbc += k.adSpendMbc / daysInThatMonth;
     acc.adSpendMbi += k.adSpendMbi / daysInThatMonth;
     acc.ordersMbi  += k.ordersMbi  / daysInThatMonth;
-    for (const ch of KPI_CHANNELS) {
-      accMbc[ch] += k.adSpendMbcByChannel[ch] / daysInThatMonth;
-      accMbi[ch] += k.adSpendMbiByChannel[ch] / daysInThatMonth;
+    for (const ch of kpiChannelKeys()) {
+      accMbc[ch] += (k.adSpendMbcByChannel[ch] ?? 0) / daysInThatMonth;
+      accMbi[ch] += (k.adSpendMbiByChannel[ch] ?? 0) / daysInThatMonth;
     }
   }
 
   const roundChannels = (c: ChannelBudget): ChannelBudget => {
-    const out = { ...EMPTY_CHANNEL_BUDGET };
-    for (const ch of KPI_CHANNELS) out[ch] = Math.round(c[ch]);
+    const out: ChannelBudget = {};
+    for (const ch of kpiChannelKeys()) out[ch] = Math.round(c[ch] ?? 0);
     return out;
   };
 

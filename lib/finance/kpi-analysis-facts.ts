@@ -18,24 +18,22 @@
 // ============================================================
 
 import { resolvePeriod } from "@/lib/finance/period";
-import { KPI_CHANNEL_LABEL, type MonthKpi } from "@/lib/settings/kpi-store";
+import { kpiChannelLabel, type MonthKpi } from "@/lib/settings/kpi-store";
+import { adChannels } from "@/lib/settings/ad-channels";
 import type { MonthActual } from "@/app/api/dashboard/kpi-actuals/route";
 
 // Kiểu + nhãn nằm ở .shared.ts để trình duyệt dùng được; re-export để nơi
 // gọi cũ không phải đổi đường import.
 export * from "@/lib/finance/kpi-analysis.shared";
 import {
-  ANALYSIS_CHANNELS, type AnalysisChannel, type MonthStatus,
+  type AnalysisChannel, type MonthStatus,
   type Metric, type ChannelFact, type CompanySpendFact, type MonthFact,
   type YtdFact, type KpiFacts,
 } from "@/lib/finance/kpi-analysis.shared";
 
-const CHANNEL_LABEL: Record<AnalysisChannel, string> = {
-  ...KPI_CHANNEL_LABEL,
-  other: "Kênh khác",
-};
-
-const MANUAL_CHANNELS = new Set<AnalysisChannel>(["tiktok", "zalo", "other"]);
+// Đợt 27: kênh theo sổ kênh (gốc + tự thêm). Kênh khai tay = mọi kênh không có API + "Kênh khác".
+const channelName = (ch: string) => (ch === "other" ? "Kênh khác" : kpiChannelLabel(ch));
+const isManual = (ch: string) => ch === "other" || adChannels().find((c) => c.key === ch)?.source === "manual";
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -71,7 +69,7 @@ function companySpendFact(
   const measured = side !== null && !googleErr && !facebookErr;
   const spend = metric(target, side ? side.totalSpend : null, measured);
 
-  const channels: ChannelFact[] = ANALYSIS_CHANNELS.map(ch => {
+  const channels: ChannelFact[] = [...adChannels().map((c) => c.key), "other"].map(ch => {
     const budget = ch === "other" ? null : (budgetByChannel?.[ch] ?? 0);
     const actual = side ? (side.spendByChannel[ch] ?? 0) : 0;
     const chMeasured =
@@ -83,11 +81,11 @@ function companySpendFact(
       : 0;
     return {
       channel: ch,
-      label: CHANNEL_LABEL[ch],
+      label: channelName(ch),
       budget: budget === null ? null : r0(budget),
       actual: r0(actual),
       measured: chMeasured,
-      manualEntry: MANUAL_CHANNELS.has(ch),
+      manualEntry: isManual(ch),
       overBy,
       usedPct: chMeasured && budget !== null && budget > 0 ? pct(actual, budget) : null,
     };

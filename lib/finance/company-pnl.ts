@@ -10,6 +10,7 @@
 import { gatherCampaignsWithStatus } from "@/lib/nba/gather";
 import { detectCompany, platformOf } from "@/lib/nba/collectors/helpers";
 import { getManualSpendForMonth, type MonthManualSpend, type ManualCompany } from "./manual-spend";
+import { kpiChannelKeys } from "@/lib/settings/ad-channels";
 import {
   resolvePeriod, targetsForPeriod, previousPeriod, compareMetric,
   type PeriodMode, type PeriodTargets, type PeriodBounds, type MetricDelta,
@@ -35,16 +36,18 @@ const MBI_ORDER_FILTER = {
  *  người nhập tay. Trần ngân sách (KPI_CHANNELS) chỉ có 4 kênh đầu — "other"
  *  luôn là chi phí không có trần, UI phải nói rõ thay vì gán đại vào kênh nào. */
 export const SPEND_CHANNELS = ["google", "facebook", "tiktok", "zalo", "other"] as const;
-export type SpendChannel = (typeof SPEND_CHANNELS)[number];
-export type ChannelSpend = Record<SpendChannel, number>;
+/** Đợt 27: + kênh tự thêm (sổ kênh lib/settings/ad-channels.ts) — mã kênh là chuỗi. */
+export type SpendChannel = string;
+export type ChannelSpend = Record<string, number>;
 
-const EMPTY_CHANNEL_SPEND: ChannelSpend = { google: 0, facebook: 0, tiktok: 0, zalo: 0, other: 0 };
+/** Mọi kênh của sổ kênh + "other" = 0 (bản Mắt Bão chưa thêm kênh → đúng 5 khoá như trước). */
+const emptyChannelSpend = (): ChannelSpend => Object.fromEntries([...kpiChannelKeys(), "other"].map((k) => [k, 0]));
 
 /** Gộp chi phí đo được (Google/Facebook) với chi phí nhập tay thành một bảng
  *  theo kênh. Tổng bảng này luôn bằng totalSpend — không có kênh nào rơi rụng. */
 function byChannel(google: number, facebook: number, manual: MonthManualSpend): ChannelSpend {
-  const out: ChannelSpend = { ...EMPTY_CHANNEL_SPEND, google: r0(google), facebook: r0(facebook) };
-  for (const b of manual.breakdown) out[b.channel] += r0(b.amount);
+  const out: ChannelSpend = { ...emptyChannelSpend(), google: r0(google), facebook: r0(facebook) };
+  for (const b of manual.breakdown) out[b.channel] = (out[b.channel] ?? 0) + r0(b.amount);
   return out;
 }
 

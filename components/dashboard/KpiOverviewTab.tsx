@@ -10,43 +10,28 @@ import { Fragment, useState, useEffect, useCallback } from "react";
 import { RefreshCw, AlertTriangle, ChevronDown, ChevronRight } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { cn } from "@/lib/utils";
+import { BUILTIN_AD_CHANNELS, OTHER_CHANNEL, channelLabel, type AdChannelDef } from "@/lib/settings/ad-channels-def";
 import type { MonthActual, KpiActualsResponse } from "@/app/api/dashboard/kpi-actuals/route";
 import { KpiAnalysisPanel } from "@/components/dashboard/KpiAnalysisPanel";
 
 // ── Types ─────────────────────────────────────────────────────
 
-/** Kênh đặt được trần ngân sách (Settings → KPI). */
-const CHANNELS = ["google", "facebook", "tiktok", "zalo"] as const;
-type Channel = (typeof CHANNELS)[number];
-type ChannelBudget = Record<Channel, number>;
+/** Kênh đặt được trần ngân sách (Settings → KPI) — lấy từ sổ kênh dùng chung (`channels` của GET /api/settings/kpi). */
+type ChannelBudget = Record<string, number>;
+type DisplayChannel = string;
 
-/** Thêm "Kênh khác": có chi phí thực tế nhưng không đặt trần riêng được. */
-const DISPLAY_CHANNELS = [...CHANNELS, "other"] as const;
-type DisplayChannel = (typeof DISPLAY_CHANNELS)[number];
-
-const CHANNEL_LABEL: Record<DisplayChannel, string> = {
-  google: "Google",
-  facebook: "Facebook",
-  tiktok: "TikTok",
-  zalo: "Zalo",
-  other: "Kênh khác",
-};
-
-/** Kênh không có API — số thực tế do người khai ở Settings → Chi phí kênh khác. */
-const MANUAL_CHANNELS = new Set<DisplayChannel>(["tiktok", "zalo", "other"]);
-
-const EMPTY_CHANNELS: ChannelBudget = { google: 0, facebook: 0, tiktok: 0, zalo: 0 };
+const emptyChannels = (chs: AdChannelDef[]): ChannelBudget => Object.fromEntries(chs.map(c => [c.key, 0]));
 
 interface MonthKpi {
   revenueMbc: number; adSpendMbc: number; adSpendMbi: number; ordersMbi: number;
   adSpendMbcByChannel: ChannelBudget;
   adSpendMbiByChannel: ChannelBudget;
 }
-const EMPTY: MonthKpi = {
+const emptyMonth = (chs: AdChannelDef[]): MonthKpi => ({
   revenueMbc: 0, adSpendMbc: 0, adSpendMbi: 0, ordersMbi: 0,
-  adSpendMbcByChannel: { ...EMPTY_CHANNELS },
-  adSpendMbiByChannel: { ...EMPTY_CHANNELS },
-};
+  adSpendMbcByChannel: emptyChannels(chs),
+  adSpendMbiByChannel: emptyChannels(chs),
+});
 
 const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
 const QUARTERS = [
@@ -163,7 +148,8 @@ function KpiMetricChart({ row, targets, actuals }: { row: RowDef; targets: Month
 export function KpiOverviewTab() {
   const now = new Date().getFullYear();
   const [year, setYear] = useState(now);
-  const [targets, setTargets] = useState<MonthKpi[]>(() => MONTHS.map(() => ({ ...EMPTY })));
+  const [channels, setChannels] = useState<AdChannelDef[]>(BUILTIN_AD_CHANNELS);
+  const [targets, setTargets] = useState<MonthKpi[]>(() => MONTHS.map(() => emptyMonth(BUILTIN_AD_CHANNELS)));
   const [actuals, setActuals] = useState<(MonthActual | null)[]>(() => MONTHS.map(() => null));
   const [loadingTargets, setLoadingTargets] = useState(true);
   const [loadingActuals, setLoadingActuals] = useState(true);
@@ -180,12 +166,14 @@ export function KpiOverviewTab() {
       .then(r => r.json())
       .then(json => {
         if (!json.success) throw new Error(json.error ?? "Lỗi tải mục tiêu KPI");
+        const chs: AdChannelDef[] = Array.isArray(json.channels) && json.channels.length > 0 ? json.channels : BUILTIN_AD_CHANNELS;
+        setChannels(chs);
         setTargets((json.months as Partial<MonthKpi>[]).map(m => ({
-          ...EMPTY,
+          ...emptyMonth(chs),
           ...m,
           // Tháng lưu trước khi có phân bổ kênh không có hai trường này.
-          adSpendMbcByChannel: { ...EMPTY_CHANNELS, ...(m.adSpendMbcByChannel ?? {}) },
-          adSpendMbiByChannel: { ...EMPTY_CHANNELS, ...(m.adSpendMbiByChannel ?? {}) },
+          adSpendMbcByChannel: { ...emptyChannels(chs), ...(m.adSpendMbcByChannel ?? {}) },
+          adSpendMbiByChannel: { ...emptyChannels(chs), ...(m.adSpendMbiByChannel ?? {}) },
         })));
       })
       .catch(err => setError(err instanceof Error ? err.message : "Lỗi tải mục tiêu KPI"))
@@ -240,6 +228,8 @@ export function KpiOverviewTab() {
   };
   /** Google/Facebook luôn hiện; kênh nhập tay chỉ hiện khi có trần hoặc có tiêu
    *  — bày một dòng Zalo 0đ suốt 12 tháng chỉ làm bảng dài thêm. */
+  const displayChannels: DisplayChannel[] = [...channels.map(c => c.key), OTHER_CHANNEL.key];
+  const isManualChannel = (key: string) => key === OTHER_CHANNEL.key || channels.find(c => c.key === key)?.source === "manual";
   const channelVisible = (row: RowDef, ch: DisplayChannel) =>
     ch === "google" || ch === "facebook" ||
     yearChannelTarget(row, ch) > 0 || (yearChannelActual(row, ch).value ?? 0) > 0;
@@ -449,15 +439,15 @@ export function KpiOverviewTab() {
 
                   {/* Tách theo kênh — chỉ dòng chi phí mới có */}
                   {row.channelBudget && openChannels[row.field] &&
-                    DISPLAY_CHANNELS.filter(ch => channelVisible(row, ch)).map(ch => {
+                    displayChannels.filter(ch => channelVisible(row, ch)).map(ch => {
                       const yTarget = yearChannelTarget(row, ch);
                       const { value: yActual, skipped: ySkipped } = yearChannelActual(row, ch);
                       return (
                         <tr key={`${row.field}-${ch}`} className="bg-white border-b border-slate-50 last:border-0">
                           <td className="sticky left-0 z-10 bg-white px-3 py-1 text-[11px] text-slate-500 whitespace-nowrap">
                             <span className="pl-3 text-slate-300 mr-1">└</span>
-                            {CHANNEL_LABEL[ch]}
-                            {MANUAL_CHANNELS.has(ch) && (
+                            {channelLabel(channels, ch)}
+                            {isManualChannel(ch) && (
                               <span
                                 className="ml-1 text-[9px] text-amber-600"
                                 title="Không có API — chi phí do người khai ở Settings → Chi phí kênh khác"

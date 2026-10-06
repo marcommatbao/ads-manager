@@ -17,19 +17,22 @@ import { writeFileAtomic } from "@/lib/fs-atomic";
 import { withFileLock } from "@/lib/file-lock";
 import { companyIds } from "@/lib/companies"
 import { isCompany } from "@/lib/companies/registry";
+import { adChannels, manualChannelKeys } from "@/lib/settings/ad-channels";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const FILE = path.join(DATA_DIR, "manual-channel-spend.json");
 
-/** Danh sách đóng — để không sinh ra 5 biến thể "Tiktok / TikTok / tik tok". */
+/** Kênh GỐC khai tay. Đợt 27: + kênh tự thêm ở trang KPI (sổ kênh lib/settings/ad-channels.ts) — mã sinh một lần từ tên
+ *  nên vẫn không sinh biến thể "Tiktok / TikTok / tik tok". Danh sách đầy đủ: manualChannelKeys(). */
 export const MANUAL_CHANNELS = ["tiktok", "zalo", "other"] as const;
-export type ManualChannel = (typeof MANUAL_CHANNELS)[number];
+export type ManualChannel = string;
 
-export const MANUAL_CHANNEL_LABEL: Record<ManualChannel, string> = {
+export const MANUAL_CHANNEL_LABEL: Record<string, string> = {
   tiktok: "TikTok Ads",
   zalo: "Zalo Ads",
   other: "Kênh khác",
 };
+export const manualChannelLabel = (key: string): string => key === "other" ? "Kênh khác" : adChannels().find((c) => c.key === key)?.manualLabel ?? MANUAL_CHANNEL_LABEL[key] ?? key;
 
 export type ManualCompany = string;
 
@@ -87,7 +90,7 @@ export class ManualSpendInputError extends Error {}
 export async function upsertManualSpend(input: UpsertInput): Promise<ManualSpendEntry[]> {
   if (!isValidMonth(input.month)) throw new ManualSpendInputError(`Tháng không hợp lệ: ${input.month}`);
   if (!isMonthAllowed(input.month)) throw new ManualSpendInputError("Không thể khai chi phí cho tháng quá xa trong tương lai");
-  if (!MANUAL_CHANNELS.includes(input.channel)) throw new ManualSpendInputError(`Kênh không hợp lệ: ${input.channel}`);
+  if (!manualChannelKeys().includes(input.channel)) throw new ManualSpendInputError(`Kênh không hợp lệ: ${input.channel}`);
   if (!Number.isFinite(input.amount) || input.amount < 0) throw new ManualSpendInputError("Chi phí phải là số không âm");
 
   return withFileLock(FILE, async () => {
@@ -142,7 +145,7 @@ export async function getManualSpendForMonth(
     out[e.company].total += amount;
     out[e.company].breakdown.push({
       channel: e.channel,
-      label: MANUAL_CHANNEL_LABEL[e.channel] ?? e.channel,
+      label: manualChannelLabel(e.channel),
       amount,
       note: e.note,
     });
