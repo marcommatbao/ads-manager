@@ -12,6 +12,7 @@ import { writeFileAtomicSync } from "@/lib/fs-atomic"
 import { writableTargeting } from "@/lib/case/meta-placements"
 import type { GoalKind } from "@/lib/case/goal-kind"
 import type { CompareGroup, RankedAdset } from "./audience-compare"
+import { targetingSummary } from "./winning-audiences-text"
 
 export const REVIEW_AFTER_DAYS = 45
 
@@ -47,22 +48,7 @@ export function listWinning(company?: string): WinningAudience[] {
 }
 export const getWinning = (id: string) => listWinning().find((w) => w.id === id) ?? null
 
-/** Tóm tắt nhắm chọn dễ đọc — HÀM THUẦN. */
-export function targetingSummary(t: Record<string, unknown>): string {
-  const x = t as { age_min?: number; age_max?: number; genders?: number[]; geo_locations?: { countries?: string[]; regions?: { name?: string }[]; cities?: { name?: string }[] }; flexible_spec?: { interests?: { name: string }[]; behaviors?: { name: string }[] }[]; custom_audiences?: { name?: string; id: string }[]; targeting_automation?: { advantage_audience?: number } }
-  const parts: string[] = []
-  parts.push(`${x.age_min ?? 18}–${x.age_max ?? 65} tuổi`)
-  const g = x.genders ?? []
-  parts.push(g.length === 1 ? (g[0] === 1 ? "nam" : "nữ") : "mọi giới")
-  const geo = [...(x.geo_locations?.cities ?? []).map((c) => c.name), ...(x.geo_locations?.regions ?? []).map((r) => r.name), ...(x.geo_locations?.countries ?? [])].filter(Boolean)
-  if (geo.length) parts.push(geo.slice(0, 4).join(", ") + (geo.length > 4 ? ` +${geo.length - 4}` : ""))
-  const interests = (x.flexible_spec ?? []).flatMap((f) => [...(f.interests ?? []), ...(f.behaviors ?? [])]).map((i) => i.name)
-  if (interests.length) parts.push(`sở thích: ${interests.slice(0, 5).join(", ")}${interests.length > 5 ? ` +${interests.length - 5}` : ""}`)
-  if (x.custom_audiences?.length) parts.push(`${x.custom_audiences.length} tệp tuỳ chỉnh/lookalike`)
-  if (!interests.length && !x.custom_audiences?.length) parts.push("để rộng (không sở thích)")
-  if (x.targeting_automation?.advantage_audience === 1) parts.push("Advantage+ mở rộng")
-  return parts.join(" · ")
-}
+export { targetingSummary } from "./winning-audiences-text"
 
 export function buildWinning(input: { name: string; note: string; company: string; range: { from: string; to: string }; group: CompareGroup; row: RankedAdset; actor: string; now?: Date }): WinningAudience {
   const now = input.now ?? new Date()
@@ -95,4 +81,15 @@ export async function deleteWinning(id: string): Promise<boolean> {
     writeFileAtomicSync(FILE(), JSON.stringify(all.filter((x) => x.id !== id), null, 1))
     return true
   })
+}
+
+/** Đợt 26 — khối "TỆP ĐÃ THẮNG" cho lời nhắc gợi ý đối tượng (Creative · Facebook). Chưa lưu tệp nào → "" (lời nhắc y như cũ).
+ *  Chỉ số đo thật lúc lưu + nhắm chọn; tệp quá hạn kiểm lại thì ghi rõ để AI không coi là chắc chắn. */
+export function winnersPromptBlock(company: string, now = new Date()): string {
+  const rows = listWinning(company).slice(0, 5)
+  if (!rows.length) return ""
+  const word = (w: WinningAudience) => (w.goalKind === "leads" ? "lead" : "lượt mua")
+  const lines = rows.map((w) => `- “${w.name}”: ${w.summary}. Đo ${w.evidence.range.from}→${w.evidence.range.to}: ${w.evidence.results} ${word(w)}${w.evidence.costPerResult ? `, ₫${w.evidence.costPerResult.toLocaleString("vi-VN")}/${word(w)}` : ""} (tool chấm: ${w.evidence.verdict === "winner" ? "thắng rõ" : "nghiêng về"})${Date.parse(w.reviewBy) < now.getTime() ? " — ĐÃ QUÁ HẠN KIỂM LẠI, có thể đã cạn" : ""}`)
+  return `\n\nTỆP ĐỐI TƯỢNG ĐÃ THẮNG TRƯỚC ĐÂY (số Meta đo thật, lưu ở "So sánh tệp đối tượng"):\n${lines.join("\n")}\n` +
+    `Cách dùng: đề xuất ít nhất 1 phân khúc PHÁT TRIỂN từ tệp thắng (ghi rõ dựa trên tệp nào, đổi một yếu tố như độ tuổi/khu vực/góc thông điệp) và các phân khúc còn lại phải KHÁC rõ để có cái so. Không khẳng định sở thích nào "ra đơn" — số trên là của cả tệp.`
 }

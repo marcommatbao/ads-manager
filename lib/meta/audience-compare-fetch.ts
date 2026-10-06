@@ -2,7 +2,7 @@
 // mỗi chiến dịch 1 lượt (cấu trúc nhóm + mẫu quảng cáo) + 1 lượt số liệu theo nhóm cho CẢ các chiến dịch; đệm 10 phút.
 import { detectCompany } from "@/lib/company-detect"
 import { adAccountId, metaGet, metaGetAll } from "@/lib/case/meta-graph"
-import { optEventOf, pickAction, PURCHASE_TYPES } from "@/lib/case/meta-evidence"
+import { optEventOf, pickAction, pickActionWindow, PURCHASE_TYPES } from "@/lib/case/meta-evidence"
 import { META_LEAD_TYPES, metaGoalKind, type GoalKind } from "@/lib/case/goal-kind"
 import { compareGroup, type CompareAdset, type CompareGroup } from "./audience-compare"
 
@@ -41,6 +41,8 @@ export async function compareAudiences(company: string, campaignIds: string[], r
     level: "adset", time_range: JSON.stringify({ since: range.from, until: range.to }),
     filtering: JSON.stringify([{ field: "campaign.id", operator: "IN", value: ids }]),
     fields: "adset_id,campaign_id,spend,impressions,reach,frequency,inline_link_clicks,actions,action_values", limit: "500",
+    // Tách lượt BẤM (7 ngày) và CHỈ XEM (1 ngày) — chấm theo lượt bấm (Đợt 12: ~90% "lượt mua" MBC là chỉ xem).
+    action_attribution_windows: JSON.stringify(["7d_click", "1d_view"]),
   })
   const insBy = new Map(ins.map((r) => [String(r.adset_id), r]))
 
@@ -59,12 +61,15 @@ export async function compareAudiences(company: string, campaignIds: string[], r
       const ev = optEventOf(a.promoted_object, String(a.optimization_goal ?? ""))
       rows.push({
         id: String(a.id), name: String(a.name ?? ""), campaignId: String(c.id), campaignName: String(c.name ?? ""), goalKind: kind,
+        optimizationGoal: String(a.optimization_goal ?? ""),
         status: String(a.status ?? ""), optEventKey: `${a.optimization_goal ?? ""}|${ev.type}|${ev.customName ?? ""}`, optEventLabel: ev.label,
         learning: a.learning_stage_info?.status ? String(a.learning_stage_info.status) : null,
         targeting: (a.targeting ?? {}) as Record<string, unknown>, creativeIds: [...(creatives.get(String(a.id)) ?? [])],
         spend: Number(r.spend) || 0, impressions: Number(r.impressions) || 0, reach: Number(r.reach) || 0,
         frequency: r.frequency != null ? Number(r.frequency) : null, linkClicks: Number(r.inline_link_clicks) || 0,
-        results: pickAction(r.actions, types), value: kind === "leads" ? 0 : pickAction(r.action_values, PURCHASE_TYPES),
+        results: pickActionWindow(r.actions, types, "7d_click") ?? 0,
+        resultsAll: pickAction(r.actions, types), resultsView: pickActionWindow(r.actions, types, "1d_view") ?? 0,
+        value: kind === "leads" ? 0 : pickActionWindow(r.action_values, PURCHASE_TYPES, "7d_click") ?? 0,
       })
     }
   }

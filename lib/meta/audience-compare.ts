@@ -7,6 +7,19 @@
 import { computeTargetingSimilarity } from "@/lib/audience-overlap"
 import type { GoalKind } from "@/lib/case/goal-kind"
 
+/** "Kết quả" chỉ-xem chiếm từ tỉ lệ này (và ≥ 10 lượt) → gắn cờ: Meta báo cao hơn nhiều so với số người bấm rồi mua. */
+export const VIEW_HEAVY_SHARE = 0.6
+const GOAL_VI: Record<string, string> = {
+  OFFSITE_CONVERSIONS: "chuyển đổi trên web", VALUE: "giá trị đơn (ROAS)", LINK_CLICKS: "click liên kết", LANDING_PAGE_VIEWS: "xem trang đích",
+  LEAD_GENERATION: "form trên Meta", QUALITY_LEAD: "lead chất lượng", REACH: "tiếp cận", IMPRESSIONS: "hiển thị", CONVERSATIONS: "tin nhắn", THRUPLAY: "xem video",
+}
+const goalText = (g?: string) => (g ? GOAL_VI[g] ?? g : "không rõ")
+/** Câu nói rõ hai nhóm khác sự kiện tối ưu Ở ĐÂU (cùng nhãn sự kiện thì là khác cách tối ưu). */
+export function optEventDiff(r: Pick<CompareAdset, "optEventLabel" | "optimizationGoal">, best: Pick<CompareAdset, "optEventLabel" | "optimizationGoal">): string {
+  if (r.optEventLabel === best.optEventLabel) return `Cùng sự kiện “${r.optEventLabel}” nhưng khác cách tối ưu (${goalText(r.optimizationGoal)} so với ${goalText(best.optimizationGoal)}) — không so thẳng được`
+  return `Khác sự kiện tối ưu (${r.optEventLabel} so với ${best.optEventLabel}) — không so thẳng được`
+}
+
 /** Dưới ngần này kết quả: chưa đủ để xếp hạng (vài lượt lẻ là may rủi). */
 export const MIN_RESULTS_TO_RANK = 10
 /** Hai nhóm dùng chung dưới tỉ lệ mẫu quảng cáo này = khác mẫu quảng cáo. */
@@ -24,6 +37,8 @@ export interface CompareAdset {
   status: string
   optEventKey: string
   optEventLabel: string
+  /** optimization_goal của nhóm (OFFSITE_CONVERSIONS, VALUE, LINK_CLICKS…) — để nói rõ hai nhóm khác nhau ở đâu. */
+  optimizationGoal?: string
   learning: string | null
   targeting: Record<string, unknown>
   creativeIds: string[]
@@ -32,7 +47,11 @@ export interface CompareAdset {
   reach: number
   frequency: number | null
   linkClicks: number
+  /** Kết quả từ lượt BẤM (7 ngày) — số dùng để chấm. Đợt 12 đo: ~90% "lượt mua" Meta báo là người CHỈ XEM rồi mua trong 1 ngày. */
   results: number
+  /** Meta báo tổng (bấm 7 ngày + chỉ xem 1 ngày) — chỉ để đối chiếu. Thiếu = như results. */
+  resultsAll?: number
+  resultsView?: number
   value: number
 }
 
@@ -102,12 +121,14 @@ export function compareGroup(goalKind: GoalKind, input: CompareAdset[]): Compare
     if (r.learning === "LEARNING") r.flags.push("Đang học — số còn dao động, chưa xếp hạng")
     else if (r.results < MIN_RESULTS_TO_RANK) r.flags.push(`Mới ${r.results} ${word} (cần ≥ ${MIN_RESULTS_TO_RANK}) — chưa xếp hạng`)
     if (r.learning === "FAIL") r.flags.push("Meta báo học thất bại")
+    const all = r.resultsAll ?? r.results, view = r.resultsView ?? 0
+    if (all >= MIN_RESULTS_TO_RANK && view / all >= VIEW_HEAVY_SHARE) r.flags.push(`${Math.round((view / all) * 100)}% ${word} Meta báo (${all}) là người CHỈ XEM quảng cáo, không bấm — bảng chấm theo ${r.results} ${word} từ lượt bấm`)
   }
   const best = eligible[0]
   if (best) {
     for (const r of rows) {
       if (r === best) continue
-      if (r.optEventKey !== best.optEventKey) r.flags.push(`Khác sự kiện tối ưu (${r.optEventLabel} so với ${best.optEventLabel}) — không so thẳng được`)
+      if (r.optEventKey !== best.optEventKey) r.flags.push(optEventDiff(r, best))
       if (jaccard(r.creativeIds, best.creativeIds) < MIN_SHARED_CREATIVES) r.flags.push("Khác mẫu quảng cáo với nhóm dẫn đầu — chênh lệch có thể do quảng cáo, không phải do tệp")
       const sim = computeTargetingSimilarity({ targeting: r.targeting } as never, { targeting: best.targeting } as never).overall * 100
       if (sim >= NEAR_DUPLICATE_PCT) r.flags.push(`Tệp gần trùng nhóm dẫn đầu (${Math.round(sim)}%) — hai nhóm đang tranh cùng người trong đấu giá`)
@@ -128,7 +149,7 @@ export function compareGroup(goalKind: GoalKind, input: CompareAdset[]): Compare
   }
   const second = eligible[1]
   const clean = best.cprHigh !== null && eligible.slice(1).every((r) => r.cprLow !== null && best.cprHigh! < r.cprLow!)
-  const comparable = !second.flags.some((f) => f.startsWith("Khác sự kiện") || f.startsWith("Khác mẫu"))
+  const comparable = !second.flags.some((f) => f.startsWith("Khác sự kiện") || f.startsWith("Cùng sự kiện") || f.startsWith("Khác mẫu"))
   const gap = Math.round((second.costPerResult! / best.costPerResult! - 1) * 100)
   if (clean && comparable) return { goalKind, verdict: "winner", winnerId: best.id, rows, summary: `“${best.name}” thắng: ${vnd(best.costPerResult!)}/${word}, rẻ hơn nhóm kế tiếp ${gap}% — khoảng tin cậy 95% không chồng nhau.` }
   if (clean) return { goalKind, verdict: "leaning", winnerId: best.id, rows, summary: `“${best.name}” rẻ nhất (${vnd(best.costPerResult!)}/${word}, hơn ${gap}%) và tách biệt về số — nhưng nhóm kế tiếp khác sự kiện hoặc mẫu quảng cáo nên chưa chắc là do tệp.` }

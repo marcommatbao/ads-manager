@@ -16,6 +16,7 @@ import { creativeBrandFor, creativeBrandPrompt, isLegacyCreativeCompany, profile
 import { isCompany } from "@/lib/companies";
 import { canAccessCompany } from "@/lib/permissions";
 import { friendlyError } from "@/lib/not-configured";
+import { winnersPromptBlock } from "@/lib/meta/winning-audiences";
 
 // ─── Product label map ────────────────────────────────────────────────────────
 
@@ -405,7 +406,10 @@ export async function POST(request: NextRequest) {
   // Bốc góc nhìn Ở ĐÂY thay vì bên trong buildPrompt, để còn trả được ra UI —
   // không nói ra thì người đọc không hiểu vì sao lần này toàn phân khúc theo tỉnh.
   const lens = pickSegmentationLens();
-  const prompt = buildPrompt(body, productName, perfCandidates, lens, knowledge, legacy);
+  // Đợt 26: tệp thắng đã lưu (So sánh tệp đối tượng) làm điểm xuất phát — CHỈ nhánh Facebook (đo trên Meta), chỉ khi có công ty.
+  let winners = "";
+  if (usePerf && body.company) { try { winners = winnersPromptBlock(body.company); } catch { /* lớp bổ sung */ } }
+  const prompt = buildPrompt(body, productName, perfCandidates, lens, knowledge + winners, legacy);
 
   try {
     const geminiRes = await callGemini(

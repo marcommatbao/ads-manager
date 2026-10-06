@@ -29,6 +29,7 @@ import { orderedCompanyIds, companyLabel } from "@/lib/companies/registry";
 import type { CompareGroup, CompareVerdict, RankedAdset } from "@/lib/meta/audience-compare";
 import type { CompareResult } from "@/lib/meta/audience-compare-fetch";
 import type { WinningAudience } from "@/lib/meta/winning-audiences";
+import type { AiAssessment } from "@/lib/meta/audience-compare-ai";
 
 const MAX_PICK = 3; // = MAX_COMPARE_CAMPAIGNS (không import giá trị từ lib phía máy chủ)
 
@@ -108,7 +109,7 @@ export default function SoSanhTepPage() {
           <Scale className="h-5 w-5 text-blue-600" aria-hidden="true" /> So sánh tệp đối tượng (Meta)
         </h1>
         <p className="mt-1 max-w-3xl text-sm text-slate-500">
-          So các nhóm quảng cáo trong 2–3 chiến dịch theo chi phí mỗi kết quả (mua hoặc lead Meta ghi nhận). Trang này chỉ đọc số, không đổi gì trên tài khoản.
+          So các nhóm quảng cáo trong 2–3 chiến dịch theo chi phí mỗi kết quả (mua hoặc lead Meta ghi nhận, tính từ lượt bấm quảng cáo trong 7 ngày). Trang này chỉ đọc số, không đổi gì trên tài khoản.
         </p>
       </div>
 
@@ -215,6 +216,7 @@ export default function SoSanhTepPage() {
           onSaved={() => saved.mutate()}
         />
       )}
+      {result && <AiAssess key={`${result.fetchedAt}|${picked.join(",")}`} company={effectiveCompany} ids={picked} range={result.range} />}
 
       {allowedCompanies.length > 0 && (
         <SavedList
@@ -304,7 +306,7 @@ function GroupView({ group, range, company, canEdit, campaignIds, onSaved }: {
             <tr className="border-b border-slate-100">
               <th className="p-3 font-medium">Nhóm quảng cáo</th>
               <th className="p-3 text-right font-medium">Chi phí</th>
-              <th className="p-3 text-right font-medium">Kết quả ({word})</th>
+              <th className="p-3 text-right font-medium" title="Tính theo lượt bấm quảng cáo trong 7 ngày — không gồm người chỉ xem rồi mua">Kết quả ({word}, từ lượt bấm)</th>
               <th className="p-3 text-right font-medium">Chi phí/kết quả</th>
               <th className="p-3 text-right font-medium">CTR</th>
               <th className="p-3 text-right font-medium">Click→kết quả</th>
@@ -331,7 +333,13 @@ function GroupView({ group, range, company, canEdit, campaignIds, onSaved }: {
                       </div>
                     </td>
                     <td className="p-3 text-right align-top tabular-nums">{vnd(r.spend)}</td>
-                    <td className="p-3 text-right align-top tabular-nums">{num(r.results)}</td>
+                    <td className="p-3 text-right align-top tabular-nums">
+                      {num(r.results)}
+                      {/* Chấm theo lượt BẤM 7 ngày; Meta báo tổng gồm cả người chỉ xem (1 ngày) */}
+                      {r.resultsAll !== undefined && r.resultsAll !== r.results && (
+                        <div className="text-[11px] font-normal text-slate-400">Meta báo {num(r.resultsAll)}</div>
+                      )}
+                    </td>
                     <td className="p-3 text-right align-top tabular-nums">
                       {r.costPerResult !== null ? vnd(r.costPerResult) : "—"}
                       {r.cprLow !== null && r.cprHigh !== null && (
@@ -450,6 +458,63 @@ function SavedList({ loading, error, rows, canEdit, onChanged }: {
           );
         })}
       </div>
+    </section>
+  );
+}
+
+
+// Đợt 26b — AI đánh giá: máy chủ dựng lại bảng, chỉ đưa bảng đó cho AI, rồi soát từng con số AI viết ra.
+function AiAssess({ company, ids, range }: { company: Company; ids: string[]; range: { from: string; to: string } }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [data, setData] = useState<{ assessment: AiAssessment; unsupported: number[]; cached: boolean } | null>(null);
+  async function run() {
+    setBusy(true); setErr(null);
+    try { setData(await postJson("/api/meta/audience-compare/ai", { company, ids, from: range.from, to: range.to })); }
+    catch (e) { setErr(e instanceof ApiError ? e.message : "Không gọi được AI"); }
+    finally { setBusy(false); }
+  }
+  const Points = ({ title, items }: { title: string; items: AiAssessment["why"] }) => items.length === 0 ? null : (
+    <div>
+      <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</div>
+      <ul className="space-y-1.5">
+        {items.map((p, i) => (
+          <li key={i} className="text-sm text-slate-700">
+            {p.text}
+            {p.evidence.length > 0 && <span className="ml-1 text-xs text-slate-400">({p.evidence.join(" · ")})</span>}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+  return (
+    <section className="space-y-3 rounded-xl border border-violet-200 bg-violet-50/40 p-4" aria-label="AI đánh giá">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 className="text-sm font-semibold text-slate-800">🤖 AI đánh giá</h2>
+          <p className="text-xs text-slate-500">AI chỉ đọc đúng các số trong bảng trên (không tự lấy thêm). Mỗi ý kèm số dẫn chứng; số nào không có trong bảng sẽ bị đánh dấu.</p>
+        </div>
+        <Button className="h-10" size="sm" onClick={run} disabled={busy}>
+          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}{busy ? "Đang đánh giá…" : data ? "Đánh giá lại" : "AI đánh giá"}
+        </Button>
+      </div>
+      {err && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{err}</div>}
+      {data && (
+        <div className="space-y-3 rounded-lg border border-slate-200 bg-white p-4">
+          <p className="text-sm font-semibold text-slate-900">{data.assessment.conclusion}</p>
+          <Points title="Vì sao" items={data.assessment.why} />
+          <Points title="Nên làm" items={data.assessment.actions} />
+          {data.assessment.caveats.length > 0 && (
+            <div className="text-xs text-slate-500">Lưu ý: {data.assessment.caveats.join(" · ")}</div>
+          )}
+          {data.unsupported.length > 0 && (
+            <div className="flex items-start gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              AI nêu số không có trong bảng: {data.unsupported.map((n) => num(n)).join(", ")} — đừng dựa vào các số này.
+            </div>
+          )}
+        </div>
+      )}
     </section>
   );
 }
