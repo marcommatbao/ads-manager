@@ -22,6 +22,7 @@ import { getJson, postJson, ApiError } from "@/components/case/api";
 import { companyLabel } from "@/lib/companies/registry";
 import type { WriteEvent } from "@/lib/writes/feed";
 import { VERDICT_LABEL, type Verdict } from "@/lib/writes/verdict";
+import { prettyWriteLabel } from "@/lib/writes/labels";
 import type { WindowResult } from "@/lib/writes/outcome";
 
 type WindowState = "done" | "case" | "skip" | "pending_job" | "not_due";
@@ -86,7 +87,7 @@ export default function DaLamPage() {
     const q = search.trim().toLowerCase();
     return rows.filter((r) => {
       if (platformFilter !== "ALL" && r.platform !== platformFilter) return false;
-      if (q && !r.label.toLowerCase().includes(q)) return false;
+      if (q && !prettyWriteLabel(r.label).toLowerCase().includes(q)) return false;
       if (verdictFilter !== "ALL") {
         const v = verdictOf(r.windows.find((w) => w.days === 14));
         if (verdictFilter === "chua_do" ? v !== null : v !== verdictFilter) return false;
@@ -110,7 +111,7 @@ export default function DaLamPage() {
 
   // Đợt 23 (3c): hoàn tác bật/tắt / đổi ngân sách — máy chủ tự kiểm giá trị hiện tại, đã bị sửa tiếp thì từ chối.
   const undo = async (r: WriteRow) => {
-    if (!window.confirm(`Hoàn tác thay đổi này?\n\n${r.label}\n\nTool sẽ trả chiến dịch về giá trị trước đó trên ${r.platform === "meta" ? "Meta" : "Google"}.`)) return;
+    if (!window.confirm(`Hoàn tác thay đổi này?\n\n${prettyWriteLabel(r.label)}\n\nTool sẽ trả chiến dịch về giá trị trước đó trên ${r.platform === "meta" ? "Meta" : "Google"}.`)) return;
     setUndoing(r.id);
     setUndoMsg(null);
     try {
@@ -259,7 +260,7 @@ export default function DaLamPage() {
                             <td className="px-3 py-2.5 whitespace-nowrap text-slate-700">{r.company === "MBC" || r.company === "MBI" ? r.company : companyLabel(r.company)}</td>
                             <td className="px-3 py-2.5 whitespace-nowrap text-slate-700">{r.platform === "meta" ? "Meta" : "Google"}</td>
                             <td className="max-w-md px-3 py-2.5">
-                              <div className="font-semibold text-slate-800">{r.label}</div>
+                              <div className="font-semibold text-slate-800">{prettyWriteLabel(r.label)}</div>
                               <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-slate-400">
                                 <span>{r.sourceLabel}</span>
                                 {r.undoneAt && <Pill tone="grey">Đã hoàn tác {vnDayMonth(r.undoneAt)}</Pill>}

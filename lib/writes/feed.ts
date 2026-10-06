@@ -19,6 +19,7 @@ import type { DecisionMemoryEntry } from "@/lib/decision-memory/types"
 import type { BudgetApplyRecord } from "@/lib/pmax-insights/budget-apply-log"
 import { companyIds } from "@/lib/companies"
 import { undoableReason } from "@/lib/writes/undo"
+import { EVENT_LABEL } from "@/lib/writes/labels"
 
 export type WritePlatform = "google" | "meta"
 export interface WriteEvent {
@@ -132,7 +133,7 @@ export function fromDecision(d: DecisionMemoryEntry): WriteEvent | null {
   const cid = d.target.entityType === "campaign" ? d.target.entityId : d.target.parentId ?? null
   const src = d.source
   const by = src.type === "human_manual" ? src.actor : src.type === "cron_auto_apply" ? `tự động · ${src.jobId}` : src.type === "automation_rule" ? `luật · ${src.ruleName}` : src.type === "nba_engine" ? "NBA tự áp" : src.type
-  return { id: `dm:${d.id}`, source: "dm", sourceLabel: SOURCE_LABELS.dm, at: d.createdAt, company: d.target.company, platform, by, label: `${d.target.entityName}: ${d.event}${d.action.notes ? ` — ${d.action.notes}` : ""}`, campaignIds: cid ? [cid] : [], pending: [], accountLevel: false, undoneAt: d.undoneAt ?? null, link: "/", ownOutcome: null, undoable: undoableReason(d) === null }
+  return { id: `dm:${d.id}`, source: "dm", sourceLabel: SOURCE_LABELS.dm, at: d.createdAt, company: d.target.company, platform, by, label: `${d.target.entityName}: ${EVENT_LABEL[d.event] ?? d.event}${d.action.notes ? ` — ${d.action.notes}` : ""}`, campaignIds: cid ? [cid] : [], pending: [], accountLevel: false, undoneAt: d.undoneAt ?? null, link: "/", ownOutcome: null, undoable: undoableReason(d) === null }
 }
 
 /** Đợt 23 (3c): nhật ký hoàn tác của Improvements + NBA tự áp (lib/apply-undo-log.ts) — trước đây KHÔNG vào luồng đo lại

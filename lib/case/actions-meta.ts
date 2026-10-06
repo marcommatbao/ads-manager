@@ -135,11 +135,14 @@ export function proposeMetaActions(input: {
   }
 
   // Đợt 5: tool tự tạo nhóm mới với sự kiện chuẩn (không chọn sẵn). Có việc này thì không giao người việc trùng nghĩa.
-  const newAdset = leads ? null : has("opt-event-not-purchase") || has("learning-fail") || has("view-through-heavy") ? proposeCreateAdset(ev, { viewHeavy: has("view-through-heavy") }) : null
+  // Đợt 23 (3d): chiến dịch thu lead cũng được tự dựng nhóm mới (sự kiện Lead của pixel); nhóm form trên Meta thì vẫn giao người.
+  const newAdset = leads
+    ? (has("opt-event-not-lead") || has("learning-fail") ? proposeCreateAdset(ev, { leads: true }) : null)
+    : has("opt-event-not-purchase") || has("learning-fail") || has("view-through-heavy") ? proposeCreateAdset(ev, { viewHeavy: has("view-through-heavy") }) : null
   if (newAdset) actions.push(newAdset)
 
   // ── Việc giao người ──
-  if ((has("opt-event-not-purchase") || has("learning-fail")) && (!newAdset || (newAdset.type === "CREATE_ADSET_WITH_EVENT" && newAdset.lowSignal))) {
+  if (!leads && (has("opt-event-not-purchase") || has("learning-fail")) && (!newAdset || (newAdset.type === "CREATE_ADSET_WITH_EVENT" && newAdset.lowSignal))) {
     const best = bestLearnableEvent(ev)
     const purchasePerWeek = ev.peers.eventsPerWeek.purchase ?? 0
     const detail = !best
@@ -149,7 +152,7 @@ export function proposeMetaActions(input: {
         : `Mua hàng chỉ ${dec(purchasePerWeek)}/tuần, chưa đủ ${EVENTS_PER_WEEK_TO_LEARN}. Sự kiện sâu nhất đủ số là “${best.label}” (${dec(best.perWeek)}/tuần) — tạo nhóm mới tối ưu theo sự kiện này thay cho sự kiện hiện tại.`
     manualTasks.push({ title: best ? `Tạo nhóm quảng cáo mới tối ưu theo “${best.label}”` : "Chưa đổi sự kiện tối ưu — gộp chiến dịch và kiểm pixel trước", detail, assignee: null, status: "open" })
   }
-  if (leads && has("opt-event-not-lead")) {
+  if (leads && (has("opt-event-not-lead") || has("learning-fail")) && (!newAdset || (newAdset.type === "CREATE_ADSET_WITH_EVENT" && newAdset.lowSignal))) {
     manualTasks.push({ title: "Tạo nhóm quảng cáo mới tối ưu theo “Khách hàng tiềm năng”", detail: `Meta không cho sửa sự kiện của nhóm đang chạy: tạo nhóm mới tối ưu theo lead (form trên Meta hoặc sự kiện Lead của pixel), chạy song song rồi tắt nhóm cũ. Tool chưa tự dựng nhóm thu lead.`, assignee: null, status: "open" })
   }
   if (has("purchase-value-missing")) {

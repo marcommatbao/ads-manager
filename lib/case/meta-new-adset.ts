@@ -14,6 +14,7 @@ import { writableTargeting } from "./meta-placements"
 import type { CaseAction, MetaChange, ReadbackRow } from "./store"
 import type { MetaEvidence } from "./types"
 import { EVENTS_PER_WEEK_TO_LEARN } from "./causes-meta"
+import { isInstantForm, isLeadOptimized } from "./goal-kind"
 
 type Row = Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -27,6 +28,12 @@ export const STANDARD_FUNNEL = [
   { event: "COMPLETE_REGISTRATION", name: "CompleteRegistration", label: "Hoàn tất đăng ký" },
 ] as const
 
+/** Đợt 23 (3d): chiến dịch thu lead — sự kiện kết quả cuối là Lead (Hoàn tất đăng ký là phương án thay). */
+export const LEAD_FUNNEL = [
+  { event: "LEAD", name: "Lead", label: "Khách hàng tiềm năng" },
+  { event: "COMPLETE_REGISTRATION", name: "CompleteRegistration", label: "Hoàn tất đăng ký" },
+] as const
+
 /** Tối đa bao nhiêu quảng cáo tạo lại (lượt gọi Meta ~60/giờ). */
 export const MAX_ADS_TO_RECREATE = 10
 
@@ -35,8 +42,8 @@ export const MAX_ADS_TO_RECREATE = 10
  * Sâu nhất mà ≥ 50/tuần; không có → sự kiện có nhiều lượt nhất, gắn lowSignal.
  * Chỉ tên chuẩn (Purchase…), không bao giờ chọn tên tự đặt.
  */
-export function chooseEvent(last7: Record<string, number>): { pick: { event: string; label: string; perWeek: number }; alternatives: { event: string; label: string; perWeek: number }[]; lowSignal: boolean } {
-  const rows = STANDARD_FUNNEL.map((f) => ({ event: f.event, label: f.label, perWeek: last7[f.name] ?? 0 }))
+export function chooseEvent(last7: Record<string, number>, funnel: readonly { event: string; name: string; label: string }[] = STANDARD_FUNNEL): { pick: { event: string; label: string; perWeek: number }; alternatives: { event: string; label: string; perWeek: number }[]; lowSignal: boolean } {
+  const rows = funnel.map((f) => ({ event: f.event, label: f.label, perWeek: last7[f.name] ?? 0 }))
   const alternatives = rows.filter((r) => r.perWeek > 0)
   const ok = rows.find((r) => r.perWeek >= EVENTS_PER_WEEK_TO_LEARN)
   if (ok) return { pick: ok, alternatives, lowSignal: false }
@@ -48,8 +55,9 @@ let seq = 0
 const aid = (p: string) => `${p}_${Date.now().toString(36)}_${(seq++).toString(36)}`
 
 /** Đề xuất việc tạo nhóm mới — gọi từ actions-meta khi nguyên nhân là sự kiện tối ưu/học thất bại. */
-export function proposeCreateAdset(ev: MetaEvidence, opts: { viewHeavy?: boolean } = {}): CaseAction | null {
+export function proposeCreateAdset(ev: MetaEvidence, opts: { viewHeavy?: boolean; leads?: boolean } = {}): CaseAction | null {
   if (!ev.pixel) return null
+  if (opts.leads) return proposeLeadAdset(ev)
   const source = ev.adsets.filter((a) => a.status === "ACTIVE" && a.cost > 0).sort((a, b) => b.cost - a.cost)[0]
   if (!source) return null
   const { pick, alternatives, lowSignal } = chooseEvent(ev.pixel.last7)
@@ -72,9 +80,39 @@ export function proposeCreateAdset(ev: MetaEvidence, opts: { viewHeavy?: boolean
   }
 }
 
+/**
+ * Đợt 23 (3d): chiến dịch THU LEAD — nhóm mới tối ưu theo sự kiện Lead của pixel trên trang web, sao từ nhóm tốn tiền nhất
+ * CHƯA tối ưu theo lead. Nhóm dùng form trên Meta thì bỏ qua (nhóm mới phải chọn form — giao người). Hàm thuần.
+ */
+export function proposeLeadAdset(ev: MetaEvidence): CaseAction | null {
+  if (!ev.pixel) return null
+  const running = ev.adsets.filter((a) => a.status === "ACTIVE" && a.cost > 0).sort((a, b) => b.cost - a.cost)
+  const source = running.find((a) => !isInstantForm(a) && (!isLeadOptimized(a) || a.learning.status === "FAIL"))
+  if (!source) return null
+  const { pick, alternatives, lowSignal } = chooseEvent(ev.pixel.last7, LEAD_FUNNEL)
+  if (pick.perWeek <= 0) return null // pixel không ghi lead nào — tạo nhóm mới chẳng có gì để học
+  if (source.optEvent.type === pick.event && source.learning.status !== "FAIL") return null
+  const changesGoal = source.optimizationGoal !== "OFFSITE_CONVERSIONS"
+  const warnings = [
+    "Nhóm mới và quảng cáo được tạo ở trạng thái TẠM DỪNG — bật chạy là bước riêng.",
+    "Nhóm mới học lại từ đầu (giai đoạn học 3–7 ngày).",
+    "Quảng cáo được tạo lại bằng đúng nội dung/bài viết cũ (giữ lượt thích, bình luận) — lead được tính khi khách gửi form TRÊN TRANG WEB (sự kiện pixel), không phải form trên Meta.",
+  ]
+  if (changesGoal) warnings.push(`Nhóm nguồn đang tối ưu theo “${source.optEvent.label}”; nhóm mới đổi sang tối ưu chuyển đổi trên web (OFFSITE_CONVERSIONS).`)
+  if (Object.keys(source.targeting).includes("subscriber_universe")) warnings.push("Thiết lập tệp khách WhatsApp (subscriber_universe) không chép được — app không ghi được trường này.")
+  if (lowSignal) warnings.unshift(`Sự kiện lead trên pixel chưa đủ ${EVENTS_PER_WEEK_TO_LEARN} lượt/tuần — nhóm mới cũng có thể học thất bại.`)
+  return {
+    id: aid("newadset"), type: "CREATE_ADSET_WITH_EVENT", selected: false,
+    sourceAdsetId: source.id, sourceAdsetName: source.name, pixelId: ev.pixel.pixelId,
+    event: pick.event, eventLabel: pick.label, perWeek: pick.perWeek, lowSignal, alternatives, warnings,
+    label: `Tạo nhóm mới tối ưu theo “${pick.label}” (pixel) — sao từ “${source.name}”`,
+    ...(changesGoal ? { forceGoal: "OFFSITE_CONVERSIONS" as const } : {}),
+  }
+}
+
 /** Thân lệnh tạo nhóm mới từ nhóm nguồn — hàm thuần. */
 export const CLICK_ONLY_SPEC = [{ event_type: "CLICK_THROUGH", window_days: 7 }]
-export function buildNewAdsetBody(src: Row, opts: { pixelId: string; event: string; name: string; clickOnly?: boolean }): Record<string, unknown> {
+export function buildNewAdsetBody(src: Row, opts: { pixelId: string; event: string; name: string; clickOnly?: boolean; forceGoal?: "OFFSITE_CONVERSIONS" }): Record<string, unknown> {
   const body: Record<string, unknown> = {
     name: opts.name, campaign_id: String(src.campaign_id), status: "PAUSED",
     targeting: writableTargeting((src.targeting ?? {}) as Record<string, unknown>).body,
@@ -87,6 +125,9 @@ export function buildNewAdsetBody(src: Row, opts: { pixelId: string; event: stri
   // Đợt 12: Meta cấm sửa cài đặt ghi nhận của nhóm đã tạo (đo 29/09: "Không còn hỗ trợ cập nhật khoảng thời gian ghi nhận sau
   // khi tạo nhóm quảng cáo") → muốn chỉ tính lượt bấm thì nhóm MỚI đặt ngay lúc tạo.
   if (opts.clickOnly) body.attribution_spec = CLICK_ONLY_SPEC
+  // Đợt 23 (3d): nhóm nguồn tối ưu click/lượt xem… → nhóm mới đổi hẳn sang chuyển đổi trên web (giữ nguyên tối ưu cũ + sự kiện
+  // pixel là cặp Meta từ chối). Bước Kiểm trước của Meta (validate_only) chặn nếu tổ hợp không hợp lệ — chưa tạo gì.
+  if (opts.forceGoal) { body.optimization_goal = opts.forceGoal; body.billing_event = "IMPRESSIONS"; body.destination_type = "WEBSITE"; delete body.bid_amount }
   return body
 }
 
@@ -121,7 +162,7 @@ async function createOne(a: Extract<CaseAction, { type: "CREATE_ADSET_WITH_EVENT
   if (!s.ads.length) { out.errors.push("Nhóm nguồn không có quảng cáo đang chạy nào để tạo lại"); return }
   if (s.skipped > 0) out.warnings.push(`Chỉ tạo lại ${s.ads.length} quảng cáo đầu — ${s.skipped} quảng cáo còn lại phải thêm tay.`)
   const name = `${String(s.src.name).slice(0, 170)} · ${a.eventLabel}${a.clickOnly ? " · chỉ bấm" : ""} · AdsCommand ${ddmm()}`
-  const body = buildNewAdsetBody(s.src, { pixelId: a.pixelId, event: a.event, name, clickOnly: a.clickOnly })
+  const body = buildNewAdsetBody(s.src, { pixelId: a.pixelId, event: a.event, name, clickOnly: a.clickOnly, forceGoal: a.forceGoal })
   const act = `act_${adAccountId()}`
   // Kiểm trước: tạo nhóm + tạo từng quảng cáo (dùng nhóm NGUỒN làm đích thử — nhóm mới chưa tồn tại).
   try {

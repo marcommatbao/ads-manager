@@ -8,7 +8,7 @@
 
 import { FUNNEL_EVENTS } from "./meta-evidence"
 import { isReels } from "./meta-placements"
-import { metaGoalKind } from "./goal-kind"
+import { isLeadOptimized, metaGoalKind } from "./goal-kind"
 import type { Cause, CheckedOk, Diagnosis, MetaEvidence, MetaPlacementSlice } from "./types"
 
 /** Meta: nhóm quảng cáo cần ~50 sự kiện tối ưu mỗi tuần để ra khỏi giai đoạn học. */
@@ -106,8 +106,7 @@ export function diagnoseMeta(ev: MetaEvidence): Diagnosis {
   if (leads) context.push("Chiến dịch thu lead — chấm theo số lead Meta ghi (form trên Meta + pixel). Không đối chiếu đơn Odoo.")
 
   // 1. Tối ưu theo sự kiện không phải Mua hàng (thu lead: không phải lead).
-  const isLeadOpt = (a: (typeof spent)[number]) => a.optEvent.type === "LEAD" || a.optimizationGoal === "LEAD_GENERATION" || a.optimizationGoal === "QUALITY_LEAD"
-  const notLead = leads ? spent.filter((a) => !isLeadOpt(a)) : []
+  const notLead = leads ? spent.filter((a) => !isLeadOptimized(a)) : []
   if (leads) {
     if (notLead.length) {
       const money = notLead.reduce((s, a) => s + a.cost, 0)

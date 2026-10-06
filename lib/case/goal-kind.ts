@@ -30,5 +30,13 @@ export function evidenceGoalKind(ev: CaseEvidence | null | undefined): GoalKind 
 export function metaResults(x: { purchases: number; leads?: number }, kind: GoalKind): number {
   return kind === "leads" ? x.leads ?? 0 : x.purchases
 }
+/** Nhóm quảng cáo đã tối ưu theo lead: sự kiện Lead của pixel, hoặc form trên Meta (LEAD_GENERATION / QUALITY_LEAD). */
+export function isLeadOptimized(a: { optEvent: { type: string }; optimizationGoal: string }): boolean {
+  return a.optEvent.type === "LEAD" || a.optimizationGoal === "LEAD_GENERATION" || a.optimizationGoal === "QUALITY_LEAD"
+}
+/** Nhóm dùng form trên Meta — nhóm mới phải chọn form nên tool không tự dựng. */
+export function isInstantForm(a: { optimizationGoal: string }): boolean {
+  return a.optimizationGoal === "LEAD_GENERATION" || a.optimizationGoal === "QUALITY_LEAD"
+}
 /** Từ gọi một kết quả trong câu ("0 đơn", "₫X/lead"). */
 export const RESULT_WORD: Record<GoalKind, string> = { sales: "đơn", leads: "lead" }
