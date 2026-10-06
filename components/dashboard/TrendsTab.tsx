@@ -22,6 +22,7 @@ import { orderedCompanyIds, companyLabel } from "@/lib/companies/registry";
 import { DEFAULT_VIEW_DAYS, MAX_RANGE_DAYS, lastDays } from "@/lib/case/dates";
 import { VERDICT_LABEL, type Verdict } from "@/lib/writes/verdict";
 import type { Card, Notable, TrendDay } from "@/lib/trends/build";
+import type { BTable, BRowOut } from "@/lib/trends/breakdown";
 import { cn } from "@/lib/utils";
 
 type PlatformFilter = "all" | "meta" | "google";
@@ -109,6 +110,127 @@ function NotableList({ title, tone, items }: { title: string; tone: "good" | "wa
         </ul>
       )}
     </div>
+  );
+}
+
+type BreakdownResponse = { success: true; tables: BTable[]; errors: { platform: string; error: string }[] };
+
+// dim bắt đầu bằng "google_" hoặc "meta_"; Meta trước, Google sau.
+const tablePlatform = (t: BTable): "meta" | "google" => (t.dim.startsWith("google_") ? "google" : "meta");
+
+function BreakdownRow({ row, kind }: { row: BRowOut; kind: BTable["kind"] }) {
+  const pct = Math.max(0, Math.min(100, row.share * 100));
+  return (
+    <tr className="border-t border-slate-100 align-top">
+      <td className="py-2 pr-3">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="font-medium text-slate-800">{row.label}</span>
+          {row.tag === "dat_ro" && <Pill tone="red">Đắt rõ</Pill>}
+          {row.tag === "re_ro" && <Pill tone="green">Rẻ rõ</Pill>}
+        </div>
+        {row.note && <div className="mt-0.5 text-[11px] leading-snug text-slate-500">{row.note}</div>}
+      </td>
+      <td className="min-w-[110px] py-2 pr-3">
+        <div className="text-xs tabular-nums text-slate-700">{pct.toLocaleString("vi-VN", { maximumFractionDigits: 1 })}%</div>
+        <div className="mt-1 h-1.5 w-full rounded-full bg-slate-100" aria-hidden="true">
+          <div className="h-1.5 rounded-full bg-blue-400" style={{ width: `${pct}%` }} />
+        </div>
+      </td>
+      <td className="py-2 pr-3 text-right tabular-nums">{vnd(row.spend)}</td>
+      <td className="py-2 pr-3 text-right tabular-nums">{num(row.results)} <span className="text-xs text-slate-400">{kind === "sales" ? "lượt mua" : "lead"}</span></td>
+      <td className="py-2 pr-3 text-right tabular-nums">{row.costPerResult === null ? "—" : vnd(row.costPerResult)}</td>
+      <td className="py-2 text-right tabular-nums">{row.ctr === null ? "—" : `${row.ctr.toLocaleString("vi-VN", { maximumFractionDigits: 2 })}%`}</td>
+    </tr>
+  );
+}
+
+function BreakdownSection({ company, platform, from, to }: { company: string; platform: PlatformFilter; from: string; to: string }) {
+  const [res, setRes] = useState<BreakdownResponse | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => { setRes(null); setErr(null); }, [company, platform, from, to]);
+
+  const run = async (force: boolean) => {
+    if (!company) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const json = await getJson(`/api/dashboard/trends/breakdown?company=${company}&platform=${platform}&from=${from}&to=${to}${force ? "&force=1" : ""}`);
+      setRes(json);
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : "Không tải được bảng tách");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const groups = (["meta", "google"] as const).map((pf) => ({
+    pf,
+    tables: (res?.tables ?? []).filter((t) => tablePlatform(t) === pf).sort((a, b) => (a.kind === b.kind ? 0 : a.kind === "sales" ? -1 : 1)),
+  })).filter((g) => g.tables.length > 0);
+
+  return (
+    <section aria-label="Tách theo đối tượng và vị trí" className="space-y-3">
+      <h3 className="text-sm font-bold text-slate-800">Tách theo đối tượng &amp; vị trí</h3>
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3.5">
+        <p className="max-w-2xl text-sm text-slate-600">
+          Xem chi phí và kết quả theo độ tuổi, giới tính, vị trí hiển thị (Meta) và thiết bị, khung giờ (Google). Mỗi dòng so với phần còn lại; chỉ gắn nhãn khi chênh lệch đủ lớn.
+        </p>
+        <Button variant="outline" size="sm" onClick={() => run(!!res)} disabled={busy || !company}>
+          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />} {res ? "Tải lại" : "Xem tách"}
+        </Button>
+      </div>
+
+      {err && (
+        <div role="alert" className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /> {err}
+        </div>
+      )}
+
+      {res && (
+        <div className={cn("space-y-4", busy && "opacity-60")}>
+          {res.errors.map((e) => (
+            <div key={e.platform} className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+              <span><b>{PLATFORM_NAME[e.platform] ?? e.platform}:</b> {e.error}</span>
+            </div>
+          ))}
+          {groups.length === 0 && res.errors.length === 0 && (
+            <p className="rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-500">Chưa có số liệu để tách trong khoảng này.</p>
+          )}
+          {groups.map((g) => (
+            <div key={g.pf} className="space-y-3">
+              <h4 className="text-xs font-bold uppercase tracking-wide text-slate-500">{PLATFORM_NAME[g.pf]}</h4>
+              {g.tables.map((t) => (
+                <div key={`${g.pf}-${t.dim}`} className="rounded-xl border border-slate-200 bg-white p-3.5">
+                  <h5 className="text-sm font-semibold text-slate-800">{t.title}</h5>
+                  {t.totalResults === 0 && <p className="mt-1 text-xs text-slate-400">Chưa có kết quả trong kỳ — chỉ xem được tỉ trọng chi</p>}
+                  <div className="mt-2 overflow-x-auto">
+                    <table className="w-full min-w-[560px] text-sm">
+                      <thead>
+                        <tr className="text-left text-xs text-slate-400">
+                          <th className="pb-1.5 pr-3 font-medium">Nhóm</th>
+                          <th className="pb-1.5 pr-3 font-medium">% chi</th>
+                          <th className="pb-1.5 pr-3 text-right font-medium">Chi phí</th>
+                          <th className="pb-1.5 pr-3 text-right font-medium">Kết quả</th>
+                          <th className="pb-1.5 pr-3 text-right font-medium">Chi phí/kết quả</th>
+                          <th className="pb-1.5 text-right font-medium">CTR</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {t.rows.map((r) => <BreakdownRow key={r.key} row={r} kind={t.kind} />)}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ))}
+          <p className="text-xs text-slate-500">Meta tính kết quả từ lượt bấm 7 ngày. Meta không cho biết sở thích nào ra đơn — bảng này chỉ tách theo đặc điểm Meta cung cấp.</p>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -266,7 +388,7 @@ export function TrendsTab() {
 
                 {markersByDate.length > 0 && (
                   <div className="mt-3 border-t border-slate-100 pt-3">
-                    <div className="text-xs font-semibold text-amber-700">Đường cam đứt nét = ngày có thay đổi trên tài khoản (tool hoặc người làm — xem "Đã làm &amp; kết quả")</div>
+                    <div className="text-xs font-semibold text-amber-700">Đường cam đứt nét = ngày có thay đổi trên tài khoản (tool hoặc người làm — xem &quot;Đã làm &amp; kết quả&quot;)</div>
                     <ul className="mt-1.5 space-y-1 text-xs text-slate-600">
                       {markersByDate.flatMap(([d, list]) => list.map((m, i) => (
                         <li key={`${d}-${i}`}>
@@ -293,6 +415,8 @@ export function TrendsTab() {
               </div>
             )}
           </section>
+
+          <BreakdownSection company={effectiveCompany ?? ""} platform={platform} from={range.from} to={range.to} />
         </div>
       )}
     </div>
