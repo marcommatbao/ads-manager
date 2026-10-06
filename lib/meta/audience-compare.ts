@@ -77,6 +77,16 @@ export interface CompareGroup {
   rows: RankedAdset[]
 }
 
+/** P(X ≤ k) với X ~ Poisson(λ) — HÀM THUẦN (k nhỏ, cộng dồn trực tiếp). */
+export function poissonCdf(k: number, lambda: number): number {
+  if (lambda <= 0) return 1
+  let term = Math.exp(-lambda), sum = term
+  for (let i = 1; i <= k; i++) { term *= lambda / i; sum += term }
+  return Math.min(1, sum)
+}
+/** Kém rõ rệt so với nhóm dẫn đầu: với số tiền đã chi, nếu tệp tốt NGANG nhóm dẫn đầu thì xác suất ra ít kết quả như vậy < mức này. */
+export const CLEARLY_WORSE_P = 0.025
+
 /** Khoảng tin cậy 95% của một số đếm Poisson (Wilson–Hilferty) — HÀM THUẦN. */
 export function poissonInterval(n: number): { low: number; high: number } {
   if (n <= 0) return { low: 0, high: 3.689 } // cận trên chính xác cho n=0
@@ -136,6 +146,20 @@ export function compareGroup(goalKind: GoalKind, input: CompareAdset[]): Compare
   }
   const zeroBurn = rows.filter((r) => r.results === 0 && best?.costPerResult && r.spend >= 2 * best.costPerResult)
   for (const r of zeroBurn) r.flags.push(`Chi ${vnd(r.spend)} (≥ 2 lần chi phí/${word} của nhóm dẫn đầu) mà 0 ${word}`)
+  // Ít số vẫn kết luận được KÉM: chi đủ để nhóm dẫn đầu ra ≥ 3 kết quả mà thực tế ra quá ít (Poisson) — dùng 06/10: chi ₫1,72tr,
+  // theo mức nhóm dẫn đầu lẽ ra ~21 lượt mua, thực tế 2. Không gắn khi đã có cờ "0 kết quả" (trùng ý).
+  // Nhóm dẫn đầu cũng chỉ có ít kết quả → so với ĐẦU XẤU của khoảng tin cậy của nó (chi phí/kết quả cao nhất còn hợp lý),
+  // để không tuyên "kém" oan chỉ vì nhóm dẫn đầu gặp may.
+  const ref = best?.cprHigh ?? null
+  if (best && ref) {
+    for (const r of rows) {
+      if (r === best || r.results === 0) continue
+      const expected = r.spend / ref
+      if (expected >= 3 && r.results < expected && poissonCdf(r.results, expected) < CLEARLY_WORSE_P) {
+        r.flags.push(`Kém rõ rệt: chi ${vnd(r.spend)} — kể cả khi nhóm dẫn đầu chỉ tốt ở mức thấp nhất (${vnd(ref)}/${word}) thì nhóm này lẽ ra ~${Math.round(expected)} ${word}, thực tế ${r.results} — chênh quá lớn để là may rủi`)
+      }
+    }
+  }
 
   if (eligible.length === 0) return { goalKind, verdict: "not_enough", winnerId: null, rows, summary: `Chưa nhóm nào đủ ${MIN_RESULTS_TO_RANK} ${word} (và ra khỏi giai đoạn học) để xếp hạng — chạy thêm rồi so lại.` }
   if (eligible.length === 1) {

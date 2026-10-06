@@ -14,26 +14,29 @@ const r0 = (n: number) => Math.round(n)
 const pct1 = (x: number | null) => (x === null ? null : Math.round(x * 1000) / 10)
 
 function rowFacts(r: RankedAdset) {
+  // Khoá tiếng Việt dễ đọc — AI hay chép NGUYÊN tên khoá vào dẫn chứng (dùng thật 06/10: "click_ra_ket_qua_phan_tram 15.7").
   return {
-    nhom: r.name, chien_dich: r.campaignName, hang: r.rank, su_kien_toi_uu: r.optEventLabel, trang_thai_hoc: r.learning ?? "không rõ",
-    chi_phi_vnd: r0(r.spend), ket_qua_tu_luot_bam: r.results, meta_bao_tong: r.resultsAll ?? r.results, chi_xem: r.resultsView ?? 0,
-    chi_phi_moi_ket_qua_vnd: r.costPerResult === null ? null : r0(r.costPerResult),
-    khoang_tin_cay_95_vnd: r.cprLow !== null && r.cprHigh !== null ? [r0(r.cprLow), r0(r.cprHigh)] : null,
-    ctr_phan_tram: pct1(r.ctr), click_ra_ket_qua_phan_tram: pct1(r.clickToResult), tan_suat: r.frequency === null ? null : Math.round(r.frequency * 10) / 10,
-    nham_chon: targetingSummary(r.targeting), co_canh_bao: r.flags,
+    "Nhóm": r.name, "Chiến dịch": r.campaignName, "Hạng": r.rank, "Sự kiện tối ưu": r.optEventLabel, "Trạng thái học": r.learning ?? "không rõ",
+    "Chi phí (₫)": r0(r.spend), "Kết quả từ lượt bấm": r.results, "Meta báo tổng (gồm chỉ xem)": r.resultsAll ?? r.results, "Chỉ xem": r.resultsView ?? 0,
+    "Chi phí mỗi kết quả (₫)": r.costPerResult === null ? null : r0(r.costPerResult),
+    "Khoảng tin cậy chi phí mỗi kết quả (₫)": r.cprLow !== null && r.cprHigh !== null ? [r0(r.cprLow), r0(r.cprHigh)] : null,
+    "CTR (%)": pct1(r.ctr), "Click → kết quả (%)": pct1(r.clickToResult), "Tần suất": r.frequency === null ? null : Math.round(r.frequency * 10) / 10,
+    "Nhắm chọn": targetingSummary(r.targeting), "Cờ cảnh báo của tool": r.flags,
   }
 }
 
 export function buildAssessPrompt(groups: CompareGroup[], range: { from: string; to: string }): string {
-  const data = groups.map((g) => ({ loai_ket_qua: g.goalKind === "leads" ? "lead" : "lượt mua", ket_luan_cua_tool: g.verdict, tom_tat_cua_tool: g.summary, cac_nhom: g.rows.map(rowFacts) }))
+  const VERDICT_VI: Record<string, string> = { winner: "winner (có tệp thắng)", leaning: "đang nghiêng về (chưa chắc)", undecided: "chưa phân thắng thua", not_enough: "chưa phân thắng thua (chưa đủ số)" }
+  const data = groups.map((g) => ({ "Loại kết quả": g.goalKind === "leads" ? "lead" : "lượt mua", "Kết luận của tool": VERDICT_VI[g.verdict] ?? g.verdict, "Tóm tắt của tool": g.summary, "Các nhóm": g.rows.map(rowFacts) }))
   return `Bạn là chuyên gia quảng cáo Meta đọc một BẢNG SO SÁNH NHÓM QUẢNG CÁO do công cụ đo (khoảng ${range.from} → ${range.to}).
 
 LUẬT BẮT BUỘC:
 1. CHỈ dùng số có trong DỮ LIỆU bên dưới. Không ước đoán số khác, không lấy số "trung bình ngành".
-2. Mỗi ý trong "why" và "actions" phải có "evidence": các con số trích NGUYÊN từ dữ liệu (vd "₫9.888/lượt mua", "CTR 0,6%").
-3. Kết quả đã tính theo LƯỢT BẤM 7 ngày ("ket_qua_tu_luot_bam"); "meta_bao_tong" gồm cả người chỉ xem — chỉ dùng để nhắc độ vênh, KHÔNG dùng để xếp hạng.
+2. Mỗi ý trong "why" và "actions" phải có "evidence": vài cụm ngắn, viết như người đọc báo cáo, vd "₫81.738/lượt mua", "CTR 0,2%", "click → lượt mua 15,7%", "tần suất 3,8". KHÔNG chép tên khoá dữ liệu.
+3. Kết quả đã tính theo LƯỢT BẤM 7 ngày ("Kết quả từ lượt bấm"); "Meta báo tổng" gồm cả người chỉ xem — chỉ dùng để nhắc độ vênh, KHÔNG dùng để xếp hạng.
 4. Không được nói sở thích/hạng mục nào "ra đơn" — Meta không cung cấp số theo sở thích. Chỉ được so cấu hình nhắm chọn ("nham_chon") giữa nhóm tốt và nhóm kém như một giả thuyết, ghi rõ là giả thuyết.
-5. Tôn trọng "ket_luan_cua_tool" và "co_canh_bao": nhóm "đang học", "chưa đủ", "khác mẫu quảng cáo", "khác sự kiện tối ưu" thì KHÔNG được kết luận chắc chắn — nói rõ cần gì để chắc.
+5. Tôn trọng "Kết luận của tool" và "Cờ cảnh báo của tool". Kết luận của tool khác "winner" → câu kết luận phải nói rõ CHƯA chọn được tệp thắng chắc chắn, không dùng từ "vượt trội"/"chắc chắn", và KHÔNG đề xuất tăng ngân sách. Nhóm "đang học", "chưa đủ", "khác mẫu quảng cáo", "khác sự kiện tối ưu" thì nói rõ cần gì để chắc.
+5b. Chỉ đề xuất DỪNG / GIẢM nhóm có cờ "Kém rõ rệt" hoặc cờ "mà 0 …". Nhóm chỉ có cờ "chưa xếp hạng" thì đề xuất "chạy thêm rồi so lại", không dừng.
 6. Đọc chỉ số để giải thích: CTR thấp = thông điệp/mẫu chưa hợp tệp; click→kết quả thấp = tệp hoặc trang đích chưa hợp; tần suất > 3,5 = tệp bắt đầu cạn.
 7. "actions": việc cụ thể (giữ / tăng ngân sách / giảm / dừng / lưu làm tệp thắng / chạy thêm N ngày rồi so lại), mỗi việc gắn tên nhóm. Tối đa 5 việc.
 8. Viết tiếng Việt, ngắn gọn, cho người làm marketing (không thuật ngữ thống kê).
@@ -61,11 +64,11 @@ export function unsupportedNumbers(a: AiAssessment, groups: CompareGroup[]): num
   const allowed: number[] = []
   for (const g of groups) {
     for (const r of g.rows) {
-      const f = rowFacts(r)
-      for (const v of [f.chi_phi_vnd, f.ket_qua_tu_luot_bam, f.meta_bao_tong, f.chi_xem, f.chi_phi_moi_ket_qua_vnd, ...(f.khoang_tin_cay_95_vnd ?? []), f.ctr_phan_tram, f.click_ra_ket_qua_phan_tram, f.tan_suat]) if (typeof v === "number") allowed.push(v)
+      for (const v of [r0(r.spend), r.results, r.resultsAll ?? r.results, r.resultsView ?? 0, r.costPerResult === null ? null : r0(r.costPerResult), r.cprLow === null ? null : r0(r.cprLow), r.cprHigh === null ? null : r0(r.cprHigh), pct1(r.ctr), pct1(r.clickToResult), r.frequency === null ? null : Math.round(r.frequency * 10) / 10]) if (typeof v === "number") allowed.push(v)
+      // Số nằm trong TÊN nhóm / chiến dịch ("22-48T", "28/8", "2026") và tóm tắt nhắm chọn ("21–65 tuổi") — dùng thật 06/10 báo nhầm.
+      for (const t of [r.name, r.campaignName, targetingSummary(r.targeting), ...r.flags]) for (const n of numbersIn(t.replace(/[-–/]/g, " "))) allowed.push(n)
     }
     for (const n of numbersIn(g.summary)) allowed.push(n)
-    for (const r of g.rows) for (const fl of r.flags) for (const n of numbersIn(fl)) allowed.push(n)
   }
   // Tỉ lệ chênh giữa các nhóm (AI hay nói "rẻ hơn 15%", "gấp 3 lần") — tính sẵn mọi cặp chi phí/kết quả.
   for (const g of groups) {
@@ -74,7 +77,7 @@ export function unsupportedNumbers(a: AiAssessment, groups: CompareGroup[]): num
   }
   const text = [a.conclusion, ...a.why.flatMap((p) => [p.text, ...p.evidence]), ...a.actions.flatMap((p) => [p.text, ...p.evidence])].join(" \n ")
   const bad = new Set<number>()
-  for (const n of numbersIn(text)) {
+  for (const n of numbersIn(text.replace(/(\d)[-–/](\d)/g, "$1 $2"))) {
     if (Math.abs(n) <= 14) continue
     const ok = allowed.some((v) => Math.abs(v - n) <= Math.max(0.15, Math.abs(v) * 0.01))
     if (!ok) bad.add(n)
