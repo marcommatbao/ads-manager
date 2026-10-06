@@ -24,7 +24,7 @@ import { judgeRemeasure, VERDICT_CODE, type PerfSnap, type RemeasureVerdict } fr
 import { lexiconFor, targetFor } from "./targets"
 import type { CaseEvidence, Company, MetaEvidence, SearchEvidence } from "./types"
 import { compareVerdicts, verdictOf, type CampaignPerf, type CaseBasis, type CaseTarget, type Verdict } from "./verdict"
-import { evidenceGoalKind, META_LEAD_OBJECTIVES, META_LEAD_TYPES, META_SALES_OBJECTIVES, metaGoalKind, metaResults, type GoalKind } from "./goal-kind"
+import { evidenceGoalKind, googleGoalKind, META_LEAD_OBJECTIVES, META_LEAD_TYPES, META_SALES_OBJECTIVES, metaGoalKind, metaResults, type GoalKind } from "./goal-kind"
 import { leadCaseTarget } from "@/lib/targets/resolve"
 
 type Row = Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -48,6 +48,8 @@ export interface OverviewRow {
   /** Mở phiên được cho Search (Đợt 1) và Pmax (Đợt 2). */
   canOpenCase: boolean
   latestCase: { id: string; step: number; status: string } | null
+  /** Đợt 23 (3d): chiến dịch thu lead → perf.orders là số LEAD, target là CPL. */
+  goalKind?: GoalKind
 }
 
 export type Platform = "google" | "facebook"
@@ -81,19 +83,32 @@ export async function metaOverview(company: Company, range: { from: string; to: 
       const latest = cases.find((x) => x.campaignId === id)
       return {
         campaignId: id, name, status: String(c?.status ?? "—"), channel: objective || "—", group, groupLabel: PRODUCT_LABEL[group],
-        perf, target, verdict: verdictOf(perf, target), canOpenCase: metaCanOpen(objective),
+        perf, target, verdict: verdictOf(perf, target), canOpenCase: metaCanOpen(objective), goalKind: leads ? "leads" : "sales",
         latestCase: latest ? { id: latest.id, step: latest.step, status: latest.status } : null,
       }
     })
   out.sort(compareVerdicts)
   // Tổng "đơn" chỉ cộng chiến dịch bán hàng — lead KHÔNG phải đơn (tổng lead đứng riêng).
   const totals = out.reduce((t, r) => ({
-    cost: t.cost + r.perf.cost, orders: t.orders + (META_LEAD_OBJECTIVES.has(r.channel) ? 0 : r.perf.orders),
-    leads: t.leads + (META_LEAD_OBJECTIVES.has(r.channel) ? r.perf.orders : 0), orderValue: t.orderValue + r.perf.orderValue,
+    cost: t.cost + r.perf.cost, orders: t.orders + (r.goalKind === "leads" ? 0 : r.perf.orders),
+    leads: t.leads + (r.goalKind === "leads" ? r.perf.orders : 0), orderValue: t.orderValue + r.perf.orderValue,
     overCeiling: t.overCeiling + (r.verdict.status === "red" ? r.verdict.overCeiling ?? 0 : 0),
     redCount: t.redCount + (r.verdict.status === "red" ? 1 : 0),
   }), { cost: 0, orders: 0, leads: 0, orderValue: 0, overCeiling: 0, redCount: 0 })
   return { company, range, rows: out, totals, scoredBy: "meta" as const }
+}
+
+/** Đợt 23 (3d): hạng mục chuyển đổi đang đặt giá của MỌI chiến dịch trong tài khoản (1 lượt gọi). Ném lỗi — job tự kiểm sáng
+ *  (lib/smoke/run.ts) dùng để bắt truy vấn hỏng; tổng quan thì bắt lỗi và chấm như bán hàng. */
+export async function googleBiddableCategories(customer: { query: (q: string) => Promise<unknown> }): Promise<Map<string, string[]>> {
+  const goals = (await customer.query(`SELECT campaign.id, campaign_conversion_goal.category FROM campaign_conversion_goal
+      WHERE campaign_conversion_goal.biddable = TRUE`)) as Row[]
+  const cats = new Map<string, string[]>()
+  for (const g of goals) {
+    const id = String(g.campaign?.id ?? ""), cat = en(enums.ConversionActionCategory, g.campaign_conversion_goal?.category)
+    cats.set(id, [...(cats.get(id) ?? []), cat])
+  }
+  return cats
 }
 
 export async function googleOverview(company: Company, range: { from: string; to: string }) {
@@ -103,14 +118,23 @@ export async function googleOverview(company: Company, range: { from: string; to
     FROM campaign WHERE segments.date BETWEEN '${range.from}' AND '${range.to}'
       AND campaign.status != 'REMOVED' AND metrics.cost_micros > 0`)) as Row[]
   const cases = listCases({ company })
+  // Đợt 23 (3d): hạng mục chuyển đổi chiến dịch ĐANG ĐẶT GIÁ — có lead, không có Mua hàng → thu lead (metrics.conversions
+  // của chiến dịch đó là lead). Đọc lỗi → coi như bán hàng (y như trước).
+  let cats = new Map<string, string[]>()
+  try {
+    cats = await googleBiddableCategories(customer)
+  } catch (e) {
+    console.warn("[case] googleOverview: không đọc được hạng mục đặt giá — chấm như bán hàng:", e instanceof Error ? e.message : String(e))
+  }
   const out: OverviewRow[] = rows.map((r) => {
     const name = String(r.campaign.name)
     const group = productGroupOf(name)
+    const leads = googleGoalKind(cats.get(String(r.campaign.id))) === "leads"
     const perf: CampaignPerf = {
       cost: micros(r.metrics.cost_micros), clicks: Number(r.metrics.clicks) || 0,
-      orders: Number(r.metrics.conversions) || 0, orderValue: Number(r.metrics.conversions_value) || 0,
+      orders: Number(r.metrics.conversions) || 0, orderValue: leads ? 0 : Number(r.metrics.conversions_value) || 0,
     }
-    const target = targetFor(company, group)
+    const target: CaseTarget | null = leads ? leadCaseTarget(company, name) : targetFor(company, group)
     const channel = en(enums.AdvertisingChannelType, r.campaign.advertising_channel_type)
     const latest = cases.find((c) => c.campaignId === String(r.campaign.id))
     return {
@@ -118,14 +142,16 @@ export async function googleOverview(company: Company, range: { from: string; to
       channel, group, groupLabel: PRODUCT_LABEL[group], perf, target, verdict: verdictOf(perf, target),
       canOpenCase: channel === "SEARCH" || channel === "PERFORMANCE_MAX",
       latestCase: latest ? { id: latest.id, step: latest.step, status: latest.status } : null,
+      goalKind: leads ? "leads" : "sales",
     }
   })
   out.sort(compareVerdicts)
   const totals = out.reduce((t, r) => ({
-    cost: t.cost + r.perf.cost, orders: t.orders + r.perf.orders, orderValue: t.orderValue + r.perf.orderValue,
+    cost: t.cost + r.perf.cost, orders: t.orders + (r.goalKind === "leads" ? 0 : r.perf.orders),
+    leads: t.leads + (r.goalKind === "leads" ? r.perf.orders : 0), orderValue: t.orderValue + r.perf.orderValue,
     overCeiling: t.overCeiling + (r.verdict.status === "red" ? r.verdict.overCeiling ?? 0 : 0),
     redCount: t.redCount + (r.verdict.status === "red" ? 1 : 0),
-  }), { cost: 0, orders: 0, orderValue: 0, overCeiling: 0, redCount: 0 })
+  }), { cost: 0, orders: 0, leads: 0, orderValue: 0, overCeiling: 0, redCount: 0 })
   return { company, range, rows: out, totals }
 }
 

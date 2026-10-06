@@ -31,6 +31,11 @@ async function activeSplit(co: Company) {
 export const PROBES: Probe[] = [
   { id: "search_xray", label: "X-quang Search", run: async (co, d) => { const { searchXray } = await import("@/lib/search/xray"); const x = await searchXray(co, d, { force: true }); return failIf(x.errors, `${x.campaigns.length} chiến dịch · ${x.terms.length} lượt tìm`) } },
   { id: "pmax_xray", label: "X-quang PMax", run: async (co, d) => { const { pmaxXray } = await import("@/lib/pmax/xray"); const x = await pmaxXray(co, d, { force: true }); return failIf(x.errors, "đọc được") } },
+  { id: "case_google_goals", label: "Xử lý chiến dịch — hạng mục đặt giá Google (tách lead)", run: async (co) => {
+    const { googleBiddableCategories } = await import("@/lib/case/service"); const { getGoogleAdsCustomer } = await import("@/lib/google-ads-client")
+    const { googleGoalKind } = await import("@/lib/case/goal-kind")
+    const m = await googleBiddableCategories(getGoogleAdsCustomer(co)); const lead = [...m.values()].filter((c) => googleGoalKind(c) === "leads").length
+    return `${m.size} chiến dịch có hạng mục đặt giá · ${lead} thu lead` } },
   { id: "meta_xray", label: "X-quang Meta", run: async (co, d) => { const { metaXray } = await import("@/lib/meta/xray"); const x = await metaXray(co, d, { force: true }); return failIf(x.errors, `${x.campaigns.length} chiến dịch`) } },
   { id: "split_assets", label: "Tài sản chiến dịch (tách)", run: async (co) => {
     const s = await activeSplit(co); if (!s) return { skip: "chưa có bản tách" }

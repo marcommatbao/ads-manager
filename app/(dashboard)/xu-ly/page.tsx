@@ -22,7 +22,6 @@ import { metaObjectiveLabel } from "@/components/case/meta-copy";
 import { DateRangeControl, type DateRangeValue } from "@/components/DateRangeControl";
 import { DEFAULT_VIEW_DAYS, MAX_RANGE_DAYS, MIN_CASE_DAYS, isYmd, lastDays, rangeDays } from "@/lib/case/dates";
 import type { Company } from "@/lib/case/types";
-import { META_LEAD_OBJECTIVES } from "@/lib/case/goal-kind";
 import type { OverviewRow, Platform } from "@/lib/case/service";
 
 /** Đọc `?from=&to=` từ URL ở LẦN RENDER ĐẦU (reload/back) — không hợp lệ thì về mặc định 30 ngày. */
@@ -65,7 +64,7 @@ function XuLyOverviewPageInner() {
 
   const { data, error, isLoading, mutate } = useSWR<{
     success: true; company: Company; range: { from: string; to: string };
-    rows: OverviewRow[]; totals: { cost: number; orders: number; orderValue: number; overCeiling: number; redCount: number };
+    rows: OverviewRow[]; totals: { cost: number; orders: number; leads?: number; orderValue: number; overCeiling: number; redCount: number };
   }>(
     effectiveCompany ? `/api/cases/overview?company=${effectiveCompany}&from=${range.from}&to=${range.to}&platform=${channel}` : null,
     getJson,
@@ -188,7 +187,7 @@ function XuLyOverviewPageInner() {
         <>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <Kpi label="Tổng chi" value={vnd(data.totals.cost)} sub={`${rows.length} chiến dịch có chi tiêu`} />
-            <Kpi label="Đơn mua" value={num(data.totals.orders)} sub="Mục tiêu cuối: Mua hàng" />
+            <Kpi label="Đơn mua" value={num(data.totals.orders)} sub={data.totals.leads ? `Mục tiêu cuối: Mua hàng · thêm ${num(data.totals.leads)} lead (chấm riêng theo CPL)` : "Mục tiêu cuối: Mua hàng"} />
             {showRoas ? (
               <Kpi label="ROAS chung" value={data.totals.cost > 0 ? fmtRoas(data.totals.orderValue / data.totals.cost) : "—"} sub={`Giá trị ${vnd(data.totals.orderValue)}`} />
             ) : (
@@ -230,13 +229,13 @@ function XuLyOverviewPageInner() {
                       </td>
                       <td className="px-3 py-2.5 text-right tabular-nums">{vnd(r.perf.cost)}</td>
                       <td className="px-3 py-2.5 text-right tabular-nums">{num(r.perf.clicks)}</td>
-                      {/* Đợt 23 (3d): chiến dịch thu lead — cột này là số LEAD, chấm theo chi phí mỗi lead; không có ROAS. */}
-                      <td className="px-3 py-2.5 text-right tabular-nums">{num(r.perf.orders)}{channel === "facebook" && META_LEAD_OBJECTIVES.has(r.channel) && <span className="ml-1 text-xs font-normal text-slate-400">lead</span>}</td>
+                      {/* Đợt 23 (3d): chiến dịch thu lead (Google + Meta) — cột này là số LEAD, chấm theo chi phí mỗi lead; không có ROAS. */}
+                      <td className="px-3 py-2.5 text-right tabular-nums">{num(r.perf.orders)}{r.goalKind === "leads" && <span className="ml-1 text-xs font-normal text-slate-400">lead</span>}</td>
                       <td className={cn("px-3 py-2.5 text-right tabular-nums", r.verdict.status === "red" && "font-semibold text-red-600")}>
                         {r.verdict.cpa !== null ? vnd(r.verdict.cpa) : "—"}
                       </td>
                       <td className={cn("px-3 py-2.5 text-right tabular-nums", r.verdict.status === "red" && "font-semibold text-red-600")}>
-                        {r.verdict.roas !== null && !(channel === "facebook" && META_LEAD_OBJECTIVES.has(r.channel)) ? fmtRoas(r.verdict.roas) : "—"}
+                        {r.verdict.roas !== null && r.goalKind !== "leads" ? fmtRoas(r.verdict.roas) : "—"}
                       </td>
                       <td className="px-3 py-2.5 text-right tabular-nums font-semibold text-red-600">
                         {r.verdict.overCeiling !== null ? vnd(r.verdict.overCeiling) : "—"}
