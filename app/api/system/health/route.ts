@@ -12,6 +12,8 @@ import { snapshotAllConnectors } from "@/lib/connectors/engine"
 import { isTeamsAlertConfigured } from "@/lib/teams-alert"
 import { sendSystemAlert } from "@/lib/system-alert"
 import { lastNumbersCheck } from "@/lib/jobs/numbers-check"
+import { appVersionLabel } from "@/lib/version"
+import { dataVersionResult } from "@/lib/data-version"
 
 export const dynamic = "force-dynamic"
 const BOOT_AT = new Date(Date.now() - process.uptime() * 1000)
@@ -41,6 +43,8 @@ export async function GET() {
     success: true, now: now.toISOString(), bootAt: BOOT_AT.toISOString(), jobs, connectors,
     alertChannel: { teams: isTeamsAlertConfigured(), telegramDisabled: process.env.CONNECTOR_TELEGRAM_DISABLED === "1" },
     numbersCheck: lastNumbersCheck(), canControl: isSuperAdmin(user.role),
+    // Đợt 24c: phiên bản mã + phiên bản dữ liệu (kết quả kiểm lúc khởi động)
+    version: { app: appVersionLabel(), data: dataVersionResult() },
   })
 }
 

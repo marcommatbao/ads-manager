@@ -109,8 +109,9 @@ export const CONNECTOR_REGISTRY: ConnectorDescriptor[] = [
   {
     id: "serpapi",
     displayName: "SerpApi",
-    requiredEnv: ["SERPAPI_KEY"],
-    secretEnv:   ["SERPAPI_KEY"],
+    // Đợt 24a: mã đọc SERP_API_KEY (lib/intelligence-fetcher.ts) — tên cũ SERPAPI_KEY làm bảng này luôn báo "chưa cấu hình".
+    requiredEnv: ["SERP_API_KEY"],
+    secretEnv:   ["SERP_API_KEY"],
     supportsLiveTest: false,
     color: "bg-indigo-500",
     icon: "🔍",

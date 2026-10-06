@@ -40,6 +40,13 @@ export async function startJobRun(
   jobId: JobId,
   triggeredBy = "cron",
 ): Promise<JobRunHandle | JobBlocked> {
+  // Đợt 24b: lượt chạy bù do nhịp tick gửi (header x-cron-catchup) → ghi rõ trong lịch sử trang Jobs.
+  if (triggeredBy === "cron") {
+    try {
+      const { headers } = await import("next/headers")
+      if ((await headers()).get("x-cron-catchup")) triggeredBy = "cron · chạy bù"
+    } catch { /* ngoài ngữ cảnh request (test) — giữ "cron" */ }
+  }
   // 1. Pause check
   const control = getJobControl(jobId);
   if (!control.enabled) {

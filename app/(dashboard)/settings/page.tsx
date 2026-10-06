@@ -37,6 +37,7 @@ import { useSettingsPermission } from "@/hooks/useSettingsPermission";
 import { ReadOnlyBanner } from "@/components/settings/PermissionGate";
 import { ConnectorHealth } from "@/components/settings/ConnectorHealth";
 import { ExtraConnections } from "@/components/settings/ExtraConnections";
+import { ServiceKeys } from "@/components/settings/ServiceKeys";
 
 interface ApiSection {
   title: string;
@@ -910,6 +911,8 @@ function SettingsContent() {
       <div id="ket-noi" className="scroll-mt-20">
         <ExtraConnections canEdit={perms.canEditCredentials} />
       </div>
+
+      <ServiceKeys canEdit={perms.canEditCredentials} />
 
       <CompanyMappingTable />
 

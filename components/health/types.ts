@@ -75,6 +75,8 @@ export interface HealthResponse {
   connectors: HealthConnector[];
   alertChannel: HealthAlertChannel;
   numbersCheck: NumbersCheckResult | null;
+  /** Đợt 24c — phiên bản mã + kết quả kiểm data/ lúc khởi động. Bản cũ của API không có. */
+  version?: { app: string; data: { status: "current" | "fresh" | "baseline" | "migrated" | "newer" | "failed"; from: number | null; to: number; target: number; backup: string | null; error: string | null } | null };
   canControl: boolean;
 }
 

@@ -10,6 +10,8 @@
 // Quy tắc GIỮ NGUYÊN: biến môi trường đã có giá trị thì THẮNG (bản Mắt Bão không đổi). Giá trị không phải chuỗi → bỏ, không gán.
 
 import { decryptFields } from "@/lib/crypto/data-encryption"
+import { markFromSettings } from "./env-origin"
+import { SERVICE_KEYS, SERVICE_KEYS_FILE } from "./service-keys-def"
 
 interface Source { file: string; encrypted: string[]; map: Record<string, string> }
 
@@ -26,9 +28,11 @@ export const SAVED_SOURCES: Source[] = [
   { file: "gemini-settings.json", encrypted: ["apiKey"], map: { apiKey: "GEMINI_API_KEY" } },
   { file: "telegram-settings.json", encrypted: ["botToken"], map: { botToken: "TELEGRAM_BOT_TOKEN", chatId: "TELEGRAM_CHAT_ID" } },
   {
-    file: "teams-webhooks-settings.json", encrypted: ["leads_notify", "orders_notify", "job_health_monitor", "ads", "case_task", "measure_monitor"],
-    map: { leads_notify: "TEAMS_WEBHOOK_MATBAOIN", orders_notify: "TEAMS_WEBHOOK_ORDERS_MATBAOIN", job_health_monitor: "TEAMS_WEBHOOK_OPS_ALERTS", ads: "TEAMS_WEBHOOK_ADS", case_task: "CASE_TASK_TEAMS_WEBHOOK", measure_monitor: "MEASURE_MONITOR_TEAMS_WEBHOOK" },
+    file: "teams-webhooks-settings.json", encrypted: ["leads_notify", "orders_notify", "job_health_monitor", "ads", "case_task", "measure_monitor", "orders_paid", "orders_cancelled"],
+    map: { leads_notify: "TEAMS_WEBHOOK_MATBAOIN", orders_notify: "TEAMS_WEBHOOK_ORDERS_MATBAOIN", job_health_monitor: "TEAMS_WEBHOOK_OPS_ALERTS", ads: "TEAMS_WEBHOOK_ADS", case_task: "CASE_TASK_TEAMS_WEBHOOK", measure_monitor: "MEASURE_MONITOR_TEAMS_WEBHOOK", orders_paid: "TEAMS_WEBHOOK_PAID_MATBAOIN", orders_cancelled: "TEAMS_WEBHOOK_CANCELLED_MATBAOIN" },
   },
+  // Đợt 24a: khoá dịch vụ phụ (SerpApi, SearchAPI, Apify, Resend, bot Telegram KPI) — lib/settings/service-keys.ts.
+  { file: SERVICE_KEYS_FILE, encrypted: SERVICE_KEYS.filter((k) => k.secret).map((k) => k.key), map: Object.fromEntries(SERVICE_KEYS.map((k) => [k.key, k.envVar])) },
   { file: "odoo-settings.json", encrypted: ["password", "apiKey"], map: { url: "ODOO_URL", db: "ODOO_DB", user: "ODOO_USER", password: "ODOO_PASSWORD", apiKey: "ODOO_API_KEY" } },
 ]
 
@@ -52,6 +56,7 @@ export function applySaved(files: Record<string, unknown>, env: Record<string, s
     const s = v.trim()
     if (!s || env[name]) return
     env[name] = s; set.push(name)
+    if (env === process.env) markFromSettings(name) // Đợt 24a: lưu lại ở Cài đặt sau đó được ghi đè ngay
   }
   for (const src of SAVED_SOURCES) {
     const raw = files[src.file]

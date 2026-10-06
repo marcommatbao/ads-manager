@@ -84,7 +84,8 @@ export const ENV_REGISTRY: EnvDescriptor[] = [
 
   // Misc
   { key: "APIFY_API_TOKEN",    required: false, secret: true,  group: "misc",     description: "Apify scraping API token" },
-  { key: "SERPAPI_KEY",        required: false, secret: true,  group: "misc",     description: "SerpApi search API key" },
+  { key: "SERP_API_KEY",       required: false, secret: true,  group: "misc",     description: "SerpApi search API key" },
+  { key: "SEARCH_API_KEY",     required: false, secret: true,  group: "misc",     description: "SearchAPI search API key" },
   { key: "RESEND_API_KEY",     required: false, secret: true,  group: "misc",     description: "Resend email API key" },
   { key: "SLACK_BOT_TOKEN",    required: false, secret: true,  group: "misc",     description: "Slack bot token" },
 ];

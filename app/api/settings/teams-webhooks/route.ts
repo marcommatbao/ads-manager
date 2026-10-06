@@ -19,20 +19,28 @@ import { withFileLock } from "@/lib/file-lock";
 import fs from "fs";
 import { writeFileAtomicSync } from "@/lib/fs-atomic";
 import path from "path";
+import { hasModule } from "@/lib/companies/registry";
+import { patchFromSettings, setByInfra } from "@/lib/settings/env-origin";
 
 const SETTINGS_PATH = path.resolve(process.cwd(), "data/teams-webhooks-settings.json");
 
 // Khoá đúng bằng JobId của job gửi thẻ đó — 1 chỗ duy nhất định nghĩa cả 3,
 // đọc/patch process.env đều lặp qua danh sách này thay vì if/else riêng lẻ.
 const WEBHOOK_KEYS = [
-  { key: "leads_notify",       envVar: "TEAMS_WEBHOOK_MATBAOIN",        label: "Lead mới — matbao.in" },
-  { key: "orders_notify",      envVar: "TEAMS_WEBHOOK_ORDERS_MATBAOIN", label: "Đơn hàng mới — matbao.in" },
+  { key: "leads_notify",       envVar: "TEAMS_WEBHOOK_MATBAOIN",        label: "Lead mới — matbao.in", module: "matbao" },
+  { key: "orders_notify",      envVar: "TEAMS_WEBHOOK_ORDERS_MATBAOIN", label: "Đơn hàng mới — matbao.in", module: "matbao" },
   { key: "job_health_monitor", envVar: "TEAMS_WEBHOOK_OPS_ALERTS",      label: "Cảnh báo hệ thống (Job Health Monitor)" },
   // Đợt 21 A4: mọi webhook Teams dán được ở Cài đặt (trước đây 3 cái dưới chỉ đặt được bằng biến môi trường)
   { key: "ads",                envVar: "TEAMS_WEBHOOK_ADS",             label: "Kênh Ads — kết quả đo bản tách, nhắc việc, báo cáo tuần, Hộp việc" },
   { key: "case_task",          envVar: "CASE_TASK_TEAMS_WEBHOOK",       label: "Nhắc việc phiên Xử lý chiến dịch" },
   { key: "measure_monitor",    envVar: "MEASURE_MONITOR_TEAMS_WEBHOOK", label: "Giám sát Sức khoẻ đo lường" },
-] as const;
+  // Đợt 24a: 2 thẻ còn lại của Order Notify (trước chỉ đặt được ở Coolify). Bỏ trống = gửi chung vào webhook "Đơn hàng mới".
+  { key: "orders_paid",        envVar: "TEAMS_WEBHOOK_PAID_MATBAOIN",      label: "Đơn đã thanh toán — matbao.in", module: "matbao" },
+  { key: "orders_cancelled",   envVar: "TEAMS_WEBHOOK_CANCELLED_MATBAOIN", label: "Đơn huỷ — matbao.in", module: "matbao" },
+] as const satisfies readonly { key: string; envVar: string; label: string; module?: "matbao" }[];
+
+/** Ô hiện ở bản cài này — webhook gói Mắt Bão ẩn ở bản khách. */
+const visibleKeys = () => WEBHOOK_KEYS.filter((w) => !("module" in w) || hasModule(w.module));
 
 type WebhookKey = (typeof WEBHOOK_KEYS)[number]["key"];
 type WebhookSettings = Partial<Record<WebhookKey, string>>;
@@ -53,10 +61,8 @@ function readSettings(): WebhookSettings {
  *  sau với job_health_monitor) thấy giá trị mới liền, không cần chờ deploy.
  *  Chỉ vá khi biến môi trường CHƯA có — xem ghi chú ưu tiên ở đầu file. */
 function patchEnv(settings: WebhookSettings): void {
-  for (const w of WEBHOOK_KEYS) {
-    const v = settings[w.key];
-    if (v && !process.env[w.envVar]) process.env[w.envVar] = v;
-  }
+  // Đợt 24a: biến do Cài đặt nạp trước đó được ghi đè (lưu lần 2 có hiệu lực ngay); biến của Coolify vẫn thắng.
+  for (const w of WEBHOOK_KEYS) patchFromSettings(w.envVar, settings[w.key]);
 }
 
 /** Đợt 21 A4 (soát bảo mật): đọc để GHI — lỗi đọc / giải mã thì NÉM, không trả {} (trả {} rồi ghi = xoá sạch khoá đã lưu khác). */
@@ -93,8 +99,8 @@ export async function GET() {
   const saved = readSettings();
   return NextResponse.json({
     ok: true,
-    webhooks: WEBHOOK_KEYS.map(w => {
-      const raw = process.env[w.envVar] || saved[w.key] || "";
+    webhooks: visibleKeys().map(w => {
+      const raw = setByInfra(w.envVar) ? process.env[w.envVar] ?? "" : saved[w.key] || process.env[w.envVar] || "";
       return {
         key: w.key,
         label: w.label,
@@ -108,7 +114,7 @@ export async function GET() {
         // chính giá trị vừa lưu ở đây. "env" chỉ đúng khi KHÔNG có gì trong
         // file mà process.env vẫn có — tức chắc chắn tới từ Coolify.
         // "none" = chưa cấu hình đường nào.
-        source: saved[w.key] ? "settings" : raw ? "env" : "none",
+        source: setByInfra(w.envVar) ? "env" : saved[w.key] ? "settings" : raw ? "env" : "none",
       };
     }),
   });
@@ -124,7 +130,7 @@ export async function POST(request: NextRequest) {
   const body = await request.json() as Partial<Record<string, string>>;
 
   const settings: WebhookSettings = {};
-  for (const w of WEBHOOK_KEYS) {
+  for (const w of visibleKeys()) {
     const v = body[w.key];
     if (typeof v === "string" && v.trim() && !isMaskedPlaceholder(v)) {
       // Đợt 21 A4 (soát bảo mật): máy chủ sẽ POST vào URL này → chỉ nhận https (không http, không địa chỉ nội bộ dạng tự do).
@@ -150,7 +156,7 @@ export async function POST(request: NextRequest) {
   // Nói rõ nếu vừa lưu một webhook mà biến môi trường đang ghi đè — người
   // dùng bấm Lưu, thấy "đã lưu" nhưng job vẫn dùng link CŨ (từ Coolify) thì
   // sẽ tưởng tính năng hỏng.
-  const overriddenByEnv = WEBHOOK_KEYS.filter(w => w.key in settings && process.env[w.envVar] && process.env[w.envVar] !== settings[w.key]);
+  const overriddenByEnv = WEBHOOK_KEYS.filter(w => w.key in settings && setByInfra(w.envVar) && process.env[w.envVar] !== settings[w.key]);
   const message = !persisted
     ? "Áp dụng tạm (in-memory). Ghi đĩa thất bại — sẽ mất khi khởi động lại."
     : overriddenByEnv.length > 0

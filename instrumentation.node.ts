@@ -13,6 +13,17 @@
 
 export async function registerNode() {
 
+  // ── Đợt 24c: phiên bản bản cài + phiên bản data/ (sao lưu rồi chuyển đổi nếu dữ liệu cũ hơn mã) — TRƯỚC mọi lần đọc data/ ──
+  try {
+    const { appVersionLabel } = await import("@/lib/version");
+    const { ensureDataVersion, setDataVersionResult } = await import("@/lib/data-version");
+    const path = (await import("path")).default;
+    const r = await ensureDataVersion(path.join(process.cwd(), "data"));
+    setDataVersionResult(r);
+    const bad = r.status === "failed" || r.status === "newer";
+    console.log(JSON.stringify({ level: bad ? "error" : "info", module: "startup", message: `AdsCommand ${appVersionLabel()} · dữ liệu v${r.to} (${r.status})`, ...(r.backup ? { backup: r.backup } : {}), ...(r.error ? { error: r.error } : {}) }));
+  } catch (e) { console.error("[startup] data version", e); }
+
   // ── Đợt 21a: nạp danh sách công ty của bản cài (data/companies.json) vào sổ công ty dùng chung ─────────
   // Không chặn khởi động: tệp hỏng → giữ mặc định + lỗi hiện ở Cài đặt / tự kiểm.
   try {

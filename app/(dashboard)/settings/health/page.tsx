@@ -84,6 +84,15 @@ export default function HealthPage() {
         <>
           <SummaryStrip jobs={data.jobs} connectors={data.connectors} alertChannel={data.alertChannel} bootAt={data.bootAt} />
 
+          {/* Đợt 24c: phiên bản mã + phiên bản dữ liệu */}
+          {data.version && (
+            <div className={`rounded-xl border px-4 py-2.5 text-sm ${data.version.data && (data.version.data.status === "failed" || data.version.data.status === "newer") ? "border-red-200 bg-red-50 text-red-800" : "border-slate-200 bg-white text-slate-600"}`}>
+              Phiên bản <b className="text-slate-900">{data.version.app}</b>
+              {data.version.data && <> · dữ liệu <b className="text-slate-900">v{data.version.data.to}</b>{data.version.data.status === "migrated" && <> (vừa chuyển từ v{data.version.data.from}, đã sao lưu)</>}</>}
+              {data.version.data?.error && <div className="mt-1 text-xs">{data.version.data.error}</div>}
+            </div>
+          )}
+
           {data.canControl && <TestAlertButton />}
 
           <JobsHealthTable jobs={data.jobs} />

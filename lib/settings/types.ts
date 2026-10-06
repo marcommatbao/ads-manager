@@ -14,6 +14,7 @@ export type SettingsDomain =
   | "credentials_telegram"
   | "credentials_ga4"
   | "credentials_teams_webhooks"
+  | "credentials_service_keys"
   | "credentials_gtm"
   | "credentials_meta_pages"
   | "revenue"
@@ -35,6 +36,7 @@ export const DOMAIN_CLASS: Record<SettingsDomain, ConfigClass> = {
   credentials_telegram: "SECRET",
   credentials_ga4:      "SECRET",
   credentials_teams_webhooks: "SECRET",
+  credentials_service_keys: "SECRET",
   credentials_gtm:      "SECRET",
   credentials_meta_pages: "SECRET",
   revenue:              "TARGET",
