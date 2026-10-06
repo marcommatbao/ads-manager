@@ -28,6 +28,24 @@ async function activeSplit(co: Company) {
   return allSplits().filter((r) => r.company === co && (r.step === "created" || r.step === "moved") && r.newCampaign).sort((a, b) => (a.at < b.at ? 1 : -1))[0] ?? null
 }
 
+async function trendProbe(platform: "meta" | "google", co: Company, to: string): Promise<string> {
+  const { metaTrend, googleTrend } = await import("@/lib/trends/fetch")
+  const { metaBreakdown, googleBreakdown } = await import("@/lib/trends/breakdown-fetch")
+  const { checkTrend, checkBreakdown } = await import("@/lib/trends/consistency")
+  const range = { from: addDays(to, -13), to }
+  const t = await (platform === "meta" ? metaTrend(co, range, true) : googleTrend(co, range, true))
+  const b = await (platform === "meta" ? metaBreakdown(co, range, true) : googleBreakdown(co, range, true))
+  const a = checkTrend(t, range), c = checkBreakdown(b, t)
+  const issues = [...a.issues, ...c.issues]
+  // Nguồn ĐỘC LẬP: tổng chi trang Xử lý chiến dịch cùng kỳ (đọc theo đường khác — bắt chiến dịch bị sót, vd đã lưu trữ).
+  const svc = await import("@/lib/case/service")
+  const ov = await (platform === "meta" ? svc.metaOverview(co, range) : svc.googleOverview(co, range))
+  const tSpend = t.campaigns.reduce((x, k) => x + k.cur.spend, 0)
+  if (Math.abs(ov.totals.cost - tSpend) > Math.max(2000, ov.totals.cost * 0.02)) issues.push(`tổng chi Diễn biến ₫${Math.round(tSpend).toLocaleString("vi-VN")} ≠ Xử lý chiến dịch ₫${Math.round(ov.totals.cost).toLocaleString("vi-VN")} (${ov.rows.length} chiến dịch) — có chiến dịch bị sót?`)
+  if (issues.length) throw new Error(issues.slice(0, 4).join(" · "))
+  return `${a.summary} · ${c.summary}`
+}
+
 export const PROBES: Probe[] = [
   { id: "search_xray", label: "X-quang Search", run: async (co, d) => { const { searchXray } = await import("@/lib/search/xray"); const x = await searchXray(co, d, { force: true }); return failIf(x.errors, `${x.campaigns.length} chiến dịch · ${x.terms.length} lượt tìm`) } },
   { id: "pmax_xray", label: "X-quang PMax", run: async (co, d) => { const { pmaxXray } = await import("@/lib/pmax/xray"); const x = await pmaxXray(co, d, { force: true }); return failIf(x.errors, "đọc được") } },
@@ -36,6 +54,9 @@ export const PROBES: Probe[] = [
     const { googleGoalKind } = await import("@/lib/case/goal-kind")
     const m = await googleBiddableCategories(getGoogleAdsCustomer(co)); const lead = [...m.values()].filter((c) => googleGoalKind(c) === "leads").length
     return `${m.size} chiến dịch có hạng mục đặt giá · ${lead} thu lead` } },
+  // Đợt 28: tab Diễn biến — số phải khớp nhau (theo ngày = theo chiến dịch; tách tuổi/giới/vị trí/thiết bị/giờ = tổng). 14 ngày.
+  { id: "trends_meta", label: "Diễn biến + tách — Meta (đối chiếu số)", run: async (co, d) => trendProbe("meta", co, d.to) },
+  { id: "trends_google", label: "Diễn biến + tách — Google (đối chiếu số)", run: async (co, d) => trendProbe("google", co, d.to) },
   { id: "meta_xray", label: "X-quang Meta", run: async (co, d) => { const { metaXray } = await import("@/lib/meta/xray"); const x = await metaXray(co, d, { force: true }); return failIf(x.errors, `${x.campaigns.length} chiến dịch`) } },
   { id: "split_assets", label: "Tài sản chiến dịch (tách)", run: async (co) => {
     const s = await activeSplit(co); if (!s) return { skip: "chưa có bản tách" }

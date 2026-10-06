@@ -2,7 +2,6 @@
 // công ty, tách riêng chiến dịch bán hàng / thu lead (≤ 6 lượt gọi, ít dòng); kết quả từ LƯỢT BẤM 7 ngày. Google: 2 truy vấn.
 import { enums } from "google-ads-api"
 import { detectCompany } from "@/lib/company-detect"
-import { metaClient } from "@/lib/meta-client"
 import { adAccountId, metaGetAll } from "@/lib/case/meta-graph"
 import { pickActionWindow, PURCHASE_TYPES } from "@/lib/case/meta-evidence"
 import { placementKey, placementLabel } from "@/lib/case/meta-placements"
@@ -20,9 +19,11 @@ export async function metaBreakdown(company: string, range: { from: string; to: 
   const key = `meta|${company}|${range.from}|${range.to}`
   const hit = memo.get(key)
   if (!force && hit && Date.now() - hit.at < TTL) return hit.v
-  const camps = (await metaClient.getCampaigns()).filter((c) => detectCompany(String(c.name ?? "")) === company)
+  // Chiến dịch lấy từ số chi tiêu trong kỳ (gồm cả chiến dịch đã lưu trữ — danh sách mặc định của Meta bỏ chúng).
+  const camps = (await metaGetAll<Row>(`act_${adAccountId()}/insights`, { level: "campaign", time_range: JSON.stringify({ since: range.from, until: range.to }), fields: "campaign_id,campaign_name,objective,spend", limit: "500" }))
+    .filter((r) => detectCompany(String(r.campaign_name ?? "")) === company && Number(r.spend) > 0)
   const byKind: Record<GoalKind, string[]> = { sales: [], leads: [] }
-  for (const c of camps) byKind[metaGoalKind(String(c.objective ?? ""))].push(String(c.id))
+  for (const c of camps) byKind[metaGoalKind(String(c.objective ?? ""))].push(String(c.campaign_id))
   const out: BTable[] = []
   const dims = [
     { dim: "age", title: "Độ tuổi", breakdowns: "age", key: (r: Row) => String(r.age), label: (r: Row) => String(r.age) },

@@ -3,7 +3,6 @@
 //   Google (mỗi công ty): 1 truy vấn chiến dịch × ngày + 1 truy vấn hạng mục đặt giá (tách lead / bán hàng).
 // Đệm 30 phút. Meta tính kết quả từ LƯỢT BẤM 7 ngày (bài học 06/10: số Meta gộp người chỉ xem).
 import { detectCompany } from "@/lib/company-detect"
-import { metaClient } from "@/lib/meta-client"
 import { adAccountId, metaGetAll } from "@/lib/case/meta-graph"
 import { pickActionWindow, PURCHASE_TYPES } from "@/lib/case/meta-evidence"
 import { META_LEAD_TYPES, googleGoalKind, metaGoalKind, type GoalKind } from "@/lib/case/goal-kind"
@@ -31,14 +30,17 @@ export async function metaTrend(company: string, range: { from: string; to: stri
   const hit = memo.get(key)
   if (!force && hit && Date.now() - hit.at < TTL) return hit.v
   const prev = previousRange(range.from, range.to)
-  const camps = (await metaClient.getCampaigns()).filter((c) => detectCompany(String(c.name ?? "")) === company)
-  const kindOf = new Map(camps.map((c) => [String(c.id), metaGoalKind(String(c.objective ?? ""))]))
+  const act = `act_${adAccountId()}/insights`
+  const win = JSON.stringify(["7d_click", "1d_view"])
+  // Danh sách chiến dịch lấy TỪ SỐ CHI TIÊU của hai kỳ (không từ danh sách chiến dịch: danh sách mặc định của Meta bỏ chiến
+  // dịch ĐÃ LƯU TRỮ dù chúng vẫn có chi phí trong kỳ). Lọc công ty theo tên; mục tiêu đọc ngay trong số liệu.
+  const [curAll, prevAll] = await Promise.all([range, prev].map((r) => metaGetAll<Row>(act, { level: "campaign", time_range: JSON.stringify({ since: r.from, until: r.to }), action_attribution_windows: win, fields: "campaign_id,campaign_name,objective,spend,impressions,inline_link_clicks,actions,action_values", limit: "500" })))
+  const mineOnly = (rows: Row[]) => rows.filter((r) => detectCompany(String(r.campaign_name ?? "")) === company)
+  const curC = mineOnly(curAll), prevC = mineOnly(prevAll)
+  const kindOf = new Map<string, GoalKind>([...prevC, ...curC].map((r) => [String(r.campaign_id), metaGoalKind(String(r.objective ?? ""))]))
   const ids = [...kindOf.keys()]
   if (!ids.length) { const v: PlatformTrend = { platform: "meta", days: [], campaigns: [], error: null }; memo.set(key, { at: Date.now(), v }); return v }
-  const base = { filtering: JSON.stringify([{ field: "campaign.id", operator: "IN", value: ids }]), action_attribution_windows: JSON.stringify(["7d_click", "1d_view"]), fields: "campaign_id,campaign_name,spend,impressions,inline_link_clicks,actions,action_values", limit: "500" }
-  const act = `act_${adAccountId()}/insights`
-  const daily = await metaGetAll<Row>(act, { ...base, level: "account", time_increment: "1", time_range: JSON.stringify({ since: prev.from, until: range.to }), fields: "date_start,spend,impressions,inline_link_clicks,actions,action_values" })
-  const [curC, prevC] = await Promise.all([range, prev].map((r) => metaGetAll<Row>(act, { ...base, level: "campaign", time_range: JSON.stringify({ since: r.from, until: r.to }) })))
+  const daily = await metaGetAll<Row>(act, { level: "account", time_increment: "1", time_range: JSON.stringify({ since: prev.from, until: range.to }), filtering: JSON.stringify([{ field: "campaign.id", operator: "IN", value: ids }]), action_attribution_windows: win, fields: "date_start,spend,impressions,inline_link_clicks,actions,action_values", limit: "500" })
   const withSplit = (m: Omit<Metrics, "spendSales" | "spendLeads">, kind: GoalKind): Metrics => ({ ...m, spendSales: kind === "sales" ? m.spend : 0, spendLeads: kind === "leads" ? m.spend : 0 })
   const byId = new Map<string, CampaignPeriods>()
   for (const [rows, side] of [[curC, "cur"], [prevC, "prev"]] as const) {
