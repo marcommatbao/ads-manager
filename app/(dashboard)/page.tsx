@@ -55,6 +55,7 @@ import CompanyPnL from "@/components/dashboard/CompanyPnL";
 import { KpiTab } from "@/components/dashboard/KpiTab";
 import { KpiOverviewTab } from "@/components/dashboard/KpiOverviewTab";
 import { HealthOverviewTab } from "@/components/dashboard/HealthOverviewTab";
+import { TrendsTab } from "@/components/dashboard/TrendsTab";
 import { DashboardSection } from "@/components/dashboard/DashboardSection";
 
 // ─────────────────────────────────────────────
@@ -1412,7 +1413,7 @@ export default function DashboardPage() {
 
   const { toast } = useToast();
 
-  const [mainTab, setMainTab] = useState<"overview" | "kpi" | "kpi-overview" | "health">("overview");
+  const [mainTab, setMainTab] = useState<"overview" | "trends" | "kpi" | "kpi-overview" | "health">("overview");
 
   // Deep link từ thẻ "Đường lead" ở /lib/overview/health.ts (href="/?tab=health#duong-lead") —
   // đọc window.location trực tiếp (KHÔNG dùng useSearchParams: trang này chưa bọc Suspense và
@@ -1674,6 +1675,7 @@ export default function DashboardPage() {
       <div className="flex gap-1 border-b border-slate-100 mb-1">
         {([
           { key: "overview",     label: "📊 Tổng quan" },
+          { key: "trends",       label: "📈 Diễn biến" },
           { key: "kpi",          label: "📦 Chi Phí SP" },
           { key: "kpi-overview", label: "🎯 KPI Tổng Quan" },
           { key: "health",       label: "🩺 Tình trạng & cảnh báo" },
@@ -1701,6 +1703,9 @@ export default function DashboardPage() {
 
       {/* ── Tình trạng & cảnh báo tab (Đợt 5) ── */}
       {mainTab === "health" && <HealthOverviewTab />}
+
+      {/* ── Diễn biến tab (Đợt 28) ── */}
+      {mainTab === "trends" && <TrendsTab />}
 
       {/* ── Tổng quan tab ── */}
       {mainTab === "overview" && (
