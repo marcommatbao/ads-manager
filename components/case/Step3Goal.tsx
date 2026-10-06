@@ -3,7 +3,7 @@
 // ============================================================
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,7 +14,8 @@ import { vnd } from "./format";
 import { productGroupOf, PRODUCT_LABEL } from "@/lib/case/product";
 import type { CampaignCase } from "@/lib/case/store";
 import type { Company } from "@/lib/case/types";
-import type { TargetBasis } from "@/lib/case/verdict";
+import type { CaseBasis, TargetBasis } from "@/lib/case/verdict";
+import { evidenceGoalKind } from "@/lib/case/goal-kind";
 
 // Hình dạng tối thiểu của một dòng /api/case-targets — chỉ lấy phần cần để
 // gợi ý mục tiêu, KHÔNG import lib/case/targets.ts (đó là file backend có fs).
@@ -24,6 +25,8 @@ interface TargetRow {
   basis: TargetBasis;
   target: number;
   ceiling: number;
+  cplTarget?: number | null;
+  cplCeiling?: number | null;
 }
 
 export function Step3Goal({
@@ -41,10 +44,18 @@ export function Step3Goal({
   const groupLabel = PRODUCT_LABEL[group];
   const { data } = useSWR<{ success: true; rows: TargetRow[] }>("/api/case-targets", getJson);
 
-  const existing = data?.rows.find((r) => r.company === c.company && r.group === group)
-    ?? data?.rows.find((r) => r.company === c.company && r.group === "DEFAULT");
+  // Đợt 23 (3d): chiến dịch thu lead chấm theo chi phí mỗi lead (CPL) — gợi ý từ CPL mục tiêu/trần của sản phẩm.
+  const leads = evidenceGoalKind(c.evidence) === "leads";
+  const hasCpl = (r: TargetRow) => Number(r.cplTarget) > 0 && Number(r.cplCeiling) > 0;
+  const hasSales = (r: TargetRow) => Number(r.target) > 0 && Number(r.ceiling) > 0;
+  const ok = leads ? hasCpl : hasSales;
+  const row = data?.rows.find((r) => r.company === c.company && r.group === group && ok(r))
+    ?? data?.rows.find((r) => r.company === c.company && r.group === "DEFAULT" && ok(r));
+  const existing = useMemo<{ basis: CaseBasis; target: number; ceiling: number } | undefined>(() => (!row ? undefined
+    : leads ? { basis: "cpl", target: Number(row.cplTarget), ceiling: Number(row.cplCeiling) }
+    : { basis: row.basis, target: row.target, ceiling: row.ceiling }), [row, leads]);
 
-  const [basis, setBasis] = useState<TargetBasis>(c.goal?.basis ?? existing?.basis ?? "cpa");
+  const [basis, setBasis] = useState<CaseBasis>(leads ? "cpl" : c.goal?.basis ?? existing?.basis ?? "cpa");
   const [target, setTarget] = useState<string>(String(c.goal?.target ?? existing?.target ?? ""));
   const [ceiling, setCeiling] = useState<string>(String(c.goal?.ceiling ?? existing?.ceiling ?? ""));
   const [where, setWhere] = useState<string>(c.goal?.where ?? "");
@@ -69,6 +80,7 @@ export function Step3Goal({
     !target || !ceiling ? null
     : !(targetN > 0) || !(ceilingN > 0) ? "Mục tiêu và trần phải > 0"
     : basis === "cpa" && targetN > ceilingN ? "Chi phí/đơn mục tiêu phải ≤ trần"
+    : basis === "cpl" && targetN > ceilingN ? "Chi phí/lead mục tiêu phải ≤ trần"
     : basis === "roas" && targetN < ceilingN ? "ROAS mục tiêu phải ≥ ROAS trần"
     : null;
 
@@ -99,7 +111,7 @@ export function Step3Goal({
         <div>
           <label className="mb-1.5 block text-sm font-medium text-slate-700">Cách chấm</label>
           <div className="inline-flex rounded-lg border border-slate-200 p-0.5">
-            {([["cpa", "Chi phí/đơn (CPA)"], ["roas", "ROAS"]] as const).map(([v, label]) => (
+            {(leads ? ([["cpl", "Chi phí/lead (CPL)"]] as const) : ([["cpa", "Chi phí/đơn (CPA)"], ["roas", "ROAS"]] as const)).map(([v, label]) => (
               <button
                 key={v}
                 type="button"
@@ -116,31 +128,31 @@ export function Step3Goal({
         </div>
 
         <div>
-          <label htmlFor="ac-where" className="mb-1.5 block text-sm font-medium text-slate-700">Nơi ghi nhận đơn</label>
+          <label htmlFor="ac-where" className="mb-1.5 block text-sm font-medium text-slate-700">{leads ? "Nơi ghi nhận lead" : "Nơi ghi nhận đơn"}</label>
           <Input
             id="ac-where"
             value={where}
             onChange={(e) => setWhere(e.target.value)}
-            placeholder="Trang ghi nhận đơn, vd trang cảm ơn sau thanh toán"
+            placeholder={leads ? "Nơi ghi nhận lead, vd form trên Meta hoặc trang cảm ơn sau khi đăng ký" : "Trang ghi nhận đơn, vd trang cảm ơn sau thanh toán"}
           />
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label htmlFor="ac-target" className="mb-1.5 block text-sm font-medium text-slate-700">
-              {basis === "cpa" ? "Chi phí/đơn mục tiêu" : "ROAS mục tiêu ≥"} <span className="text-red-500">*</span>
+              {basis === "cpl" ? "Chi phí/lead mục tiêu" : basis === "cpa" ? "Chi phí/đơn mục tiêu" : "ROAS mục tiêu ≥"} <span className="text-red-500">*</span>
             </label>
             <Input id="ac-target" inputMode="numeric" value={target} onChange={(e) => setTarget(e.target.value)} required />
           </div>
           <div>
             <label htmlFor="ac-cap" className="mb-1.5 block text-sm font-medium text-slate-700">
-              {basis === "cpa" ? "Trần chi phí/đơn" : "Trần ROAS (đỏ khi dưới)"} <span className="text-red-500">*</span>
+              {basis === "cpl" ? "Trần chi phí/lead" : basis === "cpa" ? "Trần chi phí/đơn" : "Trần ROAS (đỏ khi dưới)"} <span className="text-red-500">*</span>
             </label>
             <Input id="ac-cap" inputMode="numeric" value={ceiling} onChange={(e) => setCeiling(e.target.value)} required />
           </div>
         </div>
-        {basis === "cpa" && targetN > 0 && ceilingN > 0 && (
-          <p className="text-xs text-slate-400">Vượt trần = {vnd(ceilingN)}/đơn trở lên bị đánh đỏ.</p>
+        {basis !== "roas" && targetN > 0 && ceilingN > 0 && (
+          <p className="text-xs text-slate-400">Vượt trần = {vnd(ceilingN)}/{basis === "cpl" ? "lead" : "đơn"} trở lên bị đánh đỏ.</p>
         )}
 
         <label className="flex min-h-10 cursor-pointer items-center gap-2 text-sm text-slate-700">

@@ -22,6 +22,8 @@ export interface DiagnoseOptions {
   lexicon: IntentLexicon
   /** Trần chi phí/đơn (VND) nếu chấm theo CPA — để biết đã chi "đủ để kết luận" chưa. */
   ceilingCpa: number | null
+  /** Đợt 23 (3d): chiến dịch thu lead — bỏ các kiểm "Mua hàng" (đặt giá theo lead là ĐÚNG mục tiêu). Mặc định sales. */
+  goalKind?: "sales" | "leads"
 }
 
 const NETWORK_VI: Record<string, string> = {
@@ -47,7 +49,9 @@ export function diagnoseSearch(ev: SearchEvidence, opts: DiagnoseOptions): Diagn
   const bucket = (k: string) => buckets.find((b) => b.intent === k)
 
   // ── Đo lường ────────────────────────────────────────────────
-  if (!ev.biddableCategories.includes("PURCHASE")) {
+  if (opts.goalKind === "leads") {
+    notCauses.push({ id: "measurement-ok", text: `Chiến dịch thu lead — đang đặt giá theo: ${ev.biddableCategories.join(", ")}. Chấm theo chi phí mỗi lead.` })
+  } else if (!ev.biddableCategories.includes("PURCHASE")) {
     causes.push({
       id: "goal-not-purchase",
       title: "Chiến dịch không đặt giá theo “Mua hàng”",

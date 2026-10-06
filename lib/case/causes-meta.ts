@@ -8,6 +8,7 @@
 
 import { FUNNEL_EVENTS } from "./meta-evidence"
 import { isReels } from "./meta-placements"
+import { metaGoalKind } from "./goal-kind"
 import type { Cause, CheckedOk, Diagnosis, MetaEvidence, MetaPlacementSlice } from "./types"
 
 /** Meta: nhóm quảng cáo cần ~50 sự kiện tối ưu mỗi tuần để ra khỏi giai đoạn học. */
@@ -42,9 +43,12 @@ export interface PlacementRow { key: string; label: string; cost: number; result
 export interface PlacementVerdict extends PlacementRow { share: number; costPerResult: number | null; restCostPerResult: number | null; excess: number; flagged: boolean }
 
 /** Chỉ số so vị trí: sâu nhất mà đủ số. Trả null khi không chỉ số nào đủ để so. */
-export function placementMetric(ev: MetaEvidence): { key: "purchases" | "optResults" | "landingViews"; label: string } | null {
+export function placementMetric(ev: MetaEvidence): { key: "purchases" | "leads" | "optResults" | "landingViews"; label: string } | null {
   const sum = (f: (p: MetaPlacementSlice) => number) => ev.placements.reduce((s, p) => s + f(p), 0)
-  if (sum((p) => p.purchases) >= MIN_RESULTS_TO_COMPARE) return { key: "purchases", label: "lượt mua" }
+  // Đợt 23 (3d): chiến dịch thu lead so vị trí theo lead (không theo lượt mua — luôn ~0).
+  if (metaGoalKind(ev.campaign.objective) === "leads") {
+    if (sum((p) => p.leads ?? 0) >= MIN_RESULTS_TO_COMPARE) return { key: "leads", label: "lead" }
+  } else if (sum((p) => p.purchases) >= MIN_RESULTS_TO_COMPARE) return { key: "purchases", label: "lượt mua" }
   if (sum((p) => p.optResults) >= MIN_RESULTS_TO_COMPARE) return { key: "optResults", label: "kết quả theo sự kiện tối ưu" }
   if (sum((p) => p.landingViews) >= MIN_RESULTS_TO_COMPARE) return { key: "landingViews", label: "lượt xem trang đích" }
   return null
@@ -56,7 +60,7 @@ export function judgePlacements(ev: MetaEvidence): { metric: ReturnType<typeof p
   for (const p of ev.placements) {
     const r = by.get(p.key) ?? { key: p.key, label: p.label, cost: 0, results: 0, adsetIds: [] }
     r.cost += p.cost
-    r.results += metric ? p[metric.key] : 0
+    r.results += metric ? p[metric.key] ?? 0 : 0
     if (!r.adsetIds.includes(p.adsetId)) r.adsetIds.push(p.adsetId)
     by.set(p.key, r)
   }
@@ -78,7 +82,9 @@ export function judgePlacements(ev: MetaEvidence): { metric: ReturnType<typeof p
 
 /** Sự kiện sâu nhất có đủ 50/tuần trên CẢ nhóm sản phẩm (mọi chiến dịch cùng sản phẩm gộp lại). */
 export function bestLearnableEvent(ev: MetaEvidence): { key: string; label: string; perWeek: number } | null {
-  for (const e of FUNNEL_EVENTS) {
+  // Thu lead: sự kiện cuối là "lead" — bỏ các sự kiện mua hàng nằm trước nó trong phễu.
+  const from = metaGoalKind(ev.campaign.objective) === "leads" ? FUNNEL_EVENTS.findIndex((e) => e.key === "lead") : 0
+  for (const e of FUNNEL_EVENTS.slice(from)) {
     if (e.key === "custom") continue // gộp mọi tên tự đặt — không chọn được một sự kiện cụ thể từ số này
     const perWeek = ev.peers.eventsPerWeek[e.key] ?? 0
     if (perWeek >= EVENTS_PER_WEEK_TO_LEARN) return { key: e.key, label: e.label, perWeek }
@@ -94,10 +100,27 @@ export function diagnoseMeta(ev: MetaEvidence): Diagnosis {
   const spent = ev.adsets.filter((a) => a.cost > 0)
   const share = (m: number) => (c.cost > 0 ? m / c.cost : null)
   const weeks = Math.max(ev.peers.weeks, 1 / 7)
+  // Đợt 23 (3d): chiến dịch thu lead — "kết quả cuối" là lead, không phải Mua hàng. Các kiểm chỉ đúng với đơn mua (giá trị đơn,
+  // lượt mua chỉ-xem, lệch Odoo) bỏ qua; nhóm tối ưu theo sự kiện khác lead thì báo theo lead.
+  const leads = metaGoalKind(c.objective) === "leads"
+  if (leads) context.push("Chiến dịch thu lead — chấm theo số lead Meta ghi (form trên Meta + pixel). Không đối chiếu đơn Odoo.")
 
-  // 1. Tối ưu theo sự kiện không phải Mua hàng.
-  const notPurchase = spent.filter((a) => !a.optEvent.isPurchase)
-  if (notPurchase.length) {
+  // 1. Tối ưu theo sự kiện không phải Mua hàng (thu lead: không phải lead).
+  const isLeadOpt = (a: (typeof spent)[number]) => a.optEvent.type === "LEAD" || a.optimizationGoal === "LEAD_GENERATION" || a.optimizationGoal === "QUALITY_LEAD"
+  const notLead = leads ? spent.filter((a) => !isLeadOpt(a)) : []
+  if (leads) {
+    if (notLead.length) {
+      const money = notLead.reduce((s, a) => s + a.cost, 0)
+      causes.push({
+        id: "opt-event-not-lead", title: `Nhóm quảng cáo tối ưu theo ${[...new Set(notLead.map((a) => a.optEvent.label))].join(", ")}, không phải Khách hàng tiềm năng`,
+        detail: "Meta tìm người dễ làm sự kiện này nhất, không phải người dễ để lại thông tin nhất. Meta KHÔNG cho đổi sự kiện của nhóm đã chạy — muốn đổi phải tạo nhóm mới",
+        money, share: share(money), shareOf: "campaign_cost",
+        evidence: notLead.map((a) => ({ label: `${a.name} — ${a.optEvent.label}`, value: `${a.optResults}${a.optResultsApprox ? " (xấp xỉ)" : ""} kết quả`, cost: a.cost })),
+      })
+    } else if (spent.length) notCauses.push({ id: "opt-event-not-lead", text: "Mọi nhóm quảng cáo có chi tiêu đều tối ưu theo Khách hàng tiềm năng" })
+  }
+  const notPurchase = leads ? [] : spent.filter((a) => !a.optEvent.isPurchase)
+  if (leads) { /* đã xét ở trên */ } else if (notPurchase.length) {
     const money = notPurchase.reduce((s, a) => s + a.cost, 0)
     const events = [...new Set(notPurchase.map((a) => a.optEvent.label))]
     causes.push({
@@ -123,12 +146,12 @@ export function diagnoseMeta(ev: MetaEvidence): Diagnosis {
   } else if (spent.some((a) => a.learning.status)) notCauses.push({ id: "learning-fail", text: "Không nhóm nào ở trạng thái học thất bại" })
 
   // 3. Quá mỏng: nhiều chiến dịch cùng sản phẩm chia nhau ít sự kiện.
-  const bestEvent = ev.peers.eventsPerWeek.purchase ?? 0
+  const bestEvent = ev.peers.eventsPerWeek[leads ? "lead" : "purchase"] ?? 0
   const optPerWeek = spent.reduce((s, a) => s + a.optResults, 0) / weeks
   if (ev.peers.activeCampaigns >= 2 && optPerWeek < EVENTS_PER_WEEK_TO_LEARN) {
     causes.push({
       id: "budget-thin", title: `${ev.peers.activeCampaigns} chiến dịch cùng sản phẩm chia nhau số sự kiện ít ỏi`,
-      detail: `Chiến dịch này được khoảng ${dec(optPerWeek, 1)} kết quả/tuần; cả nhóm sản phẩm ${dec(bestEvent, 1)} lượt mua/tuần. Gộp lại mới có cơ hội đủ ${EVENTS_PER_WEEK_TO_LEARN}/tuần cho một nhóm quảng cáo`,
+      detail: `Chiến dịch này được khoảng ${dec(optPerWeek, 1)} kết quả/tuần; cả nhóm sản phẩm ${dec(bestEvent, 1)} ${leads ? "lead" : "lượt mua"}/tuần. Gộp lại mới có cơ hội đủ ${EVENTS_PER_WEEK_TO_LEARN}/tuần cho một nhóm quảng cáo`,
       money: null, share: null, shareOf: null,
       evidence: FUNNEL_EVENTS.filter((e) => (ev.peers.eventsPerWeek[e.key] ?? 0) > 0).map((e) => ({ label: e.label, value: `${dec(ev.peers.eventsPerWeek[e.key], 1)}/tuần (cả nhóm sản phẩm)` })),
     })
@@ -148,7 +171,7 @@ export function diagnoseMeta(ev: MetaEvidence): Diagnosis {
   }
 
   // 4. Mua hàng không mang giá trị.
-  if (c.purchases > 0 && c.purchaseValue <= 0) {
+  if (leads) { /* thu lead — không có giá trị đơn */ } else if (c.purchases > 0 && c.purchaseValue <= 0) {
     causes.push({
       id: "purchase-value-missing", title: `Meta ghi ${c.purchases} lượt mua nhưng doanh thu ₫0`,
       detail: "Pixel bắn Mua hàng không kèm giá trị đơn — Meta không biết đơn nào đáng tiền, ROAS trên Meta luôn bằng 0",
@@ -190,7 +213,7 @@ export function diagnoseMeta(ev: MetaEvidence): Diagnosis {
 
   // 6b. Đợt 12 — "Mua hàng" chủ yếu là CHỈ XEM (1 ngày, không bấm). Đo 29/09: MBC .XYZ 204 "đơn" = 2 bấm + 202 chỉ xem, GA4
   //     utm xyz chỉ 2 đơn; toàn tài khoản ~90% là chỉ xem. Meta học theo tín hiệu này → tiêu tiền cho người đằng nào cũng mua.
-  if (c.purchasesView != null && c.purchasesClick != null && c.purchases >= VIEW_HEAVY_MIN_PURCHASES && c.purchasesView / Math.max(c.purchases, 1) >= VIEW_HEAVY_SHARE) {
+  if (leads) { /* lượt mua chỉ-xem chỉ có nghĩa với chiến dịch bán hàng */ } else if (c.purchasesView != null && c.purchasesClick != null && c.purchases >= VIEW_HEAVY_MIN_PURCHASES && c.purchasesView / Math.max(c.purchases, 1) >= VIEW_HEAVY_SHARE) {
     const clickCpa = c.purchasesClick > 0 ? c.cost / c.purchasesClick : null
     causes.push({
       id: "view-through-heavy", title: `${Math.round((c.purchasesView / c.purchases) * 100)}% "lượt mua" Meta báo là người CHỈ XEM quảng cáo (không bấm) rồi mua trong 1 ngày`,
@@ -201,7 +224,7 @@ export function diagnoseMeta(ev: MetaEvidence): Diagnosis {
   } else if (c.purchasesView != null) notCauses.push({ id: "view-through-heavy", text: `Lượt mua chỉ-xem ${dec(c.purchasesView ?? 0, 0)}/${dec(c.purchases, 0)} — chưa áp đảo` })
 
   // 7. Meta lệch Odoo (chấm theo Meta, gắn cờ — user chốt 27/09).
-  if (!ev.odoo.checked) context.push(`Chưa đối chiếu được với Odoo: ${ev.odoo.note}`)
+  if (leads) { /* không có đơn để đối chiếu Odoo */ } else if (!ev.odoo.checked) context.push(`Chưa đối chiếu được với Odoo: ${ev.odoo.note}`)
   else if (c.purchases >= ODOO_MIN_META_PURCHASES && ev.odoo.orders < c.purchases * ODOO_GAP_RATIO) {
     causes.push({
       id: "meta-vs-odoo", title: `Meta báo ${c.purchases} lượt mua, Odoo chỉ có ${ev.odoo.orders} đơn mang thẻ của chiến dịch`,

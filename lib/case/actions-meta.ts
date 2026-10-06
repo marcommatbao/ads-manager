@@ -11,6 +11,7 @@
 import { bestLearnableEvent, EVENTS_PER_WEEK_TO_LEARN, judgePlacements } from "./causes-meta"
 import { UNWRITABLE_TARGETING_KEYS } from "./meta-placements"
 import { proposeCreateAdset } from "./meta-new-adset"
+import { metaGoalKind, metaResults } from "./goal-kind"
 import type { CaseAction, ManualTask } from "./store"
 import type { Diagnosis, MetaEvidence } from "./types"
 import { ROAS_MIN_SPEND_TO_JUDGE, type CaseTarget, type Verdict } from "./verdict"
@@ -27,7 +28,8 @@ const vnd = (n: number) => `₫${Math.round(n).toLocaleString("vi-VN")}`
 export function budgetToCeiling(ev: MetaEvidence, goal: CaseTarget): { after: number; ratio: number } | null {
   const c = ev.campaign
   if (!c.dailyBudget || c.cost <= 0) return null
-  const allowed = goal.basis === "cpa" ? goal.ceiling * c.purchases : c.purchaseValue / goal.ceiling
+  // cpl (Đợt 23 · 3d): như cpa nhưng nhân với số lead.
+  const allowed = goal.basis === "roas" ? c.purchaseValue / goal.ceiling : goal.ceiling * metaResults(c, goal.basis === "cpl" ? "leads" : "sales")
   if (allowed <= 0) return null
   const ratio = Math.min(0.9, Math.max(0.5, allowed / c.cost))
   return { after: Math.round((c.dailyBudget * ratio) / 1000) * 1000, ratio }
@@ -45,18 +47,23 @@ export function proposeMetaActions(input: {
   const actions: CaseAction[] = []
   const manualTasks: Omit<ManualTask, "id" | "createdAt">[] = []
   const campaignActive = c.status === "ACTIVE"
+  // Đợt 23 (3d): chiến dịch thu lead — "kết quả" là lead; không tự dựng nhóm sự kiện mua hàng, không việc Odoo.
+  const kind = metaGoalKind(c.objective)
+  const leads = kind === "leads"
+  const results = metaResults(c, kind)
+  const resultWord = leads ? "lead" : "lượt mua"
 
   // Dừng nhóm quảng cáo: đã chi đủ để kết luận mà 0 đơn, và còn nhóm khác chạy tiếp.
-  const judgeSpend = goal.basis === "cpa" ? goal.ceiling : ROAS_MIN_SPEND_TO_JUDGE
+  const judgeSpend = goal.basis === "roas" ? ROAS_MIN_SPEND_TO_JUDGE : goal.ceiling
   const active = ev.adsets.filter((a) => a.status === "ACTIVE" && a.cost > 0)
   const pausedAdsets = new Set<string>()
-  const dead = active.filter((a) => a.purchases === 0 && a.cost >= judgeSpend)
+  const dead = active.filter((a) => metaResults(a, kind) === 0 && a.cost >= judgeSpend)
   if (dead.length && dead.length < active.length) {
     for (const a of dead) {
       pausedAdsets.add(a.id)
       actions.push({
         id: aid("pauseadset"), type: "PAUSE_ADSET", selected: false, adsetId: a.id, adsetName: a.name,
-        reason: `Chi ${vnd(a.cost)} (≥ ${vnd(judgeSpend)}) mà 0 lượt mua; ${active.length - dead.length} nhóm khác vẫn chạy`,
+        reason: `Chi ${vnd(a.cost)} (≥ ${vnd(judgeSpend)}) mà 0 ${resultWord}; ${active.length - dead.length} nhóm khác vẫn chạy`,
         label: `Dừng nhóm quảng cáo “${a.name}”`,
       })
     }
@@ -96,7 +103,7 @@ export function proposeMetaActions(input: {
       actions.push({
         id: aid("placement"), type: "EXCLUDE_PLACEMENT", selected: false, adsetId: a.id, adsetName: a.name,
         placements: mine.map((r) => r.key), placementLabels: mine.map((r) => r.label), automatic: a.automaticPlacement,
-        cost: slices.reduce((s, p) => s + p.cost, 0), results: slices.reduce((s, p) => s + (pl.metric ? p[pl.metric.key] : 0), 0),
+        cost: slices.reduce((s, p) => s + p.cost, 0), results: slices.reduce((s, p) => s + (pl.metric ? p[pl.metric.key] ?? 0 : 0), 0),
         resultLabel: pl.metric?.label ?? "kết quả", warnings,
         label: `Loại ${mine.map((r) => r.label).join(", ")} khỏi nhóm “${a.name}”`,
       })
@@ -111,12 +118,12 @@ export function proposeMetaActions(input: {
   }
 
   // Dừng chiến dịch: đỏ vì 0 đơn.
-  if (verdict.status === "red" && c.purchases === 0 && campaignActive) {
+  if (verdict.status === "red" && results === 0 && campaignActive) {
     actions.push({ id: aid("pause"), type: "PAUSE_CAMPAIGN", selected: false, campaignId: c.id, label: `Dừng chiến dịch “${c.name}”` })
   }
 
   // Giảm ngân sách về mức trần: đỏ nhưng có đơn (còn đáng chạy, chỉ đang chi quá).
-  if (verdict.status === "red" && c.purchases > 0 && campaignActive) {
+  if (verdict.status === "red" && results > 0 && campaignActive) {
     const b = budgetToCeiling(ev, goal)
     if (b && b.after < (c.dailyBudget ?? 0)) {
       actions.push({
@@ -128,7 +135,7 @@ export function proposeMetaActions(input: {
   }
 
   // Đợt 5: tool tự tạo nhóm mới với sự kiện chuẩn (không chọn sẵn). Có việc này thì không giao người việc trùng nghĩa.
-  const newAdset = has("opt-event-not-purchase") || has("learning-fail") || has("view-through-heavy") ? proposeCreateAdset(ev, { viewHeavy: has("view-through-heavy") }) : null
+  const newAdset = leads ? null : has("opt-event-not-purchase") || has("learning-fail") || has("view-through-heavy") ? proposeCreateAdset(ev, { viewHeavy: has("view-through-heavy") }) : null
   if (newAdset) actions.push(newAdset)
 
   // ── Việc giao người ──
@@ -142,13 +149,16 @@ export function proposeMetaActions(input: {
         : `Mua hàng chỉ ${dec(purchasePerWeek)}/tuần, chưa đủ ${EVENTS_PER_WEEK_TO_LEARN}. Sự kiện sâu nhất đủ số là “${best.label}” (${dec(best.perWeek)}/tuần) — tạo nhóm mới tối ưu theo sự kiện này thay cho sự kiện hiện tại.`
     manualTasks.push({ title: best ? `Tạo nhóm quảng cáo mới tối ưu theo “${best.label}”` : "Chưa đổi sự kiện tối ưu — gộp chiến dịch và kiểm pixel trước", detail, assignee: null, status: "open" })
   }
+  if (leads && has("opt-event-not-lead")) {
+    manualTasks.push({ title: "Tạo nhóm quảng cáo mới tối ưu theo “Khách hàng tiềm năng”", detail: `Meta không cho sửa sự kiện của nhóm đang chạy: tạo nhóm mới tối ưu theo lead (form trên Meta hoặc sự kiện Lead của pixel), chạy song song rồi tắt nhóm cũ. Tool chưa tự dựng nhóm thu lead.`, assignee: null, status: "open" })
+  }
   if (has("purchase-value-missing")) {
     manualTasks.push({ title: "Sửa pixel: sự kiện Mua hàng phải gửi giá trị đơn (value + currency VND)", detail: "Thiếu giá trị thì Meta không phân biệt được đơn to/nhỏ và không tối ưu theo doanh thu được.", assignee: null, status: "open" })
   }
   if (has("budget-thin")) {
     manualTasks.push({ title: `Gộp ${ev.peers.activeCampaigns} chiến dịch cùng sản phẩm`, detail: `Gộp về 1–2 chiến dịch để mỗi nhóm quảng cáo có đủ khoảng ${EVENTS_PER_WEEK_TO_LEARN} sự kiện/tuần. Xem số theo sự kiện ở nguyên nhân “chia nhau số sự kiện”.`, assignee: null, status: "open" })
   }
-  if (has("meta-vs-odoo") || !ev.odoo.checked) {
+  if (!leads && (has("meta-vs-odoo") || !ev.odoo.checked)) {
     manualTasks.push({
       title: ev.odoo.tags.length ? "Đối chiếu đo lường Meta với Odoo"
         : !ev.odoo.readableAds && ev.odoo.unreadableAds ? "Kiểm tay utm trong bài viết đang chạy quảng cáo"

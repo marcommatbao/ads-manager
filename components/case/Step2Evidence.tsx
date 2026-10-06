@@ -12,6 +12,7 @@ import { postJson, ApiError } from "./api";
 import { META_EVENT_LABEL, META_EVENT_ORDER, META_LEARNING_LABEL } from "./meta-copy";
 import type { CampaignCase } from "@/lib/case/store";
 import type { MetaEvidence, MetaPlacementSlice, SourceStatus } from "@/lib/case/types";
+import { metaGoalKind } from "@/lib/case/goal-kind";
 
 const SOURCE_PILL: Record<SourceStatus, { icon: typeof CheckCircle2; cls: string; text: string }> = {
   ok: { icon: CheckCircle2, cls: "bg-emerald-50 text-emerald-700 border-emerald-200", text: "Đủ" },
@@ -19,14 +20,14 @@ const SOURCE_PILL: Record<SourceStatus, { icon: typeof CheckCircle2; cls: string
   error: { icon: AlertTriangle, cls: "bg-red-50 text-red-700 border-red-200", text: "Lỗi" },
 };
 
-/** Chi phí/xem trang đích/lượt mua theo vị trí, gộp qua mọi nhóm quảng cáo — sắp theo chi phí. */
-function aggregatePlacements(placements: MetaPlacementSlice[]) {
+/** Chi phí/xem trang đích/lượt mua (thu lead: lead) theo vị trí, gộp qua mọi nhóm quảng cáo — sắp theo chi phí. */
+function aggregatePlacements(placements: MetaPlacementSlice[], leads: boolean) {
   const by = new Map<string, { key: string; label: string; cost: number; landingViews: number; purchases: number }>();
   for (const p of placements) {
     const cur = by.get(p.key) ?? { key: p.key, label: p.label, cost: 0, landingViews: 0, purchases: 0 };
     cur.cost += p.cost;
     cur.landingViews += p.landingViews;
-    cur.purchases += p.purchases;
+    cur.purchases += leads ? p.leads ?? 0 : p.purchases;
     by.set(p.key, cur);
   }
   const totalCost = [...by.values()].reduce((s, r) => s + r.cost, 0);
@@ -146,7 +147,8 @@ export function Step2Evidence({
 }
 
 function MetaEvidenceBlocks({ ev }: { ev: MetaEvidence }) {
-  const placementRows = aggregatePlacements(ev.placements);
+  const leads = metaGoalKind(ev.campaign.objective) === "leads"; // Đợt 23 (3d)
+  const placementRows = aggregatePlacements(ev.placements, leads);
   return (
     <>
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
@@ -160,7 +162,7 @@ function MetaEvidenceBlocks({ ev }: { ev: MetaEvidence }) {
               <th className="px-3 py-2 font-medium">Trạng thái học</th>
               <th className="px-3 py-2 font-medium">Vị trí</th>
               <th className="px-3 py-2 text-right font-medium">Chi phí</th>
-              <th className="px-3 py-2 text-right font-medium">Lượt mua</th>
+              <th className="px-3 py-2 text-right font-medium">{leads ? "Lead" : "Lượt mua"}</th>
               <th className="px-3 py-2 text-right font-medium">Kết quả</th>
             </tr>
           </thead>
@@ -176,7 +178,7 @@ function MetaEvidenceBlocks({ ev }: { ev: MetaEvidence }) {
                 </td>
                 <td className="px-3 py-2.5 text-slate-600">{a.automaticPlacement ? "Tự động" : "Thủ công"}</td>
                 <td className="px-3 py-2.5 text-right tabular-nums">{vnd(a.cost)}</td>
-                <td className="px-3 py-2.5 text-right tabular-nums">{num(a.purchases)}</td>
+                <td className="px-3 py-2.5 text-right tabular-nums">{num(leads ? a.leads ?? 0 : a.purchases)}</td>
                 <td className="px-3 py-2.5 text-right tabular-nums">
                   <span title={a.optResultsApprox ? "Sự kiện tự đặt: Meta gộp mọi sự kiện tự đặt, số là xấp xỉ" : undefined}>
                     {num(a.optResults)}{a.optResultsApprox ? "≈" : ""}
@@ -198,7 +200,7 @@ function MetaEvidenceBlocks({ ev }: { ev: MetaEvidence }) {
                 <th className="px-3 py-2 text-right font-medium">Chi phí</th>
                 <th className="px-3 py-2 text-right font-medium">% chi phí</th>
                 <th className="px-3 py-2 text-right font-medium">Xem trang đích</th>
-                <th className="px-3 py-2 text-right font-medium">Lượt mua</th>
+                <th className="px-3 py-2 text-right font-medium">{leads ? "Lead" : "Lượt mua"}</th>
               </tr>
             </thead>
             <tbody>

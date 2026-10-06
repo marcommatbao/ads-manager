@@ -22,6 +22,7 @@ import { adAccountId, metaGet, metaGetAll } from "./meta-graph"
 import { placementKey, placementLabel } from "./meta-placements"
 import { productGroupOf } from "./product"
 import { vnDate } from "./dates"
+import { META_LEAD_TYPES } from "./goal-kind"
 import type { Company, EvidenceSource, MetaAdSetFacts, MetaCampaignFacts, MetaEvidence, MetaOptEvent, MetaPlacementSlice } from "./types"
 
 type Row = Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -218,7 +219,7 @@ export async function collectMetaEvidence(company: Company, campaignId: string, 
       cost: Number(ins.spend) || 0, impressions: Number(ins.impressions) || 0, clicks: Number(ins.clicks) || 0,
       frequency: num(ins.frequency),
       purchases: pickAction(ins.actions, PURCHASE_TYPES), purchaseValue: pickAction(ins.action_values, PURCHASE_TYPES),
-      optResults: pickAction(ins.actions, opt.types), optResultsApprox: opt.approx,
+      optResults: pickAction(ins.actions, opt.types), optResultsApprox: opt.approx, leads: pickAction(ins.actions, META_LEAD_TYPES),
       attributionSpec: Array.isArray(a.attribution_spec) ? (a.attribution_spec as Row[]).map((x) => ({ eventType: String(x.event_type), windowDays: Number(x.window_days) || 0 })) : undefined,
     }
   }).sort((x, y) => y.cost - x.cost)
@@ -230,6 +231,7 @@ export async function collectMetaEvidence(company: Company, campaignId: string, 
       adsetId: String(p.adset_id), key, label: placementLabel(key),
       cost: Number(p.spend) || 0, impressions: Number(p.impressions) || 0, clicks: Number(p.clicks) || 0,
       landingViews: pickAction(p.actions, LANDING_TYPES), purchases: pickAction(p.actions, PURCHASE_TYPES), optResults: pickAction(p.actions, opt.types),
+      leads: pickAction(p.actions, META_LEAD_TYPES),
     }
   }).filter((p) => p.cost > 0).sort((x, y) => y.cost - x.cost)
 
@@ -243,6 +245,7 @@ export async function collectMetaEvidence(company: Company, campaignId: string, 
     linkClicks: pickAction(ci.actions, ["link_click"]), landingViews: pickAction(ci.actions, LANDING_TYPES),
     purchases: pickAction(ci.actions, PURCHASE_TYPES), purchaseValue: pickAction(ci.action_values, PURCHASE_TYPES),
     purchasesClick: pickActionWindow(ci.actions, PURCHASE_TYPES, "7d_click"), purchasesView: pickActionWindow(ci.actions, PURCHASE_TYPES, "1d_view"),
+    leads: pickAction(ci.actions, META_LEAD_TYPES),
     actions: normalizeActions(ci.actions, ci.action_values),
   }
 

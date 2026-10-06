@@ -22,6 +22,7 @@ import { metaObjectiveLabel } from "@/components/case/meta-copy";
 import { DateRangeControl, type DateRangeValue } from "@/components/DateRangeControl";
 import { DEFAULT_VIEW_DAYS, MAX_RANGE_DAYS, MIN_CASE_DAYS, isYmd, lastDays, rangeDays } from "@/lib/case/dates";
 import type { Company } from "@/lib/case/types";
+import { META_LEAD_OBJECTIVES } from "@/lib/case/goal-kind";
 import type { OverviewRow, Platform } from "@/lib/case/service";
 
 /** Đọc `?from=&to=` từ URL ở LẦN RENDER ĐẦU (reload/back) — không hợp lệ thì về mặc định 30 ngày. */
@@ -229,12 +230,13 @@ function XuLyOverviewPageInner() {
                       </td>
                       <td className="px-3 py-2.5 text-right tabular-nums">{vnd(r.perf.cost)}</td>
                       <td className="px-3 py-2.5 text-right tabular-nums">{num(r.perf.clicks)}</td>
-                      <td className="px-3 py-2.5 text-right tabular-nums">{num(r.perf.orders)}</td>
+                      {/* Đợt 23 (3d): chiến dịch thu lead — cột này là số LEAD, chấm theo chi phí mỗi lead; không có ROAS. */}
+                      <td className="px-3 py-2.5 text-right tabular-nums">{num(r.perf.orders)}{channel === "facebook" && META_LEAD_OBJECTIVES.has(r.channel) && <span className="ml-1 text-xs font-normal text-slate-400">lead</span>}</td>
                       <td className={cn("px-3 py-2.5 text-right tabular-nums", r.verdict.status === "red" && "font-semibold text-red-600")}>
                         {r.verdict.cpa !== null ? vnd(r.verdict.cpa) : "—"}
                       </td>
                       <td className={cn("px-3 py-2.5 text-right tabular-nums", r.verdict.status === "red" && "font-semibold text-red-600")}>
-                        {r.verdict.roas !== null ? fmtRoas(r.verdict.roas) : "—"}
+                        {r.verdict.roas !== null && !(channel === "facebook" && META_LEAD_OBJECTIVES.has(r.channel)) ? fmtRoas(r.verdict.roas) : "—"}
                       </td>
                       <td className="px-3 py-2.5 text-right tabular-nums font-semibold text-red-600">
                         {r.verdict.overCeiling !== null ? vnd(r.verdict.overCeiling) : "—"}

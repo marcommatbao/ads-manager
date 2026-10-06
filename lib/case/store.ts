@@ -13,7 +13,7 @@ import { writeFileAtomicSync } from "@/lib/fs-atomic"
 import { withFileLock } from "@/lib/file-lock"
 import type { NegativeKw, SimulationResult } from "./simulate-negatives"
 import type { CaseEvidence, Company, Diagnosis } from "./types"
-import type { TargetBasis } from "./verdict"
+import type { CaseBasis } from "./verdict"
 import { isCompany } from "@/lib/companies/registry";
 
 const DIR = path.join(process.cwd(), "data", "cases")
@@ -106,7 +106,7 @@ export interface CampaignCase {
   range: { from: string; to: string }
   step: CaseStep
   status: "open" | "done" | "reopened"
-  goal: null | { basis: TargetBasis; target: number; ceiling: number; where: string; confirmedBy: string; confirmedAt: string }
+  goal: null | { basis: CaseBasis; target: number; ceiling: number; where: string; confirmedBy: string; confirmedAt: string }
   evidence: CaseEvidence | null
   diagnosis: Diagnosis | null
   actions: CaseAction[]

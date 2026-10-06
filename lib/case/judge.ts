@@ -9,12 +9,13 @@
 
 export type RemeasureVerdict = "improved" | "same" | "worse"
 export interface PerfSnap { cost: number; orders: number; value: number }
-export interface Goal { basis: "cpa" | "roas"; target: number; ceiling: number }
+/** "cpl" (Đợt 23 · 3d) chấm y như "cpa" — `orders` của PerfSnap khi đó là số lead. */
+export interface Goal { basis: "cpa" | "roas" | "cpl"; target: number; ceiling: number }
 
 /** Ngưỡng thay đổi tối thiểu để coi là thật sự tốt / xấu hơn (tránh nhiễu). */
 export const MIN_CHANGE = 0.1
 
-export function judgeRemeasure(goal: Goal | null, before: PerfSnap | null, after: PerfSnap): { verdict: RemeasureVerdict; basis: "cpa" | "roas"; before: number | null; after: number | null } {
+export function judgeRemeasure(goal: Goal | null, before: PerfSnap | null, after: PerfSnap): { verdict: RemeasureVerdict; basis: Goal["basis"]; before: number | null; after: number | null } {
   const basis = goal?.basis ?? "cpa"
   if (basis === "roas") {
     const a = after.cost > 0 ? after.value / after.cost : null

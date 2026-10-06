@@ -15,13 +15,15 @@ import { DEFAULT_BRAND, DEFAULT_COMPETITORS, type IntentLexicon } from "./intent
 import { companyDef, hasPack } from "@/lib/companies/registry"
 import type { ProductGroup } from "./product"
 import type { Company } from "./types"
-import type { CaseTarget } from "./verdict"
+import type { CaseTarget, TargetBasis } from "./verdict"
 import { isCompany } from "@/lib/companies/registry";
 
 const TARGETS_FILE = path.join(process.cwd(), "data", "case-targets.json")
 const LEXICON_FILE = path.join(process.cwd(), "data", "case-lexicon.json")
 
-export interface TargetRow extends CaseTarget {
+export interface TargetRow extends Omit<CaseTarget, "basis"> {
+  /** Dòng mục tiêu chỉ chấm bán hàng (cpa/roas); CPL nằm ở cplTarget/cplCeiling. */
+  basis: TargetBasis
   company: Company
   group: ProductGroup
   /** Giá trị đơn trung bình dùng để đề xuất mục tiêu (tham khảo, không dùng để chấm). */

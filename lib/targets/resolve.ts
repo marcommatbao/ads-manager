@@ -9,6 +9,7 @@
 
 import { listTargets, type TargetRow } from "@/lib/case/targets"
 import { productGroupOf, type ProductGroup } from "@/lib/case/product"
+import { getCplThresholds } from "@/lib/cpl-calculator"
 
 export type GoalKind = "sales" | "leads"
 export type ResolvedBasis = "cpa" | "roas" | "cpl"
@@ -62,4 +63,12 @@ export function leadCostTarget(company: string | null | undefined, campaignName:
   if (!company) return legacy
   const t = resolveTarget({ company, campaignName, goalKind: "leads" })
   return t && t.source === "case_target_cpl" ? t.target : legacy
+}
+
+/** Đợt 23 (3d): mục tiêu CPL cho tổng quan / phiên của chiến dịch thu lead. CPL ở Xử lý chiến dịch → Mục tiêu nếu đã nhập;
+ *  chưa → ngưỡng cũ của bộ tính CPL (tốt / cảnh báo — như NBA đang dùng); công ty không có ngưỡng cũ (bản cài khách) → null. */
+export function leadCaseTarget(company: string, campaignName: string): { basis: "cpl"; target: number; ceiling: number; source: string } | null {
+  const old = getCplThresholds()[company]
+  const t = resolveTarget({ company, campaignName, goalKind: "leads", fallback: old ? { target: old.good, ceiling: old.warning, source: "cpl_calculator" } : null })
+  return t ? { basis: "cpl", target: t.target, ceiling: t.ceiling, source: t.source } : null
 }

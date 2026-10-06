@@ -10,9 +10,11 @@
 // 0 đơn mà chưa chi đủ để kết luận → "chưa đủ dữ liệu", KHÔNG đánh đỏ vội.
 
 export type TargetBasis = "cpa" | "roas"
+/** Đợt 23 (3d): "cpl" = chi phí mỗi lead — chỉ cho phiên chiến dịch thu lead (dòng mục tiêu lưu CPL ở cplTarget/cplCeiling). */
+export type CaseBasis = TargetBasis | "cpl"
 
 export interface CaseTarget {
-  basis: TargetBasis
+  basis: CaseBasis
   /** cpa: VND/đơn muốn đạt · roas: ROAS muốn đạt */
   target: number
   /** cpa: VND/đơn tối đa · roas: ROAS tối thiểu */
@@ -52,22 +54,24 @@ export function verdictOf(p: CampaignPerf, t: CaseTarget | null): Verdict {
   const cpa = p.orders > 0 ? p.cost / p.orders : null
   const roas = p.cost > 0 ? p.orderValue / p.cost : null
   const flags: string[] = []
-  if (p.clicks >= 50 && p.orders / p.clicks > SUSPICIOUS_CVR) {
+  // Click → lead > 15% là bình thường với form trên Meta — cờ "nghi đếm sai" chỉ cho đơn mua.
+  if (t?.basis !== "cpl" && p.clicks >= 50 && p.orders / p.clicks > SUSPICIOUS_CVR) {
     flags.push(`${Math.round((p.orders / p.clicks) * 100)}% click thành đơn — cần kiểm hành động chuyển đổi đang được đếm`)
   }
   const base = { cpa, roas, flags }
 
   if (!t) return { ...base, status: "no_target", overCeiling: null, label: "Chưa đặt mục tiêu cho sản phẩm này" }
 
-  if (t.basis === "cpa") {
+  if (t.basis === "cpa" || t.basis === "cpl") {
+    const w = t.basis === "cpl" ? "lead" : "đơn"
     if (p.orders === 0) {
       if (p.cost >= t.ceiling) {
-        return { ...base, status: "red", overCeiling: p.cost, label: `0 đơn · đã chi gấp ${times(p.cost / t.ceiling)} lần trần` }
+        return { ...base, status: "red", overCeiling: p.cost, label: `0 ${w} · đã chi gấp ${times(p.cost / t.ceiling)} lần trần` }
       }
       return { ...base, status: "grey", overCeiling: null, label: `Chưa đủ dữ liệu — mới chi ${times(p.cost / t.ceiling)} lần trần` }
     }
     const over = p.cost - t.ceiling * p.orders
-    if (over > 0) return { ...base, status: "red", overCeiling: over, label: `Vượt trần ${vnd(t.ceiling)}/đơn` }
+    if (over > 0) return { ...base, status: "red", overCeiling: over, label: `Vượt trần ${vnd(t.ceiling)}/${w}` }
     if (cpa! > t.target) return { ...base, status: "amber", overCeiling: null, label: "Trên mục tiêu, dưới trần" }
     return { ...base, status: "green", overCeiling: null, label: "Đạt mục tiêu" }
   }

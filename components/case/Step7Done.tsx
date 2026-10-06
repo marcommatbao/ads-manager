@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { vnd, num, ddmmyyyy } from "./format";
 import { postJson, ApiError } from "./api";
 import type { CampaignCase } from "@/lib/case/store";
+import { evidenceGoalKind } from "@/lib/case/goal-kind";
 
 const cpa = (n: number | null | undefined) => (n === null || n === undefined ? "—" : vnd(n));
 const freq = (n: number | null | undefined) => (n === null || n === undefined || !Number.isFinite(n) ? "—" : n.toFixed(2));
@@ -43,6 +44,19 @@ const META_REMEASURE_COLUMNS: RemeasureColumn[] = [
   { key: "orderValue", label: "Doanh thu Meta", fmt: vnd },
   { key: "frequency", label: "Tần suất", fmt: freq },
 ];
+// Đợt 23 (3d): phiên thu lead — "orders"/"cpa" của kết quả đo lại là lead / chi phí mỗi lead.
+const META_LEAD_REMEASURE_COLUMNS: RemeasureColumn[] = [
+  { key: "cost", label: "Chi phí", fmt: vnd },
+  { key: "orders", label: "Lead", fmt: num },
+  { key: "cpa", label: "Chi phí/lead", fmt: cpa },
+  { key: "frequency", label: "Tần suất", fmt: freq },
+];
+const GOOGLE_LEAD_REMEASURE_COLUMNS: RemeasureColumn[] = [
+  { key: "cost", label: "Chi phí", fmt: vnd },
+  { key: "orders", label: "Lead", fmt: num },
+  { key: "cpa", label: "Chi phí/lead", fmt: cpa },
+  { key: "competitorSpend", label: "Tiền vào đối thủ", fmt: vnd },
+];
 
 export function Step7Done({
   c,
@@ -61,7 +75,10 @@ export function Step7Done({
   const doneCount = hasDone ? selected.length : 0;
   const openTasks = c.manualTasks.filter((t) => t.status === "open").length;
   const doneTasks = c.manualTasks.length - openTasks;
-  const remeasureColumns = c.platform === "facebook" ? META_REMEASURE_COLUMNS : GOOGLE_REMEASURE_COLUMNS;
+  const leads = evidenceGoalKind(c.evidence) === "leads";
+  const remeasureColumns = c.platform === "facebook"
+    ? (leads ? META_LEAD_REMEASURE_COLUMNS : META_REMEASURE_COLUMNS)
+    : (leads ? GOOGLE_LEAD_REMEASURE_COLUMNS : GOOGLE_REMEASURE_COLUMNS);
 
   async function closeCase() {
     setClosing(true);

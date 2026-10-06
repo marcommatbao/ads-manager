@@ -23,7 +23,9 @@ import { createCase, listCases, readCase, updateCase, type CampaignCase, type Ex
 import { judgeRemeasure, VERDICT_CODE, type PerfSnap, type RemeasureVerdict } from "./judge"
 import { lexiconFor, targetFor } from "./targets"
 import type { CaseEvidence, Company, MetaEvidence, SearchEvidence } from "./types"
-import { compareVerdicts, verdictOf, type CampaignPerf, type CaseTarget, type Verdict } from "./verdict"
+import { compareVerdicts, verdictOf, type CampaignPerf, type CaseBasis, type CaseTarget, type Verdict } from "./verdict"
+import { evidenceGoalKind, META_LEAD_OBJECTIVES, META_LEAD_TYPES, META_SALES_OBJECTIVES, metaGoalKind, metaResults, type GoalKind } from "./goal-kind"
+import { leadCaseTarget } from "@/lib/targets/resolve"
 
 type Row = Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
 const micros = (v: unknown) => (Number(v) || 0) / 1_000_000
@@ -50,8 +52,8 @@ export interface OverviewRow {
 
 export type Platform = "google" | "facebook"
 
-/** Chiến dịch Facebook mở phiên được: mục tiêu bán hàng (chấm theo lượt mua). */
-const META_SALES_OBJECTIVES = new Set(["OUTCOME_SALES", "CONVERSIONS", "PRODUCT_CATALOG_SALES"])
+/** Chiến dịch Facebook mở phiên được: bán hàng (chấm theo lượt mua) + Đợt 23 (3d) thu lead (chấm theo chi phí mỗi lead). */
+const metaCanOpen = (objective: string) => META_SALES_OBJECTIVES.has(objective) || META_LEAD_OBJECTIVES.has(objective)
 
 /**
  * Tổng quan Facebook. Chấm theo số Meta (user chốt 27/09, phương án c) — số
@@ -68,25 +70,29 @@ export async function metaOverview(company: Company, range: { from: string; to: 
       const id = String(r.campaign_id), name = String(r.campaign_name)
       const c = meta.get(id)
       const group = productGroupOf(name)
-      const perf: CampaignPerf = {
-        cost: Number(r.spend) || 0, clicks: Number(r.clicks) || 0,
-        orders: pickAction(r.actions, PURCHASE_TYPES), orderValue: pickAction(r.action_values, PURCHASE_TYPES),
-      }
-      const target = targetFor(company, group)
       const objective = String(c?.objective ?? "")
+      // Đợt 23 (3d): chiến dịch thu lead chấm theo SỐ LEAD + mục tiêu CPL — trước đây bị chấm bằng lượt mua (luôn 0) với
+      // mục tiêu bán hàng nên đỏ/xám oan.
+      const leads = metaGoalKind(objective) === "leads"
+      const perf: CampaignPerf = leads
+        ? { cost: Number(r.spend) || 0, clicks: Number(r.clicks) || 0, orders: pickAction(r.actions, META_LEAD_TYPES), orderValue: 0 }
+        : { cost: Number(r.spend) || 0, clicks: Number(r.clicks) || 0, orders: pickAction(r.actions, PURCHASE_TYPES), orderValue: pickAction(r.action_values, PURCHASE_TYPES) }
+      const target: CaseTarget | null = leads ? leadCaseTarget(company, name) : targetFor(company, group)
       const latest = cases.find((x) => x.campaignId === id)
       return {
         campaignId: id, name, status: String(c?.status ?? "—"), channel: objective || "—", group, groupLabel: PRODUCT_LABEL[group],
-        perf, target, verdict: verdictOf(perf, target), canOpenCase: META_SALES_OBJECTIVES.has(objective),
+        perf, target, verdict: verdictOf(perf, target), canOpenCase: metaCanOpen(objective),
         latestCase: latest ? { id: latest.id, step: latest.step, status: latest.status } : null,
       }
     })
   out.sort(compareVerdicts)
+  // Tổng "đơn" chỉ cộng chiến dịch bán hàng — lead KHÔNG phải đơn (tổng lead đứng riêng).
   const totals = out.reduce((t, r) => ({
-    cost: t.cost + r.perf.cost, orders: t.orders + r.perf.orders, orderValue: t.orderValue + r.perf.orderValue,
+    cost: t.cost + r.perf.cost, orders: t.orders + (META_LEAD_OBJECTIVES.has(r.channel) ? 0 : r.perf.orders),
+    leads: t.leads + (META_LEAD_OBJECTIVES.has(r.channel) ? r.perf.orders : 0), orderValue: t.orderValue + r.perf.orderValue,
     overCeiling: t.overCeiling + (r.verdict.status === "red" ? r.verdict.overCeiling ?? 0 : 0),
     redCount: t.redCount + (r.verdict.status === "red" ? 1 : 0),
-  }), { cost: 0, orders: 0, orderValue: 0, overCeiling: 0, redCount: 0 })
+  }), { cost: 0, orders: 0, leads: 0, orderValue: 0, overCeiling: 0, redCount: 0 })
   return { company, range, rows: out, totals, scoredBy: "meta" as const }
 }
 
@@ -129,7 +135,7 @@ export async function openCase(input: { company: Company; campaignId: string; ra
   if (open) return open
   if (input.platform === "facebook") {
     const evidence = await collectMetaEvidence(input.company, input.campaignId, input.range)
-    if (!META_SALES_OBJECTIVES.has(evidence.campaign.objective)) throw new CaseError(`Chưa hỗ trợ chiến dịch Facebook mục tiêu ${evidence.campaign.objective} — phiên chấm theo lượt mua`)
+    if (!metaCanOpen(evidence.campaign.objective)) throw new CaseError(`Chưa hỗ trợ chiến dịch Facebook mục tiêu ${evidence.campaign.objective} — phiên chấm theo lượt mua (bán hàng) hoặc lead (thu khách tiềm năng)`)
     return createCase({
       platform: "facebook", company: input.company, campaignId: input.campaignId, campaignName: evidence.campaign.name,
       range: input.range, step: 1, status: "open", goal: null, evidence, diagnosis: null, actions: [], manualTasks: [],
@@ -174,9 +180,12 @@ export function setStep(id: string, step: CampaignCase["step"]) {
 }
 
 /** Bước 3 → 4 → 5: chốt mục tiêu, tính nguyên nhân, dựng hướng xử lý (kèm mô phỏng). */
-export async function confirmGoal(id: string, goal: { basis: "cpa" | "roas"; target: number; ceiling: number; where: string }, actor: string) {
+export async function confirmGoal(id: string, goal: { basis: CaseBasis; target: number; ceiling: number; where: string }, actor: string) {
   return updateCase(id, async (c) => {
     if (!c.evidence) throw new CaseError("Phiên chưa có bằng chứng — thu thập lại trước")
+    // Đợt 23 (3d): phiên thu lead chỉ chấm theo CPL; phiên bán hàng chỉ CPA / ROAS.
+    const kind = evidenceGoalKind(c.evidence)
+    if ((kind === "leads") !== (goal.basis === "cpl")) throw new CaseError(kind === "leads" ? "Chiến dịch thu lead chấm theo chi phí mỗi lead (CPL)" : "Chiến dịch bán hàng chấm theo CPA hoặc ROAS")
     const now = new Date().toISOString()
     if (c.evidence.kind === "meta") {
       const ev = c.evidence
@@ -191,7 +200,7 @@ export async function confirmGoal(id: string, goal: { basis: "cpa" | "roas"; tar
       return { next, result: next }
     }
     const lexicon = lexiconFor(c.company)
-    const diagnosis = diagnoseSearch(c.evidence, { lexicon, ceilingCpa: goal.basis === "cpa" ? goal.ceiling : null })
+    const diagnosis = diagnoseSearch(c.evidence, { lexicon, ceilingCpa: goal.basis === "roas" ? null : goal.ceiling, goalKind: kind })
     const ev = c.evidence.campaign
     const verdict = verdictOf({ cost: ev.cost, clicks: ev.clicks, orders: ev.orders, orderValue: ev.orderValue }, goal)
     const { actions, manualTasks } = c.evidence.kind === "google_pmax"
@@ -337,6 +346,8 @@ export async function runDueRemeasures(now: Date = new Date()): Promise<{ checke
 /** Chấm phiên Facebook theo số Meta; lệch Odoo lớn → thêm cờ (phương án c). */
 export function metaVerdict(ev: MetaEvidence, goal: CaseTarget): Verdict {
   const c = ev.campaign
+  // Đợt 23 (3d): thu lead → chấm theo số lead Meta ghi; không có đơn để đối chiếu Odoo.
+  if (metaGoalKind(c.objective) === "leads") return verdictOf({ cost: c.cost, clicks: c.linkClicks || c.clicks, orders: c.leads ?? 0, orderValue: 0 }, goal)
   const v = verdictOf({ cost: c.cost, clicks: c.linkClicks || c.clicks, orders: c.purchases, orderValue: c.purchaseValue }, goal)
   if (ev.odoo.checked && c.purchases >= ODOO_MIN_META_PURCHASES && ev.odoo.orders < c.purchases * ODOO_GAP_RATIO) {
     v.flags.push(`Chấm theo số Meta (${c.purchases} lượt mua) — Odoo chỉ ghi ${ev.odoo.orders} đơn mang thẻ của chiến dịch`)
@@ -378,16 +389,21 @@ function remeasureRaw(cur: CampaignCase, fresh: CaseEvidence): { result: Record<
   if (fresh.kind === "meta") {
     const before = cur.evidence?.kind === "meta" ? cur.evidence.campaign : null
     const c = fresh.campaign
+    // Đợt 23 (3d): phiên thu lead đo lại theo số LEAD ("orders"/"cpa" = lead / chi phí mỗi lead; leads=1 để giao diện đổi nhãn).
+    const kind: GoalKind = metaGoalKind(c.objective)
+    const res = (x: typeof c) => metaResults(x, kind)
+    const rb = before ? res(before) : 0, ra = res(c)
     return {
       result: {
-        cost: Math.round(c.cost), orders: c.purchases, cpa: c.purchases > 0 ? Math.round(c.cost / c.purchases) : null,
-        orderValue: Math.round(c.purchaseValue), frequency: c.frequency,
+        cost: Math.round(c.cost), orders: ra, cpa: ra > 0 ? Math.round(c.cost / ra) : null,
+        orderValue: Math.round(kind === "leads" ? 0 : c.purchaseValue), frequency: c.frequency,
+        ...(kind === "leads" ? { leads: 1 } : {}),
         ...newAdsetComparison(cur, fresh),
       },
-      beforeCpa: before && before.purchases > 0 ? before.cost / before.purchases : null,
+      beforeCpa: before && rb > 0 ? before.cost / rb : null,
       enabled: c.status === "ACTIVE",
-      before: before ? { cost: before.cost, orders: before.purchases, value: before.purchaseValue } : null,
-      after: { cost: c.cost, orders: c.purchases, value: c.purchaseValue },
+      before: before ? { cost: before.cost, orders: rb, value: kind === "leads" ? 0 : before.purchaseValue } : null,
+      after: { cost: c.cost, orders: ra, value: kind === "leads" ? 0 : c.purchaseValue },
     }
   }
   const ev = fresh as SearchEvidence

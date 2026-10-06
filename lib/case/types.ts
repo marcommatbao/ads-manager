@@ -162,6 +162,8 @@ export interface MetaAdSetFacts {
   /** Số kết quả theo sự kiện tối ưu (sự kiện tự đặt: gộp mọi sự kiện tự đặt — xem optResultsApprox). */
   optResults: number
   optResultsApprox: boolean
+  /** Đợt 23 (3d): số lead (chiến dịch thu lead). Phiên cũ không có. */
+  leads?: number
   /** Đợt 12: cài đặt ghi nhận của nhóm (Meta KHÔNG cho sửa sau khi tạo — đo 29/09). */
   attributionSpec?: { eventType: string; windowDays: number }[]
 }
@@ -177,6 +179,7 @@ export interface MetaPlacementSlice {
   landingViews: number
   purchases: number
   optResults: number
+  leads?: number
 }
 
 export interface MetaCampaignFacts {
@@ -200,6 +203,8 @@ export interface MetaCampaignFacts {
   /** Đợt 12: đơn Mua hàng theo cửa sổ — từ lượt bấm 7 ngày / chỉ xem 1 ngày. null = phiên cũ chưa đọc. */
   purchasesClick?: number | null
   purchasesView?: number | null
+  /** Đợt 23 (3d): số lead (Meta "lead" gộp form + pixel). Phiên cũ không có. */
+  leads?: number
   /** Mọi hành động Meta đếm được (đã gộp trùng omni/pixel), để xem phễu. */
   actions: { type: string; count: number; value: number }[]
 }

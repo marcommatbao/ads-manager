@@ -10,6 +10,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { vnd, num, pct, ddmmyyyy } from "./format";
 import { metaObjectiveLabel } from "./meta-copy";
 import type { CampaignCase } from "@/lib/case/store";
+import { metaGoalKind, metaResults } from "@/lib/case/goal-kind";
 
 const BIDDING_LABEL: Record<string, string> = {
   MAXIMIZE_CONVERSIONS: "Tối đa hoá chuyển đổi",
@@ -33,7 +34,11 @@ export function Step1Analysis({ c, onNext, busy }: { c: CampaignCase; onNext: ()
 
   if (ev.kind === "meta") {
     const camp = ev.campaign;
-    const cpa = camp.purchases > 0 ? camp.cost / camp.purchases : null;
+    // Đợt 23 (3d): chiến dịch thu lead hiện lead / chi phí mỗi lead thay cho lượt mua.
+    const leads = metaGoalKind(camp.objective) === "leads";
+    const results = metaResults(camp, leads ? "leads" : "sales");
+    const word = leads ? "lead" : "lượt mua";
+    const cpa = results > 0 ? camp.cost / results : null;
     return (
       <div className="space-y-4">
         <div>
@@ -44,10 +49,12 @@ export function Step1Analysis({ c, onNext, busy }: { c: CampaignCase; onNext: ()
         </div>
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Kpi label="Đã chi" value={vnd(camp.cost)} bad={camp.purchases === 0} />
-          <Kpi label="Lượt mua (Meta)" value={num(camp.purchases)} bad={camp.purchases === 0} sub="Mục tiêu cuối: Mua hàng" />
-          <Kpi label="Chi phí/lượt mua" value={cpa !== null ? vnd(cpa) : "—"} />
-          <Kpi label="Doanh thu Meta ghi" value={vnd(camp.purchaseValue)} bad={camp.purchases > 0 && camp.purchaseValue <= 0} />
+          <Kpi label="Đã chi" value={vnd(camp.cost)} bad={results === 0} />
+          <Kpi label={leads ? "Lead (Meta)" : "Lượt mua (Meta)"} value={num(results)} bad={results === 0} sub={leads ? "Mục tiêu cuối: Khách hàng tiềm năng" : "Mục tiêu cuối: Mua hàng"} />
+          <Kpi label={leads ? "Chi phí/lead" : "Chi phí/lượt mua"} value={cpa !== null ? vnd(cpa) : "—"} />
+          {leads
+            ? <Kpi label="Lượt xem trang đích" value={num(camp.landingViews)} />
+            : <Kpi label="Doanh thu Meta ghi" value={vnd(camp.purchaseValue)} bad={camp.purchases > 0 && camp.purchaseValue <= 0} />}
         </div>
 
         <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
@@ -71,14 +78,14 @@ export function Step1Analysis({ c, onNext, busy }: { c: CampaignCase; onNext: ()
 
         <div
           className={`flex items-start gap-2 rounded-xl border p-3 text-sm ${
-            camp.purchases === 0 ? "border-red-200 bg-red-50 text-red-700" : "border-blue-200 bg-blue-50 text-blue-700"
+            results === 0 ? "border-red-200 bg-red-50 text-red-700" : "border-blue-200 bg-blue-50 text-blue-700"
           }`}
         >
-          {camp.purchases === 0 ? <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /> : <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />}
+          {results === 0 ? <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /> : <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />}
           <span>
-            {camp.purchases === 0
-              ? `0 lượt mua trên ${vnd(camp.cost)} đã chi trong kỳ — cần tìm nguyên nhân. Bước tiếp theo sẽ kéo bằng chứng từ tài khoản.`
-              : `${num(camp.purchases)} lượt mua trên ${vnd(camp.cost)} đã chi trong kỳ. Xem bằng chứng chi tiết ở bước 2.`}
+            {results === 0
+              ? `0 ${word} trên ${vnd(camp.cost)} đã chi trong kỳ — cần tìm nguyên nhân. Bước tiếp theo sẽ kéo bằng chứng từ tài khoản.`
+              : `${num(results)} ${word} trên ${vnd(camp.cost)} đã chi trong kỳ. Xem bằng chứng chi tiết ở bước 2.`}
           </span>
         </div>
 
