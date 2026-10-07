@@ -5,7 +5,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { actorOf, fail, requireCompany, requireUser } from "@/lib/case/http"
 import { canAccessCompany } from "@/lib/permissions"
-import { isYmd } from "@/lib/case/dates"
+import { parseRange } from "@/lib/case/dates"
 import { compareAudiences } from "@/lib/meta/audience-compare-fetch"
 import { buildWinning, deleteWinning, getWinning, listWinning, saveWinning } from "@/lib/meta/winning-audiences"
 
@@ -26,7 +26,8 @@ export async function POST(request: NextRequest) {
   const b = (await request.json().catch(() => ({}))) as { company?: string; campaignIds?: string[]; from?: string; to?: string; adsetId?: string; name?: string; note?: string }
   const co = requireCompany(u.value, b.company)
   if (!co.ok) return co.response
-  if (!isYmd(b.from ?? "") || !isYmd(b.to ?? "")) return NextResponse.json({ success: false, error: "Khoảng ngày không hợp lệ" }, { status: 400 })
+  const pr = parseRange(b.from, b.to, { defaultDays: 30 }) // tối đa 90 ngày, không quá hôm nay (soát 07/10)
+  if (!pr.ok) return NextResponse.json({ success: false, error: pr.error }, { status: 400 })
   try {
     const res = await compareAudiences(co.value, Array.isArray(b.campaignIds) ? b.campaignIds.map(String) : [], { from: b.from!, to: b.to! })
     const group = res.groups.find((g) => g.rows.some((r) => r.id === b.adsetId))

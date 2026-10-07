@@ -285,7 +285,17 @@ export default function ImprovementsPage() {
   
   const highCount = items.filter(i => i.priority === "HIGH" && i.status === "ACTIVE").length
   const mediumCount = items.filter(i => i.priority === "MEDIUM" && i.status === "ACTIVE").length
-  const totalImpact = items.reduce((sum, item) => sum + (item.impactValue || 0), 0)
+  // Soát dữ liệu 07/10: chỉ cộng khuyến nghị HIGH đang mở, số ĐO ĐƯỢC (bỏ ước lượng thô), mỗi chiến dịch tính 1 lần —
+  // trước đây cộng mọi mục (kể cả đã xong/bỏ qua), trùng chiến dịch, gọi là "Impact/tháng".
+  const totalImpact = (() => {
+    const by = new Map<string, number>()
+    for (const i of items) {
+      if (i.status !== "ACTIVE" || i.priority !== "HIGH" || i.impactRough || !(i.impactValue! > 0)) continue
+      const k = `${i.company}:${i.campaignName ?? i.id}`
+      by.set(k, Math.max(by.get(k) ?? 0, i.impactValue!))
+    }
+    return [...by.values()].reduce((a, b) => a + b, 0)
+  })()
 
   return (
     <div className="space-y-5 p-6 pb-20">
@@ -341,7 +351,7 @@ export default function ImprovementsPage() {
               <p className="text-lg font-bold text-green-600">
                 ₫{new Intl.NumberFormat("vi-VN").format(Math.round(totalImpact / 1_000_000))}M
               </p>
-              <p className="text-xs text-green-500">Impact/tháng</p>
+              <p className="text-xs text-green-500" title="Tổng chi tiêu trong kỳ của các chiến dịch có khuyến nghị HIGH (mỗi chiến dịch 1 lần, không gồm ước lượng thô)">Chi tiêu dính lỗi HIGH</p>
             </div>
           )}
         </div>
@@ -844,7 +854,7 @@ function PriorityGroup({ priority, items, platform, groupId, pageContext }: any)
 function ConfidenceBar({ value }: { value: number }) {
   const filled = Math.round(value / 100 * 5)
   return (
-    <div className="flex items-center gap-1.5 ml-2">
+    <div className="flex items-center gap-1.5 ml-2" title="Độ tin cậy do luật gán sẵn theo loại khuyến nghị — không phải xác suất đo được">
       <div className="flex gap-0.5">
         {Array.from({length: 5}, (_, i) => (
           <span
@@ -1022,6 +1032,7 @@ function ImprovementCard({ item, showPlatformIcon, pageContext }: any) {
           {item.impact && (
             <p className="text-xs font-semibold text-indigo-700 flex items-center gap-1.5 mt-2">
               <span className="text-base leading-none">💡</span> {item.impact}
+              {item.impactRough && <span className="text-[10px] font-normal text-slate-400">(ước lượng thô)</span>}
             </p>
           )}
         </div>

@@ -73,7 +73,8 @@ export function improvementsToSignals(improvements: ImprovementLike[], ctx: NbaC
       severity: severityOf(imp.priority),
       // improvements không có sample size rõ ràng → để engine hạ confidence/đánh LOW_DATA
       sampleSize: undefined,
-      impactEstimate: imp.impactValue
+      // Ước lượng thô (tỷ lệ gõ tay) không đưa thành "tiết kiệm/tháng" ở Next Best Action.
+      impactEstimate: imp.impactValue && !imp.impactRough
         ? { metric: "spend", direction: "reduce_waste", estMonthlySavingsVnd: Math.round(imp.impactValue) }
         : undefined,
       sourceEngine: "improvements",

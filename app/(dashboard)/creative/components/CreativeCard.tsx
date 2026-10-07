@@ -117,8 +117,8 @@ export function CreativeCard({
             product: product ?? "",
             segment: segment ?? "",
             platform: creative.platform,
-            ai_quality_score: creative.score ?? 5,
-            predicted_ctr_range: "1.5-2.5%",
+            ai_quality_score: creative.score ?? 0, // 0 = chưa chấm (không bịa điểm 5)
+            predicted_ctr_range: "", // không có dự đoán CTR thật — trước 07/10 gõ cứng "1.5-2.5%"
             status: "draft",
             generated_by: "ai",
             company: (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("company")) || null,

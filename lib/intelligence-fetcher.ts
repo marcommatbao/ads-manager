@@ -20,6 +20,7 @@ import {
   toChannelScores,
   getLatestVisits,
   type SimilarWebData,
+  usableForTrend,
 } from "./similarweb";
 
 import {
@@ -252,7 +253,7 @@ async function analyzeAllCompetitors(
     .map(({ competitor, swData, scores, fbAds, ggAds, ttAds }) => {
       const totalFB = fbAds.reduce((s, a) => s + a.adCount, 0);
       const visits  = Math.round(getLatestVisits(swData) / 1000);
-      const estimatedTag = swData.isEstimated ? " [DỮ LIỆU ƯỚC TÍNH]" : "";
+      const estimatedTag = swData.isEstimated ? " [THIẾU SỐ SIMILARWEB — visits/src=0 là CHƯA ĐO, không phải bằng 0]" : "";
       return `${competitor.domain}: visits=${visits}K | ` +
         `src=D${(swData.trafficSources.direct * 100).toFixed(0)}%` +
         `/S${(swData.trafficSources.search * 100).toFixed(0)}%` +
@@ -419,6 +420,7 @@ export async function checkForAlerts(
     weekOf: new Date().toISOString(),
     scores: newScores,
     monthlyVisits: newVisits,
+    measured: true,
   });
 }
 
@@ -483,8 +485,8 @@ export async function syncAllIntelligence(): Promise<{
       const perCompAnalysis = createFallbackPerCompetitor(competitor.id, scores, !!effectiveSW.isEstimated);
       await setChannelAnalysis(competitor.id, perCompAnalysis);
 
-      // Check alerts (spike vs tuần trước)
-      await checkForAlerts(competitor.id, competitor.name, scores, getLatestVisits(effectiveSW));
+      // Check alerts (spike vs tuần trước) — CHỈ khi SimilarWeb đo đủ; thiếu số thì không báo tăng/giảm, không ghi ảnh chụp tuần.
+      if (usableForTrend(effectiveSW)) await checkForAlerts(competitor.id, competitor.name, scores, getLatestVisits(effectiveSW));
 
       // Collect for batch analysis
       allCompetitorData.push({

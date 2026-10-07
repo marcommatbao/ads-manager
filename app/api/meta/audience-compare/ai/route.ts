@@ -3,11 +3,13 @@
 // Đệm 10 phút theo (công ty, chiến dịch, khoảng ngày, giờ lấy số) — bấm lại không tốn thêm lượt AI.
 import { NextRequest, NextResponse } from "next/server"
 import { fail, requireCompany, requireUser } from "@/lib/case/http"
-import { isYmd } from "@/lib/case/dates"
+import { parseRange } from "@/lib/case/dates"
+import { rateLimit } from "@/lib/rate-limit"
 import { callGemini } from "@/lib/gemini"
 import { compareAudiences } from "@/lib/meta/audience-compare-fetch"
 import { buildAssessPrompt, parseAssessment, unsupportedNumbers, type AiAssessment } from "@/lib/meta/audience-compare-ai"
 import { friendlyError, isNotConfigured } from "@/lib/not-configured"
+import { setCapped } from "@/lib/cost-guard"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
@@ -15,12 +17,16 @@ export const maxDuration = 60
 const memo = new Map<string, { at: number; v: { assessment: AiAssessment; unsupported: number[]; fetchedAt: string } }>()
 
 export async function POST(request: NextRequest) {
-  const u = await requireUser()
+  // Soát bảo mật 07/10: mỗi lần là 1 lượt Gemini (+ có thể vài lượt Meta) → chỉ người có quyền sửa, tối đa 10 lần / 10 phút / người.
+  const u = await requireUser("can_edit")
   if (!u.ok) return u.response
+  const rl = await rateLimit(`ai-assess:${u.value.id}`, 10, 600_000)
+  if (!rl.allowed) return NextResponse.json({ success: false, error: "Đã đánh giá nhiều lần liền — thử lại sau ít phút" }, { status: 429 })
   const b = (await request.json().catch(() => ({}))) as { company?: string; ids?: string[]; from?: string; to?: string }
   const co = requireCompany(u.value, b.company)
   if (!co.ok) return co.response
-  if (!isYmd(b.from ?? "") || !isYmd(b.to ?? "") || b.from! > b.to!) return NextResponse.json({ success: false, error: "Khoảng ngày không hợp lệ" }, { status: 400 })
+  const pr = parseRange(b.from, b.to, { defaultDays: 30 })
+  if (!pr.ok) return NextResponse.json({ success: false, error: pr.error }, { status: 400 })
   const ids = Array.isArray(b.ids) ? b.ids.map(String) : []
   try {
     const res = await compareAudiences(co.value, ids, { from: b.from!, to: b.to! })
@@ -33,7 +39,7 @@ export async function POST(request: NextRequest) {
     const assessment = parseAssessment(ai.text ?? "")
     if (!assessment) return NextResponse.json({ success: false, error: "AI trả về dữ liệu không đọc được — bấm lại sau ít giây" }, { status: 502 })
     const v = { assessment, unsupported: unsupportedNumbers(assessment, res.groups), fetchedAt: res.fetchedAt }
-    memo.set(key, { at: Date.now(), v })
+    setCapped(memo, key, { at: Date.now(), v })
     return NextResponse.json({ success: true, cached: false, ...v })
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)

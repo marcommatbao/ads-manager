@@ -15,7 +15,7 @@ import type { CaseBasis } from "@/lib/case/verdict"
 export const dynamic = "force-dynamic"
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const g = await requireCase((await params).id)
+  const g = await requireCase((await params).id, "can_edit") // soát 07/10: chốt mục tiêu đổi kết luận của phiên — người chỉ xem không được
   if (!g.ok) return g.response
   const { user, c } = g.value
   const b = (await request.json().catch(() => ({}))) as { basis?: string; target?: number; ceiling?: number; where?: string; saveAsDefault?: boolean }

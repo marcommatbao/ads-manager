@@ -34,7 +34,7 @@ export function cronMatches(expr: string, d: Date): boolean {
   const f = expr.trim().split(/\s+/)
   if (f.length !== 5) return false
   const [mi, h, dom, mo, dow] = f
-  const domOk = fieldMatches(dom, d.getUTCDate(), 1), dowOk = fieldMatches(dow, d.getUTCDay(), 0) || (dow === "7" && d.getUTCDay() === 0)
+  const domOk = fieldMatches(dom, d.getUTCDate(), 1), dowOk = fieldMatches(dow, d.getUTCDay(), 0) || (d.getUTCDay() === 0 && fieldMatches(dow, 7, 0)) // 7 = Chủ nhật, cả trong danh sách "5,7" / "1-7"
   // Luật cron chuẩn: cả hai ngày đều hạn chế → khớp một trong hai.
   const dayOk = dom !== "*" && dow !== "*" ? domOk || dowOk : domOk && dowOk
   return fieldMatches(mi, d.getUTCMinutes(), 0) && fieldMatches(h, d.getUTCHours(), 0) && fieldMatches(mo, d.getUTCMonth() + 1, 1) && dayOk

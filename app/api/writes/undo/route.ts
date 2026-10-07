@@ -33,6 +33,9 @@ async function readCurrent(platform: "meta" | "google_ads", field: string, id: s
   return field === "status" ? googleStatusName(rows[0].campaign?.status) : Math.round(Number(rows[0].campaign_budget?.amount_micros ?? 0) / 1_000_000)
 }
 
+/** Soát 07/10: hai lần bấm cùng lúc cùng một thay đổi → lần sau bị chặn (tránh ghi đôi nhật ký + đo lại đôi). */
+const inFlight = new Set<string>()
+
 export async function POST(request: NextRequest) {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -47,6 +50,8 @@ export async function POST(request: NextRequest) {
   if (why) return NextResponse.json({ success: false, error: why }, { status: 409 })
 
   const platform = entry.target.platform as "meta" | "google_ads"
+  if (inFlight.has(entry.id)) return NextResponse.json({ success: false, error: "Đang hoàn tác thay đổi này — chờ một chút" }, { status: 409 })
+  inFlight.add(entry.id)
   try {
     const plan = planUndo(entry, await readCurrent(platform, String(entry.action.field), entry.target.entityId, entry.target.company))
     if (!plan.ok) return NextResponse.json({ success: false, error: plan.reason }, { status: 409 })
@@ -73,5 +78,7 @@ export async function POST(request: NextRequest) {
   } catch (e) {
     const msg = platform === "google_ads" ? googleAdsErrorMessage(e) : e instanceof Error ? e.message : String(e)
     return NextResponse.json({ success: false, error: friendlyError(msg) }, { status: 500 })
+  } finally {
+    inFlight.delete(entry.id)
   }
 }

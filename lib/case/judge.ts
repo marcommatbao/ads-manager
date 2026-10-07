@@ -29,7 +29,9 @@ export function judgeRemeasure(goal: Goal | null, before: PerfSnap | null, after
   const a = after.orders > 0 ? after.cost / after.orders : null
   const b = before && before.orders > 0 ? before.cost / before.orders : null
   if (a === null) return { verdict: after.cost > 0 ? "worse" : "same", basis, before: b, after: null }
-  if ((goal && a <= goal.ceiling) || b === null || a <= b * (1 - MIN_CHANGE)) return { verdict: "improved", basis, before: b, after: a }
+  // Soát 07/10: trước 0 đơn nay có đơn KHÔNG tự động là "đạt" — có mục tiêu thì phải về trần (vd 5tr / 1 đơn, trần 200k → chưa rõ).
+  if (b === null) return { verdict: !goal || a <= goal.ceiling ? "improved" : "same", basis, before: null, after: a }
+  if ((goal && a <= goal.ceiling) || a <= b * (1 - MIN_CHANGE)) return { verdict: "improved", basis, before: b, after: a }
   if (a > b * (1 + MIN_CHANGE)) return { verdict: "worse", basis, before: b, after: a }
   return { verdict: "same", basis, before: b, after: a }
 }

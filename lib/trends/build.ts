@@ -69,7 +69,7 @@ export function buildNotable(rows: CampaignPeriods[], targetOf: (r: CampaignPeri
     const sp = r.cur.spend, cpr = div(sp, n), cprPrev = div(r.prev.spend, np)
     const t = targetOf(r)
     // Chi đủ để có ~3 kết quả theo trần mà 0 kết quả.
-    if (n === 0 && t && sp >= 3 * t.ceiling) { watch.push({ id: r.id, name: r.name, platform: r.platform, tone: "watch", reason: `Chi ${vnd(sp)} (gấp ${Math.round(sp / t.ceiling)} lần trần ${vnd(t.ceiling)}/${word}) mà 0 ${word}`, score: sp }); continue }
+    if (n === 0 && t && t.ceiling > 0 && sp >= 3 * t.ceiling) { watch.push({ id: r.id, name: r.name, platform: r.platform, tone: "watch", reason: `Chi ${vnd(sp)} (gấp ${Math.round(sp / t.ceiling)} lần trần ${vnd(t.ceiling)}/${word}) mà 0 ${word}`, score: sp }); continue }
     if (n < MIN_COUNT) continue
     const ch = judgeRatio(cpr, cprPrev, n, np, true)
     if (t && cpr !== null && cpr > t.ceiling) watch.push({ id: r.id, name: r.name, platform: r.platform, tone: "watch", reason: `${vnd(cpr)}/${word} — vượt trần ${vnd(t.ceiling)} (${n} ${word})`, score: sp - t.ceiling * n })

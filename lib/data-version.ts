@@ -65,6 +65,9 @@ export async function ensureDataVersion(dir: string, opts: { migrations?: DataMi
   const now = opts.now ?? new Date()
   fs.mkdirSync(dir, { recursive: true })
   const cur = readVersion(dir)
+  // Soát 07/10: tệp phiên bản CÓ mà đọc không được (hỏng / sửa tay) ≠ chưa có — KHÔNG ghi đè thành v1 rồi chạy lại mọi bước
+  // trên dữ liệu có thể đã ở bản mới. Dừng, báo đỏ, chờ người xem.
+  if (!cur && fs.existsSync(path.join(dir, FILE))) return { status: "failed", from: null, to: 0, target, backup: null, error: `Không đọc được ${FILE} (tệp hỏng?) — KHÔNG chuyển đổi gì. Kiểm tệp này rồi khởi động lại.` }
   if (!cur) {
     if (!hasData(dir)) {
       writeVersion(dir, { version: target, updatedAt: now.toISOString(), history: [{ at: now.toISOString(), from: null, to: target, step: "bản cài mới" }] })
@@ -87,7 +90,10 @@ async function runSteps(dir: string, cur: VersionFile, migrations: DataMigration
   // Phải có ĐỦ từng bước from+1…target — thiếu bước là lỗi lập trình, không đoán.
   for (let v = from + 1; v <= target; v++) if (!steps.some((m) => m.to === v)) return { status: "failed", from, to: from, target, backup: null, error: `Thiếu bước chuyển dữ liệu lên v${v}` }
   let backup: string
-  try { backup = backupData(dir, from, now) } catch (e) { return { status: "failed", from, to: from, target, backup: null, error: `Không sao lưu được data/ — KHÔNG chuyển đổi: ${e instanceof Error ? e.message : String(e)}` } }
+  // Soát 07/10: lần chuyển trước hỏng giữa chừng → đã có bản sao lưu của v<from> từ lần đó (bản gốc nhất). Không tạo thêm mỗi lần
+  // khởi động hỏng (5 lần là bản gốc bị xoá theo giới hạn giữ 5 bản).
+  const prior = fs.existsSync(path.join(dir, "backups")) ? fs.readdirSync(path.join(dir, "backups")).filter((n) => BACKUP_RE.test(n) && n.endsWith(`-v${from}`)).sort()[0] : undefined
+  try { backup = prior ? path.join(dir, "backups", prior) : backupData(dir, from, now) } catch (e) { return { status: "failed", from, to: from, target, backup: null, error: `Không sao lưu được data/ — KHÔNG chuyển đổi: ${e instanceof Error ? e.message : String(e)}` } }
   let v = from
   for (const m of steps) {
     try { await m.run(dir) } catch (e) { return { status: "failed", from, to: v, target, backup, error: `Bước "${m.name}" (lên v${m.to}) lỗi: ${e instanceof Error ? e.message : String(e)} — dữ liệu ở v${v}, bản sao lưu: ${backup}` } }

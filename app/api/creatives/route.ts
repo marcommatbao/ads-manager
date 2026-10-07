@@ -121,8 +121,9 @@ export async function POST(request: NextRequest) {
       product: data.product || "",
       segment: data.segment || "",
       platform: data.platform || "facebook",
-      ai_quality_score: data.ai_quality_score || 5,
-      predicted_ctr_range: data.predicted_ctr_range || "1.5-2.5%",
+      // Soát dữ liệu 07/10: thiếu điểm/dự đoán thì để trống — không bù điểm 5 hay CTR "1.5-2.5%".
+      ai_quality_score: typeof data.ai_quality_score === "number" && data.ai_quality_score > 0 ? data.ai_quality_score : 0,
+      predicted_ctr_range: typeof data.predicted_ctr_range === "string" ? data.predicted_ctr_range : "",
       status: data.status || "draft",
       created_at: data.created_at || new Date().toISOString(),
       generated_by: data.generated_by || "ai",

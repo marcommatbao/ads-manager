@@ -28,10 +28,11 @@ export interface SimilarWebData {
   }>;
   bounceRate: number;
   fetchedAt: Date;
-  /** True when some/all fields came from createEstimatedData() (hand-typed
-   * per-domain profiles + deterministic daily jitter), not a real SimilarWeb
-   * fetch — must be surfaced to the UI, not presented as measured data. */
+  /** True khi SimilarWeb lỗi/bị chặn hoặc trả thiếu nguồn traffic — phần thiếu để 0/trống (không bịa),
+   * UI phải báo "thiếu số", cảnh báo/ảnh chụp tuần không dùng bản này. */
   isEstimated?: boolean;
+  /** Bản ghi từ 07/10 trở đi (không còn bù số tự chế). Bản ghi cũ isEstimated mà thiếu cờ này có thể chứa số bịa → đọc ra phải lọc. */
+  noInvent?: boolean;
 }
 
 // ── In-Memory Cache (TTL = 24h) ──
@@ -101,21 +102,9 @@ export async function fetchSimilarWeb(
     const totalTraffic = Object.values(data.trafficSources).reduce((s, v) => s + v, 0);
 
     if (totalTraffic < 0.01) {
-      console.warn(`[SimilarWeb] Traffic data for ${domain} is empty (all zeros), enriching with estimated data`);
-      // Giữ lại rank/visits thật từ API, chỉ bổ sung traffic sources + social từ estimated
-      const estimated = createEstimatedData(domain);
-      const enriched: SimilarWebData = {
-        ...data,
-        trafficSources: estimated.trafficSources,
-        topSocialNetworks: estimated.topSocialNetworks,
-        bounceRate: data.bounceRate > 0 ? data.bounceRate : estimated.bounceRate,
-        // Giữ lại rank + visits thật nếu có
-        globalRank: data.globalRank > 0 ? data.globalRank : estimated.globalRank,
-        countryRank: data.countryRank > 0 ? data.countryRank : estimated.countryRank,
-        categoryRank: data.categoryRank > 0 ? data.categoryRank : estimated.categoryRank,
-        monthlyVisits: Object.keys(data.monthlyVisits).length > 0 ? data.monthlyVisits : estimated.monthlyVisits,
-        isEstimated: true,
-      };
+      // Soát dữ liệu 07/10: KHÔNG bù số tự chế — giữ đúng phần API trả, phần thiếu để trống + gắn cờ.
+      console.warn(`[SimilarWeb] Traffic data for ${domain} is empty (all zeros) — marked incomplete, nothing invented`)
+      const enriched: SimilarWebData = { ...data, isEstimated: true, noInvent: true }
       SW_CACHE.set(domain, { data: enriched, fetchedAt: Date.now() });
       return enriched;
     }
@@ -127,11 +116,8 @@ export async function fetchSimilarWeb(
     return data;
   } catch (err) {
     console.error(`[SimilarWeb] Fetch failed for ${domain}:`, err);
-    // Fallback: tạo estimated data dựa trên mô hình ngành — phải gắn cờ
-    // isEstimated để UI không hiển thị như số đo thật (endpoint SimilarWeb
-    // không chính thức, dễ bị chặn/rate-limit nên fallback này có thể xảy
-    // ra thường xuyên trên production).
-    const mockData: SimilarWebData = { ...createEstimatedData(domain), isEstimated: true };
+    // Soát dữ liệu 07/10: lỗi/bị chặn → trả bản RỖNG gắn cờ, không bịa hạng/lượt truy cập/nguồn traffic.
+    const mockData: SimilarWebData = emptyData(domain)
     SW_CACHE.set(domain, { data: mockData, fetchedAt: Date.now() });
     return mockData;
   }
@@ -233,103 +219,26 @@ export function getSWCacheStatus(): {
   };
 }
 
-// ── Estimated Data Generator (ngành Domain/Hosting VN) ──
-// Sinh data ước lượng thực tế khi SimilarWeb API không trả kết quả.
-// Dữ liệu được seed từ domain name để đảm bảo nhất quán mỗi lần sync.
+// ── Khi SimilarWeb không trả số ──
+// Trước 07/10 chỗ này sinh số "ước lượng" từ hồ sơ gõ tay + dao động ±10% mỗi ngày — đã gỡ (luật không bịa số).
 
-const DOMAIN_PROFILES: Record<string, Partial<SimilarWebData>> = {
-  "pavietnam.vn": {
-    globalRank: 142000, countryRank: 1850, categoryRank: 45,
-    category: "Computers_Electronics_and_Technology/Web_Hosting",
-    trafficSources: { direct: 0.38, search: 0.35, social: 0.12, mail: 0.04, referral: 0.06, paid: 0.05 },
-    bounceRate: 0.42,
-  },
-  "inet.vn": {
-    globalRank: 98000, countryRank: 1200, categoryRank: 28,
-    category: "Computers_Electronics_and_Technology/Web_Hosting",
-    trafficSources: { direct: 0.32, search: 0.42, social: 0.08, mail: 0.03, referral: 0.08, paid: 0.07 },
-    bounceRate: 0.38,
-  },
-  "vietnix.vn": {
-    globalRank: 165000, countryRank: 2100, categoryRank: 52,
-    category: "Computers_Electronics_and_Technology/Web_Hosting",
-    trafficSources: { direct: 0.28, search: 0.45, social: 0.10, mail: 0.02, referral: 0.07, paid: 0.08 },
-    bounceRate: 0.40,
-  },
-  "azdigi.com": {
-    globalRank: 210000, countryRank: 2800, categoryRank: 68,
-    category: "Computers_Electronics_and_Technology/Web_Hosting",
-    trafficSources: { direct: 0.25, search: 0.48, social: 0.06, mail: 0.03, referral: 0.10, paid: 0.08 },
-    bounceRate: 0.44,
-  },
-  "nhanhoa.com": {
-    globalRank: 180000, countryRank: 2400, categoryRank: 58,
-    category: "Computers_Electronics_and_Technology/Web_Hosting",
-    trafficSources: { direct: 0.35, search: 0.38, social: 0.09, mail: 0.05, referral: 0.07, paid: 0.06 },
-    bounceRate: 0.41,
-  },
-  "meinvoice.vn": {
-    globalRank: 320000, countryRank: 4200, categoryRank: 120,
-    category: "Computers_Electronics_and_Technology/SaaS",
-    trafficSources: { direct: 0.30, search: 0.40, social: 0.15, mail: 0.06, referral: 0.05, paid: 0.04 },
-    bounceRate: 0.35,
-  },
-};
-
-function createEstimatedData(domain: string): SimilarWebData {
-  const profile = DOMAIN_PROFILES[domain];
-
-  // Seed nhỏ để tạo biến thiên mỗi ngày (deterministic theo domain + ngày)
-  const dayStr = new Date().toISOString().slice(0, 10);
-  let seed = 0;
-  for (let i = 0; i < domain.length; i++) seed += domain.charCodeAt(i);
-  for (let i = 0; i < dayStr.length; i++) seed += dayStr.charCodeAt(i);
-  const jitter = (base: number) => {
-    seed = (seed * 9301 + 49297) % 233280;
-    const rnd = seed / 233280;
-    return +(base * (0.9 + rnd * 0.2)).toFixed(4); // ±10% biến thiên
-  };
-
-  const ts = profile?.trafficSources || {
-    direct: 0.30, search: 0.40, social: 0.10, mail: 0.03, referral: 0.08, paid: 0.09,
-  };
-
-  const now = new Date();
-  const m1 = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
-  const m2 = `${now.getFullYear()}-${String(now.getMonth()).padStart(2, "0")}-01`;
-  const m3 = `${now.getFullYear()}-${String(Math.max(now.getMonth() - 1, 1)).padStart(2, "0")}-01`;
-
-  const baseVisits = profile?.globalRank
-    ? Math.floor(2_000_000_000 / (profile.globalRank + 10000))
-    : 150000;
-
+/** Bản rỗng khi SimilarWeb lỗi/bị chặn — mọi số = 0/trống (UI hiện "N/A"), isEstimated=true nghĩa là THIẾU số đo. */
+export function emptyData(domain: string): SimilarWebData {
   return {
-    domain,
-    globalRank: profile?.globalRank ?? 200000,
-    countryRank: profile?.countryRank ?? 3000,
-    categoryRank: profile?.categoryRank ?? 75,
-    category: profile?.category ?? "Computers_Electronics_and_Technology/Web_Hosting",
-    monthlyVisits: {
-      [m1]: Math.floor(jitter(baseVisits)),
-      [m2]: Math.floor(jitter(baseVisits * 0.95)),
-      [m3]: Math.floor(jitter(baseVisits * 0.90)),
-    },
-    trafficSources: {
-      direct: jitter(ts.direct),
-      search: jitter(ts.search),
-      social: jitter(ts.social),
-      mail: jitter(ts.mail),
-      referral: jitter(ts.referral),
-      paid: jitter(ts.paid),
-    },
-    topSocialNetworks: [
-      { name: "Facebook", value: jitter(0.65) },
-      { name: "YouTube", value: jitter(0.18) },
-      { name: "TikTok", value: jitter(0.08) },
-      { name: "LinkedIn", value: jitter(0.05) },
-    ],
-    bounceRate: jitter(profile?.bounceRate ?? 0.40),
-    fetchedAt: new Date(),
-  };
+    domain, globalRank: 0, countryRank: 0, categoryRank: 0, category: "",
+    monthlyVisits: {},
+    trafficSources: { direct: 0, search: 0, social: 0, mail: 0, referral: 0, paid: 0 },
+    topSocialNetworks: [], bounceRate: 0, fetchedAt: new Date(), isEstimated: true, noInvent: true,
+  }
 }
 
+/** Bản ghi cũ (trước 07/10) gắn isEstimated có thể chứa hạng/lượt truy cập/nguồn traffic bịa → thay bằng bản rỗng khi đọc ra. */
+export function scrubLegacyEstimate(sw: SimilarWebData): SimilarWebData {
+  if (!sw.isEstimated || sw.noInvent) return sw
+  return { ...emptyData(sw.domain), fetchedAt: sw.fetchedAt }
+}
+
+/** Cảnh báo tăng đột biến + ảnh chụp tuần chỉ dùng số SimilarWeb đo đủ. */
+export function usableForTrend(sw: SimilarWebData): boolean {
+  return !sw.isEstimated
+}

@@ -77,12 +77,16 @@ export interface CompareGroup {
   rows: RankedAdset[]
 }
 
-/** P(X ≤ k) với X ~ Poisson(λ) — HÀM THUẦN (k nhỏ, cộng dồn trực tiếp). */
+/** P(X ≤ k) với X ~ Poisson(λ) — HÀM THUẦN. Cộng trong thang LOG (soát 07/10: e^-λ tràn về 0 khi λ > ~745 → mọi nhóm chi lớn
+ *  bị gắn "Kém rõ rệt" oan). */
 export function poissonCdf(k: number, lambda: number): number {
   if (lambda <= 0) return 1
-  let term = Math.exp(-lambda), sum = term
-  for (let i = 1; i <= k; i++) { term *= lambda / i; sum += term }
-  return Math.min(1, sum)
+  if (k < 0) return 0
+  let logTerm = -lambda, maxLog = logTerm
+  const logs = [logTerm]
+  for (let i = 1; i <= k; i++) { logTerm += Math.log(lambda) - Math.log(i); logs.push(logTerm); if (logTerm > maxLog) maxLog = logTerm }
+  const sum = logs.reduce((s, l) => s + Math.exp(l - maxLog), 0)
+  return Math.min(1, Math.exp(maxLog) * sum)
 }
 /** Kém rõ rệt so với nhóm dẫn đầu: với số tiền đã chi, nếu tệp tốt NGANG nhóm dẫn đầu thì xác suất ra ít kết quả như vậy < mức này. */
 export const CLEARLY_WORSE_P = 0.025
@@ -163,17 +167,22 @@ export function compareGroup(goalKind: GoalKind, input: CompareAdset[]): Compare
 
   if (eligible.length === 0) return { goalKind, verdict: "not_enough", winnerId: null, rows, summary: `Chưa nhóm nào đủ ${MIN_RESULTS_TO_RANK} ${word} (và ra khỏi giai đoạn học) để xếp hạng — chạy thêm rồi so lại.` }
   if (eligible.length === 1) {
-    const losers = rows.filter((r) => r !== best && r.results === 0 && r.spend >= 2 * best.costPerResult!)
+    // Soát 07/10: "chi gấp đôi mà 0" chưa đủ để tuyên thắng (nếu tốt ngang nhau, 0 kết quả khi chi gấp đôi vẫn có ~13,5% khả năng).
+    // Thắng chỉ khi nhóm kia KÉM RÕ RỆT so với đầu XẤU khoảng tin cậy của nhóm dẫn đầu (cùng tiêu chí cờ "Kém rõ rệt"), và so được.
+    const ref = best.cprHigh ?? best.costPerResult!
+    const losers = rows.filter((r) => r !== best && r.results === 0 && poissonCdf(0, r.spend / ref) < CLEARLY_WORSE_P
+      && !r.flags.some((f) => f.startsWith("Khác sự kiện") || f.startsWith("Cùng sự kiện") || f.startsWith("Khác mẫu")))
     return {
       goalKind, verdict: losers.length ? "winner" : "not_enough", winnerId: losers.length ? best.id : null, rows,
       summary: losers.length
-        ? `“${best.name}” là nhóm duy nhất đủ số (${vnd(best.costPerResult!)}/${word}); ${losers.length} nhóm khác chi gấp đôi mức đó mà 0 ${word}.`
+        ? `“${best.name}” là nhóm duy nhất đủ số (${vnd(best.costPerResult!)}/${word}); ${losers.length} nhóm khác (cùng sự kiện, cùng mẫu quảng cáo) chi đủ lớn mà 0 ${word} — kém rõ rệt.`
         : `Chỉ “${best.name}” đủ số (${vnd(best.costPerResult!)}/${word}) — các nhóm khác chưa đủ để so.`,
     }
   }
   const second = eligible[1]
   const clean = best.cprHigh !== null && eligible.slice(1).every((r) => r.cprLow !== null && best.cprHigh! < r.cprLow!)
-  const comparable = !second.flags.some((f) => f.startsWith("Khác sự kiện") || f.startsWith("Cùng sự kiện") || f.startsWith("Khác mẫu"))
+  // Soát 07/10: MỌI nhóm còn lại phải so được (trước chỉ soi nhóm thứ 2 → nhóm thứ 3 khác mẫu vẫn ra "thắng").
+  const comparable = eligible.slice(1).every((r) => !r.flags.some((f) => f.startsWith("Khác sự kiện") || f.startsWith("Cùng sự kiện") || f.startsWith("Khác mẫu")))
   const gap = Math.round((second.costPerResult! / best.costPerResult! - 1) * 100)
   if (clean && comparable) return { goalKind, verdict: "winner", winnerId: best.id, rows, summary: `“${best.name}” thắng: ${vnd(best.costPerResult!)}/${word}, rẻ hơn nhóm kế tiếp ${gap}% — khoảng tin cậy 95% không chồng nhau.` }
   if (clean) return { goalKind, verdict: "leaning", winnerId: best.id, rows, summary: `“${best.name}” rẻ nhất (${vnd(best.costPerResult!)}/${word}, hơn ${gap}%) và tách biệt về số — nhưng nhóm kế tiếp khác sự kiện hoặc mẫu quảng cáo nên chưa chắc là do tệp.` }

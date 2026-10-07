@@ -51,9 +51,13 @@ Trả về JSON đúng dạng:
 /** Bóc số trong một câu tiếng Việt ("₫9.888", "79,2%", "1.957.882", "2.5") → số thực. */
 export function numbersIn(text: string): number[] {
   const out: number[] = []
-  for (const m of text.matchAll(/(?<![\d.,])\d{1,3}(?:\.\d{3})+(?:,\d+)?|\d+(?:[.,]\d+)?/g)) {
-    const raw = m[0]
-    const n = /\d\.\d{3}(?:\.|,|$)/.test(raw) && !/^\d+\.\d{1,2}$/.test(raw) ? Number(raw.replace(/\./g, "").replace(",", ".")) : Number(raw.replace(",", "."))
+  // Soát 07/10: hậu tố "k" / "tr" / "triệu" (AI hay viết "81k", "1,7tr", "21,5 triệu") quy ra đồng để so với bảng.
+  for (const m of text.matchAll(/(?<![\d.,])(\d{1,3}(?:\.\d{3})+(?:,\d+)?|\d+(?:[.,]\d+)?)\s*(k\b|tr\b|triệu)?/gi)) {
+    const raw = m[1]
+    let n = /\d\.\d{3}(?:\.|,|$)/.test(raw) && !/^\d+\.\d{1,2}$/.test(raw) ? Number(raw.replace(/\./g, "").replace(",", ".")) : Number(raw.replace(",", "."))
+    const suf = (m[2] ?? "").toLowerCase()
+    if (suf === "k") n *= 1_000
+    else if (suf === "tr" || suf === "triệu") n *= 1_000_000
     if (Number.isFinite(n)) out.push(n)
   }
   return out

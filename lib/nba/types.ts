@@ -246,6 +246,7 @@ export interface ImprovementLike {
   description?: string;
   impact?: string;
   impactValue?: number;
+  impactRough?: boolean;
   confidence?: number;
   campaignName?: string;
   keyword?: string;

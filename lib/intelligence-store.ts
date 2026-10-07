@@ -11,7 +11,7 @@ import fs from "fs";
 import path from "path";
 import { writeFileAtomicSync } from "@/lib/fs-atomic";
 import { withFileLock } from "@/lib/file-lock";
-import type { SimilarWebData } from "./similarweb";
+import { scrubLegacyEstimate, type SimilarWebData } from "./similarweb";
 import type {
   SimilarWebKey,
   FBKeywordAd,
@@ -28,6 +28,8 @@ interface ChannelSnapshot {
   weekOf: string;
   scores: Record<string, number>;
   monthlyVisits: number;
+  /** Từ 07/10: ảnh chụp chỉ ghi khi SimilarWeb đo đủ. Ảnh cũ thiếu cờ này có thể dựng trên số bịa → không dùng làm mốc so. */
+  measured?: boolean;
 }
 
 // ── File I/O ──
@@ -126,7 +128,8 @@ export async function incrementSWKeyUsage(id: string): Promise<void> {
 // ── SimilarWeb Data (duplicated cache for API response, main cache is in similarweb.ts) ──
 
 export function getSWData(domain: string): SimilarWebData | null {
-  return readData().swData[domain] || null;
+  const sw = readData().swData[domain];
+  return sw ? scrubLegacyEstimate(sw) : null;
 }
 
 export async function setSWData(domain: string, swData: SimilarWebData): Promise<void> {
@@ -138,7 +141,8 @@ export async function setSWData(domain: string, swData: SimilarWebData): Promise
 }
 
 export function getAllSWData(): Record<string, SimilarWebData> {
-  return { ...readData().swData };
+  const all = readData().swData;
+  return Object.fromEntries(Object.entries(all).map(([d, sw]) => [d, scrubLegacyEstimate(sw)]));
 }
 
 // ── Facebook Keyword Ads ──
@@ -278,7 +282,7 @@ export async function saveSnapshot(snapshot: ChannelSnapshot): Promise<void> {
 export function getLastSnapshot(competitorId: string): ChannelSnapshot | null {
   return (
     readData()
-      .snapshots.filter((s) => s.competitorId === competitorId)
+      .snapshots.filter((s) => s.competitorId === competitorId && s.measured === true)
       .sort((a, b) => b.weekOf.localeCompare(a.weekOf))[0] || null
   );
 }

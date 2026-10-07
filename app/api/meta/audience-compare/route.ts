@@ -2,7 +2,9 @@
 // CHỈ ĐỌC Meta. Công ty kiểm theo tên chiến dịch phía Meta (lib/meta/audience-compare-fetch.ts).
 import { NextRequest, NextResponse } from "next/server"
 import { fail, requireCompany, requireUser } from "@/lib/case/http"
-import { isYmd } from "@/lib/case/dates"
+import { parseRange } from "@/lib/case/dates"
+import { allowForce } from "@/lib/cost-guard"
+import { hasPermission } from "@/lib/permissions"
 import { compareAudiences } from "@/lib/meta/audience-compare-fetch"
 import { friendlyError } from "@/lib/not-configured"
 
@@ -15,11 +17,12 @@ export async function GET(request: NextRequest) {
   const q = request.nextUrl.searchParams
   const co = requireCompany(u.value, q.get("company"))
   if (!co.ok) return co.response
-  const from = q.get("from") ?? "", to = q.get("to") ?? ""
-  if (!isYmd(from) || !isYmd(to) || from > to) return NextResponse.json({ success: false, error: "Khoảng ngày không hợp lệ" }, { status: 400 })
+  const pr = parseRange(q.get("from"), q.get("to"), { defaultDays: 30 }) // tối đa 90 ngày, không quá hôm nay (soát 07/10)
+  if (!pr.ok) return NextResponse.json({ success: false, error: pr.error }, { status: 400 })
+  const { from, to } = pr.range
   const ids = (q.get("ids") ?? "").split(",").map((s) => s.trim()).filter(Boolean)
   try {
-    return NextResponse.json({ success: true, ...(await compareAudiences(co.value, ids, { from, to }, { force: q.get("force") === "1" })) })
+    return NextResponse.json({ success: true, ...(await compareAudiences(co.value, ids, { from, to }, { force: q.get("force") === "1" && allowForce(`compare|${co.value}|${ids.slice().sort().join(",")}|${from}|${to}`, hasPermission(u.value.role, "can_edit")) })) })
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     if (/^Chọn 2–|không thuộc công ty/.test(msg)) return NextResponse.json({ success: false, error: msg }, { status: 400 })

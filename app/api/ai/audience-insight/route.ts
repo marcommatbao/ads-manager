@@ -258,7 +258,7 @@ Trả về JSON (không markdown):
   "audienceSegments": [
     {
       "segmentName": "string",
-      "size": "100,000-200,000 người",
+      "size": "<khoảng quy mô AI ước tính, ghi chữ (ước tính)>",
       "priority": 1,
       "funnelStage": "<TOFU hoặc MOFU hoặc BOFU tùy phân khúc, xem hướng dẫn funnelStage ở trên>",
       "demographics": {"age": "25-45", "gender": "Tất cả", "location": ["<tỉnh/thành phù hợp phân khúc này>"], "income": "10-30tr/tháng", "jobTitles": ["CEO", "Giám đốc"]},
@@ -266,7 +266,7 @@ ${wantFacebook ? `      "facebookTargeting": {"interests": ["Digital marketing",
 ${wantGoogle ? `      "googleTargeting": {"searchIntents": ["câu người dùng THẬT SỰ gõ vào Google, tiếng Việt có dấu, 2-6 từ"], "negativeKeywords": ["từ khoá phải LOẠI để không hiện sai người"], "audienceSignals": ["tín hiệu đối tượng cho Performance Max — in-market/affinity/custom segment"]},` : ""}
       "painPoints": ["pain 1", "pain 2"],
       "messagingAngle": "string",
-      "estimatedCTR": "1.5-2.5%",
+      "estimatedCTR": "<khoảng CTR AI ước tính dạng x.x-y.y%, KHÔNG chép ví dụ>",
       "difficulty": "medium",
       "whyThisSegment": "string — phải nêu CĂN CỨ, không chỉ mô tả phân khúc",
       "evidence": [
@@ -279,7 +279,7 @@ ${wantGoogle ? `      "googleTargeting": {"searchIntents": ["câu người dùng
   ],
   "campaignStrategy": {
     "bestTimeToRun": {"daysOfWeek": ["Thứ 2-6"], "timeOfDay": "8-11h, 13-17h", "reasoning": "string"},
-    "budgetRecommendation": {"minimumDaily": 200000, "optimalDaily": 500000, "reasoning": "string"}
+    "budgetRecommendation": {"minimumDaily": <số VND/ngày tự tính từ giá sản phẩm + mục tiêu>, "optimalDaily": <số VND/ngày>, "reasoning": "string — nêu cách tính"}
   }
 }
 

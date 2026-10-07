@@ -19,6 +19,7 @@ import { withFileLock } from "@/lib/file-lock";
 import fs from "fs";
 import { writeFileAtomicSync } from "@/lib/fs-atomic";
 import path from "path";
+import { isSafeWebhookUrl } from "@/lib/settings/webhook-url";
 import { hasModule } from "@/lib/companies/registry";
 import { patchFromSettings, setByInfra } from "@/lib/settings/env-origin";
 
@@ -134,7 +135,7 @@ export async function POST(request: NextRequest) {
     const v = body[w.key];
     if (typeof v === "string" && v.trim() && !isMaskedPlaceholder(v)) {
       // Đợt 21 A4 (soát bảo mật): máy chủ sẽ POST vào URL này → chỉ nhận https (không http, không địa chỉ nội bộ dạng tự do).
-      if (!/^https:\/\/[^\s/]+\.[^\s]+$/.test(v.trim())) return NextResponse.json({ ok: false, error: `${w.label}: phải là đường dẫn https:// (webhook Teams / Power Automate)` }, { status: 400 });
+      if (!isSafeWebhookUrl(v.trim())) return NextResponse.json({ ok: false, error: `${w.label}: phải là đường dẫn https:// tới tên miền công khai (webhook Teams / Power Automate) — không nhận địa chỉ IP hay máy nội bộ` }, { status: 400 });
       settings[w.key] = v.trim();
     }
   }

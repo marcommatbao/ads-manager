@@ -157,7 +157,7 @@ export function KeywordTable({ keywords, loading, applyingId, onAddNegative, onA
                   <TableCell className="text-right tabular-nums">{formatCurrency(kw.currentCpc, "VND")}</TableCell>
                   <TableCell className="text-right tabular-nums">{kw.qualityScore ?? "—"}</TableCell>
                   <TableCell className="text-right tabular-nums">{kw.cplEstimate !== null ? formatCurrency(kw.cplEstimate, "VND") : "—"}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatCurrency(kw.suggestedMaxCpc, "VND")}</TableCell>
+                  <TableCell className="text-right tabular-nums" title={kw.suggestedMaxCpc > 0 ? undefined : "Chưa đủ chuyển đổi đo được để tính CPC đề xuất"}>{kw.suggestedMaxCpc > 0 ? formatCurrency(kw.suggestedMaxCpc, "VND") : "—"}</TableCell>
                   <TableCell><Badge className={BUDGET_STYLE[kw.budgetImpact]}>{BUDGET_LABEL[kw.budgetImpact]}</Badge></TableCell>
                   <TableCell className="max-w-[180px] text-xs text-muted-foreground">{kw.suggestedAction}</TableCell>
                   <TableCell className="text-right">
@@ -216,7 +216,7 @@ export function KeywordTable({ keywords, loading, applyingId, onAddNegative, onA
                             size="sm"
                             variant="outline"
                             disabled={isApplying}
-                            onClick={() => setCpcDraft(prev => ({ ...prev, [kw.id]: String(Math.round(kw.suggestedMaxCpc)) }))}
+                            onClick={() => setCpcDraft(prev => ({ ...prev, [kw.id]: String(Math.round(kw.suggestedMaxCpc > 0 ? kw.suggestedMaxCpc : kw.currentCpc)) }))}
                           >
                             CPC
                           </Button>
@@ -225,10 +225,10 @@ export function KeywordTable({ keywords, loading, applyingId, onAddNegative, onA
                           <p className="mb-2 text-xs font-medium text-foreground">CPC mới (VNĐ):</p>
                           <Input
                             type="number"
-                            value={cpcDraft[kw.id] ?? String(Math.round(kw.suggestedMaxCpc))}
+                            value={cpcDraft[kw.id] ?? String(Math.round(kw.suggestedMaxCpc > 0 ? kw.suggestedMaxCpc : kw.currentCpc))}
                             onChange={e => setCpcDraft(prev => ({ ...prev, [kw.id]: e.target.value }))}
                           />
-                          <p className="mt-1 text-xs text-muted-foreground">Đề xuất: {formatCurrency(kw.suggestedMaxCpc, "VND")}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">{kw.suggestedMaxCpc > 0 ? <>Đề xuất: {formatCurrency(kw.suggestedMaxCpc, "VND")}</> : "Chưa đủ dữ liệu để đề xuất — đang điền CPC hiện tại"}</p>
                           <Button
                             size="sm"
                             className="mt-3 w-full"

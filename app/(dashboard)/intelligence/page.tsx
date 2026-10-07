@@ -350,7 +350,7 @@ function CompetitorDetailPanel({
             <div className="space-y-3">
               {sw.isEstimated && (
                 <div className="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5 flex items-center gap-1.5">
-                  ⚠️ Ước tính (SimilarWeb API lỗi/bị chặn) — không phải số đo thực
+                  ⚠️ Thiếu số SimilarWeb (API lỗi/bị chặn) — ô trống/N/A là chưa đo được, không có số bù
                 </div>
               )}
               <div className="grid grid-cols-2 gap-2">
@@ -359,21 +359,24 @@ function CompetitorDetailPanel({
                 <StatCard
                   label="Monthly Visits"
                   value={
-                    sw.monthlyVisits
+                    sw.monthlyVisits && Object.keys(sw.monthlyVisits).length > 0
                       ? `${(Object.values(sw.monthlyVisits).pop()! / 1000).toFixed(0)}K`
                       : "N/A"
                   }
                 />
                 <StatCard
                   label="Bounce Rate"
-                  value={sw.bounceRate != null ? `${(sw.bounceRate * 100).toFixed(1)}%` : "N/A"}
+                  value={sw.bounceRate != null && !(sw.isEstimated && !sw.bounceRate) ? `${(sw.bounceRate * 100).toFixed(1)}%` : "N/A"}
                 />
               </div>
 
               {/* Traffic Sources Bar Chart */}
               <div className="space-y-1.5">
                 <p className="text-[10px] font-semibold text-slate-500">Traffic Sources</p>
-                {Object.entries(sw.trafficSources).map(([key, val]) => (
+                {Object.values(sw.trafficSources).every((v) => !v) && (
+                  <p className="text-[10px] text-slate-400">Chưa đo được (SimilarWeb không trả nguồn traffic)</p>
+                )}
+                {Object.values(sw.trafficSources).some((v) => v > 0) && Object.entries(sw.trafficSources).map(([key, val]) => (
                   <div key={key} className="flex items-center gap-2 text-[10px]">
                     <span className="w-14 text-slate-400 capitalize font-medium">{key}</span>
                     <div className="flex-1 h-3 bg-slate-100 rounded-full overflow-hidden">
@@ -489,7 +492,7 @@ function CompetitorDetailPanel({
             <div className="space-y-3">
               {analysis.isEstimated && (
                 <div className="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5 flex items-center gap-1.5">
-                  ⚠️ Phân tích dựa trên dữ liệu ước tính (SimilarWeb API lỗi/bị chặn) — không phải số đo thực
+                  ⚠️ Phân tích thiếu số SimilarWeb (API lỗi/bị chặn) — chỉ dựa trên phần đo được (quảng cáo đang chạy)
                 </div>
               )}
               <div className="p-3 rounded-xl bg-violet-50 border border-violet-100">
@@ -601,7 +604,7 @@ function MarketAnalysisPanel({ analysis }: { analysis: MarketAnalysis }) {
             </p>
             {analysis.estimatedDomains && analysis.estimatedDomains.length > 0 && (
               <div className="mt-2 text-[10px] font-semibold text-amber-700 bg-amber-100/70 border border-amber-200 rounded-lg px-2 py-1.5 flex items-center gap-1.5">
-                ⚠️ Dựa một phần trên dữ liệu ước tính ({analysis.estimatedDomains.join(", ")}) — không phải số đo thực toàn bộ
+                ⚠️ Thiếu số SimilarWeb ở ({analysis.estimatedDomains.join(", ")}) — kết luận chỉ dựa trên phần đo được
               </div>
             )}
           </div>
@@ -640,10 +643,10 @@ function MarketAnalysisPanel({ analysis }: { analysis: MarketAnalysis }) {
                   {h.domain}
                   {analysis.estimatedDomains?.includes(h.domain) && (
                     <span
-                      title="Dữ liệu SimilarWeb ước tính (API lỗi/bị chặn) — không phải số đo thực"
+                      title="Thiếu số SimilarWeb (API lỗi/bị chặn) — không có số bù"
                       className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded px-1 py-0.5 shrink-0"
                     >
-                      ⚠️ ước tính
+                      ⚠️ thiếu số
                     </span>
                   )}
                 </p>
@@ -964,10 +967,10 @@ export default function IntelligencePage() {
                               {c.name}
                               {analysis?.isEstimated && (
                                 <span
-                                  title="Điểm số & kênh dưới đây tính từ dữ liệu SimilarWeb ước tính (API lỗi/bị chặn) — không phải số đo thực"
+                                  title="Thiếu số SimilarWeb (API lỗi/bị chặn) — điểm kênh dưới đây chỉ tính từ phần đo được (quảng cáo đang chạy)"
                                   className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded px-1 py-0.5 shrink-0"
                                 >
-                                  ⚠️ ước tính
+                                  ⚠️ thiếu số
                                 </span>
                               )}
                             </p>

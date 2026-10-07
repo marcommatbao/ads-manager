@@ -3,7 +3,9 @@
 // 7/14 ngày), "Đáng chú ý" (chấm theo Mục tiêu ở Xử lý chiến dịch). Nền tảng chưa kết nối → báo riêng, không hỏng cả tab.
 import { NextRequest, NextResponse } from "next/server"
 import { requireCompany, requireUser } from "@/lib/case/http"
-import { isYmd, vnDate } from "@/lib/case/dates"
+import { parseRange, vnDate } from "@/lib/case/dates"
+import { allowForce } from "@/lib/cost-guard"
+import { hasPermission } from "@/lib/permissions"
 import { productGroupOf } from "@/lib/case/product"
 import { targetFor } from "@/lib/case/targets"
 import { leadCaseTarget } from "@/lib/targets/resolve"
@@ -34,10 +36,13 @@ export async function GET(request: NextRequest) {
   const q = request.nextUrl.searchParams
   const co = requireCompany(u.value, q.get("company"))
   if (!co.ok) return co.response
-  const from = q.get("from") ?? "", to = q.get("to") ?? ""
-  if (!isYmd(from) || !isYmd(to) || from > to) return NextResponse.json({ success: false, error: "Khoảng ngày không hợp lệ" }, { status: 400 })
+  // Soát bảo mật 07/10: tối đa 90 ngày, không quá hôm nay; "Tải số mới" chỉ người có quyền sửa, 1 lần/60 giây (hạn mức Meta dùng chung).
+  const pr = parseRange(q.get("from"), q.get("to"), { defaultDays: 30 })
+  if (!pr.ok) return NextResponse.json({ success: false, error: pr.error }, { status: 400 })
+  const { from, to } = pr.range
   const platform = q.get("platform") === "meta" ? "meta" : q.get("platform") === "google" ? "google" : "all"
-  const force = q.get("force") === "1", range = { from, to }, prev = previousRange(from, to)
+  const force = q.get("force") === "1" && allowForce(`trends|${co.value}|${platform}|${from}|${to}`, hasPermission(u.value.role, "can_edit"))
+  const range = { from, to }, prev = previousRange(from, to)
 
   const wanted: ("meta" | "google")[] = platform === "all" ? ["meta", "google"] : [platform]
   const results: PlatformTrend[] = await Promise.all(wanted.map(async (p) => {

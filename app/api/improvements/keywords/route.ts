@@ -233,7 +233,8 @@ function computeSuggestedMaxCpc(
 
   let convRate = kwClicks >= 5 ? kwConv / kwClicks : 0;
   if (convRate === 0) {
-    convRate = campClicks >= 20 ? campConv / campClicks : 0.02; // 2% conservative default
+    // Soát dữ liệu 07/10: chưa đủ số đo thì KHÔNG giả định 2% — trả 0 → "chưa đủ dữ liệu" (budgetImpact "unknown").
+    convRate = campClicks >= 20 ? campConv / campClicks : 0;
   }
   convRate = Math.min(convRate, 0.5); // clamp outliers (e.g. 1 click/1 conv keywords)
 

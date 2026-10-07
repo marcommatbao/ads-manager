@@ -9,6 +9,9 @@ import { writeFileAtomicSync } from "@/lib/fs-atomic";
 import path from "path";
 import { withFileLock } from "@/lib/file-lock";
 
+/** Chuỗi CTR gõ cứng cũ (không phải dự đoán của AI) — bản ghi mang nó coi như chưa có dự đoán. */
+export const LEGACY_PLACEHOLDER_CTR = "1.5-2.5%";
+
 // ─────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────
@@ -45,7 +48,7 @@ export interface CreativeVariant {
   // Performance data
   performance?: CreativePerformance;
   // AI scoring
-  ai_quality_score: number;       // 1-10
+  ai_quality_score: number;       // 1-10; 0 = chưa chấm
   predicted_ctr_range: string;    // "2.2-3.0%"
   actual_vs_predicted?: number;   // % error
   // AI learning
@@ -188,7 +191,8 @@ export async function updateCreativePerformance(
     c.performance = performance;
 
     // Compute accuracy vs predicted
-    if (c.predicted_ctr_range) {
+    // "1.5-2.5%" là chuỗi gõ cứng cũ (trước 07/10 mọi bản lưu từ thẻ đều mang nó) — không chấm "dự đoán đúng/sai" theo số bịa.
+    if (c.predicted_ctr_range && c.predicted_ctr_range !== LEGACY_PLACEHOLDER_CTR) {
       const parts = c.predicted_ctr_range.replace(/%/g, "").split("-");
       const low = parseFloat(parts[0]);
       const high = parseFloat(parts[1]);
@@ -284,7 +288,11 @@ export function getPerformanceBadge(creative: CreativeVariant): {
   label: string;
   color: "green" | "red" | "orange" | "blue";
 } | null {
-  if (!creative.performance || !creative.prediction_accuracy) return null;
+  if (!creative.performance) return null;
+  // Bản ghi cũ mang CTR gõ cứng: vẫn báo mệt mỏi (số đo thật), nhưng không báo "AI đoán đúng/sai".
+  if (!creative.prediction_accuracy || creative.predicted_ctr_range === LEGACY_PLACEHOLDER_CTR) {
+    return creative.performance.fatigue_score > 60 ? { label: "😓 Cần thay", color: "orange" } : null;
+  }
 
   const fatigue = creative.performance.fatigue_score;
 

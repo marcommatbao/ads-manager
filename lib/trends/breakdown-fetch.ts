@@ -9,6 +9,7 @@ import { META_LEAD_TYPES, googleGoalKind, metaGoalKind, type GoalKind } from "@/
 import { getGoogleAdsCustomer } from "@/lib/google-ads-client"
 import { googleBiddableCategories } from "@/lib/case/service"
 import { buildTable, DEVICE_VI, GENDER_VI, hourBlock, sumBy, type BRow, type BTable } from "./breakdown"
+import { setCapped } from "@/lib/cost-guard"
 
 type Row = Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
 const memo = new Map<string, { at: number; v: BTable[] }>()
@@ -44,7 +45,7 @@ export async function metaBreakdown(company: string, range: { from: string; to: 
       out.push(buildTable(`meta_${d.dim}_${kind}`, `Meta · ${d.title} · chiến dịch ${WORDS[kind]}`, kind, b))
     }
   }
-  memo.set(key, { at: Date.now(), v: out })
+  setCapped(memo, key, { at: Date.now(), v: out })
   return out
 }
 
@@ -70,6 +71,6 @@ export async function googleBreakdown(company: string, range: { from: string; to
     if (d.length) out.push(buildTable(`google_device_${kind}`, `Google · Thiết bị · chiến dịch ${WORDS[kind]}`, kind, d))
     if (h.length) { const t = buildTable(`google_hour_${kind}`, `Google · Khung giờ · chiến dịch ${WORDS[kind]}`, kind, h); t.rows.sort((a, b) => a.key.localeCompare(b.key)); out.push(t) } // khung giờ: theo thứ tự giờ
   }
-  memo.set(key, { at: Date.now(), v: out })
+  setCapped(memo, key, { at: Date.now(), v: out })
   return out
 }

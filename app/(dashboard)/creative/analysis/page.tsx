@@ -134,18 +134,18 @@ function PerformanceTab() {
   const creatives = data?.data ?? [];
   const totalCreatives = creatives.length;
 
+  // Chỉ trung bình mẫu ĐÃ có số đo — mẫu chưa chạy không kéo CTR về 0.
+  const measured = creatives.filter((c) => c.performance);
   const avgCtr =
-    totalCreatives > 0
-      ? (
-          creatives.reduce((sum, c) => sum + (c.performance?.ctr ?? 0), 0) / totalCreatives
-        ).toFixed(2)
+    measured.length > 0
+      ? (measured.reduce((sum, c) => sum + c.performance!.ctr, 0) / measured.length).toFixed(2)
       : "—";
 
+  // Soát dữ liệu 07/10: chỉ trung bình mẫu ĐÃ được AI chấm (0 = chưa chấm, không tính như điểm thấp).
+  const scored = creatives.filter((c) => c.ai_quality_score > 0);
   const avgScore =
-    totalCreatives > 0
-      ? Math.round(
-          creatives.reduce((sum, c) => sum + c.ai_quality_score * 10, 0) / totalCreatives
-        )
+    scored.length > 0
+      ? Math.round(scored.reduce((sum, c) => sum + c.ai_quality_score * 10, 0) / scored.length)
       : 0;
 
   const bestPerformer = creatives.reduce<CreativeVariant | null>((best, c) => {
@@ -265,7 +265,7 @@ function PerformanceTab() {
                       {c.performance ? fmtCurrency(c.performance.spend) : "—"}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <span className={cn(
+                      {c.ai_quality_score > 0 ? <span className={cn(
                         "inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-semibold",
                         c.ai_quality_score >= 7
                           ? "bg-emerald-100 text-emerald-700"
@@ -274,7 +274,7 @@ function PerformanceTab() {
                           : "bg-red-100 text-red-700"
                       )}>
                         {c.ai_quality_score * 10}
-                      </span>
+                      </span> : <span className="text-slate-400">—</span>}
                     </td>
                     <td className="px-4 py-3">
                       <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium capitalize", statusBadge(c.status))}>

@@ -249,7 +249,7 @@ export function getCampaignHealthBadge(c: Campaign): HealthBadgeData {
   if (m.ctr < CTR_LOW_PCT && m.impressions > CTR_MIN_IMPRESSIONS) {
     return {
       level: "warning", label: `🟡 CTR thấp ${m.ctr.toFixed(2)}%`,
-      detail: `CTR ${m.ctr.toFixed(2)}% thấp hơn benchmark ${CTR_BENCHMARK_PCT}% rất nhiều`,
+      detail: `CTR ${m.ctr.toFixed(2)}% thấp hơn nhiều so với mốc ${CTR_BENCHMARK_PCT}% (ngưỡng nội bộ của tool)`,
       suggestion: "Thử đổi creative hoặc thu hẹp audience. CTR < 0.5% thường do ad không hấp dẫn.",
     };
   }
@@ -272,14 +272,14 @@ export function getCampaignHealthBadge(c: Campaign): HealthBadgeData {
   if (m.ctr > CTR_EXCELLENT_PCT) {
     return {
       level: "good", label: `✅ CTR ${m.ctr.toFixed(1)}%`,
-      detail: "CTR xuất sắc — gấp 1.5x benchmark",
+      detail: "CTR xuất sắc — gấp 1.5 lần mốc nội bộ",
       suggestion: "Cân nhắc tăng budget để scale campaign này.",
     };
   }
   if (m.ctr > CTR_GOOD_PCT) {
     return {
       level: "good", label: `✅ CTR ${m.ctr.toFixed(1)}%`,
-      detail: "CTR tốt — đạt benchmark",
+      detail: "CTR tốt — đạt mốc nội bộ",
       suggestion: "Campaign đang hoạt động tốt. Giữ nguyên chiến lược.",
     };
   }
@@ -381,7 +381,7 @@ function FatigueBadge({ campaign }: { campaign: Campaign }) {
             {badge.emoji} Fatigue Score: {fatigue.fatigueScore}/100
           </p>
           <p className="text-[10px] text-slate-400 mb-2">
-            [{OBJECTIVE_LABELS[fatigue.objective ?? ""] || campaign.objective} — {fatigue.benchmarkUsed} benchmark]
+            [{OBJECTIVE_LABELS[fatigue.objective ?? ""] || campaign.objective} — ngưỡng nội bộ {fatigue.benchmarkUsed}]
           </p>
 
           {fatigue.signals.length > 0 && (

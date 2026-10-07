@@ -105,9 +105,10 @@ export function ActionPlanPanel({ improvement, company, onClose }: { improvement
           <div className="rounded-xl bg-green-50 p-4 flex items-center gap-4 border border-green-200">
             <div className="text-2xl">💰</div>
             <div>
-              <p className="text-xs text-green-700 font-medium">Tổng impact dự kiến</p>
+              {/* Soát dữ liệu 07/10: đây là CHI TIÊU đo được trong kỳ dính lỗi này — không phải "tiết kiệm/tháng" dự kiến. */}
+              <p className="text-xs text-green-700 font-medium">{improvement.impactRough ? "Mức ảnh hưởng (ước lượng thô)" : "Chi tiêu trong kỳ dính lỗi này"}</p>
               <p className="text-lg font-bold text-green-700">
-                +₫{(plan?.totalImpact || 0).toLocaleString()}/tháng
+                ₫{Math.round(plan?.totalImpact || 0).toLocaleString("vi-VN")}
               </p>
             </div>
             <div className="ml-auto text-right text-green-800">
@@ -233,11 +234,7 @@ function ActionStepCard({ step, index, status, improvement }: { step: ActionStep
           <p className="text-xs text-slate-500 truncate leading-snug">{step.description}</p>
         </div>
 
-        {(step.estimatedImpact || 0) > 0 && (
-          <span className="text-[11px] font-bold text-green-600 flex-shrink-0 bg-green-50 px-2 py-0.5 rounded-full border border-green-100">
-            +{(step.estimatedImpact / 1000000).toFixed(1)}M
-          </span>
-        )}
+        {/* Không hiện "+xM" từng bước: số chia 30/70 50/50 là tỷ lệ gõ tay, không đo được. */}
 
         <ChevronIcon className={cn("text-slate-400 transition-transform duration-300", expanded && "rotate-180")} />
       </button>

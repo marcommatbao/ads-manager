@@ -87,6 +87,9 @@ function normChannels(b: Partial<ChannelBudget> | undefined): ChannelBudget {
   // Đợt 27: mọi kênh trong sổ (kể cả kênh tự thêm / đã ẩn) — trước đây chỉ giữ 4 kênh gốc nên số kênh mới sẽ bị xoá khi lưu.
   const out: ChannelBudget = {};
   for (const ch of kpiChannelKeys()) out[ch] = Math.max(0, Math.round(Number(b?.[ch]) || 0));
+  // Soát 07/10: tệp sổ kênh hỏng/không đọc được → sổ chỉ còn 4 kênh gốc; GIỮ số của kênh đã lưu (mã hợp lệ) thay vì lặng lẽ
+  // bỏ — bộ kiểm khi lưu sẽ báo "kênh không có trong danh sách" (lỗi to), không mất số.
+  for (const [k, v] of Object.entries(b ?? {})) if (!(k in out) && /^[a-z][a-z0-9_]{1,23}$/.test(k) && Number(v) > 0) out[k] = Math.round(Number(v));
   return out;
 }
 

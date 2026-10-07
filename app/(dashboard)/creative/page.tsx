@@ -850,7 +850,7 @@ function CreativeAIPageInner() {
         psychographics: { interests: [], behaviors: [], jobTitles: [] },
         facebookTargeting: { interests: [], behaviors: [], jobTitles: [], excludeAudiences: [] },
         painPoints: [],
-        estimatedCTR: "1.5-2.5%",
+        estimatedCTR: "", // tệp có sẵn/tệp thắng — không có dự đoán CTR (trước 07/10 gõ cứng "1.5-2.5%")
       }));
     const winningSegmentsForGenerate: AudienceSegment[] = winningList
       .filter(w => selectedWinningIds.has(w.id))
@@ -866,7 +866,7 @@ function CreativeAIPageInner() {
           psychographics: { interests: [], behaviors: [], jobTitles: [] },
           facebookTargeting: { interests: [], behaviors: [], jobTitles: [], excludeAudiences: [] },
           painPoints: [],
-          estimatedCTR: "1.5-2.5%",
+          estimatedCTR: "", // tệp có sẵn/tệp thắng — không có dự đoán CTR (trước 07/10 gõ cứng "1.5-2.5%")
         };
       });
     const segments = [...aiSegments, ...metaSegmentsForGenerate, ...winningSegmentsForGenerate];
@@ -2586,7 +2586,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
 
                       {/* Footer metrics */}
                       <div className="px-5 py-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-                        <span>📊 CTR ước tính: <b className="text-slate-700">{seg.estimatedCTR}</b></span>
+                        <span>{seg.estimatedCTR ? <>📊 CTR AI ước tính: <b className="text-slate-700">{seg.estimatedCTR}</b></> : null}</span>
                         <div className="flex items-center gap-1.5">
                           {seg.competitionLevel && (
                             <span className={cn(
@@ -2738,7 +2738,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                       {budget && (
                         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
                           <h4 className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-1.5">
-                            <DollarSign className="h-4 w-4 text-green-500" /> Ngân sách đề xuất
+                            <DollarSign className="h-4 w-4 text-green-500" /> Ngân sách đề xuất <span className="text-[10px] font-normal text-slate-400">(AI ước tính, không phải số đo)</span>
                           </h4>
                           <div className="flex items-center gap-4 text-xs text-slate-600">
                             <span>Tối thiểu: <b className="text-slate-800">{fmtVND(budget.minimumDaily)}</b>/ngày</span>

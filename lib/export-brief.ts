@@ -121,7 +121,7 @@ export function generateAdsBrief(data: BriefData): string {
       lines.push(`| Địa điểm | ${seg.demographics.location.join(", ")} |`);
       lines.push(`| Thu nhập | ${seg.demographics.income} |`);
       lines.push(`| Độ khó tiếp cận | ${seg.difficulty ?? 'N/A'} |`);
-      lines.push(`| CTR ước tính | ${seg.estimatedCTR} |`);
+      lines.push(`| CTR AI ước tính | ${seg.estimatedCTR || "—"} |`);
       lines.push("");
 
       // Interests
@@ -246,8 +246,8 @@ export function generateAdsBrief(data: BriefData): string {
 
     // Add estimated metrics from segments if available
     if (data.audienceSegments && data.audienceSegments.length > 0) {
-      const ctrs = data.audienceSegments.map((s) => s.estimatedCTR);
-      lines.push(`- **CTR ước tính:** ${ctrs.join(" / ")}`);
+      const ctrs = data.audienceSegments.map((s) => s.estimatedCTR).filter(Boolean);
+      if (ctrs.length > 0) lines.push(`- **CTR AI ước tính:** ${ctrs.join(" / ")}`);
     }
 
     lines.push("");

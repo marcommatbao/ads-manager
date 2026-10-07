@@ -9,6 +9,7 @@ import { META_LEAD_TYPES, googleGoalKind, metaGoalKind, type GoalKind } from "@/
 import { getGoogleAdsCustomer } from "@/lib/google-ads-client"
 import { googleBiddableCategories } from "@/lib/case/service"
 import { add, previousRange, ZERO, type CampaignPeriods, type Metrics, type TrendDay } from "./build"
+import { setCapped } from "@/lib/cost-guard"
 
 type Row = Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
 export interface PlatformTrend { platform: "meta" | "google"; days: TrendDay[]; campaigns: CampaignPeriods[]; error: string | null }
@@ -39,7 +40,7 @@ export async function metaTrend(company: string, range: { from: string; to: stri
   const curC = mineOnly(curAll), prevC = mineOnly(prevAll)
   const kindOf = new Map<string, GoalKind>([...prevC, ...curC].map((r) => [String(r.campaign_id), metaGoalKind(String(r.objective ?? ""))]))
   const ids = [...kindOf.keys()]
-  if (!ids.length) { const v: PlatformTrend = { platform: "meta", days: [], campaigns: [], error: null }; memo.set(key, { at: Date.now(), v }); return v }
+  if (!ids.length) { const v: PlatformTrend = { platform: "meta", days: [], campaigns: [], error: null }; setCapped(memo, key, { at: Date.now(), v }); return v }
   const daily = await metaGetAll<Row>(act, { level: "account", time_increment: "1", time_range: JSON.stringify({ since: prev.from, until: range.to }), filtering: JSON.stringify([{ field: "campaign.id", operator: "IN", value: ids }]), action_attribution_windows: win, fields: "date_start,spend,impressions,inline_link_clicks,actions,action_values", limit: "500" })
   const withSplit = (m: Omit<Metrics, "spendSales" | "spendLeads">, kind: GoalKind): Metrics => ({ ...m, spendSales: kind === "sales" ? m.spend : 0, spendLeads: kind === "leads" ? m.spend : 0 })
   const byId = new Map<string, CampaignPeriods>()
@@ -53,7 +54,7 @@ export async function metaTrend(company: string, range: { from: string; to: stri
   }
   const days: TrendDay[] = daily.map((r) => ({ date: String(r.date_start), ...metaMetrics(r, "mixed") })).sort((a, b) => a.date.localeCompare(b.date))
   const v: PlatformTrend = { platform: "meta", days, campaigns: [...byId.values()], error: null }
-  memo.set(key, { at: Date.now(), v })
+  setCapped(memo, key, { at: Date.now(), v })
   return v
 }
 
@@ -90,6 +91,6 @@ export async function googleTrend(company: string, range: { from: string; to: st
     byId.set(id, cp)
   }
   const v: PlatformTrend = { platform: "google", days: [...dayMap.values()].sort((a, b) => a.date.localeCompare(b.date)), campaigns: [...byId.values()], error: null }
-  memo.set(key, { at: Date.now(), v })
+  setCapped(memo, key, { at: Date.now(), v })
   return v
 }

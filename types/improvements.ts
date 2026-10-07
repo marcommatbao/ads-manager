@@ -33,6 +33,8 @@ export interface Improvement {
   recommendation?: string;
   impact?: string;
   impactValue?: number;
+  /** true = impactValue là ước lượng thô (tỷ lệ gõ tay), không phải tiền đo được. */
+  impactRough?: boolean;
   estimatedImpact?: number;
   canAutoApply: boolean;
   createdAt?: string;

@@ -5,6 +5,7 @@ import { adAccountId, metaGet, metaGetAll } from "@/lib/case/meta-graph"
 import { optEventOf, pickAction, pickActionWindow, PURCHASE_TYPES } from "@/lib/case/meta-evidence"
 import { META_LEAD_TYPES, metaGoalKind, type GoalKind } from "@/lib/case/goal-kind"
 import { compareGroup, type CompareAdset, type CompareGroup } from "./audience-compare"
+import { setCapped } from "@/lib/cost-guard"
 
 type Row = Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
 export const MAX_COMPARE_CAMPAIGNS = 3
@@ -80,6 +81,6 @@ export async function compareAudiences(company: string, campaignIds: string[], r
     groups: kinds.map((k) => compareGroup(k, rows.filter((r) => r.goalKind === k))),
     mixedKinds: kinds.length > 1, fetchedAt: new Date().toISOString(),
   }
-  memo.set(key, { at: Date.now(), v })
+  setCapped(memo, key, { at: Date.now(), v })
   return v
 }

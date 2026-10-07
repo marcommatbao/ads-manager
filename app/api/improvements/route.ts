@@ -65,6 +65,8 @@ interface Improvement {
   description:    string
   impact:         string
   impactValue:    number
+  /** true = impactValue là ước lượng thô (vd chi tiêu × 0.3) — UI không cộng vào tổng, gắn nhãn "ước lượng". */
+  impactRough?:   true
   confidence:     number
   campaignName?:  string
   adGroupName?:   string
@@ -99,6 +101,7 @@ const fmt = (n: number) =>
 function sumImpactDeduped(items: Improvement[]): number {
   const byEntity = new Map<string, number>()
   for (const i of items) {
+    if (i.impactRough) continue // ước lượng thô không cộng vào tổng
     // Khoá theo campaign; thiếu tên campaign thì lấy id để không gộp nhầm các
     // khuyến nghị cấp tài khoản vào làm một.
     const key = `${i.company}:${i.campaignName ?? i.id}`
@@ -847,9 +850,10 @@ export async function GET(req: NextRequest) {
             source:       "GOOGLE",
             priority:     ctr < 0.01 ? "HIGH" : "MEDIUM",
             company:      co,
-            title:        `Ad CTR ${(ctr * 100).toFixed(1)}% — dưới chuẩn B2B`,
-            description:  `Ad trong "${ad.ad_group?.name}" chỉ ${(ctr * 100).toFixed(1)}% CTR (benchmark B2B: 5%). Cần viết lại headlines mạnh hơn.`,
+            title:        `Ad CTR ${(ctr * 100).toFixed(1)}% — dưới ngưỡng 3%`,
+            description:  `Ad trong "${ad.ad_group?.name}" chỉ ${(ctr * 100).toFixed(1)}% CTR (ngưỡng lọc nội bộ của tool: 3% — không phải chuẩn ngành có nguồn). Nên viết lại headlines mạnh hơn.`,
             impact:       `Tăng CTR → giảm CPC thực tế`,
+            impactRough:  true, // số ước lượng thô (tỷ lệ gõ tay), không phải tiền đo được
             impactValue:  spend * 0.3,
             confidence:   80,
             campaignName: ad.campaign?.name,
@@ -871,6 +875,7 @@ export async function GET(req: NextRequest) {
             title:        `Ad Strength POOR trong "${ad.ad_group?.name}"`,
             description:  `Ad này được Google đánh giá POOR → QS thấp → CPC cao hơn`,
             impact:       `Cải thiện QS → giảm CPC 20-40%`,
+            impactRough:  true, // số ước lượng thô (tỷ lệ gõ tay), không phải tiền đo được
             impactValue:  spend * 0.25,
             confidence:   85,
             campaignName: ad.campaign?.name,
@@ -906,6 +911,7 @@ export async function GET(req: NextRequest) {
             title:        `PMax Asset Group "${asset.asset_group?.name}" xếp hạng ${strength}`,
             description:  `Asset group yếu → Google không phân phối ngân sách hiệu quả. Thêm hình, video, headlines đa dạng.`,
             impact:       `Tăng reach và conv của PMax`,
+            impactRough:  true, // số ước lượng thô (tỷ lệ gõ tay), không phải tiền đo được
             impactValue:  spend * 0.4,
             confidence:   90,
             campaignName: asset.campaign?.name,
@@ -943,6 +949,7 @@ export async function GET(req: NextRequest) {
             title:        `"${camp.campaign?.name}" bị giới hạn ngân sách — mất ${(lostIS * 100).toFixed(0)}% impression`,
             description:  `Campaign đang convert tốt nhưng mất ${(lostIS * 100).toFixed(0)}% lượt hiển thị${campRevenue > 0 ? ` — đã tạo ₫${fmt(campRevenue)} doanh thu` : ""}`,
             impact:       `Tăng ~${Math.round(lostIS * conv)} conv thêm/tháng`,
+            impactRough:  true, // số ước lượng thô (tỷ lệ gõ tay), không phải tiền đo được
             impactValue:  campRevenue > 0
               ? campRevenue * lostIS
               : (spend / conv) * conv * lostIS,
@@ -983,6 +990,7 @@ export async function GET(req: NextRequest) {
             title:        `tCPA "${camp.campaign?.name}" đặt cao hơn thực tế — đang mất volume`,
             description:  `CPA thực ₫${fmt(actualCPA)} nhưng target ₫${fmt(targetCPA)} → Google giữ bid thấp, có thể lấy thêm conv`,
             impact:       `Tăng ~${Math.round(conv * 0.3)} conv cùng ngân sách`,
+            impactRough:  true, // số ước lượng thô (tỷ lệ gõ tay), không phải tiền đo được
             impactValue:  conv * 0.3 * actualCPA,
             confidence:   80,
             campaignName: camp.campaign?.name,
@@ -1020,6 +1028,7 @@ export async function GET(req: NextRequest) {
             title:        `Scale keyword "${kw.ad_group_criterion?.keyword?.text}" — CPL chỉ ₫${fmt(cpl)}`,
             description:  `CPL ₫${fmt(cpl)} — thấp hơn 50% target ₫${fmt(target)}. Tăng bid để lấy thêm volume.`,
             impact:       `Tăng ~${conv} conv thêm/tháng`,
+            impactRough:  true, // số ước lượng thô (tỷ lệ gõ tay), không phải tiền đo được
             impactValue:  conv * (target - cpl),
             confidence:   75,
             campaignName: kw.campaign?.name,
@@ -1052,6 +1061,7 @@ export async function GET(req: NextRequest) {
           title:        `Thêm [exact] cho "${kw.ad_group_criterion?.keyword?.text}"`,
           description:  `Broad keyword này có ${kw.metrics?.conversions} conv — thêm [exact] để kiểm soát traffic và giảm CPC`,
           impact:       `Giảm CPC ~20%, tăng chất lượng traffic`,
+          impactRough:  true, // số ước lượng thô (tỷ lệ gõ tay), không phải tiền đo được
           impactValue:  (kw.metrics?.cost_micros || 0) / 1_000_000 * 0.2,
           confidence:   78,
           campaignName: kw.campaign?.name,
@@ -1102,8 +1112,9 @@ export async function GET(req: NextRequest) {
             priority:     "MEDIUM",
             company:      co,
             title:        `"${camp.campaign?.name}" thiếu ${missing.length} loại extension`,
-            description:  `Chưa có: ${missing.join(", ")} — Extensions miễn phí nhưng tăng CTR 10-15%`,
-            impact:       `Tăng CTR ~10-15%`,
+            description:  `Chưa có: ${missing.join(", ")} — tiện ích miễn phí, Google khuyên bật để tăng tỷ lệ nhấp (mức tăng tuỳ tài khoản, đo lại sau 14 ngày)`,
+            impact:       `Có thể tăng CTR — đo lại sau khi bật`,
+            impactRough:  true, // số ước lượng thô (tỷ lệ gõ tay), không phải tiền đo được
             impactValue:  spend * 0.12,
             confidence:   85,
             campaignName: camp.campaign?.name,
@@ -1143,6 +1154,7 @@ export async function GET(req: NextRequest) {
           title:        `QS ${qs}/10 cho "${kw.ad_group_criterion?.keyword?.text}" — đang trả thừa tiền`,
           description:  `QS thấp → Google tính CPC cao hơn. ${weakPart}`,
           impact:       `Tăng QS 1 điểm → giảm CPC ~8%. Tiết kiệm ~₫${fmt(spend * 0.15)}/tháng`,
+          impactRough:  true, // số ước lượng thô (tỷ lệ gõ tay), không phải tiền đo được
           impactValue:  spend * 0.15,
           confidence:   88,
           campaignName: kw.campaign?.name,
@@ -1196,6 +1208,7 @@ export async function GET(req: NextRequest) {
           title:        `Mobile CPL cao hơn Desktop ${Math.round(mobCPL / deskCPL * 100 - 100)}% — "${data.name}"`,
           description:  `Mobile: CPL ₫${fmt(mobCPL)} vs Desktop: ₫${fmt(deskCPL)}. B2B thường convert tốt hơn trên Desktop.`,
           impact:       `Giảm bid mobile ${Math.abs(bidAdj)}% → tiết kiệm ₫${fmt(mob.spend * Math.abs(bidAdj) / 100)}/tháng`,
+          impactRough:  true, // số ước lượng thô (tỷ lệ gõ tay), không phải tiền đo được
           impactValue:  mob.spend * Math.abs(bidAdj) / 100,
           confidence:   82,
           campaignName: data.name,
@@ -1327,6 +1340,7 @@ export async function GET(req: NextRequest) {
           title:        `FB Ad Set "${adset.name}" — Frequency ${freq.toFixed(1)}× quá cao`,
           description:  `Audience thấy quảng cáo TB ${freq.toFixed(1)} lần. Frequency > 3.5 = burnout, CPL sẽ tăng.`,
           impact:       `Refresh creative hoặc mở rộng audience`,
+          impactRough:  true, // số ước lượng thô (tỷ lệ gõ tay), không phải tiền đo được
           impactValue:  adset.spend * 0.3,
           confidence:   88,
           campaignName: adset.campaign,
@@ -1350,6 +1364,7 @@ export async function GET(req: NextRequest) {
           title:        `Scale FB Ad Set "${adset.name}" — CPL chỉ ₫${fmt(cpl)}`,
           description:  `Ad set đang perform tốt CPL ₫${fmt(cpl)} < target ₫${fmt(target)}. Tăng budget hoặc duplicate để scale.`,
           impact:       `Tăng ~${Math.round(adset.leads * 0.5)} leads thêm/tháng`,
+          impactRough:  true, // số ước lượng thô (tỷ lệ gõ tay), không phải tiền đo được
           impactValue:  adset.leads * 0.5 * (target - cpl),
           confidence:   73,
           campaignName: adset.campaign,
@@ -1394,6 +1409,7 @@ export async function GET(req: NextRequest) {
           title:        `FB Ad "${ad.name}" CTR ${(ctr * 100).toFixed(2)}% — quá thấp`,
           description:  `CTR dưới 1% = creative không hút. Pause và thử visual/copy mới.`,
           impact:       `Tăng CTR → giảm CPM, tăng lead quality`,
+          impactRough:  true, // số ước lượng thô (tỷ lệ gõ tay), không phải tiền đo được
           impactValue:  ad.spend * 0.25,
           confidence:   85,
           campaignName: ad.campaign,
@@ -1427,6 +1443,7 @@ export async function GET(req: NextRequest) {
             : "CPL cao hơn ngưỡng",
           description:  alert.message,
           impact:       "Xử lý để kiểm soát chi phí",
+          impactRough:  true, // số ước lượng thô (tỷ lệ gõ tay), không phải tiền đo được
           impactValue:  alert.metadata?.cpl || 0,
           confidence:   90,
           campaignName: alert.campaign_name,
