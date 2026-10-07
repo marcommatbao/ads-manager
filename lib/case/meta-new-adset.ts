@@ -133,7 +133,7 @@ export function buildNewAdsetBody(src: Row, opts: { pixelId: string; event: stri
 
 const ddmm = () => new Intl.DateTimeFormat("vi-VN", { timeZone: "Asia/Ho_Chi_Minh", day: "2-digit", month: "2-digit" }).format(new Date())
 
-async function readSource(adsetId: string) {
+export async function readSource(adsetId: string) {
   const src = await metaGet<Row>(adsetId, { fields: "id,name,campaign_id,status,targeting,optimization_goal,billing_event,bid_strategy,bid_amount,attribution_spec,destination_type,daily_budget,lifetime_budget,end_time,promoted_object" })
   const ads = ((await metaGet<Row>(`${adsetId}/ads`, { fields: "id,name,status,creative{id}", limit: "50" })).data ?? []) as Row[]
   const active = ads.filter((a) => a.status === "ACTIVE" && a.creative?.id).slice(0, MAX_ADS_TO_RECREATE)

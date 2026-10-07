@@ -23,9 +23,11 @@ export async function POST(
   if (!token) return NextResponse.json({ success: false, error: friendlyError("META_ACCESS_TOKEN not configured") }, { status: 500 });
 
   try {
-    const { action, campaignId } = await request.json() as {
+    const { action, campaignId, level } = await request.json() as {
       action: "PAUSE" | "ACTIVATE";
       campaignId: string;
+      /** 26d: "adset" → ghi nhật ký ở cấp nhóm quảng cáo (sự kiện adset.pause/resume, gắn chiến dịch cha). */
+      level?: "adset";
     };
 
     const status = action === "PAUSE" ? "PAUSED" : "ACTIVE";
@@ -59,7 +61,8 @@ export async function POST(
       throw new Error(data.error?.message ?? `Meta API error ${res.status}`);
     }
     // Đợt 15b: ghi dấu vết để đo lại 7/14 ngày.
-    recordCampaignMutation({ source: { type: "human_manual", actor: user.email || user.name || user.id }, event: status === "PAUSED" ? "campaign.pause" : "campaign.resume", company: campaignCompany, campaignId: id, campaignName: nameData.name ?? id, rationale: "Bật/tắt chiến dịch từ bảng Campaigns", platform: "meta", change: owner.status ? { field: "status", before: owner.status, after: status } : undefined });
+    const adsetLevel = level === "adset" && owner.kind === "child";
+    recordCampaignMutation({ source: { type: "human_manual", actor: user.email || user.name || user.id }, event: adsetLevel ? (status === "PAUSED" ? "adset.pause" : "adset.resume") : status === "PAUSED" ? "campaign.pause" : "campaign.resume", company: campaignCompany, campaignId: id, campaignName: nameData.name ?? id, rationale: adsetLevel ? "Bật/tắt nhóm quảng cáo" : "Bật/tắt chiến dịch từ bảng Campaigns", platform: "meta", change: owner.status ? { field: "status", before: owner.status, after: status } : undefined, ...(adsetLevel ? { entityType: "adset" as const, parentId: owner.campaignId, parentName: owner.campaignName } : {}) });
 
     return NextResponse.json({
       success: true,

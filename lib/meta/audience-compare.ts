@@ -65,6 +65,8 @@ export interface RankedAdset extends CompareAdset {
   enough: boolean
   rank: number | null
   flags: string[]
+  /** 26d: kém rõ rệt so với đầu XẤU khoảng tin cậy của nhóm dẫn đầu (Poisson, p < CLEARLY_WORSE_P) — chỉ những dòng này có nút Tạm dừng. */
+  clearlyWorse: boolean
 }
 
 export type CompareVerdict = "winner" | "leaning" | "undecided" | "not_enough"
@@ -121,6 +123,7 @@ export function rankAdsets(rows: CompareAdset[]): RankedAdset[] {
       enough: r.results >= MIN_RESULTS_TO_RANK && !(r.learning === "LEARNING"),
       rank: null,
       flags: [],
+      clearlyWorse: false,
     }
   })
 }
@@ -149,7 +152,13 @@ export function compareGroup(goalKind: GoalKind, input: CompareAdset[]): Compare
     }
   }
   const zeroBurn = rows.filter((r) => r.results === 0 && best?.costPerResult && r.spend >= 2 * best.costPerResult)
-  for (const r of zeroBurn) r.flags.push(`Chi ${vnd(r.spend)} (≥ 2 lần chi phí/${word} của nhóm dẫn đầu) mà 0 ${word}`)
+  const refZ = best ? best.cprHigh ?? best.costPerResult : null
+  for (const r of zeroBurn) {
+    // 26d: 0 kết quả mà chi đủ lớn để, kể cả nhóm dẫn đầu chỉ tốt ở mức thấp nhất, xác suất 0 lượt < 2,5% → kém rõ rệt.
+    const worse = !!refZ && poissonCdf(0, r.spend / refZ) < CLEARLY_WORSE_P
+    if (worse) r.clearlyWorse = true
+    r.flags.push(`Chi ${vnd(r.spend)} (≥ 2 lần chi phí/${word} của nhóm dẫn đầu) mà 0 ${word}${worse ? " — kém rõ rệt, không phải may rủi" : ""}`)
+  }
   // Ít số vẫn kết luận được KÉM: chi đủ để nhóm dẫn đầu ra ≥ 3 kết quả mà thực tế ra quá ít (Poisson) — dùng 06/10: chi ₫1,72tr,
   // theo mức nhóm dẫn đầu lẽ ra ~21 lượt mua, thực tế 2. Không gắn khi đã có cờ "0 kết quả" (trùng ý).
   // Nhóm dẫn đầu cũng chỉ có ít kết quả → so với ĐẦU XẤU của khoảng tin cậy của nó (chi phí/kết quả cao nhất còn hợp lý),
@@ -160,6 +169,7 @@ export function compareGroup(goalKind: GoalKind, input: CompareAdset[]): Compare
       if (r === best || r.results === 0) continue
       const expected = r.spend / ref
       if (expected >= 3 && r.results < expected && poissonCdf(r.results, expected) < CLEARLY_WORSE_P) {
+        r.clearlyWorse = true
         r.flags.push(`Kém rõ rệt: chi ${vnd(r.spend)} — kể cả khi nhóm dẫn đầu chỉ tốt ở mức thấp nhất (${vnd(ref)}/${word}) thì nhóm này lẽ ra ~${Math.round(expected)} ${word}, thực tế ${r.results} — chênh quá lớn để là may rủi`)
       }
     }

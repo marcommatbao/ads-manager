@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
     if (plan.field === "status") {
       const pause = plan.restore === "PAUSED"
       res = platform === "meta"
-        ? await metaStatus(req("POST", { action: pause ? "PAUSE" : "ACTIVATE" }), ctx)
+        ? await metaStatus(req("POST", { action: pause ? "PAUSE" : "ACTIVATE", ...(entry.target.entityType === "adset" ? { level: "adset" } : {}) }), ctx)
         : await googleStatus(req("POST", { action: pause ? "PAUSE" : "ACTIVE", company: plan.company }), ctx)
     } else {
       res = platform === "meta"

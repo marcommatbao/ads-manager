@@ -94,7 +94,7 @@ export const PRODUCT_PREFILLS: Record<string, {
   competitors: string;
 }> = {
   "ten-mien": {
-    usp: "Tên miền .vn/.com chính ngạch, đăng ký trong 5 phút, hỗ trợ 24/7",
+    usp: "Tên miền .vn/.com chính ngạch, đăng ký trực tuyến nhanh gọn, có đội hỗ trợ kỹ thuật", // 07/10: bỏ "5 phút", "24/7" — chưa có nguồn
     socialProof: "Đối tác chính thức VNNIC & ICANN", // 07/10: gỡ con số chưa có nguồn
     customerDesc: "Chủ doanh nghiệp/startup 28-45 tuổi vừa thành lập công ty, muốn bảo vệ thương hiệu online",
     painPoints: "Sợ bị mất tên thương hiệu, không biết đăng ký ở đâu uy tín, lo bị lừa đảo domain",
@@ -102,7 +102,7 @@ export const PRODUCT_PREFILLS: Record<string, {
     competitors: "Vietnix, VNPT, PA Vietnam, Mắt Bão",
   },
   "hosting": {
-    usp: "Hosting SSD NVMe tốc độ cao, uptime 99.9%, cPanel miễn phí, hỗ trợ 24/7",
+    usp: "Hosting SSD NVMe tốc độ cao, cPanel miễn phí, có đội hỗ trợ kỹ thuật", // 07/10: bỏ "uptime 99.9%", "24/7" — chỉ ghi lại khi có cam kết SLA bằng văn bản
     socialProof: "", // 07/10: gỡ con số chưa có nguồn
     customerDesc: "Web developer hoặc chủ website SME cần hosting ổn định, tốc độ cao cho kinh doanh online",
     painPoints: "Hosting hiện tại chậm, hay down, hỗ trợ kém, giá ẩn phí",
@@ -110,7 +110,7 @@ export const PRODUCT_PREFILLS: Record<string, {
     competitors: "Vietnix, VNPT Hosting, Mắt Bão Hosting",
   },
   "vibe-hosting": {
-    usp: "Đưa app/web dựng bằng AI lên mạng trong 3 phút — không cần biết code, AI báo lỗi bằng tiếng Việt, quay lại bản cũ 1 chạm",
+    usp: "Đưa app/web dựng bằng AI lên mạng nhanh — không cần biết code, AI báo lỗi bằng tiếng Việt, quay lại bản cũ 1 chạm", // 07/10: bỏ "3 phút" — chưa đo
     socialProof: "Nhận thẳng code từ Claude, ChatGPT, v0.dev, Bolt, Codex, Antigravity, Lovable, Cursor",
     customerDesc: "Freelancer/designer 22-35 vừa dựng xong app bằng AI nhưng không biết đưa lên mạng; và chủ SME tự làm công cụ nội bộ mà không có người IT",
     painPoints: "AI viết xong web rồi mà không biết deploy thế nào; hosting cPanel không chạy được app Node/Next; log lỗi toàn tiếng Anh không đọc nổi",
@@ -118,7 +118,7 @@ export const PRODUCT_PREFILLS: Record<string, {
     competitors: "Vercel, Railway, Render, hosting cPanel truyền thống",
   },
   "microsoft-365": {
-    usp: "Microsoft 365 bản quyền chính hãng, triển khai trong 1 ngày, giá tốt nhất thị trường",
+    usp: "Microsoft 365 bản quyền chính hãng, hỗ trợ triển khai cho doanh nghiệp", // 07/10: bỏ "trong 1 ngày", "giá tốt nhất thị trường" (Luật Quảng cáo: chữ "nhất" phải có tài liệu chứng minh)
     socialProof: "", // 07/10: gỡ con số chưa có nguồn
     customerDesc: "Doanh nghiệp vừa và nhỏ 20-100 nhân viên cần công cụ làm việc cộng tác và email doanh nghiệp",
     painPoints: "Đang dùng phần mềm crack, lo bị kiểm tra bản quyền, email miễn phí không chuyên nghiệp",
@@ -126,7 +126,7 @@ export const PRODUCT_PREFILLS: Record<string, {
     competitors: "Google Workspace, Zoho Mail, FPT Office",
   },
   "google-workspace": {
-    usp: "Google Workspace bản quyền, email @domain riêng, Drive không giới hạn, hỗ trợ tiếng Việt",
+    usp: "Google Workspace bản quyền, email @domain riêng, lưu trữ Drive theo gói, hỗ trợ tiếng Việt", // 07/10: bỏ "Drive không giới hạn" — dung lượng tuỳ gói
     socialProof: "", // 07/10: gỡ con số chưa có nguồn
     customerDesc: "Startup, SME 5-50 người cần email công ty và công cụ cộng tác online linh hoạt",
     painPoints: "Email Gmail cá nhân không chuyên nghiệp, khó quản lý tài liệu nhóm, bảo mật kém",
@@ -142,7 +142,7 @@ export const PRODUCT_PREFILLS: Record<string, {
     competitors: "Google Workspace, Microsoft 365, Zoho Mail",
   },
   "ssl": {
-    usp: "SSL Certificate từ các CA uy tín, cài đặt trong 10 phút, đảm bảo HTTPS",
+    usp: "SSL Certificate từ các CA uy tín, hỗ trợ cài đặt, đảm bảo HTTPS", // 07/10: bỏ "10 phút" — chưa đo
     socialProof: "", // 07/10: gỡ con số chưa có nguồn
     customerDesc: "Chủ website thương mại điện tử, landing page cần HTTPS để tăng uy tín và SEO",
     painPoints: "Website chưa có HTTPS, khách hàng lo ngại khi nhập thông tin, Google rank thấp",
@@ -150,11 +150,11 @@ export const PRODUCT_PREFILLS: Record<string, {
     competitors: "Vietnix SSL, Comodo, Sectigo",
   },
   "sale-ai": {
-    usp: "AI Sales tự động trả lời, chốt đơn 24/7, tích hợp Facebook & Zalo trong vài giờ",
+    usp: "AI Sales tự động trả lời, hỗ trợ chốt đơn cả ngoài giờ, tích hợp Facebook & Zalo", // 07/10: bỏ "24/7", "trong vài giờ" — chưa đo
     socialProof: "", // 07/10: gỡ con số chưa có nguồn
     customerDesc: "Chủ shop online, SME bán hàng qua Facebook/Zalo đang quá tải tin nhắn khách hàng",
     painPoints: "Bỏ lỡ khách hàng ngoài giờ, nhân viên sale bị quá tải, phản hồi chậm làm mất đơn",
-    motivation: "Tự động hóa chăm sóc khách hàng 24/7, tăng doanh thu mà không cần tăng nhân sự",
+    motivation: "Tự động hóa chăm sóc khách hàng cả ngoài giờ, tăng doanh thu mà không cần tăng nhân sự",
     competitors: "Pancake, Haravan Bot, Chatbot thủ công",
   },
   "hoa-don-dien-tu": {

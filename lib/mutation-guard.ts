@@ -74,6 +74,10 @@ export function recordCampaignMutation(params: {
   /** Đợt 23 (3c): giá trị trước/sau dạng máy đọc được — có thì trang "Đã làm & kết quả" cho bấm Hoàn tác.
    *  status: chuỗi trạng thái của nền tảng (Meta ACTIVE/PAUSED, Google ENABLED/PAUSED); daily_budget: VND/ngày. */
   change?: { field: "status" | "daily_budget"; before: string | number; after: string | number };
+  /** 26d: ghi ở cấp NHÓM quảng cáo — campaignId lúc đó là id nhóm, parentId là chiến dịch chứa nó (để đo lại theo chiến dịch). */
+  entityType?: "campaign" | "adset";
+  parentId?: string;
+  parentName?: string;
 }): void {
   recordDecision({
     source: params.source,
@@ -84,9 +88,10 @@ export function recordCampaignMutation(params: {
     target: {
       company: params.company,
       platform: params.platform ?? "google_ads",
-      entityType: "campaign",
+      entityType: params.entityType ?? "campaign",
       entityId: params.campaignId,
       entityName: params.campaignName,
+      ...(params.parentId ? { parentId: params.parentId, parentName: params.parentName } : {}),
     },
     rationale: params.rationale,
   }).catch(() => { /* non-blocking, same pattern as lib/nba/auto-apply.ts */ });

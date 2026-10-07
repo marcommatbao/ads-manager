@@ -20,7 +20,32 @@ export interface CompareResult {
   fetchedAt: string
 }
 
+/** Một dòng so sánh từ nhóm quảng cáo + số liệu insights — dùng chung cho So sánh tệp và A/B test tệp (cùng cách chấm). */
+export function adsetRow(a: Row, r: Row, camp: { id: string; name: string }, kind: GoalKind, creativeIds: string[]): CompareAdset {
+  const types = kind === "leads" ? META_LEAD_TYPES : PURCHASE_TYPES
+  const ev = optEventOf(a.promoted_object, String(a.optimization_goal ?? ""))
+  return {
+    id: String(a.id), name: String(a.name ?? ""), campaignId: camp.id, campaignName: camp.name, goalKind: kind,
+    optimizationGoal: String(a.optimization_goal ?? ""),
+    status: String(a.status ?? ""), optEventKey: `${a.optimization_goal ?? ""}|${ev.type}|${ev.customName ?? ""}`, optEventLabel: ev.label,
+    learning: a.learning_stage_info?.status ? String(a.learning_stage_info.status) : null,
+    targeting: (a.targeting ?? {}) as Record<string, unknown>, creativeIds,
+    spend: Number(r.spend) || 0, impressions: Number(r.impressions) || 0, reach: Number(r.reach) || 0,
+    frequency: r.frequency != null ? Number(r.frequency) : null, linkClicks: Number(r.inline_link_clicks) || 0,
+    results: pickActionWindow(r.actions, types, "7d_click") ?? 0,
+    resultsAll: pickAction(r.actions, types), resultsView: pickActionWindow(r.actions, types, "1d_view") ?? 0,
+    value: kind === "leads" ? 0 : pickActionWindow(r.action_values, PURCHASE_TYPES, "7d_click") ?? 0,
+  }
+}
+/** Trường insights cấp nhóm + cửa sổ ghi nhận (bấm 7 ngày / chỉ xem 1 ngày) — dùng chung. */
+export const ADSET_INSIGHT_FIELDS = "adset_id,campaign_id,spend,impressions,reach,frequency,inline_link_clicks,actions,action_values"
+export const ATTRIBUTION_WINDOWS = JSON.stringify(["7d_click", "1d_view"])
+
 const memo = new Map<string, { at: number; v: CompareResult }>()
+/** 26d: sau khi ghi (tạm dừng nhóm) → bỏ đệm của công ty để lần so sau đọc trạng thái mới. */
+export function forgetCompare(company: string): void {
+  for (const k of [...memo.keys()]) if (k.startsWith(`${company}|`)) memo.delete(k)
+}
 
 export async function compareAudiences(company: string, campaignIds: string[], range: { from: string; to: string }, opts: { force?: boolean } = {}): Promise<CompareResult> {
   const ids = [...new Set(campaignIds)].filter((x) => /^\d{5,25}$/.test(x))
@@ -50,7 +75,6 @@ export async function compareAudiences(company: string, campaignIds: string[], r
   const rows: CompareAdset[] = []
   for (const c of camps) {
     const kind = metaGoalKind(String(c.objective ?? ""))
-    const types = kind === "leads" ? META_LEAD_TYPES : PURCHASE_TYPES
     const creatives = new Map<string, Set<string>>()
     for (const ad of (c.ads?.data ?? []) as Row[]) {
       if (!ad.creative?.id) continue
@@ -58,20 +82,7 @@ export async function compareAudiences(company: string, campaignIds: string[], r
       s.add(String(ad.creative.id)); creatives.set(String(ad.adset_id), s)
     }
     for (const a of (c.adsets?.data ?? []) as Row[]) {
-      const r = insBy.get(String(a.id)) ?? {}
-      const ev = optEventOf(a.promoted_object, String(a.optimization_goal ?? ""))
-      rows.push({
-        id: String(a.id), name: String(a.name ?? ""), campaignId: String(c.id), campaignName: String(c.name ?? ""), goalKind: kind,
-        optimizationGoal: String(a.optimization_goal ?? ""),
-        status: String(a.status ?? ""), optEventKey: `${a.optimization_goal ?? ""}|${ev.type}|${ev.customName ?? ""}`, optEventLabel: ev.label,
-        learning: a.learning_stage_info?.status ? String(a.learning_stage_info.status) : null,
-        targeting: (a.targeting ?? {}) as Record<string, unknown>, creativeIds: [...(creatives.get(String(a.id)) ?? [])],
-        spend: Number(r.spend) || 0, impressions: Number(r.impressions) || 0, reach: Number(r.reach) || 0,
-        frequency: r.frequency != null ? Number(r.frequency) : null, linkClicks: Number(r.inline_link_clicks) || 0,
-        results: pickActionWindow(r.actions, types, "7d_click") ?? 0,
-        resultsAll: pickAction(r.actions, types), resultsView: pickActionWindow(r.actions, types, "1d_view") ?? 0,
-        value: kind === "leads" ? 0 : pickActionWindow(r.action_values, PURCHASE_TYPES, "7d_click") ?? 0,
-      })
+      rows.push(adsetRow(a, insBy.get(String(a.id)) ?? {}, { id: String(c.id), name: String(c.name ?? "") }, kind, [...(creatives.get(String(a.id)) ?? [])]))
     }
   }
   const kinds = [...new Set(rows.map((r) => r.goalKind))]

@@ -4,10 +4,12 @@
 // So sánh tệp đối tượng (Meta) — Đợt 26
 // ------------------------------------------------------------
 // Chọn 2–3 chiến dịch Meta, so các NHÓM quảng cáo bên trong theo chi phí mỗi kết quả, chọn nhóm thắng và lưu làm
-// "tệp thắng" để dùng lại ở Creative. Chỉ ĐỌC từ Meta — không đổi gì trên tài khoản.
+// "tệp thắng" để dùng lại ở Creative. Mặc định chỉ ĐỌC từ Meta; người có quyền chỉnh sửa có thể tạm dừng một nhóm kém rõ rệt (26d)
+// và chạy A/B test tệp (27) — mọi thao tác ghi đều đi qua máy chủ, kiểm lại số liệu + trạng thái thật trên Meta trước khi ghi.
 // Lib phía máy chủ (fs…) chỉ được `import type` ở đây.
 // ============================================================
 
+import Link from "next/link";
 import { Fragment, useMemo, useState } from "react";
 import useSWR from "swr";
 import { AlertTriangle, Loader2, RefreshCw, Scale, Trash2 } from "lucide-react";
@@ -30,6 +32,7 @@ import type { CompareGroup, CompareVerdict, RankedAdset } from "@/lib/meta/audie
 import type { CompareResult } from "@/lib/meta/audience-compare-fetch";
 import type { WinningAudience } from "@/lib/meta/winning-audiences";
 import type { AiAssessment } from "@/lib/meta/audience-compare-ai";
+import { AbCreateForm, AbSection } from "./AbTests";
 
 const MAX_PICK = 3; // = MAX_COMPARE_CAMPAIGNS (không import giá trị từ lib phía máy chủ)
 
@@ -109,7 +112,7 @@ export default function SoSanhTepPage() {
           <Scale className="h-5 w-5 text-blue-600" aria-hidden="true" /> So sánh tệp đối tượng (Meta)
         </h1>
         <p className="mt-1 max-w-3xl text-sm text-slate-500">
-          So các nhóm quảng cáo trong 2–3 chiến dịch theo chi phí mỗi kết quả (mua hoặc lead Meta ghi nhận, tính từ lượt bấm quảng cáo trong 7 ngày). Trang này chỉ đọc số, không đổi gì trên tài khoản.
+          So các nhóm quảng cáo trong 2–3 chiến dịch theo chi phí mỗi kết quả (mua hoặc lead Meta ghi nhận, tính từ lượt bấm quảng cáo trong 7 ngày). Trang này chủ yếu đọc số; chỉ người có quyền chỉnh sửa mới tạm dừng được nhóm kém rõ rệt hoặc tạo A/B test tệp, và mọi thay đổi đều được kiểm lại với Meta trước khi ghi.
         </p>
       </div>
 
@@ -214,6 +217,7 @@ export default function SoSanhTepPage() {
           canEdit={canEdit}
           campaignIds={picked}
           onSaved={() => saved.mutate()}
+          saved={saved.data?.rows ?? []}
         />
       )}
       {result && <AiAssess key={`${result.fetchedAt}|${picked.join(",")}`} company={effectiveCompany} ids={picked} range={result.range} />}
@@ -227,12 +231,14 @@ export default function SoSanhTepPage() {
           onChanged={() => saved.mutate()}
         />
       )}
+
+      {allowedCompanies.length > 0 && effectiveCompany && <AbSection company={effectiveCompany} canEdit={canEdit} />}
     </div>
   );
 }
 
-function ResultView({ result, company, canEdit, campaignIds, onSaved }: {
-  result: CompareResponse; company: Company; canEdit: boolean; campaignIds: string[]; onSaved: () => void;
+function ResultView({ result, company, canEdit, campaignIds, onSaved, saved }: {
+  result: CompareResponse; company: Company; canEdit: boolean; campaignIds: string[]; onSaved: () => void; saved: WinningAudience[];
 }) {
   return (
     <section className="space-y-4" aria-label="Kết quả so sánh">
@@ -248,14 +254,14 @@ function ResultView({ result, company, canEdit, campaignIds, onSaved }: {
         <EmptyState icon={Scale} title="Chưa có nhóm quảng cáo nào để so" description="Các chiến dịch đã chọn không có nhóm quảng cáo nào có chi tiêu trong khoảng ngày này." />
       )}
       {result.groups.map((g) => (
-        <GroupView key={g.goalKind} group={g} range={result.range} company={company} canEdit={canEdit} campaignIds={campaignIds} onSaved={onSaved} />
+        <GroupView key={g.goalKind} group={g} range={result.range} company={company} canEdit={canEdit} campaignIds={campaignIds} onSaved={onSaved} saved={saved} />
       ))}
     </section>
   );
 }
 
-function GroupView({ group, range, company, canEdit, campaignIds, onSaved }: {
-  group: CompareGroup; range: { from: string; to: string }; company: Company; canEdit: boolean; campaignIds: string[]; onSaved: () => void;
+function GroupView({ group, range, company, canEdit, campaignIds, onSaved, saved }: {
+  group: CompareGroup; range: { from: string; to: string }; company: Company; canEdit: boolean; campaignIds: string[]; onSaved: () => void; saved: WinningAudience[];
 }) {
   const ui = VERDICT_UI[group.verdict];
   const word = group.goalKind === "leads" ? "lead" : "lượt mua";
@@ -265,6 +271,32 @@ function GroupView({ group, range, company, canEdit, campaignIds, onSaved }: {
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  // 26d — tạm dừng nhóm kém rõ rệt; 27 — A/B test
+  const [pausedIds, setPausedIds] = useState<Set<string>>(() => new Set());
+  const [pauseFor, setPauseFor] = useState<string | null>(null);
+  const [pausing, setPausing] = useState(false);
+  const [pauseMsg, setPauseMsg] = useState<{ tone: "ok" | "warn" | "err"; text: string } | null>(null);
+  const [abFor, setAbFor] = useState<string | null>(null);
+  const [abMsg, setAbMsg] = useState<string | null>(null);
+
+  async function pause(r: RankedAdset) {
+    setPausing(true);
+    setPauseMsg(null);
+    try {
+      const res = await postJson("/api/meta/audience-compare/pause", { company, ids: campaignIds, from: range.from, to: range.to, adsetId: r.id });
+      setPausedIds((s) => new Set(s).add(r.id));
+      setPauseFor(null);
+      setPauseMsg(
+        res.ok === false
+          ? { tone: "warn", text: `Đã gửi lệnh tạm dừng “${res.adsetName ?? r.name}” nhưng Meta đang báo trạng thái ${res.after}. Kiểm lại trên Meta.` }
+          : { tone: "ok", text: `Đã tạm dừng “${res.adsetName ?? r.name}” (trạng thái trên Meta: ${res.after}). Hoàn tác ở Đã làm & kết quả.` },
+      );
+    } catch (e) {
+      setPauseMsg({ tone: "err", text: e instanceof ApiError ? e.message : "Không tạm dừng được — thử lại sau ít phút." });
+    } finally {
+      setPausing(false);
+    }
+  }
 
   function openForm(r: RankedAdset) {
     setFormFor(r.id);
@@ -300,6 +332,21 @@ function GroupView({ group, range, company, canEdit, campaignIds, onSaved }: {
           {msg.text}
         </div>
       )}
+      {pauseMsg && (
+        <div
+          role={pauseMsg.tone === "err" ? "alert" : "status"}
+          className={cn(
+            "mx-3 mt-3 rounded-lg border p-2 text-sm",
+            pauseMsg.tone === "ok" && "border-emerald-200 bg-emerald-50 text-emerald-700",
+            pauseMsg.tone === "warn" && "border-amber-200 bg-amber-50 text-amber-800",
+            pauseMsg.tone === "err" && "border-red-200 bg-red-50 text-red-700",
+          )}
+        >
+          {pauseMsg.text}
+          {pauseMsg.tone !== "err" && <> <Link href="/xu-ly/da-lam" className="font-medium underline">Đã làm &amp; kết quả</Link></>}
+        </div>
+      )}
+      {abMsg && <div role="status" className="mx-3 mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-2 text-sm text-emerald-700">{abMsg}</div>}
       <div className="overflow-x-auto">
         <table className="w-full min-w-[860px] text-left text-sm">
           <thead className="text-xs text-slate-500">
@@ -358,8 +405,41 @@ function GroupView({ group, range, company, canEdit, campaignIds, onSaved }: {
                           {r.flags.map((f, i) => <li key={i}>{f}</li>)}
                         </ul>
                       )}
-                      {r.results > 0 && canEdit && formFor !== r.id && (
-                        <Button className="mt-2 h-9" variant="outline" size="sm" onClick={() => openForm(r)}>Lưu làm tệp thắng</Button>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {r.results > 0 && canEdit && formFor !== r.id && (
+                          <Button className="mt-2 h-9" variant="outline" size="sm" onClick={() => openForm(r)}>Lưu làm tệp thắng</Button>
+                        )}
+                        {canEdit && r.status === "ACTIVE" && abFor !== r.id && !pausedIds.has(r.id) && (
+                          <Button className="mt-2 h-9" variant="outline" size="sm" onClick={() => { setAbFor(r.id); setAbMsg(null); }}>🧪 A/B test tệp khác</Button>
+                        )}
+                        {pausedIds.has(r.id) && <span className="mt-2"><Pill tone="grey">Đã tạm dừng</Pill></span>}
+                        {canEdit && r.clearlyWorse && r.status === "ACTIVE" && !pausedIds.has(r.id) && pauseFor !== r.id && (
+                          <Button className="mt-2 h-9 text-red-700" variant="outline" size="sm" disabled={pausing} onClick={() => { setPauseFor(r.id); setPauseMsg(null); }}>⏸ Tạm dừng nhóm này</Button>
+                        )}
+                      </div>
+                      {pauseFor === r.id && (
+                        <div role="alertdialog" aria-label="Xác nhận tạm dừng" className="mt-2 max-w-xl space-y-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-slate-700">
+                          <p>
+                            Nhóm “{r.name}” <b>kém rõ rệt</b> so với nhóm dẫn đầu theo các số ở trên. Tạm dừng chỉ dừng chi tiêu của riêng nhóm này.
+                            Tool sẽ đọc lại số liệu và trạng thái thật trên Meta trước khi ghi. Có thể hoàn tác ở{" "}
+                            <Link href="/xu-ly/da-lam" className="font-medium underline">Đã làm &amp; kết quả</Link>.
+                          </p>
+                          <div className="flex gap-2">
+                            <Button className="h-9" size="sm" onClick={() => pause(r)} disabled={pausing}>
+                              {pausing && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} Xác nhận tạm dừng
+                            </Button>
+                            <Button className="h-9" variant="outline" size="sm" onClick={() => setPauseFor(null)} disabled={pausing}>Huỷ</Button>
+                          </div>
+                        </div>
+                      )}
+                      {abFor === r.id && (
+                        <AbCreateForm
+                          company={company}
+                          source={r}
+                          saved={saved}
+                          onClose={() => setAbFor(null)}
+                          onCreated={(text) => { setAbFor(null); setAbMsg(text); }}
+                        />
                       )}
                       {formFor === r.id && (
                         <div className="mt-2 max-w-xl space-y-2 rounded-lg border border-slate-200 bg-white p-3">

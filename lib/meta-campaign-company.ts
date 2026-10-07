@@ -85,7 +85,7 @@ export async function verifyMetaCampaignAccess(
 // → admin_mbc tạm dừng / đổi ngân sách được nhóm của MBI. Phải tìm CHIẾN DỊCH CHA rồi mới suy ra công ty.
 // ─────────────────────────────────────────────
 export type MetaNodeKind = "campaign" | "child"
-export interface MetaNodeOwner { kind: MetaNodeKind; name: string; campaignName: string; dailyBudget?: string; status?: string }
+export interface MetaNodeOwner { kind: MetaNodeKind; name: string; campaignName: string; campaignId?: string; dailyBudget?: string; status?: string }
 type FetchLike = (url: string) => Promise<{ ok: boolean; status: number; json: () => Promise<unknown> }>
 
 /**
@@ -97,10 +97,10 @@ export async function resolveMetaNodeOwner(id: string, token: string, opts: { wi
   const get = opts.fetchImpl ?? ((u: string) => fetch(u))
   const budget = (opts.withBudget ? ",daily_budget" : "") + (opts.withStatus ? ",status" : "")
   const url = (fields: string) => `${META_GRAPH_BASE}/${id}?fields=${fields}&access_token=${encodeURIComponent(token)}`
-  type R = { name?: string; daily_budget?: string; status?: string; objective?: string; campaign?: { name?: string }; error?: { message?: string } }
-  const r1 = await get(url(`name${budget},campaign{name}`))
+  type R = { name?: string; daily_budget?: string; status?: string; objective?: string; campaign?: { id?: string; name?: string }; error?: { message?: string } }
+  const r1 = await get(url(`name${budget},campaign{id,name}`))
   const d1 = (await r1.json()) as R
-  if (r1.ok && !d1.error && d1.campaign?.name) return { kind: "child", name: String(d1.name ?? ""), campaignName: d1.campaign.name, dailyBudget: d1.daily_budget, status: d1.status }
+  if (r1.ok && !d1.error && d1.campaign?.name) return { kind: "child", name: String(d1.name ?? ""), campaignName: d1.campaign.name, campaignId: d1.campaign.id ? String(d1.campaign.id) : undefined, dailyBudget: d1.daily_budget, status: d1.status }
   const r2 = await get(url(`name${budget},objective`))
   const d2 = (await r2.json()) as R
   if (r2.ok && !d2.error && d2.objective) return { kind: "campaign", name: String(d2.name ?? ""), campaignName: String(d2.name ?? ""), dailyBudget: d2.daily_budget, status: d2.status }
