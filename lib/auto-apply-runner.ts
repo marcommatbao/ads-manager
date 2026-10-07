@@ -27,6 +27,9 @@ export interface AutoApplyCandidate {
   canAutoApply: boolean;
   /** VND value of the improvement, as computed by /api/improvements. */
   impactValue?: number;
+  /** true = impactValue là ước lượng thô (tỷ lệ gõ tay) — không cộng vào tổng tiền. */
+  impactRough?: boolean;
+  campaignName?: string;
   applyPayload?: ApplyPayload;
 }
 
@@ -36,6 +39,8 @@ export interface AppliedItem {
   title: string;
   company: Company;
   impactValue: number;
+  impactRough?: boolean;
+  campaignName?: string;
 }
 
 export interface FailedItem extends Omit<AppliedItem, "impactValue"> {
@@ -73,9 +78,17 @@ export async function fetchAutoApplyCandidates(
   });
 }
 
-/** Sum of the real impactValue on each candidate — never an estimate we invent. */
-export function sumImpact(candidates: AutoApplyCandidate[]): number {
-  return candidates.reduce((s, c) => s + (typeof c.impactValue === "number" ? c.impactValue : 0), 0);
+/** Tổng chi tiêu ĐO ĐƯỢC của các mục (soát 07/10): bỏ ước lượng thô (impactRough), mỗi chiến dịch tính 1 lần (lấy mục lớn nhất). */
+export function sumImpact(candidates: Pick<AutoApplyCandidate, "id" | "company" | "impactValue" | "impactRough" | "campaignName">[]): number {
+  const by = new Map<string, number>();
+  for (const c of candidates) {
+    if (c.impactRough || typeof c.impactValue !== "number" || !(c.impactValue > 0)) continue;
+    const k = `${c.company}:${c.campaignName ?? c.id}`;
+    by.set(k, Math.max(by.get(k) ?? 0, c.impactValue));
+  }
+  let total = 0;
+  for (const v of by.values()) total += v;
+  return total;
 }
 
 /**
@@ -122,7 +135,7 @@ export async function applyCandidates(
       const result = await applyOne(company, item.applyPayload!);
       if (result.success) {
         await dismissImprovement(item.id, company);
-        applied.push({ ...base, impactValue: item.impactValue ?? 0 });
+        applied.push({ ...base, impactValue: item.impactValue ?? 0, impactRough: item.impactRough, campaignName: item.campaignName });
       } else {
         failed.push({ ...base, error: result.error ?? "unknown" });
       }
@@ -131,5 +144,5 @@ export async function applyCandidates(
     }
   }
 
-  return { applied, failed, savings: applied.reduce((s, a) => s + a.impactValue, 0) };
+  return { applied, failed, savings: sumImpact(applied) };
 }

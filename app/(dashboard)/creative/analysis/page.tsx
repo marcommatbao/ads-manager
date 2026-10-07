@@ -350,7 +350,7 @@ function ScoringTab() {
             <Textarea
               value={primaryText}
               onChange={(e) => setPrimaryText(e.target.value)}
-              placeholder="200,000+ doanh nghiệp Việt đã tin dùng. Đăng ký ngay hôm nay..."
+              placeholder="Nội dung quảng cáo… (chỉ dùng số liệu thật có nguồn)"
               className="w-full min-h-[80px]"
             />
           </div>
@@ -385,7 +385,7 @@ function ScoringTab() {
             <Input
               value={socialProof}
               onChange={(e) => setSocialProof(e.target.value)}
-              placeholder="200,000+ doanh nghiệp tin dùng"
+              placeholder="Tiêu đề quảng cáo"
               className="w-full"
             />
           </div>

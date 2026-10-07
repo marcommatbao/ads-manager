@@ -14,7 +14,7 @@ import { proposeCreateAdset } from "./meta-new-adset"
 import { metaGoalKind, metaResults } from "./goal-kind"
 import type { CaseAction, ManualTask } from "./store"
 import type { Diagnosis, MetaEvidence } from "./types"
-import { ROAS_MIN_SPEND_TO_JUDGE, type CaseTarget, type Verdict } from "./verdict"
+import { ROAS_MIN_SPEND_TO_JUDGE, ZERO_RESULT_SPEND_MULT, type CaseTarget, type Verdict } from "./verdict"
 
 let seq = 0
 const aid = (p: string) => `${p}_${Date.now().toString(36)}_${(seq++).toString(36)}`
@@ -54,7 +54,7 @@ export function proposeMetaActions(input: {
   const resultWord = leads ? "lead" : "lượt mua"
 
   // Dừng nhóm quảng cáo: đã chi đủ để kết luận mà 0 đơn, và còn nhóm khác chạy tiếp.
-  const judgeSpend = goal.basis === "roas" ? ROAS_MIN_SPEND_TO_JUDGE : goal.ceiling
+  const judgeSpend = goal.basis === "roas" ? ROAS_MIN_SPEND_TO_JUDGE : goal.ceiling * ZERO_RESULT_SPEND_MULT
   const active = ev.adsets.filter((a) => a.status === "ACTIVE" && a.cost > 0)
   const pausedAdsets = new Set<string>()
   const dead = active.filter((a) => metaResults(a, kind) === 0 && a.cost >= judgeSpend)

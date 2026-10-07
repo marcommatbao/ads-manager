@@ -183,7 +183,7 @@ const GROUPS: FeatureGroup[] = [
         warnings: [
           "Mở phiên cần khoảng ngày ít nhất 7 ngày (khoảng này được lưu làm mốc “trước” để so với đo lại).",
           "Bước ghi thật (bước 6) phải gõ đúng “XAC NHAN”.",
-          "Chiến dịch 0 đơn chỉ bị đánh đỏ khi đã chi từ 1 lần trần trở lên; ít hơn thì ghi “Chưa đủ dữ liệu”.",
+          "Chiến dịch 0 đơn chỉ bị đánh đỏ khi đã chi từ 2 lần trần trở lên; từ 1 đến dưới 2 lần trần là vàng “đáng lo, chưa đủ kết luận”; ít hơn thì ghi “Chưa đủ dữ liệu”.",
         ],
       },
       {

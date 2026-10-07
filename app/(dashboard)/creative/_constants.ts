@@ -70,11 +70,11 @@ export const PLATFORMS: { value: string; label: string }[] = [
 
 export const TONES = [
   { id: "professional",  label: "Chuyên nghiệp",   icon: "💼", description: "B2B, logic, số liệu",         sampleHook: "Giải pháp tên miền toàn diện cho doanh nghiệp Việt",    bestFor: ["ten-mien", "microsoft-365", "chu-ky-so"] },
-  { id: "urgent",        label: "Khẩn cấp",         icon: "🔥", description: "Deadline, flash sale",        sampleHook: "Chỉ còn 48 giờ — Tên miền .COM giảm 70%",              bestFor: ["ten-mien", "hosting"] },
+  { id: "urgent",        label: "Khẩn cấp",         icon: "🔥", description: "Deadline, flash sale",        sampleHook: "Chỉ còn 48 giờ — Tên miền .COM giảm [x]%",              bestFor: ["ten-mien", "hosting"] },
   { id: "friendly",      label: "Thân thiện",        icon: "😊", description: "Gần gũi, dùng 'bạn', emoji", sampleHook: "Xin chào! Tên miền đẹp cho dự án của bạn đây 👋",       bestFor: ["ten-mien", "sale-ai"] },
-  { id: "authority",     label: "Uy tín & Số liệu",  icon: "🏆", description: "Social proof, thành tựu",    sampleHook: "200,000+ doanh nghiệp Việt tin dùng Mat Bao",           bestFor: ["microsoft-365", "sale-ai", "chu-ky-so"] },
+  { id: "authority",     label: "Uy tín & Số liệu",  icon: "🏆", description: "Social proof, thành tựu",    sampleHook: "[Số khách hàng thật] doanh nghiệp Việt đã tin dùng Mắt Bão",           bestFor: ["microsoft-365", "sale-ai", "chu-ky-so"] },
   { id: "fomo",          label: "FOMO",               icon: "👀", description: "Đối thủ đang làm, đừng bỏ lỡ", sampleHook: "Đối thủ bạn đã có website — bạn thì sao?",           bestFor: ["ten-mien", "microsoft-365", "hoa-don-dien-tu"] },
-  { id: "value",         label: "Giá trị/Tiết kiệm", icon: "💰", description: "Price-sensitive, SME nhỏ",   sampleHook: "Mua 1 tên miền — Nhận 4. Tiết kiệm 75% ngay hôm nay",  bestFor: ["ten-mien", "hosting", "hoa-don-dien-tu"] },
+  { id: "value",         label: "Giá trị/Tiết kiệm", icon: "💰", description: "Price-sensitive, SME nhỏ",   sampleHook: "Mua 1 tên miền — Nhận [ưu đãi thật]. Tiết kiệm ngay hôm nay",  bestFor: ["ten-mien", "hosting", "hoa-don-dien-tu"] },
 ];
 
 export const MAX_TONES = 3;
@@ -95,7 +95,7 @@ export const PRODUCT_PREFILLS: Record<string, {
 }> = {
   "ten-mien": {
     usp: "Tên miền .vn/.com chính ngạch, đăng ký trong 5 phút, hỗ trợ 24/7",
-    socialProof: "Quản lý 200,000+ tên miền, đối tác chính thức VNNIC & ICANN",
+    socialProof: "Đối tác chính thức VNNIC & ICANN", // 07/10: gỡ con số chưa có nguồn
     customerDesc: "Chủ doanh nghiệp/startup 28-45 tuổi vừa thành lập công ty, muốn bảo vệ thương hiệu online",
     painPoints: "Sợ bị mất tên thương hiệu, không biết đăng ký ở đâu uy tín, lo bị lừa đảo domain",
     motivation: "Muốn có email @congty.vn chuyên nghiệp, bảo vệ thương hiệu, tăng uy tín online",
@@ -103,7 +103,7 @@ export const PRODUCT_PREFILLS: Record<string, {
   },
   "hosting": {
     usp: "Hosting SSD NVMe tốc độ cao, uptime 99.9%, cPanel miễn phí, hỗ trợ 24/7",
-    socialProof: "50,000+ website đang chạy ổn định trên hệ thống Mat Bao",
+    socialProof: "", // 07/10: gỡ con số chưa có nguồn
     customerDesc: "Web developer hoặc chủ website SME cần hosting ổn định, tốc độ cao cho kinh doanh online",
     painPoints: "Hosting hiện tại chậm, hay down, hỗ trợ kém, giá ẩn phí",
     motivation: "Muốn website load nhanh, không bị gián đoạn, tiết kiệm chi phí vận hành",
@@ -119,7 +119,7 @@ export const PRODUCT_PREFILLS: Record<string, {
   },
   "microsoft-365": {
     usp: "Microsoft 365 bản quyền chính hãng, triển khai trong 1 ngày, giá tốt nhất thị trường",
-    socialProof: "10,000+ doanh nghiệp Việt đang dùng Microsoft 365 qua Mat Bao",
+    socialProof: "", // 07/10: gỡ con số chưa có nguồn
     customerDesc: "Doanh nghiệp vừa và nhỏ 20-100 nhân viên cần công cụ làm việc cộng tác và email doanh nghiệp",
     painPoints: "Đang dùng phần mềm crack, lo bị kiểm tra bản quyền, email miễn phí không chuyên nghiệp",
     motivation: "Nâng cao hình ảnh doanh nghiệp, cải thiện năng suất làm việc nhóm, tuân thủ bản quyền",
@@ -127,7 +127,7 @@ export const PRODUCT_PREFILLS: Record<string, {
   },
   "google-workspace": {
     usp: "Google Workspace bản quyền, email @domain riêng, Drive không giới hạn, hỗ trợ tiếng Việt",
-    socialProof: "5,000+ doanh nghiệp Việt đang cộng tác hiệu quả với Google Workspace qua Mat Bao",
+    socialProof: "", // 07/10: gỡ con số chưa có nguồn
     customerDesc: "Startup, SME 5-50 người cần email công ty và công cụ cộng tác online linh hoạt",
     painPoints: "Email Gmail cá nhân không chuyên nghiệp, khó quản lý tài liệu nhóm, bảo mật kém",
     motivation: "Email @congty.vn chuyên nghiệp, chia sẻ tài liệu dễ dàng, làm việc từ xa hiệu quả",
@@ -135,7 +135,7 @@ export const PRODUCT_PREFILLS: Record<string, {
   },
   "email-dn": {
     usp: "Email doanh nghiệp @domain.vn, chống spam tốt, dung lượng lớn, bảo mật cao",
-    socialProof: "100,000+ hộp thư doanh nghiệp đang vận hành qua Mat Bao",
+    socialProof: "", // 07/10: gỡ con số chưa có nguồn
     customerDesc: "Chủ doanh nghiệp cần email công ty riêng, muốn tách biệt email cá nhân và công việc",
     painPoints: "Đang dùng Gmail cá nhân, email không chuyên nghiệp, hay bị vào spam",
     motivation: "Tạo dựng hình ảnh doanh nghiệp chuyên nghiệp, tăng tỷ lệ email được đọc",
@@ -143,7 +143,7 @@ export const PRODUCT_PREFILLS: Record<string, {
   },
   "ssl": {
     usp: "SSL Certificate từ các CA uy tín, cài đặt trong 10 phút, đảm bảo HTTPS",
-    socialProof: "20,000+ website đã được bảo vệ bằng SSL từ Mat Bao",
+    socialProof: "", // 07/10: gỡ con số chưa có nguồn
     customerDesc: "Chủ website thương mại điện tử, landing page cần HTTPS để tăng uy tín và SEO",
     painPoints: "Website chưa có HTTPS, khách hàng lo ngại khi nhập thông tin, Google rank thấp",
     motivation: "Tăng tin cậy cho khách hàng, cải thiện SEO, bảo mật dữ liệu người dùng",
@@ -151,7 +151,7 @@ export const PRODUCT_PREFILLS: Record<string, {
   },
   "sale-ai": {
     usp: "AI Sales tự động trả lời, chốt đơn 24/7, tích hợp Facebook & Zalo trong vài giờ",
-    socialProof: "500+ doanh nghiệp đang dùng Sale.ai, tỷ lệ chốt đơn tăng trung bình 40%",
+    socialProof: "", // 07/10: gỡ con số chưa có nguồn
     customerDesc: "Chủ shop online, SME bán hàng qua Facebook/Zalo đang quá tải tin nhắn khách hàng",
     painPoints: "Bỏ lỡ khách hàng ngoài giờ, nhân viên sale bị quá tải, phản hồi chậm làm mất đơn",
     motivation: "Tự động hóa chăm sóc khách hàng 24/7, tăng doanh thu mà không cần tăng nhân sự",
@@ -159,7 +159,7 @@ export const PRODUCT_PREFILLS: Record<string, {
   },
   "hoa-don-dien-tu": {
     usp: "Hóa đơn điện tử đúng Nghị định 123, kết nối CQT trực tiếp, tích hợp ERP/phần mềm kế toán",
-    socialProof: "10,000+ doanh nghiệp đang phát hành hóa đơn điện tử hàng tháng qua MBI",
+    socialProof: "", // 07/10: gỡ con số chưa có nguồn
     customerDesc: "Kế toán trưởng/Giám đốc doanh nghiệp 20-200 nhân viên đang chuẩn bị chuyển đổi HĐĐT bắt buộc",
     painPoints: "Chưa hiểu quy trình chuyển đổi HĐĐT, lo sai sót kê khai thuế, sợ phức tạp kỹ thuật",
     motivation: "Tuân thủ quy định Bộ Tài chính, giảm chi phí in ấn, tự động hóa kế toán",
@@ -167,7 +167,7 @@ export const PRODUCT_PREFILLS: Record<string, {
   },
   "chu-ky-so": {
     usp: "Chữ ký số USB Token & Cloud theo chuẩn ETSI, ký hợp đồng hợp pháp mọi lúc mọi nơi",
-    socialProof: "50,000+ chứng thư số đang được ký và xác thực qua MBI mỗi tháng",
+    socialProof: "", // 07/10: gỡ con số chưa có nguồn
     customerDesc: "Giám đốc/kế toán trưởng cần ký hợp đồng, HĐĐT, hồ sơ pháp lý số hóa từ xa",
     painPoints: "Phải in ra ký tay tốn thời gian, lo chữ ký scan không có giá trị pháp lý",
     motivation: "Ký kết từ xa trong vài giây, giảm chi phí in ấn, hồ sơ pháp lý đầy đủ giá trị",
@@ -175,7 +175,7 @@ export const PRODUCT_PREFILLS: Record<string, {
   },
   "hop-dong-dien-tu": {
     usp: "Hợp đồng điện tử có giá trị pháp lý, chữ ký đa bên, lưu trữ đám mây an toàn",
-    socialProof: "5,000+ hợp đồng được ký kết điện tử hàng tháng qua MBI",
+    socialProof: "", // 07/10: gỡ con số chưa có nguồn
     customerDesc: "Bộ phận pháp lý/kinh doanh ký nhiều hợp đồng với đối tác, muốn rút ngắn thời gian",
     painPoints: "Ký hợp đồng giấy chậm, khó lưu trữ và tra cứu, chi phí in ấn cao",
     motivation: "Rút ngắn thời gian ký kết từ ngày xuống phút, lưu trữ tập trung dễ quản lý",
@@ -183,7 +183,7 @@ export const PRODUCT_PREFILLS: Record<string, {
   },
   "hoa-don-ecom": {
     usp: "Hóa đơn điện tử cho Ecom, tích hợp Shopee/Lazada/Tiki, phát hành tự động theo đơn",
-    socialProof: "2,000+ shop online đang tự động phát hành hóa đơn đúng chuẩn qua MBI",
+    socialProof: "", // 07/10: gỡ con số chưa có nguồn
     customerDesc: "Chủ shop thương mại điện tử bán hàng đa sàn, cần tự động hóa hóa đơn theo Nghị định 123",
     painPoints: "Phát hành hóa đơn thủ công tốn thời gian, hay sai sót, không theo kịp đơn hàng lớn",
     motivation: "Tự động hóa hoàn toàn quy trình hóa đơn, tuân thủ quy định, tiết kiệm nhân lực",

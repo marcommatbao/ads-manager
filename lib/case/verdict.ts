@@ -44,6 +44,10 @@ export interface Verdict {
 
 /** Click→đơn trên mức này hiếm khi thật với sản phẩm B2B — nghi đo lường. Đo 25/09: Workspace MBC 21%. */
 export const SUSPICIOUS_CVR = 0.15
+/** cpa/cpl: 0 đơn/lead chỉ đánh ĐỎ (và đề xuất dừng nhóm) khi đã chi ≥ hệ số này × trần — 07/10 chủ tool duyệt 1× → 2×.
+ *  Nếu chi phí thật đúng bằng trần, chi 1× trần mà 0 kết quả vẫn xảy ra ~37% do may rủi (e^-1); 2× còn ~13,5% (e^-2).
+ *  Từ 1× đến dưới 2×: VÀNG "đáng lo, chưa đủ kết luận". */
+export const ZERO_RESULT_SPEND_MULT = 2
 /** roas: 0 đơn chỉ kết luận khi đã chi ít nhất mức này. */
 export const ROAS_MIN_SPEND_TO_JUDGE = 1_000_000
 
@@ -65,8 +69,11 @@ export function verdictOf(p: CampaignPerf, t: CaseTarget | null): Verdict {
   if (t.basis === "cpa" || t.basis === "cpl") {
     const w = t.basis === "cpl" ? "lead" : "đơn"
     if (p.orders === 0) {
-      if (p.cost >= t.ceiling) {
+      if (p.cost >= t.ceiling * ZERO_RESULT_SPEND_MULT) {
         return { ...base, status: "red", overCeiling: p.cost, label: `0 ${w} · đã chi gấp ${times(p.cost / t.ceiling)} lần trần` }
+      }
+      if (p.cost >= t.ceiling) {
+        return { ...base, status: "amber", overCeiling: null, label: `0 ${w} · đã chi ${times(p.cost / t.ceiling)} lần trần — đáng lo, chưa đủ để kết luận (cần ${ZERO_RESULT_SPEND_MULT} lần)` }
       }
       return { ...base, status: "grey", overCeiling: null, label: `Chưa đủ dữ liệu — mới chi ${times(p.cost / t.ceiling)} lần trần` }
     }

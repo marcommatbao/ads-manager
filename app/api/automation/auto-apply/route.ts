@@ -59,6 +59,7 @@ export async function GET(request: NextRequest) {
         priority: c.priority,
         action: c.applyPayload?.action,
         impactValue: c.impactValue ?? 0,
+        impactRough: c.impactRough === true,
         ruleEnabled: eligible.includes(c),
       })),
     });

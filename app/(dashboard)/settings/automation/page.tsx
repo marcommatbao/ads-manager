@@ -197,9 +197,9 @@ export default function AutomationSettingsPage() {
 
       setRunMsg(
         dryRun
-          ? `Chạy thử: sẽ áp dụng ${json.applied} mục · ước tính ₫${vnd(json.savings ?? 0)}` +
+          ? `Chạy thử: sẽ áp dụng ${json.applied} mục · chi tiêu đo được liên quan ₫${vnd(json.savings ?? 0)}` +
               (json.blocked ? ` · ${json.blocked} mục bị chặn do quy tắc đang tắt` : "")
-          : `Đã áp dụng ${json.applied} mục · ₫${vnd(json.savings ?? 0)}` +
+          : `Đã áp dụng ${json.applied} mục · chi tiêu đo được liên quan ₫${vnd(json.savings ?? 0)}` +
               (json.failed ? ` · ${json.failed} mục thất bại` : ""),
       );
       await load();
@@ -296,7 +296,7 @@ export default function AutomationSettingsPage() {
                 {preview.eligibleCount ?? 0}/{preview.pendingCount} mục sẽ chạy theo cấu hình hiện tại
               </p>
               <p className="text-xs text-slate-500">
-                Giá trị ước tính từ engine Cải tiến: ₫{vnd(preview.totalSavings ?? 0)}
+                Chi tiêu đo được của các chiến dịch liên quan (mỗi chiến dịch 1 lần, không gồm ước lượng thô): ₫{vnd(preview.totalSavings ?? 0)}
                 {(preview.blockedCount ?? 0) > 0 && (
                   <> · {preview.blockedCount} mục bị chặn vì quy tắc đang tắt</>
                 )}

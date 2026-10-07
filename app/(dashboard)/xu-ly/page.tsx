@@ -265,7 +265,7 @@ function XuLyOverviewPageInner() {
           )}
 
           <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">
-            <b>Cách xếp hạng:</b> &quot;Chi vượt trần&quot; = chi phí − (trần × số đơn). Chiến dịch 0 đơn chỉ bị đánh đỏ khi đã chi ≥ 1 lần trần; ít hơn thì ghi &quot;Chưa đủ dữ liệu&quot; thay vì kết luận vội.
+            <b>Cách xếp hạng:</b> &quot;Chi vượt trần&quot; = chi phí − (trần × số đơn). Chiến dịch 0 đơn chỉ bị đánh đỏ khi đã chi ≥ 2 lần trần (1–2 lần trần: vàng &quot;đáng lo&quot;); ít hơn thì ghi &quot;Chưa đủ dữ liệu&quot; thay vì kết luận vội.
           </div>
         </>
       )}

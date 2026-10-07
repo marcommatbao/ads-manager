@@ -10,6 +10,7 @@ import { bucketByIntent, intentOf, type IntentLexicon } from "./intent"
 import { stripDiacritics, tokens } from "./text"
 import { blocks } from "./simulate-negatives"
 import type { Cause, CheckedOk, Diagnosis, SearchEvidence } from "./types"
+import { ZERO_RESULT_SPEND_MULT } from "./verdict"
 
 const SMART_BIDDING = new Set(["MAXIMIZE_CONVERSIONS", "TARGET_CPA", "MAXIMIZE_CONVERSION_VALUE", "TARGET_ROAS"])
 /** Từ khoá "rộng" bị nêu tên khi ăn ≥ 5% chi phí chiến dịch với điểm chất lượng ≤ 4. */
@@ -71,7 +72,7 @@ export function diagnoseSearch(ev: SearchEvidence, opts: DiagnoseOptions): Diagn
 
   // ── Pmax: phần kênh Tìm kiếm tốn tiền mà không ra đơn ─────────
   if (ev.kind === "google_pmax" && searchSlice && searchSlice.conversions === 0
-      && (opts.ceilingCpa === null || searchSlice.cost >= opts.ceilingCpa)) {
+      && (opts.ceilingCpa === null || searchSlice.cost >= opts.ceilingCpa * ZERO_RESULT_SPEND_MULT)) {
     causes.push({
       id: "pmax-search-no-orders",
       title: "Phần chạy trên kênh Tìm kiếm tốn tiền mà 0 đơn",
@@ -126,7 +127,7 @@ export function diagnoseSearch(ev: SearchEvidence, opts: DiagnoseOptions): Diagn
   intentCause("lookup", ["lookup"], "Người tra cứu / gõ địa chỉ trang", "Điều hướng, không phải mua.")
 
   // ── Giá thầu tự động không có đơn để học ─────────────────────
-  const judged = opts.ceilingCpa === null || c.cost >= opts.ceilingCpa
+  const judged = opts.ceilingCpa === null || c.cost >= opts.ceilingCpa * ZERO_RESULT_SPEND_MULT
   if (SMART_BIDDING.has(c.biddingType) && c.orders === 0 && judged) {
     const single = ev.searchTerms.filter((t) => t.clicks === 1).sort((a, b) => b.cost - a.cost).slice(0, 4)
     const target = c.targetCpa ? ` · CPA mục tiêu ${vnd(c.targetCpa)}` : c.targetRoas ? ` · ROAS mục tiêu ${c.targetRoas}` : ""

@@ -1620,7 +1620,7 @@ function CreativeAIPageInner() {
                 maxLength={150}
                 value={socialProof}
                 onChange={e => setSocialProof(e.target.value)}
-                placeholder="VD: 50,000+ khách hàng tin dùng, đánh giá 4.8/5, Top 1 thị trường VN"
+                placeholder="Chỉ ghi số liệu THẬT có nguồn (số khách hàng, chứng nhận, giải thưởng) — AI sẽ đưa nguyên văn vào quảng cáo"
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400 resize-none"
               />
               <p className="text-right text-[10px] text-slate-400 mt-0.5">{socialProof.length}/150</p>
