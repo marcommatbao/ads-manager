@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
-type KeyId = "google_ads" | "meta" | "gemini" | "telegram";
+type KeyId = "google_ads" | "meta" | "gemini";
 interface CompanyDefLite {
   id: string; label: string; domain: string; color: string;
   match?: { googleAccountNames?: string[]; campaignContains?: string[] };
@@ -39,9 +39,10 @@ const STATUS_VI: Record<string, { text: string; cls: string }> = {
   service_error: { text: "Lỗi dịch vụ", cls: "bg-red-50 text-red-700 border-red-200" },
   disabled: { text: "Tắt", cls: "bg-slate-100 text-slate-500 border-slate-200" },
 };
-const KEY_LABEL: Record<KeyId, string> = { google_ads: "Google Ads", meta: "Meta (Facebook)", gemini: "Gemini (AI)", telegram: "Telegram" };
+const KEY_LABEL: Record<KeyId, string> = { google_ads: "Google Ads", meta: "Meta (Facebook)", gemini: "Gemini (AI)" };
 const REQUIRED: KeyId[] = ["google_ads", "meta", "gemini"];
-const KEY_IDS: KeyId[] = ["google_ads", "meta", "gemini", "telegram"];
+// 08/10: bỏ Telegram — chỉ là kênh dự phòng sau Teams, bản cài khách không cần (thẻ Telegram ở Cài đặt cũng ẩn).
+const KEY_IDS: KeyId[] = ["google_ads", "meta", "gemini"];
 const ROLES = [
   { id: "admin", label: "Admin (sửa được)" },
   { id: "viewer", label: "Viewer (chỉ xem)" },

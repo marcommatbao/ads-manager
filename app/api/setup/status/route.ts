@@ -17,7 +17,7 @@ import { listTargets } from "@/lib/case/targets"
 
 export const dynamic = "force-dynamic"
 
-const KEY_CONNECTORS = ["google_ads", "meta", "gemini", "telegram"] as const
+const KEY_CONNECTORS = ["google_ads", "meta", "gemini"] as const // 08/10: bỏ Telegram (xem setup/page.tsx)
 
 export async function GET() {
   const user = await getCurrentUser()

@@ -54,7 +54,8 @@ export function ServiceKeys({ canEdit }: { canEdit: boolean }) {
     }
   }
 
-  if (forbidden || !rows) return null;
+  // 08/10: bản cài khách không còn khoá nào hiện (mọi ô gắn gói matbao) → ẩn cả khung, không để thẻ rỗng.
+  if (forbidden || !rows || rows.length === 0) return null;
 
   return (
     <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">

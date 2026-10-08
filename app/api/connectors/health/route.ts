@@ -7,6 +7,14 @@ import { getCurrentUser } from "@/lib/auth";
 import { hasPermission, isAdmin } from "@/lib/permissions";
 import { snapshotAllConnectors, refreshAllConnectors } from "@/lib/connectors/engine";
 import { CONNECTOR_REGISTRY } from "@/lib/connectors/registry";
+import { hasModule } from "@/lib/companies"; // bản index: đăng ký bộ đọc companies.json từ đĩa (như middleware)
+
+// 08/10/2026: bản cài khách chỉ nối Google Ads + Meta + Gemini. Các kết nối còn lại (Telegram, Odoo, Slack,
+// Resend, Apify, SerpApi, SimilarWeb, GA4) không có ô nhập ở bản khách hoặc không tính năng nào dùng → bảng
+// sức khoẻ báo "chưa cấu hình" mãi, gây hiểu nhầm. Bản có gói Mắt Bão vẫn thấy đủ như cũ.
+const CUSTOMER_CONNECTORS = new Set(["google_ads", "meta", "gemini"]);
+const shownConnector = (id: string) => hasModule("matbao") || CUSTOMER_CONNECTORS.has(id);
+const onlyShown = <T,>(rec: Record<string, T>) => Object.fromEntries(Object.entries(rec).filter(([id]) => shownConnector(id))) as Record<string, T>;
 
 // GET — fast config-based snapshot + stored check results
 export async function GET() {
@@ -17,11 +25,12 @@ export async function GET() {
   // Đợt 21 A4 (soát bảo mật): maskedConfig chứa 4 ký tự đầu/cuối của token + mã ở dạng rõ → CHỈ super_admin.
   const canSeeConfig = hasPermission(user.role, "can_view_credentials");
   const snap = snapshotAllConnectors();
-  const records = canSeeConfig ? snap : Object.fromEntries(Object.entries(snap).map(([id, r]) => [id, { ...r, maskedConfig: {} }])) as typeof snap;
+  const shown = onlyShown(snap);
+  const records = canSeeConfig ? shown : Object.fromEntries(Object.entries(shown).map(([id, r]) => [id, { ...r, maskedConfig: {} }])) as typeof snap;
 
   return NextResponse.json({
     records,
-    connectors: CONNECTOR_REGISTRY.map(d => ({
+    connectors: CONNECTOR_REGISTRY.filter(d => shownConnector(d.id)).map(d => ({
       id: d.id,
       displayName: d.displayName,
       supportsLiveTest: d.supportsLiveTest,
@@ -41,7 +50,7 @@ export async function POST() {
     return NextResponse.json({ error: "Không có quyền kích hoạt kiểm tra kết nối" }, { status: 403 });
   }
 
-  const records = await refreshAllConnectors();
+  const records = onlyShown(await refreshAllConnectors());
 
   const summary = {
     healthy:        0,

@@ -243,6 +243,8 @@ function SettingsContent() {
   const perms = useSettingsPermission();
   const [values, setValues] = useState<Record<string, string>>({});
   useCompaniesVersion(); // Đợt 21 B: vẽ lại khi danh sách công ty của bản cài nạp xong (ẩn/hiện ô MBC/MBI)
+  // 08/10: Telegram chỉ còn là kênh dự phòng sau Teams → thẻ này chỉ hiện ở bản có gói Mắt Bão.
+  const shownSections = apiSections.filter((sec) => sec.platform !== "telegram" || hasModule("matbao"));
   const [metaSaving, setMetaSaving] = useState(false);
   const [metaTesting, setMetaTesting] = useState(false);
   const [metaResult, setMetaResult] = useState<TestResult | null>(null);
@@ -614,8 +616,8 @@ function SettingsContent() {
       {/* Đợt 21 A4: mã theo từng công ty của bản cài */}
       <CompanyIntegrationIds canEdit={perms.canEditCredentials} />
 
-      {/* API Sections */}
-      {apiSections.map((section, idx) => (
+      {/* API Sections (Telegram chỉ ở bản Mắt Bão — xem shownSections) */}
+      {shownSections.map((section, idx) => (
         <Card
           key={section.platform}
           className="border border-slate-200 bg-white shadow-sm rounded-xl"
@@ -904,7 +906,7 @@ function SettingsContent() {
             )}
           </CardContent>
 
-          {idx < apiSections.length - 1 && <Separator className="mt-0" />}
+          {idx < shownSections.length - 1 && <Separator className="mt-0" />}
         </Card>
       ))}
 
