@@ -84,8 +84,8 @@ const apiSections: ApiSection[] = [
     fields: [
       {
         key: "googleDeveloperToken",
-        label: "Developer Token",
-        placeholder: "Your Google Ads developer token",
+        label: "Developer Token (không bắt buộc)",
+        placeholder: "Để trống — Google đã bỏ developer token từ 09/2026",
       },
       {
         key: "googleClientId",

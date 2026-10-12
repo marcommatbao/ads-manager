@@ -18,13 +18,14 @@ export const CONNECTOR_REGISTRY: ConnectorDescriptor[] = [
   {
     id: "google_ads",
     displayName: "Google Ads",
+    // 12/10/2026: developer token sang optionalEnv — Google bỏ từ 09/09/2026, thiếu token vẫn gọi được API.
     requiredEnv: [
-      "GOOGLE_ADS_DEVELOPER_TOKEN",
       "GOOGLE_ADS_CLIENT_ID",
       "GOOGLE_ADS_CLIENT_SECRET",
       "GOOGLE_ADS_REFRESH_TOKEN",
     ],
     optionalEnv: [
+      "GOOGLE_ADS_DEVELOPER_TOKEN",
       "GOOGLE_ADS_CUSTOMER_ID_MBC",
       "GOOGLE_ADS_CUSTOMER_ID_MBI",
       "GOOGLE_ADS_LOGIN_CUSTOMER_ID",

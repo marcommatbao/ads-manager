@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { guardViewCredentials } from "@/lib/settings/guards";
 import { GoogleAdsApi } from "google-ads-api";
 import { friendlyError } from "@/lib/not-configured";
+import { googleDevToken } from "@/lib/google-ads-client";
 
 // Đợt 21 A4 (soát bảo mật): khoá mới dán gửi qua THÂN POST, không qua URL (URL lọt vào log proxy + lịch sử trình duyệt).
 // GET vẫn chạy nhưng CHỈ kiểm khoá đã lưu (bỏ qua mọi khoá trên URL).
@@ -23,7 +24,8 @@ async function run(request: NextRequest, p: ParamGet) {
   const credGuard = guardViewCredentials(user);
   if (credGuard) return credGuard;
 
-  const developerToken = p("developerToken") || process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
+  // 12/10: không còn bắt buộc (Google bỏ từ 09/2026). Rỗng → undefined để thư viện KHÔNG gửi header (header rỗng bị Google từ chối 400).
+  const developerToken = p("developerToken") || googleDevToken();
   const clientId       = p("clientId")       || process.env.GOOGLE_ADS_CLIENT_ID;
   const clientSecret   = p("clientSecret")   || process.env.GOOGLE_ADS_CLIENT_SECRET;
   const refreshToken   = p("refreshToken")   || process.env.GOOGLE_ADS_REFRESH_TOKEN;
@@ -31,10 +33,10 @@ async function run(request: NextRequest, p: ParamGet) {
   const customerIdMBI  = p("customerIdMBI")  || process.env.GOOGLE_ADS_CUSTOMER_ID_MBI;
   const loginCustomerId = p("loginCustomerId") || process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID;
 
-  if (!developerToken || !clientId || !clientSecret || !refreshToken) {
+  if (!clientId || !clientSecret || !refreshToken) {
     return NextResponse.json({
       ok: false,
-      error: "Missing required credentials (developerToken, clientId, clientSecret, refreshToken)",
+      error: "Missing required credentials (clientId, clientSecret, refreshToken)",
     });
   }
 
@@ -47,7 +49,7 @@ async function run(request: NextRequest, p: ParamGet) {
     const client = new GoogleAdsApi({
       client_id: clientId,
       client_secret: clientSecret,
-      developer_token: developerToken,
+      developer_token: developerToken as string, // undefined = không gửi header
     });
 
     const accountResults: { id: string; name: string; campaigns: number }[] = [];

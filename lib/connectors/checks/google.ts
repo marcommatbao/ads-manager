@@ -1,5 +1,6 @@
 // Google Ads connector check — token refresh + account list
 import type { CheckResult } from "../types";
+import { googleDevToken } from "@/lib/google-ads-client";
 
 interface TokenResponse {
   access_token?: string;
@@ -34,8 +35,9 @@ async function getAccessToken(): Promise<{ token: string } | { error: string; ca
 }
 
 export async function checkGoogle(): Promise<CheckResult> {
-  const devToken = process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
-  if (!devToken || !process.env.GOOGLE_ADS_CLIENT_ID || !process.env.GOOGLE_ADS_CLIENT_SECRET || !process.env.GOOGLE_ADS_REFRESH_TOKEN) {
+  // 12/10: developer token không còn bắt buộc (Google bỏ từ 09/2026); có thì gửi, không có thì bỏ hẳn header.
+  const devToken = googleDevToken();
+  if (!process.env.GOOGLE_ADS_CLIENT_ID || !process.env.GOOGLE_ADS_CLIENT_SECRET || !process.env.GOOGLE_ADS_REFRESH_TOKEN) {
     return { ok: false, status: "missing_config", failureCategory: "invalid_config", failureReason: "Google Ads env vars incomplete" };
   }
 
@@ -67,7 +69,7 @@ export async function checkGoogle(): Promise<CheckResult> {
       {
         headers: {
           Authorization: `Bearer ${tokenResult.token}`,
-          "developer-token": devToken,
+          ...(devToken ? { "developer-token": devToken } : {}),
         },
         signal: AbortSignal.timeout(8000),
       },

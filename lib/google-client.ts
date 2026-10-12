@@ -3,6 +3,7 @@
 // ============================================================
 
 import { GoogleAdsApi } from "google-ads-api";
+import { googleDevToken } from "./google-ads-client";
 
 // ─────────────────────────────────────────────
 // Patch Node.js built-in https.request to add "Accept-Encoding: identity"
@@ -204,14 +205,14 @@ class GoogleAdsClient {
   private get baseCredentials() {
     const clientId       = process.env.GOOGLE_ADS_CLIENT_ID;
     const clientSecret   = process.env.GOOGLE_ADS_CLIENT_SECRET;
-    const developerToken = process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
+    const developerToken = googleDevToken(); // 12/10: không còn bắt buộc (Google bỏ từ 09/2026) — xem lib/google-ads-client.ts
     const refreshToken   = process.env.GOOGLE_ADS_REFRESH_TOKEN;
 
-    if (!clientId || !clientSecret || !developerToken || !refreshToken) {
+    if (!clientId || !clientSecret || !refreshToken) {
       throw new Error(
         "Google Ads credentials not configured. " +
           "Set GOOGLE_ADS_CLIENT_ID, GOOGLE_ADS_CLIENT_SECRET, " +
-          "GOOGLE_ADS_DEVELOPER_TOKEN, GOOGLE_ADS_REFRESH_TOKEN in .env.local."
+          "GOOGLE_ADS_REFRESH_TOKEN in .env.local."
       );
     }
 
@@ -232,7 +233,7 @@ class GoogleAdsClient {
         _apiInstance = new GoogleAdsApi({
           client_id:       clientId,
           client_secret:   clientSecret,
-          developer_token: developerToken,
+          developer_token: developerToken as string, // undefined = không gửi header (đúng); "" bị Google từ chối
         });
       }
       const loginCustomerId = process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID || customerId;

@@ -20,8 +20,8 @@ export async function GET() {
     loginCustomerId: process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID || null,
   };
 
+  // 12/10: developer token không còn bắt buộc (Google bỏ từ 09/2026) — vẫn báo có/không ở `configured`.
   const allConfigured =
-    configured.developerToken &&
     configured.clientId &&
     configured.clientSecret &&
     configured.refreshToken &&

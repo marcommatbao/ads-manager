@@ -5,10 +5,20 @@ import { companyDef, companyIds } from "@/lib/companies/registry"
 // Trước đây client được tạo một lần lúc import → developer token / client secret mới chỉ áp dụng sau khi khởi động lại.
 let cached: { key: string; api: GoogleAdsApi } | null = null
 export function googleAdsApi(): GoogleAdsApi { return getClient() }
+
+// 12/10/2026: Google bỏ developer token từ 09/09/2026 — "optional and ignored by the API servers"; quyền truy cập
+// tính theo Google Cloud project của OAuth client (developers.google.com/google-ads/api/docs/first-call/dev-token).
+// ĐO THẬT 12/10: KHÔNG gửi header → 200; gửi header RỖNG → 400 "developer-token parameter is missing".
+// ⇒ thiếu token phải truyền `undefined` (thư viện bỏ header), TUYỆT ĐỐI không truyền "". Mọi chỗ dùng hàm này.
+export function googleDevToken(): string | undefined {
+  return (process.env.GOOGLE_ADS_DEVELOPER_TOKEN ?? "").trim() || undefined
+}
+
 function getClient(): GoogleAdsApi {
-  const id = process.env.GOOGLE_ADS_CLIENT_ID ?? "", secret = process.env.GOOGLE_ADS_CLIENT_SECRET ?? "", dev = process.env.GOOGLE_ADS_DEVELOPER_TOKEN ?? ""
-  const key = `${id}\u0000${secret}\u0000${dev}`
-  if (!cached || cached.key !== key) cached = { key, api: new GoogleAdsApi({ client_id: id, client_secret: secret, developer_token: dev }) }
+  const id = process.env.GOOGLE_ADS_CLIENT_ID ?? "", secret = process.env.GOOGLE_ADS_CLIENT_SECRET ?? "", dev = googleDevToken()
+  const key = `${id}\u0000${secret}\u0000${dev ?? ""}`
+  // Kiểu của thư viện khai developer_token: string nhưng thư viện chạy đúng với undefined (bỏ header) — xem googleDevToken.
+  if (!cached || cached.key !== key) cached = { key, api: new GoogleAdsApi({ client_id: id, client_secret: secret, developer_token: dev as string }) }
   return cached.api
 }
 

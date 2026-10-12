@@ -169,24 +169,24 @@ export const CONNECTION_GUIDES: ConnectionGuide[] = [
   // ── 4. Google Ads ───────────────────────────────────────
   {
     id: "google-ads",
-    title: "Google Ads — developer token + OAuth",
+    title: "Google Ads — Google Cloud + OAuth",
     purpose: "Đọc chiến dịch, từ khoá, lượt tìm kiếm, chuyển đổi; sửa mục tiêu đặt giá / hành động chính khi bạn xác nhận.",
     who: "Quản trị viên tài khoản người quản lý (MCC) Google Ads + người có quyền Owner/Editor trên một dự án Google Cloud.",
     minutes: 20,
     pasteInto: { label: "Cài đặt → Google Ads", href: "/settings" },
     sections: [
+      // 12/10/2026: Google bỏ developer token từ 09/09/2026 — quyền truy cập tính theo Google Cloud project.
       {
-        title: "A. Developer token",
+        title: "A. Google Cloud project và mức truy cập",
         steps: [
-          { text: "Đăng nhập Google Ads bằng tài khoản người quản lý (MCC) → Công cụ → Thiết lập → Trung tâm API (API Center).", link: { href: "https://ads.google.com/aw/apicenter", label: "Mở Trung tâm API" } },
-          { text: "Điền đơn nếu chưa có → sao chép Developer token.", warn: "Token mới ở mức Test chỉ gọi được tài khoản thử. Tài khoản thật cần Basic access — nộp đơn nâng cấp ngay trong Trung tâm API." },
+          { text: "console.cloud.google.com → tạo (hoặc chọn) dự án → APIs & Services → Library → bật “Google Ads API”. Dự án mới bật API chỉ gọi được tài khoản thử.", link: { href: "https://console.cloud.google.com/apis/library/googleads.googleapis.com", label: "Mở Google Ads API" } },
+          { text: "APIs & Services → OAuth consent screen: loại Internal (nếu dùng Google Workspace) hoặc External; điền tên ứng dụng + email hỗ trợ. Hoàn tất xác minh thương hiệu (brand verification) của dự án." },
+          { text: "Mở trang Google Ads API Overview của dự án → Upgrade access level → Apply for access: xin mức Explorer (gọi được tài khoản thật, 2.880 thao tác/ngày), rồi xin tiếp mức Basic (15.000 thao tác/ngày).", link: { href: "https://console.cloud.google.com/google/ads-apis/overview", label: "Mở Google Ads API Overview" }, warn: "Phải xác minh thương hiệu xong mới xin được Basic. Không còn cần developer token: Google đã bỏ từ 09/2026." },
         ],
       },
       {
         title: "B. OAuth client (Google Cloud)",
         steps: [
-          { text: "console.cloud.google.com → APIs & Services → Library → bật “Google Ads API”.", link: { href: "https://console.cloud.google.com/apis/library/googleads.googleapis.com", label: "Mở Google Ads API" } },
-          { text: "APIs & Services → OAuth consent screen: loại Internal (nếu dùng Google Workspace) hoặc External; điền tên ứng dụng + email hỗ trợ." },
           { text: "APIs & Services → Credentials → Create credentials → OAuth client ID → Web application." },
           { text: "Authorized redirect URIs: thêm đúng địa chỉ tool + /api/google/callback (vd https://ten-tool.cong-ty.vn/api/google/callback) → Create → sao chép Client ID và Client secret." },
         ],
@@ -194,7 +194,7 @@ export const CONNECTION_GUIDES: ConnectionGuide[] = [
       {
         title: "C. Dán vào tool và cấp quyền",
         steps: [
-          { text: "AdsCommand → Cài đặt → Google Ads: dán Developer Token, Client ID, Client Secret." },
+          { text: "AdsCommand → Cài đặt → Google Ads: dán Client ID, Client Secret. Ô Developer Token để trống." },
           { text: "Login Customer ID (MCC): số tài khoản người quản lý, dạng 123-456-7890. Customer ID của từng công ty: số tài khoản quảng cáo con." },
           { text: "Bấm Lưu → bấm “Authorize via OAuth” → đăng nhập bằng tài khoản có quyền trên MCC → Cho phép. Tool tự nhận Refresh Token." },
         ],
@@ -202,11 +202,11 @@ export const CONNECTION_GUIDES: ConnectionGuide[] = [
     ],
     verify: ["Cài đặt → Google Ads hiện “Đã kết nối”.", "Trang Google Search / Pmax hiện chiến dịch."],
     errors: [
-      { symptom: "DEVELOPER_TOKEN_NOT_APPROVED", fix: "Token đang ở mức Test — nộp đơn Basic access (phần A)." },
+      { symptom: "Gọi được tài khoản thử nhưng tài khoản thật bị từ chối", fix: "Dự án Google Cloud mới ở mức Test — xác minh thương hiệu rồi xin mức Basic (phần A)." },
       { symptom: "redirect_uri_mismatch khi bấm Authorize", fix: "Địa chỉ ở Authorized redirect URIs phải khớp TỪNG KÝ TỰ với địa chỉ tool + /api/google/callback (https, không dấu / cuối)." },
       { symptom: "USER_PERMISSION_DENIED", fix: "Login Customer ID sai, hoặc tài khoản bấm Authorize không có quyền trên MCC đó." },
     ],
-    security: ["Client secret, developer token và refresh token lưu MÃ HOÁ.", "Thu hồi: myaccount.google.com → Bảo mật → Ứng dụng bên thứ ba → gỡ quyền của ứng dụng."],
+    security: ["Client secret và refresh token lưu MÃ HOÁ.", "Thu hồi: myaccount.google.com → Bảo mật → Ứng dụng bên thứ ba → gỡ quyền của ứng dụng."],
   },
 
   // ── 5. Teams ────────────────────────────────────────────
