@@ -480,8 +480,8 @@ function CreativeAIPageInner() {
 
   // ── Draft / Auto-save ──
   const {
-    draftId, draftName, saveStatus,
-    initDraft, autoSave, renameDraft, markLaunched,
+    draftName, draftReady, saveStatus,
+    initDraft, adoptDraft, startNewDraft, autoSave, renameDraft, markLaunched,
   } = useCreativeAIDraft(company);
   const [showDraftPicker, setShowDraftPicker] = useState(false);
   const [pendingDrafts, setPendingDrafts] = useState<DraftMeta[]>([]);
@@ -512,7 +512,7 @@ function CreativeAIPageInner() {
 
   // Auto-save step 1 data
   useEffect(() => {
-    if (!draftId || !selectedProduct) return;
+    if (!draftReady || !selectedProduct) return;
     autoSave(1, "step1Data", {
       selectedProduct, customProduct, objective, objectiveKey, platform, company,
       usp, socialProof, offer,
@@ -525,25 +525,25 @@ function CreativeAIPageInner() {
   }, [selectedProduct, customProduct, objective, objectiveKey, platform, company, usp, socialProof, offer,
       currentCustomerDesc, currentCustomerPainPoints, currentCustomerMotivation, currentCustomerLanguage,
       competitorNames, competitorDifferentiate, funnelStages, totalDays, adSetCount,
-      googleCampaignType, googleSeedKeywords, googleNegativeKws, googleMatchType, googleAudienceSignals, draftId]);
+      googleCampaignType, googleSeedKeywords, googleNegativeKws, googleMatchType, googleAudienceSignals, draftReady]);
 
   // Auto-save step 2 data (audience insights + selected segments)
   useEffect(() => {
-    if (!draftId || !audienceData) return;
+    if (!draftReady || !audienceData) return;
     autoSave(2, "step2Data", { audienceData, selectedSegments });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [audienceData, selectedSegments, draftId]);
+  }, [audienceData, selectedSegments, draftReady]);
 
   // Auto-save step 3 data (generated creatives)
   useEffect(() => {
-    if (!draftId || creativeResults.length === 0) return;
+    if (!draftReady || creativeResults.length === 0) return;
     autoSave(3, "step3Data", { creativeResults, selectedTones, creativeTab });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [creativeResults, selectedTones, draftId]);
+  }, [creativeResults, selectedTones, draftReady]);
 
   // Auto-save step 4 data (launch config)
   useEffect(() => {
-    if (!draftId || !campaignName) return;
+    if (!draftReady || !campaignName) return;
     autoSave(4, "step4Data", {
       campaignName, budgetType, dailyBudget, adsetBudget, continuous,
       startDate, endDate, destinationUrl, selectedPageId, selectedPixelId,
@@ -552,7 +552,7 @@ function CreativeAIPageInner() {
       pixelEvent: conversionEvent?.pixelEvent, conversionEvent, objectiveKey,
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [campaignName, budgetType, dailyBudget, adsetBudget, continuous, startDate, endDate, destinationUrl, selectedPageId, selectedPixelId, conversionEvent, draftId]);
+  }, [campaignName, budgetType, dailyBudget, adsetBudget, continuous, startDate, endDate, destinationUrl, selectedPageId, selectedPixelId, conversionEvent, draftReady]);
 
   // Fetch FB pages + pixels when entering Step 4
   useEffect(() => {
@@ -1326,14 +1326,12 @@ function CreativeAIPageInner() {
                 }
               } catch { /* ignore */ }
             }
-            // Persist selected draft id in session
-            try {
-              sessionStorage.setItem(`creative_draft_${draft.company}`, JSON.stringify({ id: draft.id }));
-            } catch { /* ignore */ }
+            // Nhận nháp này vào hook (trước đây chỉ ghi sessionStorage → tự lưu sau đó không vào nháp đã chọn).
+            adoptDraft(draft);
           }}
-          onNew={async () => {
+          onNew={() => {
             setShowDraftPicker(false);
-            await initDraft();
+            startNewDraft();
           }}
         />
       )}

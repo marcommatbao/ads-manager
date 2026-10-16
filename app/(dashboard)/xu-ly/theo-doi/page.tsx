@@ -241,6 +241,7 @@ function RemeasureCell({ r }: { r: BoardRow["remeasure"][number] }) {
         {r.verdict === 1 && <span className="font-semibold text-emerald-600">✓ đạt</span>}
         {r.verdict === 0 && <span className="font-semibold text-amber-600" title="Thay đổi dưới 10% và chưa về mục tiêu">≈ chưa rõ</span>}
         {r.verdict === -1 && <span className="font-semibold text-red-600">▲ xấu hơn</span>}
+        {r.verdict === 2 && <span className="font-semibold text-slate-500" title="Quá ít đơn để kết luận — thêm/bớt 1 đơn là chi phí/đơn đổi rất nhiều. Mở phiên để xem chi tiết.">◌ chưa đủ dữ liệu</span>}
       </span>
     );
   }

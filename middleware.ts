@@ -3,6 +3,7 @@
 // ============================================================
 
 import { NextRequest, NextResponse } from "next/server";
+import { isPublicPage } from "@/lib/public-pages";
 import { COOKIE_NAME, decodeSessionFromCookieValue } from "@/lib/auth";
 import { canAccessRoute, getBlockedMessage } from "@/lib/permissions";
 import { isHiddenPage } from "@/lib/hidden-pages";
@@ -56,6 +57,9 @@ export function middleware(request: NextRequest) {
   ) {
     return NextResponse.next();
   }
+
+  // ── Trang công khai (/about, /privacy) — ai cũng xem được, kể cả đã đăng nhập (15/10/2026, xác minh OAuth Google) ──
+  if (isPublicPage(pathname)) return NextResponse.next();
 
   // ── Đợt 21 A2: trang thuộc mô-đun đang TẮT ở bản cài → về trang chủ ──
   {

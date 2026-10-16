@@ -15,6 +15,7 @@ export const REMINDER_SETUP_HINT = "Nhắc việc đang TẮT: lấy link Incomi
 export const remindersEnabled = () => !!(process.env.CASE_TASK_TEAMS_WEBHOOK ?? "").trim()
 import { listCases, updateCase, type CampaignCase } from "./store"
 import type { Company } from "./types"
+import { rejudge } from "./next-steps"
 
 export const TASK_OVERDUE_DAYS = 3
 const DAY = 86_400_000
@@ -22,7 +23,8 @@ const DAY = 86_400_000
 export type BoardState = "working" | "waiting" | "reopened" | "done"
 
 export interface BoardRemeasure { due: string; done: boolean; cpaBefore: number | null; cpaAfter: number | null; better: boolean | null
-  /** Đợt 23: kết quả chấm theo mục tiêu (lib/case/judge.ts) — 1 đạt · 0 chưa rõ · -1 xấu đi; null = đo theo cách cũ / chưa đo. */
+  /** Đợt 23: kết quả chấm theo mục tiêu (lib/case/judge.ts) — 1 đạt · 0 chưa rõ · -1 xấu đi · 2 chưa đủ dữ liệu (14/10);
+   *  null = đo theo cách cũ / chưa đo. Lần đo đã lưu được CHẤM LẠI theo luật hiện hành (next-steps.ts rejudge). */
   verdict?: number | null; roasBefore?: number | null; roasAfter?: number | null }
 
 export interface BoardRow {
@@ -56,9 +58,14 @@ export function boardState(c: CampaignCase): BoardState {
 
 export function boardRow(c: CampaignCase, now: number = Date.now()): BoardRow {
   const before = cpaBefore(c)
-  const rm = c.remeasure.slice(0, 2).map((r): BoardRemeasure => {
+  // 14/10: hiện VÒNG ĐO MỚI NHẤT (cùng `start` với mốc cuối) — phiên mở lại rồi làm tiếp không còn hiện số của vòng cũ.
+  // Mốc đo thêm (extended) thế chỗ mốc cuối của vòng.
+  const last = c.remeasure[c.remeasure.length - 1]
+  const cycle = c.remeasure.filter((r) => r.start === last?.start)
+  const shown = cycle.length > 2 ? [cycle[0], cycle[cycle.length - 1]] : cycle
+  const rm = shown.map((r): BoardRemeasure => {
     const after = r.result?.cpa ?? null
-    const v = typeof r.result?.verdict === "number" ? r.result.verdict : null
+    const v = r.status === "done" ? rejudge(c, r) : null
     // Đợt 23: có kết quả chấm mới thì dùng nó; kết quả đo trước Đợt 23 (không có verdict) giữ cách so cũ.
     const better = r.status !== "done" ? null : v !== null ? v === 1 : after !== null && before !== null ? after < before : null
     return { due: r.due, done: r.status === "done", cpaBefore: before, cpaAfter: after, better, verdict: v, roasBefore: r.result?.roasBefore ?? null, roasAfter: r.result?.roas ?? null }

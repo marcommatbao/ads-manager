@@ -1272,6 +1272,7 @@ class MetaClient {
     dateRange: { from: string; to: string },
     fields: string[],
     timeIncrementDaily: boolean,
+    limit = 200,
   ): URL {
     const url = new URL(`${BASE_URL}/act_${this.adAccountId}/insights`);
     url.searchParams.set("access_token", this.token);
@@ -1279,7 +1280,7 @@ class MetaClient {
     url.searchParams.set("time_range", JSON.stringify({ since: dateRange.from, until: dateRange.to }));
     url.searchParams.set("level", "ad");
     if (timeIncrementDaily) url.searchParams.set("time_increment", "1");
-    url.searchParams.set("limit", "200");
+    url.searchParams.set("limit", String(limit));
     return url;
   }
 
@@ -1292,34 +1293,51 @@ class MetaClient {
   async getAdInsightsForAccount(
     dateRange: { from: string; to: string }
   ): Promise<MetaAdInsightRaw[]> {
+    // 15/10/2026: trước đây gọi CẢ khoảng một lượt, lật trang 200 dòng LẦN LƯỢT — mỗi trang Meta mất ~10 giây, cả tháng
+    // ~14 trang ≈ 140 giây cho lần tải đầu Ads Content (đo thật). Giờ chia lát 5 ngày, trang 500 dòng, chạy song song
+    // tối đa 4 lát: cả tháng ≈ 6 lời gọi (ít hơn trước) và ~15-30 giây.
+    // Chia theo ngày là AN TOÀN vì mỗi dòng là một ngày của một ad — ghép các lát chỉ là nối danh sách, không cộng gộp gì.
+    // (Khác hẳn getAdInsightsWindowAggregate bên dưới: ở đó frequency được Meta tính trên cả cửa sổ nên chia lát sẽ ra số SAI.)
     const fields = MetaClient.AD_INSIGHT_DAILY_FIELDS;
-    try {
-      return await this.fetchInsightPages(
-        this.buildAdInsightsUrl(dateRange, fields, true),
-        "[account]/insights (level=ad)",
-      );
-    } catch (err) {
-      // Truy vấn NGÀY + cấp ad trên cả tháng là dạng nặng nhất Meta phải chạy
-      // đồng bộ, và cũng là dạng tài liệu Meta bảo "thu hẹp khoảng ngày".
-      // Chia theo tuần rồi nối lại là AN TOÀN ở đây vì mỗi dòng là một ngày
-      // của một ad — ghép các lát chỉ là nối danh sách, không cộng gộp gì.
-      // (Khác hẳn getAdInsightsWindowAggregate bên dưới: ở đó frequency được
-      // Meta tính trên cả cửa sổ nên chia lát sẽ ra số SAI.)
-      if (!isMetaTransientInsightError({ message: err instanceof Error ? err.message : String(err) })) throw err;
+    const slices = sliceDateRange(dateRange, MetaClient.AD_INSIGHT_SLICE_DAYS);
 
-      const chunks = sliceDateRange(dateRange, 7);
-      log.warn("meta_insights", `Truy vấn cả khoảng ${dateRange.from}→${dateRange.to} bị Meta từ chối vì quá nặng — chia thành ${chunks.length} lát 7 ngày rồi gọi lại`);
-
-      const merged: MetaAdInsightRaw[] = [];
-      for (const chunk of chunks) {
-        merged.push(...await this.fetchInsightPages(
-          this.buildAdInsightsUrl(chunk, fields, true),
-          `[account]/insights (level=ad, lát ${chunk.from}→${chunk.to})`,
-        ));
+    const fetchSlice = async (slice: { from: string; to: string }): Promise<MetaAdInsightRaw[]> => {
+      try {
+        return await this.fetchInsightPages(
+          this.buildAdInsightsUrl(slice, fields, true, 500),
+          `[account]/insights (level=ad, lát ${slice.from}→${slice.to})`,
+        );
+      } catch (err) {
+        // Truy vấn NGÀY + cấp ad là dạng nặng nhất Meta phải chạy đồng bộ; Meta bảo "thu hẹp khoảng ngày" → lát đó hạ
+        // xuống từng ngày, trang 200 dòng, gọi lần lượt (giữ nhẹ tay khi Meta đang quá tải).
+        if (!isMetaTransientInsightError({ message: err instanceof Error ? err.message : String(err) })) throw err;
+        if (slice.from === slice.to) throw err;
+        log.warn("meta_insights", `Lát ${slice.from}→${slice.to} bị Meta từ chối vì quá nặng — chia từng ngày rồi gọi lại`);
+        const merged: MetaAdInsightRaw[] = [];
+        for (const day of sliceDateRange(slice, 1)) {
+          merged.push(...await this.fetchInsightPages(
+            this.buildAdInsightsUrl(day, fields, true),
+            `[account]/insights (level=ad, ngày ${day.from})`,
+          ));
+        }
+        return merged;
       }
-      return merged;
-    }
+    };
+
+    const out: MetaAdInsightRaw[][] = new Array(slices.length);
+    let next = 0;
+    const worker = async () => {
+      while (next < slices.length) {
+        const i = next++;
+        out[i] = await fetchSlice(slices[i]);
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(MetaClient.AD_INSIGHT_CONCURRENCY, slices.length) }, worker));
+    return out.flat();
   }
+
+  private static readonly AD_INSIGHT_SLICE_DAYS = 5;
+  private static readonly AD_INSIGHT_CONCURRENCY = 4;
 
   // ── 6b. Ad-level insights aggregated over the WHOLE window (one row per
   // ad, not per day) — used for creative fatigue, which needs a real

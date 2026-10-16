@@ -23,6 +23,21 @@ export function useCreativeAIDraft(company: string) {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const SESSION_KEY = `creative_draft_${company}`;
 
+  // 15/10/2026: KHÔNG tạo nháp lúc mở trang nữa — mỗi phiên trình duyệt mới từng sinh một nháp rỗng (crawl chỉ-đọc bắt được),
+  // nháp rỗng đẩy nháp thật ra khỏi kho (có trần) và làm hộp "tiếp tục nháp?" đầy rác. Nháp chỉ tạo ở lần TỰ LƯU đầu tiên.
+  // `draftReady` = đã xong bước nạp (có hay chưa có nháp) → trang mới bắt đầu tự lưu.
+  const [draftReady, setDraftReady] = useState(false);
+  const idRef = useRef<string | null>(null);
+  const creating = useRef<Promise<string | null> | null>(null);
+
+  function adoptDraft(draft: Pick<DraftMeta, "id" | "name" | "company">) {
+    idRef.current = draft.id;
+    setDraftId(draft.id);
+    setDraftName(draft.name);
+    try { sessionStorage.setItem(`creative_draft_${draft.company}`, JSON.stringify({ id: draft.id })); } catch { /* ignore */ }
+    setDraftReady(true);
+  }
+
   async function initDraft(): Promise<DraftMeta | null> {
     // Check session first
     try {
@@ -34,30 +49,46 @@ export function useCreativeAIDraft(company: string) {
         if (res.ok) {
           const data = await res.json() as { draft?: DraftMeta };
           if (data.draft) {
-            setDraftId(id);
-            setDraftName(data.draft.name);
+            adoptDraft(data.draft);
             return data.draft;
           }
         }
       }
     } catch { /* ignore */ }
+    setDraftReady(true);
+    return null;
+  }
 
-    // Create new draft
-    try {
-      const res = await fetch("/api/creative-ai/drafts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ company }),
-      });
-      if (!res.ok) return null;
-      const { draft } = await res.json() as { draft: DraftMeta };
-      setDraftId(draft.id);
-      setDraftName(draft.name);
-      sessionStorage.setItem(SESSION_KEY, JSON.stringify({ id: draft.id }));
-      return draft;
-    } catch {
-      return null;
-    }
+  /** Bắt đầu nháp mới (người dùng bấm "Tạo mới" ở hộp chọn nháp) — chưa ghi gì cho tới lần tự lưu đầu. */
+  function startNewDraft() {
+    idRef.current = null;
+    creating.current = null;
+    setDraftId(null);
+    setDraftName("");
+    try { sessionStorage.removeItem(SESSION_KEY); } catch { /* ignore */ }
+    setDraftReady(true);
+  }
+
+  async function ensureDraft(): Promise<string | null> {
+    if (idRef.current) return idRef.current;
+    creating.current ??= (async () => {
+      try {
+        const res = await fetch("/api/creative-ai/drafts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ company }),
+        });
+        if (!res.ok) return null;
+        const { draft } = await res.json() as { draft: DraftMeta };
+        adoptDraft(draft);
+        return draft.id;
+      } catch {
+        return null;
+      }
+    })();
+    const id = await creating.current;
+    if (!id) creating.current = null; // lỗi mạng → lần tự lưu sau thử tạo lại
+    return id;
   }
 
   function autoSave(currentStep: number, stepKey: string, stepData: unknown) {
@@ -65,13 +96,14 @@ export function useCreativeAIDraft(company: string) {
     if (saveTimer.current) clearTimeout(saveTimer.current);
 
     saveTimer.current = setTimeout(async () => {
-      if (!draftId) return;
       setSaveStatus("saving");
       try {
+        const id = await ensureDraft();
+        if (!id) { setSaveStatus("unsaved"); return; }
         await fetch("/api/creative-ai/drafts", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: draftId, currentStep, stepKey, stepData }),
+          body: JSON.stringify({ id, currentStep, stepKey, stepData }),
         });
         setSaveStatus("saved");
       } catch {
@@ -81,27 +113,29 @@ export function useCreativeAIDraft(company: string) {
   }
 
   async function renameDraft(name: string) {
-    if (!draftId) return;
+    const id = idRef.current;
+    if (!id) return;
     setDraftName(name);
     await fetch("/api/creative-ai/drafts", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: draftId, name }),
+      body: JSON.stringify({ id, name }),
     });
   }
 
   async function markLaunched() {
-    if (!draftId) return;
+    const id = idRef.current;
+    if (!id) return;
     await fetch("/api/creative-ai/drafts", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: draftId, status: "LAUNCHED" }),
+      body: JSON.stringify({ id, status: "LAUNCHED" }),
     });
     try { sessionStorage.removeItem(SESSION_KEY); } catch { /* ignore */ }
   }
 
   async function deleteDraft(id?: string) {
-    const target = id ?? draftId;
+    const target = id ?? idRef.current;
     if (!target) return;
     await fetch("/api/creative-ai/drafts", {
       method: "DELETE",
@@ -120,5 +154,5 @@ export function useCreativeAIDraft(company: string) {
     };
   }, []);
 
-  return { draftId, draftName, saveStatus, initDraft, autoSave, renameDraft, markLaunched, deleteDraft };
+  return { draftId, draftName, draftReady, saveStatus, initDraft, adoptDraft, startNewDraft, autoSave, renameDraft, markLaunched, deleteDraft };
 }

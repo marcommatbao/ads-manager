@@ -473,8 +473,10 @@ export default function BudgetSettingsPage() {
     setKpiLoading(true);
     fetch(`/api/settings/kpi?year=${year}`)
       .then((r) => r.json())
-      .then((data: { success?: boolean; months?: { adSpendMbc?: number; adSpendMbi?: number }[] }) => {
-        const m = data.success && Array.isArray(data.months) ? data.months[monthIndex] : null;
+      .then((data: { success?: boolean; months?: { adSpendMbc?: number; adSpendMbi?: number }[]; effectiveMonths?: { adSpendMbc?: number; adSpendMbi?: number }[] }) => {
+        // 12/10: trần tháng = ngân sách cố định + khoản chi bổ sung (đối tác hỗ trợ / sản phẩm mới).
+        const src = data.effectiveMonths ?? data.months;
+        const m = data.success && Array.isArray(src) ? src[monthIndex] : null;
         setKpiBudget({ MBC: m?.adSpendMbc ?? 0, MBI: m?.adSpendMbi ?? 0 });
       })
       .catch(() => setKpiBudget(null))

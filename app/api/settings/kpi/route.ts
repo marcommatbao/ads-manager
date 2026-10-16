@@ -8,7 +8,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { isAdmin, isSuperAdmin } from "@/lib/permissions";
 import { kpiForbiddenChanges } from "@/lib/settings/kpi-scope";
-import { getKpiYear, saveKpiYear, type MonthKpi } from "@/lib/settings/kpi-store";
+import { getKpiYear, saveKpiYear, effectiveMonth, type MonthKpi } from "@/lib/settings/kpi-store";
 import { writeAuditEntry, writeAuditSnapshot, computeDiff } from "@/lib/settings/audit";
 import { validateKpiYear } from "@/lib/settings/validators/kpi";
 import { adChannels } from "@/lib/settings/ad-channels";
@@ -28,7 +28,10 @@ export async function GET(request: NextRequest) {
   const year = parseYear(request.nextUrl.searchParams.get("year"));
   const canEdit = isAdmin(user.role) || isSuperAdmin(user.role);
   // Đợt 27: kèm sổ kênh (gốc + tự thêm) — trang KPI / Tổng quan / P&L dựng cột kênh theo danh sách này.
-  return NextResponse.json({ success: true, canEdit, canManageChannels: isSuperAdmin(user.role), channels: adChannels(), ...getKpiYear(year) });
+  // 12/10: `months` = ngân sách CỐ ĐỊNH (trang KPI sửa số này); `effectiveMonths` = trần THỰC TẾ (cố định + khoản chi bổ sung)
+  // — Dashboard / P&L / Ngân sách so chi tiêu với số này.
+  const view = getKpiYear(year);
+  return NextResponse.json({ success: true, canEdit, canManageChannels: isSuperAdmin(user.role), channels: adChannels(), ...view, effectiveMonths: view.months.map(effectiveMonth) });
 }
 
 export async function PUT(request: NextRequest) {

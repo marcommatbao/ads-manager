@@ -357,7 +357,7 @@ function UserForm({ data, onChange, isEdit, onResetPassword, submitting }: UserF
           disabled={submitting}
         >
           <SelectTrigger className="w-full border-slate-200">
-            <SelectValue placeholder="Chọn role" />
+            <SelectValue placeholder="Chọn role">{(v: string) => ROLE_CONFIG[v as keyof typeof ROLE_CONFIG]?.label ?? v}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             {visibleRoles().map((r) => {
@@ -488,7 +488,7 @@ function UserForm({ data, onChange, isEdit, onResetPassword, submitting }: UserF
             disabled={submitting}
           >
             <SelectTrigger className="w-full border-slate-200">
-              <SelectValue />
+              <SelectValue>{(v: string) => ({ active: "Hoạt động", pending: "Chờ duyệt", disabled: "Vô hiệu" } as Record<string, string>)[v] ?? v}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="active">

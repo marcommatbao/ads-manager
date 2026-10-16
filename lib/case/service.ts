@@ -19,7 +19,7 @@ import { proposeMetaActions } from "./actions-meta"
 import { diagnoseMeta, ODOO_GAP_RATIO, ODOO_MIN_META_PURCHASES } from "./causes-meta"
 import { executeMetaActions, undoMetaExecution } from "./execute-meta"
 import { accountCampaignInsights, collectMetaEvidence, pickAction, PURCHASE_TYPES } from "./meta-evidence"
-import { createCase, listCases, readCase, updateCase, type CampaignCase, type Execution } from "./store"
+import { createCase, listCases, readCase, updateCase, type CampaignCase, type Execution, type RemeasureDiag, type RemeasureEntry } from "./store"
 import { judgeRemeasure, VERDICT_CODE, type PerfSnap, type RemeasureVerdict } from "./judge"
 import { lexiconFor, targetFor } from "./targets"
 import type { CaseEvidence, Company, MetaEvidence, SearchEvidence } from "./types"
@@ -208,37 +208,35 @@ export function setStep(id: string, step: CampaignCase["step"]) {
 /** Bước 3 → 4 → 5: chốt mục tiêu, tính nguyên nhân, dựng hướng xử lý (kèm mô phỏng). */
 export async function confirmGoal(id: string, goal: { basis: CaseBasis; target: number; ceiling: number; where: string }, actor: string) {
   return updateCase(id, async (c) => {
-    if (!c.evidence) throw new CaseError("Phiên chưa có bằng chứng — thu thập lại trước")
-    // Đợt 23 (3d): phiên thu lead chỉ chấm theo CPL; phiên bán hàng chỉ CPA / ROAS.
-    const kind = evidenceGoalKind(c.evidence)
-    if ((kind === "leads") !== (goal.basis === "cpl")) throw new CaseError(kind === "leads" ? "Chiến dịch thu lead chấm theo chi phí mỗi lead (CPL)" : "Chiến dịch bán hàng chấm theo CPA hoặc ROAS")
-    const now = new Date().toISOString()
-    if (c.evidence.kind === "meta") {
-      const ev = c.evidence
-      const diagnosis = diagnoseMeta(ev)
-      const verdict = metaVerdict(ev, goal)
-      const { actions, manualTasks } = proposeMetaActions({ evidence: ev, diagnosis, verdict, goal })
-      const next: CampaignCase = {
-        ...c, step: 4, diagnosis, actions,
-        goal: { ...goal, confirmedBy: actor, confirmedAt: now },
-        manualTasks: manualTasks.map((t, i) => ({ ...t, id: `task_${Date.now().toString(36)}_${i}`, createdAt: now })),
-      }
-      return { next, result: next }
-    }
-    const lexicon = lexiconFor(c.company)
-    const diagnosis = diagnoseSearch(c.evidence, { lexicon, ceilingCpa: goal.basis === "roas" ? null : goal.ceiling, goalKind: kind })
-    const ev = c.evidence.campaign
-    const verdict = verdictOf({ cost: ev.cost, clicks: ev.clicks, orders: ev.orders, orderValue: ev.orderValue }, goal)
-    const { actions, manualTasks } = c.evidence.kind === "google_pmax"
-      ? proposePmaxActions({ evidence: c.evidence, diagnosis, lexicon })
-      : proposeSearchActions({ evidence: c.evidence, diagnosis, verdict, lexicon })
-    const next: CampaignCase = {
-      ...c, step: 4, diagnosis, actions,
-      goal: { ...goal, confirmedBy: actor, confirmedAt: now },
-      manualTasks: manualTasks.map((t, i) => ({ ...t, id: `task_${Date.now().toString(36)}_${i}`, createdAt: now })),
-    }
+    const next = planCase(c, goal, actor)
     return { next, result: next }
   })
+}
+
+/** Tính nguyên nhân + hướng xử lý từ bằng chứng hiện có của phiên (dùng chung cho bước 3 và "Mở lại ở bước 4"). */
+function planCase(c: CampaignCase, goal: { basis: CaseBasis; target: number; ceiling: number; where: string }, actor: string): CampaignCase {
+  if (!c.evidence) throw new CaseError("Phiên chưa có bằng chứng — thu thập lại trước")
+  // Đợt 23 (3d): phiên thu lead chỉ chấm theo CPL; phiên bán hàng chỉ CPA / ROAS.
+  const kind = evidenceGoalKind(c.evidence)
+  if ((kind === "leads") !== (goal.basis === "cpl")) throw new CaseError(kind === "leads" ? "Chiến dịch thu lead chấm theo chi phí mỗi lead (CPL)" : "Chiến dịch bán hàng chấm theo CPA hoặc ROAS")
+  const now = new Date().toISOString()
+  const tasks = (list: Omit<CampaignCase["manualTasks"][number], "id" | "createdAt">[]) =>
+    list.map((t, i) => ({ ...t, id: `task_${Date.now().toString(36)}_${i}`, createdAt: now })) as CampaignCase["manualTasks"]
+  if (c.evidence.kind === "meta") {
+    const ev = c.evidence
+    const diagnosis = diagnoseMeta(ev)
+    const verdict = metaVerdict(ev, goal)
+    const { actions, manualTasks } = proposeMetaActions({ evidence: ev, diagnosis, verdict, goal })
+    return { ...c, step: 4, diagnosis, actions, goal: { ...goal, confirmedBy: actor, confirmedAt: now }, manualTasks: tasks(manualTasks) }
+  }
+  const lexicon = lexiconFor(c.company)
+  const diagnosis = diagnoseSearch(c.evidence, { lexicon, ceilingCpa: goal.basis === "roas" ? null : goal.ceiling, goalKind: kind })
+  const ev = c.evidence.campaign
+  const verdict = verdictOf({ cost: ev.cost, clicks: ev.clicks, orders: ev.orders, orderValue: ev.orderValue }, goal)
+  const { actions, manualTasks } = c.evidence.kind === "google_pmax"
+    ? proposePmaxActions({ evidence: c.evidence, diagnosis, lexicon })
+    : proposeSearchActions({ evidence: c.evidence, diagnosis, verdict, lexicon })
+  return { ...c, step: 4, diagnosis, actions, goal: { ...goal, confirmedBy: actor, confirmedAt: now }, manualTasks: tasks(manualTasks) }
 }
 
 /** Tuỳ chọn của việc Đợt 5: đổi sự kiện (chỉ trong danh sách đề xuất) / tạm dừng nhóm cũ khi bật nhóm mới. */
@@ -293,8 +291,10 @@ export async function executeCase(id: string, input: { actor: string; idempotenc
     const next: CampaignCase = {
       ...c, step: 6, executions: [...c.executions, execution],
       actions: [...c.actions.map((a) => (a.type === "CREATE_ADSET_WITH_EVENT" && created.some((m) => m.sourceAdsetId === a.sourceAdsetId) ? { ...a, selected: false } : a)), ...activations],
-      remeasure: wrote && c.remeasure.length === 0
-        ? [{ due: addDays(today, 7), status: "pending" }, { due: addDays(today, 14), status: "pending" }]
+      // 14/10: trước đây chỉ đặt lịch khi CHƯA TỪNG có lịch → phiên mở lại rồi làm tiếp không bao giờ được đo lại.
+      // Nay: không còn mốc nào đang chờ thì mở VÒNG ĐO MỚI, kỳ đo tính từ hôm nay (start).
+      remeasure: wrote && !c.remeasure.some((r) => r.status === "pending")
+        ? [...c.remeasure, { due: addDays(today, 7), status: "pending", start: today }, { due: addDays(today, 14), status: "pending", start: today }]
         : c.remeasure,
     }
     return { next, result: { case: next, execution } }
@@ -348,25 +348,107 @@ export async function runDueRemeasures(now: Date = new Date()): Promise<{ checke
   for (const c of listCases()) {
     const due = c.remeasure.filter((r) => r.status === "pending" && r.due <= today)
     if (!due.length || !c.executions.length) continue
-    const start = c.executions.filter((e) => !e.undoneAt).map((e) => e.at.slice(0, 10)).sort()[0]
+    const start = due[0].start ?? firstExecutionDay(c)
     if (!start) continue
     try {
       await updateCase(c.id, async (cur) => {
-        const fresh = await collectFor(cur, { from: start, to: today })
+        const range = { from: start, to: today }
+        const fresh = await collectFor(cur, range)
         const { result, enabled, verdict } = remeasureResult(cur, fresh)
-        let status = cur.status, step = cur.step
-        const remeasure = cur.remeasure.map((r) => (due.includes(r) || (r.status === "pending" && r.due <= today) ? { ...r, status: "done" as const, result } : r))
+        const diag = diagOf(cur, fresh, range)
+        let status = cur.status, step = cur.step, reopenedAt = cur.reopenedAt
+        const remeasure: RemeasureEntry[] = cur.remeasure.map((r) => (r.status === "pending" && r.due <= today ? { ...r, status: "done" as const, result, diag } : r))
         const isFinal = remeasure.every((r) => r.status === "done")
         const improved = verdict === "improved" // Đợt 23: không còn "giảm 1% là đạt" — xem lib/case/judge.ts
-        if (isFinal && !improved && enabled) { status = "reopened"; step = 4; reopened++ }
+        if (isFinal && verdict === "insufficient") {
+          // 14/10: mốc cuối mà quá ít đơn → KHÔNG mở lại (mở lại vì vài đơn may rủi là làm lại phiên oan). Đo thêm 14 ngày,
+          // tối đa MAX_REMEASURE_EXTENSIONS lần; hết lượt vẫn ít đơn thì để nguyên, trang phiên nói rõ "chiến dịch quá ít đơn để đo".
+          if (remeasure.filter((r) => r.extended).length < MAX_REMEASURE_EXTENSIONS) {
+            remeasure.push({ due: addDays(today, 14), status: "pending", extended: true, start })
+          }
+        } else if (isFinal && !improved && enabled) {
+          status = "reopened"; step = 4; reopenedAt = new Date().toISOString(); reopened++
+        }
         checked++
-        return { next: { ...cur, remeasure, status, step }, result: null }
+        return { next: { ...cur, remeasure, status, step, reopenedAt }, result: null }
       })
     } catch (e) {
       errors.push(`${c.id}: ${e instanceof Error ? e.message : String(e)}`)
     }
   }
   return { checked, reopened, errors }
+}
+
+/** Số lần đo thêm tối đa khi mốc cuối "chưa đủ dữ liệu" (mỗi lần +14 ngày). */
+export const MAX_REMEASURE_EXTENSIONS = 2
+
+/** Ngày thực hiện đầu tiên (chưa hoàn tác) của vòng đo hiện tại — sau lần mở lại gần nhất nếu có. */
+function firstExecutionDay(c: CampaignCase): string | null {
+  const live = c.executions.filter((e) => !e.undoneAt)
+  const since = c.reopenedAt ?? ""
+  const pick = (list: typeof live) => list.map((e) => e.at.slice(0, 10)).sort()[0] ?? null
+  return pick(live.filter((e) => e.at >= since)) ?? pick(live)
+}
+
+/** 14/10: ảnh chụp chẩn đoán của kỳ đo — tỉ lệ để so với lúc mở phiên + bộ tìm nguyên nhân bước 4 chạy trên số mới. Hàm thuần. */
+export function diagOf(cur: CampaignCase, fresh: CaseEvidence, range: { from: string; to: string }): RemeasureDiag {
+  const top = (causes: { id: string; title: string; money: number | null }[]) =>
+    causes.slice(0, 6).map((x) => ({ id: x.id, title: x.title, money: x.money === null ? null : Math.round(x.money) }))
+  if (fresh.kind === "meta") {
+    const c = fresh.campaign
+    return {
+      ...range,
+      facts: { cost: Math.round(c.cost), impressions: c.impressions, reach: c.reach, clicks: c.clicks, linkClicks: c.linkClicks, landingViews: c.landingViews, frequency: c.frequency },
+      causes: top(diagnoseMeta(fresh).causes),
+    }
+  }
+  const c = fresh.campaign
+  const goal = cur.goal
+  const dx = diagnoseSearch(fresh, { lexicon: lexiconFor(cur.company), ceilingCpa: goal && goal.basis !== "roas" ? goal.ceiling : null, goalKind: evidenceGoalKind(fresh) })
+  return {
+    ...range,
+    facts: { cost: Math.round(c.cost), clicks: c.clicks, impressions: c.impressions, orders: c.orders, impressionShare: c.impressionShare, lostIsBudget: c.lostIsBudget, lostIsRank: c.lostIsRank },
+    causes: top(dx.causes),
+  }
+}
+
+/** 14/10: "Kiểm tra ngay" — đo kỳ [ngày thực hiện, hôm nay] ngoài lịch để xem chẩn đoán. KHÔNG đổi lịch đo, KHÔNG mở lại.
+ *  Gọi Google/Meta thật → chặn bấm liên tục (CHECK_COOLDOWN_MS). */
+export const CHECK_COOLDOWN_MS = 10 * 60_000
+export async function checkNow(id: string, now: Date = new Date()) {
+  return updateCase(id, async (c) => {
+    const start = firstExecutionDay(c)
+    if (!start) throw new CaseError("Phiên chưa thực hiện thay đổi nào nên chưa có gì để đo")
+    if (c.latestCheck && now.getTime() - Date.parse(c.latestCheck.at) < CHECK_COOLDOWN_MS) {
+      throw new CaseError("Vừa kiểm tra xong — đợi khoảng 10 phút rồi kiểm lại (mỗi lần kiểm gọi Google/Meta thật)", 429)
+    }
+    const range = { from: start, to: vnDate(now) }
+    const fresh = await collectFor(c, range)
+    const { result } = remeasureResult(c, fresh)
+    const next: CampaignCase = { ...c, latestCheck: { at: now.toISOString(), verdict: Number(result.verdict ?? 0), result, diag: diagOf(c, fresh, range) } }
+    return { next, result: next }
+  })
+}
+
+/** 14/10: "Mở lại phiên ở bước 4 ngay" — không chờ mốc đo cuối. Thu lại bằng chứng 30 ngày gần nhất, tính lại nguyên nhân +
+ *  hướng xử lý theo mục tiêu đã chốt. Việc giao người cũ được giữ; lần thực hiện cũ giữ nguyên (vẫn hoàn tác được). */
+export async function reopenNow(id: string, actor: string, now: Date = new Date()) {
+  return updateCase(id, async (c) => {
+    if (!c.goal) throw new CaseError("Phiên chưa chốt mục tiêu — làm tiếp từ bước 3")
+    const today = vnDate(now)
+    const range = { from: addDays(today, -29), to: today }
+    const evidence = await collectFor(c, range)
+    const planned = planCase({ ...c, evidence, range }, { basis: c.goal.basis, target: c.goal.target, ceiling: c.goal.ceiling, where: c.goal.where }, actor)
+    const next: CampaignCase = {
+      ...planned,
+      manualTasks: [...c.manualTasks, ...planned.manualTasks],
+      // Mốc đo đang chờ của vòng cũ bỏ đi (đo tiếp thứ đã quyết làm lại là vô nghĩa và có thể tự mở lại lần nữa);
+      // lần thực hiện mới ở bước 6 sẽ mở vòng đo mới. Mốc đã đo giữ lại làm lịch sử.
+      remeasure: c.remeasure.filter((r) => r.status === "done"),
+      status: "reopened", step: 4, reopenedAt: now.toISOString(),
+    }
+    return { next, result: next }
+  })
 }
 
 /** Chấm phiên Facebook theo số Meta; lệch Odoo lớn → thêm cờ (phương án c). */

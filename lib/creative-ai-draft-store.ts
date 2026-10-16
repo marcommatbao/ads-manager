@@ -48,10 +48,18 @@ async function writeDrafts(drafts: CreativeAIDraft[]): Promise<void> {
   await writeFileAtomic(FILE, JSON.stringify({ drafts }, null, 2));
 }
 
-// Drop expired drafts and cap total count so the store stays bounded.
+/** Nháp chưa có dữ liệu bước nào (sinh ra lúc chỉ MỞ trang — bản trước 15/10/2026). */
+export const isEmptyDraft = (d: Pick<CreativeAIDraft, "step1Data" | "step2Data" | "step3Data" | "step4Data">): boolean =>
+  !d.step1Data && !d.step2Data && !d.step3Data && !d.step4Data;
+const EMPTY_DRAFT_TTL_MS = 86_400_000;
+
+// Drop expired drafts and cap total count so the store stays bounded. Nháp rỗng quá 1 ngày bị bỏ để không chiếm chỗ nháp thật.
 function prune(drafts: CreativeAIDraft[]): CreativeAIDraft[] {
   const now = Date.now();
-  return drafts.filter(d => new Date(d.expiresAt).getTime() > now).slice(0, CAP);
+  return drafts
+    .filter(d => new Date(d.expiresAt).getTime() > now)
+    .filter(d => !isEmptyDraft(d) || now - new Date(d.updatedAt).getTime() < EMPTY_DRAFT_TTL_MS)
+    .slice(0, CAP);
 }
 
 export async function createDraft(company: string): Promise<CreativeAIDraft> {
@@ -87,7 +95,7 @@ export function getDraft(id: string, company?: string): CreativeAIDraft | null {
 // Drafts a resume-picker should offer: same company, not yet launched.
 export function listPendingDrafts(company: string, limit = 10): CreativeAIDraft[] {
   return prune(readDrafts())
-    .filter(d => d.company === company && d.status === "ACTIVE")
+    .filter(d => d.company === company && d.status === "ACTIVE" && !isEmptyDraft(d))
     .slice(0, limit);
 }
 

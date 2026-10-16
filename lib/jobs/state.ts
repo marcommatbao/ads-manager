@@ -46,9 +46,48 @@ export function intervalMsFromCron(cronExpr: string): number | null {
   return 24 * 3_600_000;
 }
 
+/** Một trường cron có khớp giá trị v không: "*", "5", "1,3", "1-5", "*\/15", "0-30/10". */
+function cronFieldMatches(field: string, v: number, isDow = false): boolean {
+  return field.split(",").some((part) => {
+    const [range, stepRaw] = part.split("/");
+    const step = stepRaw ? Number(stepRaw) : 1;
+    if (!(step > 0)) return false;
+    let lo: number, hi: number;
+    if (range === "*") { lo = 0; hi = isDow ? 7 : 59; }
+    else if (range.includes("-")) { [lo, hi] = range.split("-").map(Number); }
+    else { lo = Number(range); hi = stepRaw ? (isDow ? 7 : 59) : lo; }
+    if (Number.isNaN(lo) || Number.isNaN(hi)) return false;
+    const hit = (x: number) => x >= lo && x <= hi && (x - lo) % step === 0;
+    return hit(v) || (isDow && v === 0 && hit(7));
+  });
+}
+
+/**
+ * Mốc cron kế tiếp (UTC — giờ trong registry là UTC) SAU thời điểm `afterMs`. Dò từng phút, tối đa 8 ngày.
+ * SỬA 15/10/2026: bản cũ = "lần chạy cuối + khoảng lặp" → bấm Run tay lúc 12:01 thì job hằng ngày 05:45 báo
+ * "Next expected 12:01 hôm sau" (người dùng chụp được). Nay ra đúng mốc lịch.
+ */
+export function nextCronFireMs(cronExpr: string, afterMs: number): number | null {
+  const f = cronExpr.trim().split(/\s+/);
+  if (f.length < 5) return null;
+  const [min, hour, dom, mon, dow] = f;
+  const t = new Date(Math.floor(afterMs / 60_000) * 60_000 + 60_000);
+  for (let i = 0; i < 8 * 24 * 60; i++, t.setTime(t.getTime() + 60_000)) {
+    if (!cronFieldMatches(min, t.getUTCMinutes())) continue;
+    if (!cronFieldMatches(hour, t.getUTCHours())) continue;
+    if (!cronFieldMatches(mon, t.getUTCMonth() + 1)) continue;
+    // Cron chuẩn: cả ngày-tháng lẫn thứ đều giới hạn → khớp MỘT trong hai là đủ.
+    const domOk = cronFieldMatches(dom, t.getUTCDate()), dowOk = cronFieldMatches(dow, t.getUTCDay(), true);
+    if (dom !== "*" && dow !== "*" ? domOk || dowOk : domOk && dowOk) return t.getTime();
+  }
+  return null;
+}
+
 function nextExpected(cronExpr: string, lastRunAt: string | null): string | null {
-  const ms = intervalMsFromCron(cronExpr) ?? 24 * 3_600_000;
   const base = lastRunAt ? Date.parse(lastRunAt) : Date.now();
+  const fire = nextCronFireMs(cronExpr, base);
+  if (fire !== null) return new Date(fire).toISOString();
+  const ms = intervalMsFromCron(cronExpr) ?? 24 * 3_600_000;
   return new Date(base + ms).toISOString();
 }
 

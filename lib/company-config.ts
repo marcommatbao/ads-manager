@@ -12,29 +12,30 @@ import { metaAccountIds, ga4Ids } from "@/lib/meta-accounts";
 
 export interface CompanyConfigEntry { label: string; domain: string; color: string; ga4: ReturnType<typeof ga4Ids>; facebook: { pixelId: string } }
 // Đợt 21a: kiểu theo mã công ty (bản cài khác có thể không có dòng ở đây → nơi dùng phải xử lý thiếu).
+// ga4/facebook là getter: đọc mã LÚC DÙNG, không chụp một lần lúc nạp module (trình duyệt nạp module trước khi có mã chèn sẵn).
 export const COMPANY_CONFIG: Record<string, CompanyConfigEntry> = {
   MBC: {
     label: "MBC",
     domain: "matbao.net",
     color: "blue", // tailwind name, không phải hex — tiện dùng trực tiếp ở UI
-    ga4: ga4Ids("MBC"),
-    facebook: { pixelId: metaAccountIds("MBC").pixelId },
+    get ga4() { return ga4Ids("MBC"); },
+    get facebook() { return { pixelId: metaAccountIds("MBC").pixelId }; },
   },
 
   MBI: {
     label: "MBI",
     domain: "matbao.in",
     color: "indigo",
-    ga4: ga4Ids("MBI"),
-    facebook: { pixelId: metaAccountIds("MBI").pixelId },
+    get ga4() { return ga4Ids("MBI"); },
+    get facebook() { return { pixelId: metaAccountIds("MBI").pixelId }; },
   },
 
   SALE_AI: {
     label: "Sale.AI",
     domain: "sale.ai.vn",
     color: "emerald",
-    ga4: ga4Ids("SALE_AI"),
-    facebook: { pixelId: metaAccountIds("SALE_AI").pixelId },
+    get ga4() { return ga4Ids("SALE_AI"); },
+    get facebook() { return { pixelId: metaAccountIds("SALE_AI").pixelId }; },
   },
 };
 

@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { getMonthKpi } from "@/lib/settings/kpi-store";
+import { getEffectiveMonthKpi } from "@/lib/settings/kpi-store";
 import { writeFileAtomicSync } from "@/lib/fs-atomic";
 
 // ─────────────────────────────────────────────
@@ -146,7 +146,8 @@ function writeSettings(settings: CPLSettings): void {
 /** CPL cần đạt để chạm KPI tháng hiện tại — null nếu KPI tháng này chưa đặt. */
 function computeBreakeven(company: string, settings: CPLSettings): number | null {
   const now = new Date();
-  const m = getMonthKpi(now.getFullYear(), now.getMonth() + 1);
+  // 12/10 (user chốt): CPL mục tiêu tính trên trần THỰC TẾ = cố định + khoản chi bổ sung của tháng.
+  const m = getEffectiveMonthKpi(now.getFullYear(), now.getMonth() + 1);
 
   if (company === "MBC") {
     const aov = settings.MBC.referenceAov;

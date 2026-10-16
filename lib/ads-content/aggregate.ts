@@ -373,11 +373,15 @@ async function fetchPmaxCreatives(dateRange: DateRange, companies: Company[]): P
 // ── Public entry point ──────────────────────────────────────
 
 export async function getAdsContentItems(companies: Company[], dateRange: DateRange): Promise<FetchResult> {
-  const [fb, rsa, pmax] = await Promise.all([
-    fetchFacebookCreatives(dateRange, companies),
-    fetchGoogleSearchCreatives(dateRange, companies),
-    fetchPmaxCreatives(dateRange, companies),
+  // 15/10/2026: đo từng nguồn — lần tải đầu (chưa cache) từng mất ~140 giây; log để biết nguồn nào chậm.
+  const t0 = Date.now();
+  const timed = <T,>(p: Promise<T>): Promise<[T, number]> => p.then((v) => [v, Date.now() - t0] as [T, number]);
+  const [[fb, fbMs], [rsa, rsaMs], [pmax, pmaxMs]] = await Promise.all([
+    timed(fetchFacebookCreatives(dateRange, companies)),
+    timed(fetchGoogleSearchCreatives(dateRange, companies)),
+    timed(fetchPmaxCreatives(dateRange, companies)),
   ]);
+  console.info(`[ads-content] ${dateRange.from}→${dateRange.to} facebook ${fbMs}ms (${fb.items.length}) · google_search ${rsaMs}ms (${rsa.items.length}) · pmax ${pmaxMs}ms (${pmax.items.length})`);
 
   const items = [...fb.items, ...rsa.items, ...pmax.items].sort((a, b) =>
     b.lastActiveDate.localeCompare(a.lastActiveDate)

@@ -10,6 +10,7 @@
 // ============================================================
 
 import { promises as fsp, readFileSync, existsSync } from "fs";
+import { randomUUID } from "crypto";
 import { writeFileAtomic } from "@/lib/fs-atomic";
 import path from "path";
 import { withFileLock } from "@/lib/file-lock";
@@ -39,6 +40,31 @@ export type ChannelBudget = Record<string, number>;
 export const EMPTY_CHANNEL_BUDGET: ChannelBudget = { google: 0, facebook: 0, tiktok: 0, zalo: 0 };
 export const emptyChannelBudget = (): ChannelBudget => Object.fromEntries(kpiChannelKeys().map((k) => [k, 0]));
 
+// ── Khoản chi bổ sung (12/10/2026, task #6285) ─────────────────────────────
+// Ngoài ngân sách cố định cả năm, từng tháng có thể có tiền THÊM:
+//  • partner_support — đối tác hỗ trợ tiền chạy QC (không phải tiền công ty): NÂNG trần chi QC, và P&L trừ khoản này
+//    khỏi chi phí thật của công ty (lib/finance/company-pnl.ts).
+//  • new_product     — công ty bỏ thêm tiền cho sản phẩm mới: NÂNG trần; nếu có `campaignContains` thì trang KPI
+//    đo riêng khoản này đã tiêu bao nhiêu (lọc chiến dịch theo chữ trong tên).
+// Cả hai CỘNG vào CPL mục tiêu (user chốt 12/10) — qua effectiveMonth().
+// Lưu ngay trong tháng của kpi-targets.json ⇒ nhật ký + khôi phục bản trước của KPI tự áp dụng.
+export type ExtraSpendKind = "partner_support" | "new_product";
+export const EXTRA_SPEND_KINDS: ExtraSpendKind[] = ["partner_support", "new_product"];
+export const EXTRA_SPEND_KIND_LABEL: Record<ExtraSpendKind, string> = {
+  partner_support: "Đối tác hỗ trợ",
+  new_product: "Sản phẩm mới",
+};
+export type ExtraSpendCompany = "MBC" | "MBI";
+export interface ExtraSpendEntry {
+  id: string;
+  company: ExtraSpendCompany;
+  channel: string;          // mã kênh trong sổ kênh (google, facebook, …)
+  kind: ExtraSpendKind;
+  amount: number;           // ₫, > 0
+  note: string;             // tên đối tác / sản phẩm
+  campaignContains?: string; // chỉ new_product: chữ có trong tên chiến dịch để đo phần đã tiêu
+}
+
 export interface MonthKpi {
   revenueMbc: number;  // doanh thu MBC mục tiêu (₫)
   adSpendMbc: number;  // chi QC MBC mục tiêu (₫)
@@ -48,12 +74,15 @@ export interface MonthKpi {
   adSpendMbcByChannel: ChannelBudget;
   /** Phân bổ adSpendMbi theo kênh. Tổng các kênh ≤ adSpendMbi. */
   adSpendMbiByChannel: ChannelBudget;
+  /** Khoản chi bổ sung của tháng (KHÔNG nằm trong adSpend* — adSpend* là ngân sách cố định). */
+  extraSpend: ExtraSpendEntry[];
 }
 
 export const EMPTY_MONTH: MonthKpi = {
   revenueMbc: 0, adSpendMbc: 0, adSpendMbi: 0, ordersMbi: 0,
   adSpendMbcByChannel: { ...EMPTY_CHANNEL_BUDGET },
   adSpendMbiByChannel: { ...EMPTY_CHANNEL_BUDGET },
+  extraSpend: [],
 };
 
 /** Tổng tiền đã phân bổ cho các kênh. */
@@ -103,6 +132,65 @@ function normMonth(m: Partial<MonthKpi> | undefined): MonthKpi {
     // là toàn 0, tức "chưa phân bổ", đúng như trước khi có tính năng.
     adSpendMbcByChannel: normChannels(m?.adSpendMbcByChannel),
     adSpendMbiByChannel: normChannels(m?.adSpendMbiByChannel),
+    // Tháng lưu trước 12/10/2026 không có trường này → [] (y như trước khi có tính năng).
+    extraSpend: normExtraSpend(m?.extraSpend),
+  };
+}
+
+const str = (v: unknown, max: number): string => (typeof v === "string" ? v.trim().slice(0, max) : "");
+/** Chuẩn hoá danh sách khoản bổ sung khi đọc/ghi. Dòng hỏng (sai công ty / loại / tiền ≤ 0) bị bỏ — bộ kiểm khi lưu
+ *  (validators/kpi.ts) đã chặn trước, nên ở đây chỉ còn là lưới an toàn cho tệp sửa tay. */
+function normExtraSpend(v: unknown): ExtraSpendEntry[] {
+  if (!Array.isArray(v)) return [];
+  const out: ExtraSpendEntry[] = [];
+  for (const raw of v as Record<string, unknown>[]) {
+    const company = raw?.company === "MBC" || raw?.company === "MBI" ? raw.company : null;
+    const kind = EXTRA_SPEND_KINDS.includes(raw?.kind as ExtraSpendKind) ? (raw.kind as ExtraSpendKind) : null;
+    const amount = Math.round(Number(raw?.amount) || 0);
+    const channel = str(raw?.channel, 24);
+    if (!company || !kind || amount <= 0 || !/^[a-z][a-z0-9_]{1,23}$/.test(channel)) continue;
+    const contains = kind === "new_product" ? str(raw?.campaignContains, 60) : "";
+    out.push({
+      id: str(raw?.id, 64) || randomUUID(),
+      company, channel, kind, amount,
+      note: str(raw?.note, 120),
+      ...(contains ? { campaignContains: contains } : {}),
+    });
+  }
+  return out;
+}
+
+export interface ExtraSpendSide { total: number; partnerSupport: number; newProduct: number; byChannel: ChannelBudget }
+/** Cộng khoản bổ sung theo công ty / loại / kênh. */
+export function extraSpendSummary(m: Pick<MonthKpi, "extraSpend">): Record<ExtraSpendCompany, ExtraSpendSide> {
+  const side = (): ExtraSpendSide => ({ total: 0, partnerSupport: 0, newProduct: 0, byChannel: {} });
+  const out: Record<ExtraSpendCompany, ExtraSpendSide> = { MBC: side(), MBI: side() };
+  for (const e of m.extraSpend ?? []) {
+    const s = out[e.company];
+    if (!s) continue;
+    s.total += e.amount;
+    if (e.kind === "partner_support") s.partnerSupport += e.amount; else s.newProduct += e.amount;
+    s.byChannel[e.channel] = (s.byChannel[e.channel] ?? 0) + e.amount;
+  }
+  return out;
+}
+
+/** Trần THỰC TẾ của tháng = ngân sách cố định + khoản bổ sung (tổng công ty, và kênh đã có trần).
+ *  Kênh trần cố định = 0 nghĩa là "chưa đặt trần" → GIỮ 0: cộng khoản bổ sung vào thì kênh bỗng có trần đúng bằng khoản
+ *  đó và Dashboard báo vượt sai. Tiền bổ sung của kênh ấy vẫn nằm trong tổng của công ty. */
+export function effectiveMonth(m: MonthKpi): MonthKpi {
+  const ex = extraSpendSummary(m);
+  const addCh = (fixed: ChannelBudget, extra: ChannelBudget): ChannelBudget => {
+    const out: ChannelBudget = { ...fixed };
+    for (const [ch, v] of Object.entries(extra)) if ((fixed[ch] ?? 0) > 0) out[ch] = (fixed[ch] ?? 0) + v;
+    return out;
+  };
+  return {
+    ...m,
+    adSpendMbc: m.adSpendMbc + ex.MBC.total,
+    adSpendMbi: m.adSpendMbi + ex.MBI.total,
+    adSpendMbcByChannel: addCh(m.adSpendMbcByChannel, ex.MBC.byChannel),
+    adSpendMbiByChannel: addCh(m.adSpendMbiByChannel, ex.MBI.byChannel),
   };
 }
 
@@ -131,6 +219,11 @@ export function getKpiYear(year: number): KpiYearView {
 export function getMonthKpi(year: number, month1to12: number): MonthKpi {
   const db = readDB();
   return normMonth(db[String(year)]?.months?.[String(month1to12)]);
+}
+
+/** KPI 1 tháng đã CỘNG khoản bổ sung — mọi chỗ so chi tiêu với trần / tính CPL mục tiêu dùng hàm này. */
+export function getEffectiveMonthKpi(year: number, month1to12: number): MonthKpi {
+  return effectiveMonth(getMonthKpi(year, month1to12));
 }
 
 /** Lưu 12 tháng cho 1 năm. */

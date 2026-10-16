@@ -97,6 +97,26 @@ export type MetaChange =
   | { kind: "adset_created"; id: string; name: string; adIds: string[]; sourceAdsetId: string; event: string; after: string }
   | { kind: "ad_status"; id: string; name: string; before: string; after: string }
 
+/** 14/10/2026: ảnh chụp chẩn đoán lúc đo lại — đủ để giải thích "vì sao" mà không phải gọi lại Google/Meta.
+ *  `facts` = số kỳ đo (Google: clicks, impressions, impressionShare, lostIsBudget, lostIsRank; Meta: clicks, linkClicks,
+ *  landingViews, frequency, reach); `causes` = bộ tìm nguyên nhân của bước 4 chạy lại trên số kỳ đo. */
+export interface RemeasureDiag {
+  from: string
+  to: string
+  facts: Record<string, number | null>
+  causes: { id: string; title: string; money: number | null }[]
+}
+export interface RemeasureEntry {
+  due: string
+  status: "pending" | "done"
+  result?: Record<string, number | null>
+  diag?: RemeasureDiag
+  /** Mốc thêm vì mốc cuối "chưa đủ dữ liệu" (tối đa MAX_REMEASURE_EXTENSIONS lần). */
+  extended?: boolean
+  /** Ngày bắt đầu kỳ đo (YYYY-MM-DD) của vòng đo này. Thiếu (phiên cũ) = ngày thực hiện đầu tiên chưa hoàn tác. */
+  start?: string
+}
+
 export interface CampaignCase {
   id: string
   platform: "google" | "facebook"
@@ -112,7 +132,11 @@ export interface CampaignCase {
   actions: CaseAction[]
   manualTasks: ManualTask[]
   executions: Execution[]
-  remeasure: { due: string; status: "pending" | "done"; result?: Record<string, number | null> }[]
+  remeasure: RemeasureEntry[]
+  /** 14/10: lần mở lại gần nhất (tự động ở mốc cuối hoặc bấm "Mở lại ở bước 4"). Vòng đo mới tính từ thực hiện SAU mốc này. */
+  reopenedAt?: string
+  /** 14/10: lần "Kiểm tra ngay" gần nhất (đo ngoài lịch, chỉ để xem chẩn đoán — không đổi lịch, không mở lại). */
+  latestCheck?: { at: string; verdict: number; result: Record<string, number | null>; diag: RemeasureDiag }
   createdBy: string
   createdAt: string
   updatedAt: string

@@ -149,6 +149,11 @@ function LoginForm() {
         <p className="text-center text-xs text-slate-500 mt-6">
           {brandText().footer}
         </p>
+        {/* 15/10/2026: Google OAuth verification — trang chủ + chính sách xem được từ trang đăng nhập. */}
+        <p className="text-center text-xs text-slate-500 mt-2 space-x-3">
+          <a href="/about" className="hover:text-slate-300 underline-offset-2 hover:underline">About</a>
+          <a href="/privacy" className="hover:text-slate-300 underline-offset-2 hover:underline">Privacy Policy</a>
+        </p>
       </div>
     </div>
   );

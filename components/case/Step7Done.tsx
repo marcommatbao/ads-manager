@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { vnd, num, ddmmyyyy } from "./format";
 import { postJson, ApiError } from "./api";
 import type { CampaignCase } from "@/lib/case/store";
+import { NextStepsPanel } from "./NextStepsPanel";
 import { evidenceGoalKind } from "@/lib/case/goal-kind";
 
 const cpa = (n: number | null | undefined) => (n === null || n === undefined ? "—" : vnd(n));
@@ -148,6 +149,8 @@ export function Step7Done({
           Số &quot;sau&quot; chỉ hiện khi đã tới ngày đo — không ước đoán trước. Nếu sau lần đo cuối không cải thiện, phiên tự mở lại ở bước 4.
         </div>
       </div>
+
+      <NextStepsPanel c={c} onRefresh={onRefresh} />
 
       {c.platform === "facebook" && c.remeasure.some((r) => r.status === "done" && hasAdsetKeys(r.result)) && (
         <div className="space-y-4">

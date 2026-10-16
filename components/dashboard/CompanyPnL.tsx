@@ -17,6 +17,8 @@ type ChannelSpend = Record<string, number>;
 interface MbcPnl {
   company: "MBC";
   spendGoogle: number; spendFacebook: number; totalSpend: number;
+  /** 12/10: đối tác hỗ trợ + chi phí thật (= tổng − hỗ trợ). Thiếu ở payload cũ trong bộ đệm → coi như 0. */
+  partnerSupport?: number; netSpend?: number;
   spendByChannel?: ChannelSpend;
   spendFacebookError?: string | null; spendGoogleError?: string | null;
   spendFacebookStaleAt?: string | null;
@@ -29,6 +31,8 @@ interface MbcPnl {
 interface MbiPnl {
   company: "MBI";
   spendGoogle: number; spendFacebook: number; totalSpend: number;
+  /** 12/10: đối tác hỗ trợ + chi phí thật (= tổng − hỗ trợ). Thiếu ở payload cũ trong bộ đệm → coi như 0. */
+  partnerSupport?: number; netSpend?: number;
   spendByChannel?: ChannelSpend;
   spendFacebookError?: string | null; spendGoogleError?: string | null;
   spendFacebookStaleAt?: string | null;
@@ -136,7 +140,8 @@ export default function CompanyPnL() {
         const kr = await fetch(`/api/settings/kpi?year=${y}`);
         const kt = await kr.text(); const kj = kt ? JSON.parse(kt) : {};
         if (kj.success && Array.isArray(kj.channels) && kj.channels.length > 0) setChannels(kj.channels);
-        const mk = kj.success && Array.isArray(kj.months) ? kj.months[mi] : null;
+        // 12/10: trần THỰC TẾ (cố định + khoản chi bổ sung của tháng).
+        const mk = kj.success && Array.isArray(kj.effectiveMonths) ? kj.effectiveMonths[mi] : kj.success && Array.isArray(kj.months) ? kj.months[mi] : null;
         setKpi(mk ? {
           adSpendMbc: mk.adSpendMbc || 0, adSpendMbi: mk.adSpendMbi || 0,
           revenueMbc: mk.revenueMbc || 0, ordersMbi: mk.ordersMbi || 0,
@@ -519,11 +524,24 @@ function KpiBar({ label, actual, target, money, higherIsBetter, derived }: { lab
   );
 }
 
+/** 12/10: chỉ hiện khi tháng có tiền đối tác hỗ trợ — tổng chi ở trên vẫn là chi tiêu gộp (so với trần đã cộng hỗ trợ);
+ *  chi phí/đơn và tỉ lệ QC/DT bên dưới tính theo chi phí thật. */
+function SupportLine({ support, net }: { support?: number; net?: number }) {
+  if (!support || support <= 0) return null;
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[11px] rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 mb-2">
+      <span className="text-emerald-800">Đối tác hỗ trợ <b>−{fmtVND(support)}</b></span>
+      <span className="text-slate-700">Chi phí thật của công ty <b>{fmtVND(net ?? 0)}</b></span>
+    </div>
+  );
+}
+
 function MbcCard({ d, adSpendTarget, revenueTarget, channelTargets, derived, manualExcluded, cmp, channels }: { channels: AdChannelDef[]; d: MbcPnl; adSpendTarget?: number; revenueTarget?: number; channelTargets?: ChannelBudget; derived?: boolean; manualExcluded?: boolean; cmp?: PnlComparison }) {
   return (
     <div className="rounded-2xl border border-blue-200 bg-blue-50/30 p-4" style={{ borderLeftWidth: 3, borderLeftColor: "#2563eb" }}>
       <h3 className="text-sm font-bold text-blue-700 mb-3">🏢 MBC — đo theo doanh thu</h3>
       <SpendRow g={d.spendGoogle} f={d.spendFacebook} t={d.totalSpend} accent="text-blue-700" fbError={d.spendFacebookError} ggError={d.spendGoogleError} fbStaleAt={d.spendFacebookStaleAt} manualExcluded={manualExcluded} spendDelta={cmp?.MBC.totalSpend} byChannel={d.spendByChannel} budget={channelTargets} channels={channels} />
+      <SupportLine support={d.partnerSupport} net={d.netSpend} />
       {d.revenueSourceError && (
         <div className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 mb-2">
           <AlertTriangle className="h-3 w-3 shrink-0" />
@@ -549,6 +567,7 @@ function MbiCard({ d, adSpendTarget, ordersTarget, channelTargets, derived, manu
     <div className="rounded-2xl border border-violet-200 bg-violet-50/30 p-4" style={{ borderLeftWidth: 3, borderLeftColor: "#7c3aed" }}>
       <h3 className="text-sm font-bold text-violet-700 mb-3">🏢 MBI — đo theo đơn hàng</h3>
       <SpendRow g={d.spendGoogle} f={d.spendFacebook} t={d.totalSpend} accent="text-violet-700" fbError={d.spendFacebookError} ggError={d.spendGoogleError} fbStaleAt={d.spendFacebookStaleAt} manualExcluded={manualExcluded} spendDelta={cmp?.MBI.totalSpend} byChannel={d.spendByChannel} budget={channelTargets} channels={channels} />
+      <SupportLine support={d.partnerSupport} net={d.netSpend} />
       {d.ordersSourceError && (
         <div className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 mb-2">
           <AlertTriangle className="h-3 w-3 shrink-0" />

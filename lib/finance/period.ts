@@ -7,7 +7,7 @@
 // thêm chế độ tuần chỉ là chuyện dựng khoảng khác, không phải nguồn dữ liệu khác.
 // ─────────────────────────────────────────────
 import {
-  getMonthKpi, emptyChannelBudget,
+  getEffectiveMonthKpi, emptyChannelBudget,
   type MonthKpi, type ChannelBudget,
 } from "@/lib/settings/kpi-store";
 import { kpiChannelKeys } from "@/lib/settings/ad-channels";
@@ -169,7 +169,8 @@ export interface PeriodTargets extends MonthKpi {
 export function targetsForPeriod(b: PeriodBounds): PeriodTargets {
   if (b.mode === "month") {
     const [y, mo] = b.key.split("-").map(Number);
-    return { ...getMonthKpi(y, mo), derived: false, derivedNote: null };
+    // 12/10: trần THỰC TẾ = ngân sách cố định + khoản chi bổ sung của tháng (đối tác hỗ trợ / sản phẩm mới).
+    return { ...getEffectiveMonthKpi(y, mo), derived: false, derivedNote: null };
   }
 
   const start = new Date(Number(b.key.slice(0, 4)), Number(b.key.slice(5, 7)) - 1, Number(b.key.slice(8, 10)));
@@ -187,7 +188,7 @@ export function targetsForPeriod(b: PeriodBounds): PeriodTargets {
     const y = d.getFullYear();
     const mo = d.getMonth() + 1;
     const daysInThatMonth = new Date(y, mo, 0).getDate();
-    const k = getMonthKpi(y, mo);
+    const k = getEffectiveMonthKpi(y, mo); // gồm khoản chi bổ sung, chia đều theo ngày như phần cố định
     acc.revenueMbc += k.revenueMbc / daysInThatMonth;
     acc.adSpendMbc += k.adSpendMbc / daysInThatMonth;
     acc.adSpendMbi += k.adSpendMbi / daysInThatMonth;
@@ -212,6 +213,7 @@ export function targetsForPeriod(b: PeriodBounds): PeriodTargets {
     ordersMbi: Math.ceil(acc.ordersMbi),
     adSpendMbcByChannel: roundChannels(accMbc),
     adSpendMbiByChannel: roundChannels(accMbi),
+    extraSpend: [], // khoản bổ sung đã chia ngày vào adSpend* ở trên; danh sách gốc chỉ có ở mức tháng
     derived: true,
     derivedNote: "Suy từ KPI tháng, chia đều theo ngày — không phải mục tiêu ai đó đặt riêng cho tuần này",
   };

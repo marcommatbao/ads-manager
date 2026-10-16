@@ -11,6 +11,7 @@ import { gatherCampaignsWithStatus } from "@/lib/nba/gather";
 import { detectCompany, platformOf } from "@/lib/nba/collectors/helpers";
 import { getManualSpendForMonth, type MonthManualSpend, type ManualCompany } from "./manual-spend";
 import { kpiChannelKeys } from "@/lib/settings/ad-channels";
+import { getMonthKpi, extraSpendSummary } from "@/lib/settings/kpi-store";
 import {
   resolvePeriod, targetsForPeriod, previousPeriod, compareMetric,
   type PeriodMode, type PeriodTargets, type PeriodBounds, type MetricDelta,
@@ -59,8 +60,12 @@ export interface MbcPnl {
    *  mọi nơi hiển thị nói được "trong tổng này có bao nhiêu là số nhập". */
   spendManual: number;
   manualBreakdown: MonthManualSpend["breakdown"];
-  /** = google + facebook + manual */
+  /** = google + facebook + manual — chi tiêu GỘP, so với trần (trần đã cộng tiền đối tác hỗ trợ). */
   totalSpend: number;
+  /** 12/10: tiền đối tác hỗ trợ của tháng (Cài đặt → KPI → khoản chi bổ sung). 0 ở chế độ tuần / 28 ngày. */
+  partnerSupport: number;
+  /** Chi phí THẬT của công ty = totalSpend − partnerSupport (không âm). Chi phí/đơn và tỉ lệ QC/DT tính theo số này. */
+  netSpend: number;
   /** Cùng số tiền như trên, tách theo từng kênh — để đối chiếu với trần ngân
    *  sách theo kênh đặt ở Settings → KPI. */
   spendByChannel: ChannelSpend;
@@ -88,8 +93,12 @@ export interface MbiPnl {
   spendFacebook: number;
   spendManual: number;
   manualBreakdown: MonthManualSpend["breakdown"];
-  /** = google + facebook + manual */
+  /** = google + facebook + manual — chi tiêu GỘP, so với trần (trần đã cộng tiền đối tác hỗ trợ). */
   totalSpend: number;
+  /** 12/10: tiền đối tác hỗ trợ của tháng (Cài đặt → KPI → khoản chi bổ sung). 0 ở chế độ tuần / 28 ngày. */
+  partnerSupport: number;
+  /** Chi phí THẬT của công ty = totalSpend − partnerSupport (không âm). Chi phí/đơn và tỉ lệ QC/DT tính theo số này. */
+  netSpend: number;
   /** Cùng số tiền như trên, tách theo từng kênh — để đối chiếu với trần ngân
    *  sách theo kênh đặt ở Settings → KPI. */
   spendByChannel: ChannelSpend;
@@ -291,6 +300,15 @@ export async function getCompanyPnl(period: PnlPeriodInput = ""): Promise<Compan
 
   const mbcTotal = spend.MBC.google + spend.MBC.facebook + manual.MBC.total;
   const mbiTotal = spend.MBI.google + spend.MBI.facebook + manual.MBI.total;
+  // 12/10: tiền đối tác hỗ trợ lưu theo THÁNG (như chi phí nhập tay) → chỉ trừ ở chế độ tháng; tuần / 28 ngày không chia đều.
+  const support = (() => {
+    if (b.mode !== "month") return { MBC: 0, MBI: 0 };
+    const [y, mo] = b.monthKey.split("-").map(Number);
+    const ex = extraSpendSummary(getMonthKpi(y, mo));
+    return { MBC: ex.MBC.partnerSupport, MBI: ex.MBI.partnerSupport };
+  })();
+  const mbcNet = Math.max(0, mbcTotal - support.MBC);
+  const mbiNet = Math.max(0, mbiTotal - support.MBI);
   const proj = (v: number) => (b.daysElapsed > 0 ? r0((v / b.daysElapsed) * b.daysInPeriod) : r0(v));
 
   const MBC: MbcPnl = {
@@ -300,6 +318,8 @@ export async function getCompanyPnl(period: PnlPeriodInput = ""): Promise<Compan
     spendManual: r0(manual.MBC.total),
     manualBreakdown: manual.MBC.breakdown,
     totalSpend: r0(mbcTotal),
+    partnerSupport: r0(support.MBC),
+    netSpend: r0(mbcNet),
     spendByChannel: byChannel(spend.MBC.google, spend.MBC.facebook, manual.MBC),
     spendFacebookError: spend.metaError,
     spendFacebookStaleAt: spend.metaStaleAt,
@@ -307,8 +327,9 @@ export async function getCompanyPnl(period: PnlPeriodInput = ""): Promise<Compan
     revenue: r0(mbcRev.revenue),
     orders: mbcRev.orders,
     aov: mbcRev.orders > 0 ? r0(mbcRev.revenue / mbcRev.orders) : 0,
-    costPerOrder: mbcRev.orders > 0 ? r0(mbcTotal / mbcRev.orders) : 0,
-    adCostRatioPct: mbcRev.revenue > 0 ? Math.round((mbcTotal / mbcRev.revenue) * 1000) / 10 : 0,
+    // 12/10: chi phí thật (đã trừ đối tác hỗ trợ) — user chốt "P&L tính chi phí công ty = chi tiêu − hỗ trợ".
+    costPerOrder: mbcRev.orders > 0 ? r0(mbcNet / mbcRev.orders) : 0,
+    adCostRatioPct: mbcRev.revenue > 0 ? Math.round((mbcNet / mbcRev.revenue) * 1000) / 10 : 0,
     projectedRevenue: proj(mbcRev.revenue),
     revenueSourceError: Boolean(mbcRev.error),
   };
@@ -320,12 +341,14 @@ export async function getCompanyPnl(period: PnlPeriodInput = ""): Promise<Compan
     spendManual: r0(manual.MBI.total),
     manualBreakdown: manual.MBI.breakdown,
     totalSpend: r0(mbiTotal),
+    partnerSupport: r0(support.MBI),
+    netSpend: r0(mbiNet),
     spendByChannel: byChannel(spend.MBI.google, spend.MBI.facebook, manual.MBI),
     spendFacebookError: spend.metaError,
     spendFacebookStaleAt: spend.metaStaleAt,
     spendGoogleError: spend.googleError,
     orders: mbiOrders,
-    costPerOrder: mbiOrders > 0 ? r0(mbiTotal / mbiOrders) : 0,
+    costPerOrder: mbiOrders > 0 ? r0(mbiNet / mbiOrders) : 0, // chi phí thật (đã trừ đối tác hỗ trợ)
     projectedOrders: proj(mbiOrders),
     ordersSourceError: Boolean(mbiOrdersRes.error),
   };

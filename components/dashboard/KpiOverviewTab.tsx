@@ -168,7 +168,9 @@ export function KpiOverviewTab() {
         if (!json.success) throw new Error(json.error ?? "Lỗi tải mục tiêu KPI");
         const chs: AdChannelDef[] = Array.isArray(json.channels) && json.channels.length > 0 ? json.channels : BUILTIN_AD_CHANNELS;
         setChannels(chs);
-        setTargets((json.months as Partial<MonthKpi>[]).map(m => ({
+        // 12/10: so với trần THỰC TẾ (cố định + khoản chi bổ sung) — server đã cộng sẵn ở effectiveMonths.
+        const src = (Array.isArray(json.effectiveMonths) ? json.effectiveMonths : json.months) as Partial<MonthKpi>[];
+        setTargets(src.map(m => ({
           ...emptyMonth(chs),
           ...m,
           // Tháng lưu trước khi có phân bổ kênh không có hai trường này.

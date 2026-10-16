@@ -11,7 +11,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { checkCronAuth } from "@/lib/cron-auth";
 import { startJobRun } from "@/lib/jobs/cron-guard";
 import { getCompanyPnl } from "@/lib/finance/company-pnl";
-import { getMonthKpi } from "@/lib/settings/kpi-store";
+import { getEffectiveMonthKpi } from "@/lib/settings/kpi-store";
 import { buildKpiReportMessage } from "@/lib/finance/kpi-report";
 import { sendTelegramVia } from "@/lib/telegram";
 import { friendlyError } from "@/lib/not-configured";
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
     // Tháng hiện tại, tích lũy tới hôm nay (giống dashboard).
     const pnl = await getCompanyPnl("");
     const [year, month] = pnl.month.split("-").map(Number);
-    const kpi = getMonthKpi(year, month);
+    const kpi = getEffectiveMonthKpi(year, month); // 12/10: trần gồm khoản chi bổ sung
 
     const message = buildKpiReportMessage(pnl, kpi, new Date());
     const sent = await sendTelegramVia(botToken!, chatId, message, "HTML");

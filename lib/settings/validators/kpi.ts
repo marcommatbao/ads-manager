@@ -5,8 +5,8 @@
 // Nhỏ hơn thì hợp lệ — phần chênh là tiền chưa phân bổ.
 
 import {
-  kpiChannelLabel, sumChannelBudget,
-  type MonthKpi, type ChannelBudget,
+  kpiChannelLabel, sumChannelBudget, EXTRA_SPEND_KINDS,
+  type MonthKpi, type ChannelBudget, type ExtraSpendKind,
 } from "@/lib/settings/kpi-store";
 import { kpiChannelKeys } from "@/lib/settings/ad-channels";
 
@@ -72,6 +72,32 @@ export function validateMonthKpi(month: number, kpi: Partial<MonthKpi>): Validat
     }
   }
 
+  errors.push(...validateExtraSpend(month, kpi.extraSpend));
+  return errors;
+}
+
+const MAX_EXTRA_PER_MONTH = 50;
+/** 12/10: khoản chi bổ sung — mỗi dòng phải đủ công ty / kênh / loại / số tiền; nói rõ dòng nào sai để người nhập sửa được. */
+export function validateExtraSpend(month: number, list: unknown): ValidationError[] {
+  if (list === undefined) return [];
+  const errors: ValidationError[] = [];
+  const pfx = `month[${month}].extraSpend`;
+  if (!Array.isArray(list)) return [{ field: pfx, message: `Khoản chi bổ sung tháng ${month} không hợp lệ` }];
+  if (list.length > MAX_EXTRA_PER_MONTH) errors.push({ field: pfx, message: `Tháng ${month}: tối đa ${MAX_EXTRA_PER_MONTH} khoản chi bổ sung` });
+  (list as Record<string, unknown>[]).forEach((e, i) => {
+    const at = `Tháng ${month}, khoản bổ sung thứ ${i + 1}`;
+    const f = `${pfx}[${i}]`;
+    if (e?.company !== "MBC" && e?.company !== "MBI") errors.push({ field: `${f}.company`, message: `${at}: chọn công ty MBC hoặc MBI` });
+    if (typeof e?.channel !== "string" || !kpiChannelKeys().includes(e.channel)) errors.push({ field: `${f}.channel`, message: `${at}: kênh không có trong danh sách kênh` });
+    if (!EXTRA_SPEND_KINDS.includes(e?.kind as ExtraSpendKind)) errors.push({ field: `${f}.kind`, message: `${at}: chọn loại "Đối tác hỗ trợ" hoặc "Sản phẩm mới"` });
+    const amount = Number(e?.amount);
+    if (!Number.isFinite(amount) || amount <= 0 || amount > 1e12) errors.push({ field: `${f}.amount`, message: `${at}: số tiền phải lớn hơn 0` });
+    if (typeof e?.note === "string" && e.note.length > 120) errors.push({ field: `${f}.note`, message: `${at}: ghi chú tối đa 120 ký tự` });
+    if (e?.campaignContains !== undefined && e.campaignContains !== "") {
+      if (e?.kind !== "new_product") errors.push({ field: `${f}.campaignContains`, message: `${at}: chỉ khoản "Sản phẩm mới" mới đo theo tên chiến dịch` });
+      else if (typeof e.campaignContains !== "string" || e.campaignContains.trim().length < 2 || e.campaignContains.length > 60) errors.push({ field: `${f}.campaignContains`, message: `${at}: chữ trong tên chiến dịch cần 2–60 ký tự` });
+    }
+  });
   return errors;
 }
 

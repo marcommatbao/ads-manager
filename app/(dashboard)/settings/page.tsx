@@ -259,6 +259,8 @@ function SettingsContent() {
   const [telegramResult, setTelegramResult] = useState<TestResult | null>(null);
   const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
   const [status, setStatus] = useState({ facebook: false, google: false, ga4: false, gemini: false, telegram: false });
+  // 15/10/2026: chưa có kết quả /api/status thì KHÔNG vẽ "Not connected" (kiểm Meta mất vài giây → người dùng tưởng mất kết nối).
+  const [statusLoaded, setStatusLoaded] = useState(false);
   const { fetchGA4 } = useAdsStore();
 
   useEffect(() => {
@@ -271,7 +273,8 @@ function SettingsContent() {
           google: searchParams.get("google_connected") === "true" || !!data.google,
         });
       })
-      .catch((e) => console.error("Error fetching status:", e));
+      .catch((e) => console.error("Error fetching status:", e))
+      .finally(() => setStatusLoaded(true));
 
     const googleError = searchParams.get("google_error");
     if (googleError) {
@@ -630,7 +633,14 @@ function SettingsContent() {
               <CardTitle className="text-lg font-semibold text-slate-800">
                 {section.title}
               </CardTitle>
-              {status[section.platform as keyof typeof status] ? (
+              {!statusLoaded ? (
+                <Badge
+                  variant="outline"
+                  className="ml-auto border-slate-200 text-xs text-slate-400"
+                >
+                  Đang kiểm tra…
+                </Badge>
+              ) : status[(section.platform === "meta" ? "facebook" : section.platform) as keyof typeof status] ? (
                 <Badge
                   variant="outline"
                   className="ml-auto border-green-200 bg-green-50 text-xs text-green-700 font-semibold"
@@ -661,7 +671,7 @@ function SettingsContent() {
           </CardHeader>
 
           <CardContent className="space-y-4">
-            {section.platform === "meta" && !status.facebook && (
+            {statusLoaded && section.platform === "meta" && !status.facebook && (
               <div className="mb-2 rounded-xl border border-amber-100 bg-amber-50 p-4 space-y-2">
                 <p className="text-sm text-amber-800 font-medium">
                   Facebook chưa kết nối hoặc token đã hết hạn.
@@ -681,7 +691,7 @@ function SettingsContent() {
               </div>
             )}
 
-            {section.platform === "google" && !status.google && (
+            {statusLoaded && section.platform === "google" && !status.google && (
               <div className="mb-2 rounded-xl border border-amber-100 bg-amber-50 p-4 space-y-2">
                 <p className="text-sm text-amber-800 font-medium">
                   Google Ads chưa kết nối. Nhập credentials bên dưới và nhấn Lưu.

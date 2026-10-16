@@ -97,9 +97,14 @@ function env(name: string): string {
     const live = process.env[name];
     if (typeof live === "string" && live.trim()) return live.trim();
   }
+  // Trình duyệt: ưu tiên mã máy chủ chèn sẵn (boot-script, cùng nguồn biến lúc chạy với máy chủ → không lệch khi hydrate),
+  // rồi mới tới giá trị dán sẵn lúc build.
+  if (typeof window !== "undefined") {
+    const injected = publicIdFromConfig(name);
+    if (injected) return injected;
+  }
   const raw = PUBLIC_ENV[name];
   if (typeof raw === "string" && raw.trim()) return raw.trim();
-  // Trình duyệt: bản build không có mã (bản cài khách dán ở Cài đặt) → lấy từ /api/companies (CompaniesBoot nạp).
   return publicIdFromConfig(name) ?? "";
 }
 

@@ -15,6 +15,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { Save, RefreshCw, AlertTriangle, CheckCircle2, Lock, ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BUILTIN_AD_CHANNELS, type AdChannelDef } from "@/lib/settings/ad-channels-def";
+import KpiExtraSpend, { extraSpendErrors, type ExtraSpendEntry } from "@/components/settings/KpiExtraSpend";
 
 // Danh sách kênh lấy từ sổ kênh dùng chung (GET /api/settings/kpi trả `channels`); kênh gốc là giá trị khởi tạo.
 type Channel = string;
@@ -38,12 +39,14 @@ interface MonthKpi {
   ordersMbi: number;
   adSpendMbcByChannel: ChannelBudget;
   adSpendMbiByChannel: ChannelBudget;
+  extraSpend: ExtraSpendEntry[];
 }
 
 const emptyMonth = (chs: AdChannelDef[]): MonthKpi => ({
   revenueMbc: 0, adSpendMbc: 0, adSpendMbi: 0, ordersMbi: 0,
   adSpendMbcByChannel: emptyChannels(chs),
   adSpendMbiByChannel: emptyChannels(chs),
+  extraSpend: [],
 });
 
 const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
@@ -105,6 +108,7 @@ export default function KpiSettingsPage() {
         // controlled sang uncontrolled giữa chừng.
         adSpendMbcByChannel: { ...emptyChannels(chs), ...(m.adSpendMbcByChannel ?? {}) },
         adSpendMbiByChannel: { ...emptyChannels(chs), ...(m.adSpendMbiByChannel ?? {}) },
+        extraSpend: Array.isArray(m.extraSpend) ? m.extraSpend : [],
       })));
       setCanEdit(!!json.canEdit);
     } catch (err) {
@@ -188,8 +192,27 @@ export default function KpiSettingsPage() {
     return out;
   }, [months]);
 
+  const extraErrors = useMemo(() => extraSpendErrors(months), [months]);
+
+  const extraOf = (i: number, company?: "MBC" | "MBI") =>
+    (months[i]?.extraSpend ?? []).filter(e => !company || e.company === company).reduce((a, e) => a + (Number(e.amount) || 0), 0);
+  const extraTip = (i: number) => {
+    const part = (c: "MBC" | "MBI") => {
+      const list = (months[i]?.extraSpend ?? []).filter(e => e.company === c && (Number(e.amount) || 0) > 0);
+      const kinds = Array.from(new Set(list.map(e => e.kind === "new_product" ? "sản phẩm mới" : "đối tác hỗ trợ"))).join(", ");
+      return `${c}: +${fmt(extraOf(i, c))}đ${kinds ? ` (${kinds})` : ""}`;
+    };
+    return `${part("MBC")} · ${part("MBI")}`;
+  };
+  const hasAnyExtra = months.some(m => (m.extraSpend ?? []).length > 0);
+  const yearExtra = (company?: "MBC" | "MBI") => months.reduce((a, _m, i) => a + extraOf(i, company), 0);
+  const extraNote = (fixed: number, company?: "MBC" | "MBI") => {
+    const ex = yearExtra(company);
+    return ex > 0 ? `+ bổ sung ${fmt(ex)}đ → trần thực tế ${fmt(fixed + ex)}đ` : undefined;
+  };
+
   const save = async () => {
-    if (overAllocated.length > 0) return;
+    if (overAllocated.length > 0 || extraErrors.length > 0) return;
     setSaving(true); setError(null);
     try {
       const res = await fetch("/api/settings/kpi", {
@@ -234,8 +257,8 @@ export default function KpiSettingsPage() {
           <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
         </button>
         {canEdit && (
-          <button onClick={save} disabled={saving || overAllocated.length > 0}
-            title={overAllocated.length > 0 ? "Còn tháng phân bổ vượt tổng Chi QC — sửa trước khi lưu" : undefined}
+          <button onClick={save} disabled={saving || overAllocated.length > 0 || extraErrors.length > 0}
+            title={overAllocated.length > 0 ? "Còn tháng phân bổ vượt tổng Chi QC — sửa trước khi lưu" : extraErrors.length > 0 ? "Còn khoản chi bổ sung nhập chưa đúng — sửa trước khi lưu" : undefined}
             className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-amber-500 text-amber-950 text-sm font-semibold hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed">
             <Save className="h-4 w-4" /> {saving ? "Đang lưu…" : "Lưu KPI"}
           </button>
@@ -261,6 +284,18 @@ export default function KpiSettingsPage() {
                   Tháng {o.month} · {o.label}: vượt <strong>{fmt(o.over)}đ</strong>
                 </li>
               ))}
+            </ul>
+          </div>
+        </div>
+      )}
+
+      {extraErrors.length > 0 && (
+        <div className="flex gap-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl p-3">
+          <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-semibold">Chưa lưu được — khoản chi bổ sung nhập chưa đúng:</p>
+            <ul className="mt-1 space-y-0.5 text-[13px]">
+              {extraErrors.map(msg => <li key={msg}>{msg}</li>)}
             </ul>
           </div>
         </div>
@@ -436,10 +471,43 @@ export default function KpiSettingsPage() {
                   </td>
                 ))}
               </tr>
+              {hasAnyExtra && (
+                <>
+                  <tr className="border-t border-slate-100 bg-violet-50/20">
+                    <td className="sticky left-0 z-10 bg-violet-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 whitespace-nowrap">+ Bổ sung</td>
+                    {MONTHS.map((m, i) => {
+                      const ex = extraOf(i);
+                      return (
+                        <td key={m} title={extraTip(i)} className={cn("px-2 py-1.5 text-right text-xs tabular-nums", ex > 0 ? "font-semibold text-emerald-600" : "text-slate-300", m % 3 === 1 && "border-l border-slate-200")}>
+                          {ex > 0 ? `+${fmt(ex)}đ` : "—"}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                  <tr className="border-t border-slate-100 bg-violet-50/40">
+                    <td className="sticky left-0 z-10 bg-violet-50 px-3 py-2 text-xs font-bold text-violet-700 whitespace-nowrap">
+                      Trần thực tế <span className="font-normal text-[10px] text-violet-500">(cố định + bổ sung)</span>
+                    </td>
+                    {MONTHS.map((m, i) => (
+                      <td key={m} title={extraTip(i)} className={cn("px-2 py-2 text-right text-xs font-bold text-violet-700 tabular-nums", m % 3 === 1 && "border-l border-slate-200")}>
+                        {fmt(totalAdSpend(i) + extraOf(i))}đ
+                      </td>
+                    ))}
+                  </tr>
+                </>
+              )}
             </tbody>
           </table>
         )}
       </div>
+
+      {!loading && (
+        <KpiExtraSpend year={year} months={months} channels={channels} canEdit={canEdit}
+          onChange={(i, entries) => {
+            setSaved(false);
+            setMonths(prev => prev.map((m, j) => j === i ? { ...m, extraSpend: entries } : m));
+          }} />
+      )}
 
       {/* ── Tổng năm ── */}
       {!loading && (
@@ -447,9 +515,9 @@ export default function KpiSettingsPage() {
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
             <TotalCard label="Tổng KPI Doanh Thu (MBC)" value={`${fmt(yearTotal("revenueMbc"))}đ`} accent="text-blue-700 bg-blue-50" />
             <TotalCard label="Tổng KPI Đơn Hàng (MBI)" value={fmt(yearTotal("ordersMbi"))} accent="text-emerald-700 bg-emerald-50" />
-            <TotalCard label="Tổng Chi QC MBC" value={`${fmt(yearTotal("adSpendMbc"))}đ`} accent="text-slate-700 bg-slate-100" />
-            <TotalCard label="Tổng Chi QC MBI" value={`${fmt(yearTotal("adSpendMbi"))}đ`} accent="text-slate-700 bg-slate-100" />
-            <TotalCard label="Tổng Chi QC (MBC+MBI)" value={`${fmt(yearAdSpend)}đ`} accent="text-violet-700 bg-violet-50" strong />
+            <TotalCard label="Tổng Chi QC MBC" value={`${fmt(yearTotal("adSpendMbc"))}đ`} sub={extraNote(yearTotal("adSpendMbc"), "MBC")} accent="text-slate-700 bg-slate-100" />
+            <TotalCard label="Tổng Chi QC MBI" value={`${fmt(yearTotal("adSpendMbi"))}đ`} sub={extraNote(yearTotal("adSpendMbi"), "MBI")} accent="text-slate-700 bg-slate-100" />
+            <TotalCard label="Tổng Chi QC (MBC+MBI)" value={`${fmt(yearAdSpend)}đ`} sub={extraNote(yearAdSpend)} accent="text-violet-700 bg-violet-50" strong />
           </div>
 
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
@@ -524,11 +592,12 @@ function TotalRow({ label, field, months, canEdit, onChange }: {
   );
 }
 
-function TotalCard({ label, value, accent, strong }: { label: string; value: string; accent: string; strong?: boolean }) {
+function TotalCard({ label, value, accent, strong, sub }: { label: string; value: string; accent: string; strong?: boolean; sub?: string }) {
   return (
     <div className={cn("rounded-xl border border-slate-100 p-3", strong ? "" : "bg-white")}>
       <p className="text-[10px] font-semibold text-slate-400 uppercase mb-1 leading-tight">{label}</p>
       <p className={cn("font-black tabular-nums leading-tight", strong ? "text-base" : "text-sm", accent.split(" ")[0])}>{value}</p>
+      {sub && <p className="mt-1 text-[10px] font-medium leading-tight text-emerald-600">{sub}</p>}
     </div>
   );
 }
