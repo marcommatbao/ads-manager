@@ -12,7 +12,9 @@ import { isAllowedLoginEmail } from "./login-domain";
 // Require a real secret — weak fallback only in development so the server still boots.
 const _rawSecret = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET;
 if (!_rawSecret) {
-  if (process.env.NODE_ENV === "production") {
+  // `next build` nạp module này để thu thập dữ liệu trang; nền tảng như Vibe Host chỉ đưa biến vào lúc chạy
+  // nên lúc build chưa có khoá. Lúc chạy thật (không phải giai đoạn build) vẫn bắt buộc.
+  if (process.env.NODE_ENV === "production" && process.env.NEXT_PHASE !== "phase-production-build") {
     throw new Error(
       "[auth] AUTH_SECRET is required in production. " +
       "Set AUTH_SECRET (or NEXTAUTH_SECRET) in your environment variables."
