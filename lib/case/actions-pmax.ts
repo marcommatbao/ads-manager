@@ -10,8 +10,8 @@
 //      chung, để không chặn nhầm nếu sau này có chiến dịch Search thương hiệu.
 // Việc nào mô phỏng thấy chặn đơn mua → không chọn sẵn.
 
-import { NEGATIVE_PACKS } from "./actions-search"
-import { intentOf, type IntentLexicon } from "./intent"
+import { negativePacksFor } from "./actions-search"
+import { mentionsBrand, type IntentLexicon } from "./intent"
 import { blocks, simulateNegatives, withAccentVariants, type NegativeKw, type NegMatch } from "./simulate-negatives"
 import type { CaseAction, ManualTask } from "./store"
 import { tokens } from "./text"
@@ -75,6 +75,9 @@ export function proposePmaxActions(input: {
   const manualTasks: Omit<ManualTask, "id" | "createdAt">[] = []
   const campaignNegs = new Set(ev.negatives.map((n) => norm(n.text)))
   const list = pickSharedList(ev.sharedLists)
+  // 19/10: gói theo công ty — PMax tên miền (MBC) không được phủ định "tên miền" / "tra cứu".
+  const PACKS = negativePacksFor(lexicon)
+  const otherLabel = `sản phẩm của ${lexicon.catalog?.sibling.site ?? "công ty khác"}`
 
   // 1 + 2: danh sách dùng chung (0: bỏ từ rủi ro trước — user chốt 26/09 phương án "bỏ 7 từ rồi mới gắn")
   if (list) {
@@ -89,7 +92,7 @@ export function proposePmaxActions(input: {
       })
     }
     const inList = new Set(list.members.map((m) => norm(m.text)))
-    const packWords = withAccentVariants([...NEGATIVE_PACKS.competitor, ...NEGATIVE_PACKS.lookup, ...NEGATIVE_PACKS.own_other]
+    const packWords = withAccentVariants([...PACKS.competitor, ...PACKS.lookup, ...PACKS.own_other]
       .map((text) => ({ text, match: "PHRASE" as const })))
       .filter((n) => !inList.has(norm(n.text)))
     if (packWords.length) {
@@ -97,7 +100,7 @@ export function proposePmaxActions(input: {
       actions.push({
         id: aid("shadd"), type: "ADD_TO_SHARED_LIST", sharedSetId: list.id, sharedSetName: list.name,
         selected: simulation.blockedConversions === 0, negatives: packWords, simulation,
-        label: `Thêm ${packWords.length} từ (tên đối thủ, tra cứu / đăng nhập, sản phẩm khác) vào danh sách dùng chung “${list.name}”`,
+        label: `Thêm ${packWords.length} từ (tên đối thủ, tra cứu / đăng nhập, ${otherLabel}) vào danh sách dùng chung “${list.name}”`,
       })
     }
     if (!list.attached) {
@@ -114,17 +117,17 @@ export function proposePmaxActions(input: {
     }
   } else {
     // Không có list dùng chung → thêm thẳng vào chiến dịch như Đợt 1.
-    const negatives = withAccentVariants([...NEGATIVE_PACKS.competitor, ...NEGATIVE_PACKS.lookup, ...NEGATIVE_PACKS.own_other]
+    const negatives = withAccentVariants([...PACKS.competitor, ...PACKS.lookup, ...PACKS.own_other]
       .map((text) => ({ text, match: "PHRASE" as const }))).filter((n) => !campaignNegs.has(norm(n.text)))
     if (negatives.length) {
       const simulation = simulateNegatives(ev.searchTerms, negatives)
       actions.push({ id: aid("neg"), type: "ADD_NEGATIVES", campaignIds: [ev.campaign.id], negatives, simulation, selected: simulation.blockedConversions === 0,
-        label: `Thêm ${negatives.length} từ khoá phủ định (tên đối thủ, tra cứu, sản phẩm khác) vào chiến dịch` })
+        label: `Thêm ${negatives.length} từ khoá phủ định (tên đối thủ, tra cứu, ${otherLabel}) vào chiến dịch` })
     }
   }
 
   // 3: thương hiệu — chỉ cấp chiến dịch, chỉ khi Pmax thật sự tốn tiền cho lượt tìm thương hiệu.
-  const brandSpend = ev.searchTerms.filter((t) => ["own_brand", "own_other"].includes(intentOf(t.term, lexicon))).reduce((s, t) => s + t.cost, 0)
+  const brandSpend = ev.searchTerms.filter((t) => mentionsBrand(t.term, lexicon)).reduce((s, t) => s + t.cost, 0)
   if (brandSpend > 0) {
     const brand = withAccentVariants(BRAND_PACK.map((text) => ({ text, match: "PHRASE" as const }))).filter((n) => !campaignNegs.has(norm(n.text)))
     if (brand.length) {

@@ -10,8 +10,41 @@ import { getJson, ApiError } from "@/components/case/api";
 import { companyIds, companyLabel } from "@/lib/companies/registry";
 import { useCompaniesVersion } from "@/lib/companies/use-companies";
 import type { BrandProfile, BrandProduct } from "@/lib/brand/types";
+import { deriveCatalog, type CompanyInfo, type ProductCatalog } from "@/lib/case/product-catalog";
 
-interface Resp { profile: BrandProfile; saved: boolean; legacy: boolean; canEdit: boolean }
+interface Resp { profile: BrandProfile; saved: boolean; legacy: boolean; canEdit: boolean
+  lexicon?: { fixed: ProductCatalog | null; self: CompanyInfo | null; others: CompanyInfo[] } }
+
+function Chips({ items, empty }: { items: string[]; empty: string }) {
+  if (!items.length) return <p className="text-xs text-amber-700">{empty}</p>;
+  return <div className="flex flex-wrap gap-1.5">{items.map((x) => <span key={x} className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700">{x}</span>)}</div>;
+}
+
+/** 19/10 — tool xếp lượt tìm thế nào cho công ty này (xem trước theo nội dung đang gõ; áp dụng sau khi Lưu). */
+function IntentPreview({ data, p }: { data: Resp; p: BrandProfile }) {
+  const lx = data.lexicon;
+  if (!lx) return null;
+  const cat = lx.fixed ?? (lx.self ? deriveCatalog({ ...lx.self, brandName: p.brandName, domain: p.domain || lx.self.domain, industry: p.industry, products: p.products.map((x) => x.name).filter(Boolean) }, lx.others) : null);
+  if (!cat) return null;
+  return (
+    <div className="space-y-3 rounded-lg border border-sky-200 bg-sky-50/50 p-3 md:col-span-2">
+      <div>
+        <div className="text-sm font-medium text-slate-700">Tool phân biệt lượt tìm Brand / dịch vụ thế nào</div>
+        <p className="text-xs text-slate-500">
+          {lx.fixed
+            ? "Gói Mắt Bão dùng bảng sản phẩm cố định (Mắt Bão matbao.net ↔ matbao.in)."
+            : "Dựng từ hồ sơ này + Từ khoá thương hiệu / Đối thủ ở trang Thiết lập. Dùng khi chẩn đoán chiến dịch, đề xuất phủ định và tách chiến dịch Brand. Xem trước theo nội dung đang gõ — áp dụng sau khi Lưu."}
+        </p>
+      </div>
+      <div className="space-y-1"><div className="text-xs font-semibold text-slate-600">Có các chữ này → luôn là lượt tìm Brand</div><Chips items={cat.brand} empty="Chưa nhận ra tên thương hiệu — điền Tên thương hiệu / Tên miền, hoặc Từ khoá thương hiệu ở trang Thiết lập." /></div>
+      <div className="space-y-1"><div className="text-xs font-semibold text-slate-600">Sản phẩm / dịch vụ của công ty (không bao giờ bị phủ định là “sản phẩm khác”)</div><Chips items={cat.own} empty="Chưa có — thêm Sản phẩm / dịch vụ chính hoặc Ngành để tool phân biệt lượt tìm dịch vụ." /></div>
+      {(cat.sibling.products.length > 0 || cat.sibling.brand.length > 0) && (
+        <div className="space-y-1"><div className="text-xs font-semibold text-slate-600">Của công ty khác trong bản cài{cat.sibling.site ? ` (${cat.sibling.site})` : ""} → “sản phẩm khác”</div><Chips items={[...cat.sibling.brand, ...cat.sibling.products]} empty="" /></div>
+      )}
+      <div className="space-y-1"><div className="text-xs font-semibold text-slate-600">Đối thủ</div><Chips items={cat.competitors} empty="Chưa có — thêm ở trang Thiết lập nếu muốn tool nhận ra lượt tìm tên đối thủ." /></div>
+    </div>
+  );
+}
 const lines = (s: string) => s.split("\n").map((x) => x.trim()).filter(Boolean);
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
@@ -108,6 +141,7 @@ export default function BrandProfilePage() {
                 ))}
                 {!ro && <Button type="button" variant="outline" size="sm" onClick={() => set("products", [...p.products, { name: "" }])}><Plus className="h-4 w-4" /> Thêm sản phẩm</Button>}
               </div>
+              {data && <IntentPreview data={data} p={p} />}
             </div>
           )}
           {msg && <p className={`flex items-center gap-1.5 text-sm ${msg.ok ? "text-emerald-700" : "text-red-600"}`}>{msg.ok ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}{msg.text}</p>}

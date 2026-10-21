@@ -12,6 +12,9 @@ import path from "path"
 import { writeFileAtomicSync } from "@/lib/fs-atomic"
 import { withFileLock } from "@/lib/file-lock"
 import { DEFAULT_BRAND, DEFAULT_COMPETITORS, type IntentLexicon } from "./intent"
+import { catalogOf, deriveCatalog, type CompanyInfo, type ProductCatalog } from "./product-catalog"
+import { allCompanyDefs } from "@/lib/companies/registry"
+import { savedBrandProfile } from "@/lib/brand/store"
 import { companyDef, hasPack } from "@/lib/companies/registry"
 import type { ProductGroup } from "./product"
 import type { Company } from "./types"
@@ -102,10 +105,30 @@ export async function saveTargets(rows: Omit<TargetRow, "updatedBy" | "updatedAt
 export function lexiconFor(company: Company): IntentLexicon {
   const all = readJson<Partial<Record<Company, Partial<IntentLexicon>>>>(LEXICON_FILE, {})
   const x = all[company] ?? {}
+  // 19/10: gói Mắt Bão phân biệt sản phẩm MBC (matbao.net) ↔ MBI (matbao.in) — xem lib/case/product-catalog.ts.
+  // Công ty khác (bản cài khách): dựng từ cấu hình công ty + Hồ sơ doanh nghiệp; công ty cùng bản cài là "công ty anh em".
+  const cat = hasPack(company, "matbao") ? catalogOf(company) : catalogForCustomer(company)
   return {
+    catalog: cat,
     // Đợt 21a: mặc định theo công ty của bản cài (brandTerms/competitors), không có thì mặc định chung (Mắt Bão).
     // Đợt 21 B: mặc định chung (matbao / đối thủ hoá đơn điện tử) CHỈ cho công ty gói Mắt Bão — công ty bản cài khách để trống.
-    brand: x.brand?.length ? x.brand : companyDef(company)?.brandTerms?.length ? companyDef(company)!.brandTerms! : hasPack(company, "matbao") ? DEFAULT_BRAND : [],
-    competitors: x.competitors?.length ? x.competitors : companyDef(company)?.competitors?.length ? companyDef(company)!.competitors! : hasPack(company, "matbao") ? DEFAULT_COMPETITORS : [],
+    brand: x.brand?.length ? x.brand : companyDef(company)?.brandTerms?.length ? companyDef(company)!.brandTerms! : cat?.brand.length ? cat.brand : hasPack(company, "matbao") ? DEFAULT_BRAND : [],
+    competitors: x.competitors?.length ? x.competitors : companyDef(company)?.competitors?.length ? companyDef(company)!.competitors! : cat?.competitors.length ? cat.competitors : hasPack(company, "matbao") ? DEFAULT_COMPETITORS : [],
   }
+}
+
+/** Thông tin công ty để dựng bảng thương hiệu/sản phẩm — cấu hình công ty + Hồ sơ doanh nghiệp ĐÃ LƯU. */
+export function companyInfo(id: string): CompanyInfo | null {
+  const d = allCompanyDefs().find((c) => c.id === id)
+  if (!d) return null
+  const p = savedBrandProfile(id)
+  return { id, label: d.label, domain: p?.domain || d.domain, brandTerms: d.brandTerms, competitors: d.competitors,
+    brandName: p?.brandName, industry: p?.industry, products: (p?.products ?? []).map((x) => x.name).filter(Boolean) }
+}
+
+function catalogForCustomer(company: Company): ProductCatalog | undefined {
+  const self = companyInfo(company)
+  if (!self) return undefined
+  const others = allCompanyDefs().filter((c) => c.id !== company).map((c) => companyInfo(c.id)).filter((x): x is CompanyInfo => !!x)
+  return deriveCatalog(self, others)
 }

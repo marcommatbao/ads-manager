@@ -22,6 +22,8 @@ import { accountCampaignInsights, collectMetaEvidence, pickAction, PURCHASE_TYPE
 import { createCase, listCases, readCase, updateCase, type CampaignCase, type Execution, type RemeasureDiag, type RemeasureEntry } from "./store"
 import { judgeRemeasure, VERDICT_CODE, type PerfSnap, type RemeasureVerdict } from "./judge"
 import { lexiconFor, targetFor } from "./targets"
+import { allSplits } from "@/lib/search/split"
+import type { SplitRoute } from "./simulate-negatives"
 import type { CaseEvidence, Company, MetaEvidence, SearchEvidence } from "./types"
 import { compareVerdicts, verdictOf, type CampaignPerf, type CaseBasis, type CaseTarget, type Verdict } from "./verdict"
 import { evidenceGoalKind, googleGoalKind, META_LEAD_OBJECTIVES, META_LEAD_TYPES, META_SALES_OBJECTIVES, metaGoalKind, metaResults, type GoalKind } from "./goal-kind"
@@ -213,6 +215,12 @@ export async function confirmGoal(id: string, goal: { basis: CaseBasis; target: 
   })
 }
 
+/** Chiến dịch là gốc của bản tách "· Chung" còn dùng → nơi nhận lượt tìm chung. live = đã chuyển từ khoá (bản Chung phải BẬT mới chuyển được). */
+export function splitRouteFor(company: Company, campaignId: string): SplitRoute | undefined {
+  const r = allSplits().filter((x) => x.company === company && x.sourceId === campaignId && x.newCampaign && (x.step === "created" || x.step === "moved")).pop()
+  return r ? { to: r.name, live: r.step === "moved" } : undefined
+}
+
 /** Tính nguyên nhân + hướng xử lý từ bằng chứng hiện có của phiên (dùng chung cho bước 3 và "Mở lại ở bước 4"). */
 function planCase(c: CampaignCase, goal: { basis: CaseBasis; target: number; ceiling: number; where: string }, actor: string): CampaignCase {
   if (!c.evidence) throw new CaseError("Phiên chưa có bằng chứng — thu thập lại trước")
@@ -235,7 +243,7 @@ function planCase(c: CampaignCase, goal: { basis: CaseBasis; target: number; cei
   const verdict = verdictOf({ cost: ev.cost, clicks: ev.clicks, orders: ev.orders, orderValue: ev.orderValue }, goal)
   const { actions, manualTasks } = c.evidence.kind === "google_pmax"
     ? proposePmaxActions({ evidence: c.evidence, diagnosis, lexicon })
-    : proposeSearchActions({ evidence: c.evidence, diagnosis, verdict, lexicon })
+    : proposeSearchActions({ evidence: c.evidence, diagnosis, verdict, lexicon, split: splitRouteFor(c.company, c.evidence.campaign.id) })
   return { ...c, step: 4, diagnosis, actions, goal: { ...goal, confirmedBy: actor, confirmedAt: now }, manualTasks: tasks(manualTasks) }
 }
 

@@ -11,10 +11,11 @@
 // cứu/điều hướng → hỏi cách làm → ý định mua → còn lại.
 
 import { stripDiacritics, tokens } from "./text"
+import { mentionsAny, type ProductCatalog } from "./product-catalog"
 
 export type Intent =
-  | "own_brand"     // khách cũ tìm Mắt Bão để tra cứu/đăng nhập
-  | "own_other"     // tìm sản phẩm KHÁC của Mắt Bão (tên miền, workspace…)
+  | "own_brand"     // có tên thương hiệu mình — LUÔN là thương hiệu (user chốt 19/10), kể cả kèm sản phẩm / đăng nhập
+  | "own_other"     // sản phẩm / tên riêng của công ty ANH EM (MBC ↔ MBI), không phải sản phẩm của công ty này
   | "competitor"
   | "lookup"        // tra cứu, đăng nhập, gõ URL, tổng đài
   | "info"          // hỏi cách làm, kiến thức
@@ -26,11 +27,13 @@ export interface IntentLexicon {
   brand: string[]
   /** Tên đối thủ, bỏ dấu, chữ thường. So khớp CHUỖI CON (tên hay bị viết liền: "misameinvoice"). */
   competitors: string[]
+  /** Sản phẩm của công ty + công ty anh em (gói Mắt Bão). Không có → không phân biệt sản phẩm (bản khách). */
+  catalog?: ProductCatalog
 }
 
 export const INTENT_LABEL: Record<Intent, string> = {
-  own_brand: "Khách cũ tìm thương hiệu",
-  own_other: "Tìm sản phẩm khác của Mắt Bão",
+  own_brand: "Tìm thương hiệu",
+  own_other: "Tìm sản phẩm của công ty khác (không bán ở đây)",
   competitor: "Tên đối thủ",
   lookup: "Tra cứu / đăng nhập",
   info: "Hỏi cách làm",
@@ -48,8 +51,9 @@ export const DEFAULT_COMPETITORS = [
 ]
 export const DEFAULT_BRAND = ["matbao", "mat bao", "mifi"]
 
-const OTHER_OWN = /domain|google workspace|website|ten mien|hosting|email/
 const LOOKUP = /https?|www|tra ?cuu|tracuu|login|dang nhap|tong dai|lien he|hotline|\.vn|\bvn\b|\d{8,}|trang xuat/
+/** Điều hướng thật sự khi lượt tìm đã nêu sản phẩm mình: "đăng nhập hosting", không phải "tên miền .vn" / "tra cứu tên miền". */
+const NAV = /https?|www|login|dang nhap|tong dai|lien he|hotline|\d{8,}/
 const INFO = /\bcach\b|huong dan|la gi|the nao|nhu the|mau |viet hoa don|quy dinh|nghi dinh|thong tu|dang ky su dung .* co quan thue|cua benh vien|ke khai/
 // KHÔNG có "\bgia\b": bỏ dấu thì "giả" (hoá đơn giả) trùng "giá" — xem isPriceWord.
 const BUY = /\bmua\b|dich vu|bang gia|phan mem|dang ky hoa don|cung cap|nha cung cap/
@@ -61,12 +65,24 @@ function isPriceWord(term: string): boolean {
   return stripDiacritics(term) === term.normalize("NFC").toLowerCase() && t.includes("gia")
 }
 
+export function mentionsBrand(term: string, lex: IntentLexicon): boolean {
+  const x = stripDiacritics(term)
+  return lex.brand.some((b) => x.includes(b))
+}
+
 export function intentOf(term: string, lex: IntentLexicon): Intent {
   const x = stripDiacritics(term)
-  if (lex.brand.some((b) => x.includes(b))) {
-    return OTHER_OWN.test(x) || x.includes("login") ? "own_other" : "own_brand"
-  }
+  const cat = lex.catalog
+  const ownProduct = !!cat && mentionsAny(term, cat.own)
+  // Sản phẩm công ty anh em chỉ tính khi KHÔNG nêu sản phẩm mình ("xuất hoá đơn tên miền" vẫn là tên miền).
+  const siblingProduct = !!cat && !ownProduct && mentionsAny(term, cat.sibling.products)
+  if (cat && !ownProduct && mentionsAny(term, cat.sibling.brand)) return "own_other"
+  if (lex.brand.some((b) => x.includes(b))) return siblingProduct ? "own_other" : "own_brand"
   if (lex.competitors.some((c) => x.includes(c))) return "competitor"
+  if (siblingProduct) return "own_other"
+  // Nêu sản phẩm mình: điều hướng thật ("đăng nhập hosting") → tra cứu; từ báo sắp mua ("kiểm tra tên miền", "tên miền .vn") → mua.
+  if (ownProduct && NAV.test(x)) return "lookup"
+  if (ownProduct && mentionsAny(term, cat!.buyHints)) return "buy"
   if (LOOKUP.test(x)) return "lookup"
   if (INFO.test(x)) return "info"
   if (BUY.test(x) || isPriceWord(term)) return "buy"

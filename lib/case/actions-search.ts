@@ -7,21 +7,58 @@
 // dừng chiến dịch KHÔNG chọn sẵn — người duyệt phải tự tick.
 
 import { intentOf, type IntentLexicon } from "./intent"
-import { tokens } from "./text"
+import { stripDiacritics, tokens } from "./text"
 import { asNeg, pickSharedList, riskyMembers } from "./actions-pmax"
-import { simulateNegatives, withAccentVariants, type NegativeKw } from "./simulate-negatives"
+import { blocks, simulateNegatives, withAccentVariants, type NegativeKw, type SplitRoute } from "./simulate-negatives"
+import { isBrandCampaign } from "./causes-search"
 import type { CaseAction, ManualTask } from "./store"
 import type { Diagnosis, SearchEvidence } from "./types"
 import type { Verdict } from "./verdict"
 
-/** Gói phủ định mặc định — tên thương hiệu công khai + từ điều hướng chung. Đã duyệt 25/09. */
+/** Gói phủ định mặc định (bản cũ, viết cho hoá đơn điện tử — matbao.in). Đã duyệt 25/09.
+ *  Gói Mắt Bão nay lấy theo công ty: `negativePacksFor` (MBC KHÔNG được phủ định "tên miền"/"tra cứu"). */
 export const NEGATIVE_PACKS: Record<"competitor" | "lookup" | "own_other", string[]> = {
   competitor: ["misa", "meinvoice", "easyinvoice", "easy invoice", "viettel", "sinvoice", "vinvoice", "bkav", "ehoadon", "e hoadon", "vnpt", "minvoice", "m invoice", "fpt", "cyberbill", "htinvoice", "goinvoice", "sapo", "trungnguyen", "kiotviet", "softdreams", "wininvoice", "win hóa đơn", "vininvoice", "safeinvoice", "saveinvoice", "save invoice", "hilo", "vĩnh hy", "ihoadon", "ihoadondientu", "ehoadondientu", "laphoadon", "evan", "smartca", "ica"],
   lookup: ["tra cứu", "tracuu", "tracuuhoadon", "hoadondientu", "gdt", "https", "http", "www", "com vn", "tổng đài", "đăng nhập", "login"],
   own_other: ["domain", "tên miền", "google workspace", "hosting"],
 }
 
-const PACK_LABEL = { competitor: "tên đối thủ", lookup: "tra cứu / đăng nhập", own_other: "sản phẩm khác của Mắt Bão" }
+export type PackName = keyof typeof NEGATIVE_PACKS
+
+/** Gói phủ định theo công ty của chiến dịch (bảng sản phẩm); không có bảng → gói cũ. */
+export function negativePacksFor(lex: IntentLexicon): Record<PackName, string[]> {
+  return lex.catalog?.negatives ?? NEGATIVE_PACKS
+}
+
+const packLabel = (p: PackName, lex: IntentLexicon) =>
+  p === "competitor" ? "tên đối thủ" : p === "lookup" ? "tra cứu / đăng nhập" : `sản phẩm của ${lex.catalog?.sibling.site ?? "công ty khác"}`
+
+/**
+ * Bỏ phủ định sẽ chặn (1) từ khoá ĐANG BẬT của chính chiến dịch (trừ tên đối thủ), (2) ở chiến dịch thương hiệu:
+ * lượt tìm có tên thương hiệu. Đo 19/10: gói cũ phủ định "tên miền" trong chiến dịch tên miền. HÀM THUẦN.
+ */
+export function guardNegatives(negatives: NegativeKw[], ev: Pick<SearchEvidence, "campaign" | "keywords" | "searchTerms">, lex: IntentLexicon): { kept: NegativeKw[]; dropped: { text: string; why: string }[] } {
+  // Chỉ bảo vệ từ khoá SẢN PHẨM (+ từ khoá thương hiệu ở chiến dịch thương hiệu). Từ khoá tra cứu / thương hiệu nằm trong
+  // chiến dịch sản phẩm ("matbao login" trong Search HĐĐT) là đúng thứ gói phủ định muốn chặn — phương án duyệt 25/09.
+  const brandCamp = isBrandCampaign(ev.campaign.name)
+  const ownKws = ev.keywords.filter((k) => {
+    if (k.status !== "ENABLED") return false
+    const it = intentOf(k.text, lex)
+    return it === "own_brand" ? brandCamp : !["competitor", "lookup", "own_other"].includes(it)
+  })
+  const brandTerms = brandCamp ? ev.searchTerms.filter((t) => intentOf(t.term, lex) === "own_brand") : []
+  const kept: NegativeKw[] = []
+  const dropped: { text: string; why: string }[] = []
+  for (const n of negatives) {
+    // So trên chữ bỏ dấu: phủ định "ten mien" vẫn chặn lượt tìm không dấu mà từ khoá "tên miền" đang nhận.
+    const kw = ownKws.find((k) => blocks(stripDiacritics(k.text), { text: stripDiacritics(n.text), match: "PHRASE" }))
+    if (kw) { dropped.push({ text: n.text, why: `chặn từ khoá đang bật “${kw.text}”` }); continue }
+    const bt = brandTerms.find((t) => blocks(t.term, n))
+    if (bt) { dropped.push({ text: n.text, why: `chặn lượt tìm thương hiệu “${bt.term}”` }); continue }
+    kept.push(n)
+  }
+  return { kept, dropped }
+}
 
 /**
  * Phủ định có thể đang chặn người MUA: có chữ "mua" và không mang nghĩa gian lận.
@@ -41,27 +78,32 @@ export function proposeSearchActions(input: {
   diagnosis: Diagnosis
   verdict: Verdict
   lexicon: IntentLexicon
+  /** Chiến dịch này là gốc của một bản tách "· Chung" — lượt tìm chung bị chặn ở đây sẽ CHUYỂN sang đó, không mất. */
+  split?: SplitRoute
 }): { actions: CaseAction[]; manualTasks: Omit<ManualTask, "id" | "createdAt">[] } {
-  const { evidence: ev, diagnosis: dx, lexicon } = input
+  const { evidence: ev, diagnosis: dx, lexicon, split } = input
   const has = (id: string) => dx.causes.some((c) => c.id === id)
+  const PACKS = negativePacksFor(lexicon)
   const actions: CaseAction[] = []
   const manualTasks: Omit<ManualTask, "id" | "createdAt">[] = []
 
   // Phủ định: chỉ lấy gói ứng với nguyên nhân thật sự có mặt.
-  const packs: (keyof typeof NEGATIVE_PACKS)[] = []
+  const packs: PackName[] = []
   if (has("competitor-spend") || ev.keywords.some((k) => k.status === "ENABLED" && intentOf(k.text, lexicon) === "competitor")) packs.push("competitor")
   if (has("lookup") || has("existing-customer")) packs.push("lookup")
-  if (has("existing-customer")) packs.push("own_other")
+  if (has("other-product")) packs.push("own_other")
   if (packs.length) {
     const present = new Set(ev.negatives.map((n) => n.text.toLowerCase()))
-    const negatives: NegativeKw[] = withAccentVariants(packs.flatMap((p) => NEGATIVE_PACKS[p]).map((text) => ({ text, match: "PHRASE" as const })))
-      .filter((n) => !present.has(n.text))
+    const { kept: negatives, dropped } = guardNegatives(
+      withAccentVariants(packs.flatMap((p) => PACKS[p]).map((text) => ({ text, match: "PHRASE" as const }))).filter((n) => !present.has(n.text)),
+      ev, lexicon)
     if (negatives.length) {
-      const simulation = simulateNegatives(ev.searchTerms, negatives, ev.keywords)
+      const simulation = simulateNegatives(ev.searchTerms, negatives, ev.keywords, split && { ...split, lexicon })
       actions.push({
-        id: aid("neg"), type: "ADD_NEGATIVES", selected: simulation.blockedConversions === 0,
-        label: `Thêm ${negatives.length} từ khoá phủ định (${packs.map((p) => PACK_LABEL[p]).join(", ")}; có dấu + không dấu)`,
-        campaignIds: [ev.campaign.id], negatives, simulation,
+        // Bản "· Chung" chưa nhận lượt tìm (chưa chuyển từ khoá) → phần "chuyển" chưa chắc → không chọn sẵn.
+        id: aid("neg"), type: "ADD_NEGATIVES", selected: simulation.blockedConversions === 0 && (!simulation.moved?.conversions || simulation.moved.live),
+        label: `Thêm ${negatives.length} từ khoá phủ định (${packs.map((p) => packLabel(p, lexicon)).join(", ")}; có dấu + không dấu)`,
+        campaignIds: [ev.campaign.id], negatives, simulation, ...(dropped.length ? { dropped } : {}),
       })
     }
   }
@@ -69,7 +111,7 @@ export function proposeSearchActions(input: {
   // Danh sách dùng chung chưa gắn → đề xuất gắn (mô phỏng cả từ khoá đang bật bị chặn theo).
   const list = pickSharedList(ev.sharedLists)
   if (list && !list.attached && list.members.length) {
-    const simulation = simulateNegatives(ev.searchTerms, list.members.map(asNeg), ev.keywords)
+    const simulation = simulateNegatives(ev.searchTerms, list.members.map(asNeg), ev.keywords, split && { ...split, lexicon })
     // Từ khoá ĐANG BẬT của chính chiến dịch (không phải tên đối thủ) bị list chặn theo → cũng là cờ.
     // Đo 27/09: gắn "Blacklist" vào Search HĐĐT Phần 2 chặn theo “hóa đơn điện tử thông tư 78” (bởi “thông tư”).
     const ownHit = simulation.ownKeywordsBlocked.filter((k) => intentOf(k.text, lexicon) !== "competitor")

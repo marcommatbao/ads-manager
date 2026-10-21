@@ -8,7 +8,7 @@
 
 import { enums } from "google-ads-api"
 import { getGoogleAdsCustomer } from "@/lib/google-ads-client"
-import { intentOf, INTENT_LABEL, type Intent, type IntentLexicon } from "@/lib/case/intent"
+import { intentOf, mentionsBrand, INTENT_LABEL, type Intent, type IntentLexicon } from "@/lib/case/intent"
 import { lexiconFor } from "@/lib/case/targets"
 import { stripDiacritics } from "@/lib/case/text"
 import type { Company } from "@/lib/case/types"
@@ -110,8 +110,7 @@ export function cannibalization(terms: SearchTermRow[], searchKeywords: string[]
   for (const t of terms) {
     pmaxClicks += t.clicks
     const n = norm(t.term)
-    const intent = intentOf(t.term, lex)
-    if (intent === "own_brand" || intent === "own_other") brandClicks += t.clicks
+    if (mentionsBrand(t.term, lex)) brandClicks += t.clicks
     // Trùng = đúng từ khoá, hoặc lượt tìm CHỨA trọn một từ khoá Search ≥ 2 từ.
     const hit = kwSet.has(n) ? n : kws.find((k) => k.includes(" ") && ` ${n} `.includes(` ${k} `))
     if (hit) { overlapTerms++; overlapClicks += t.clicks; overlapConversions += t.conversions; if (t.clicks > 0) examples.push({ term: t.term, clicks: t.clicks, searchKeyword: hit }) }

@@ -375,7 +375,7 @@ export default function SetupPage() {
                 </Field>
                 <Field label="Tên tài khoản Google Ads" hint="Tuỳ chọn, cách nhau bằng dấu phẩy"><Input value={r.googleAccountNames} onChange={(e) => patchRow(i, { googleAccountNames: e.target.value })} /></Field>
                 <Field label="Chữ có trong tên chiến dịch" hint="Tuỳ chọn, cách nhau bằng dấu phẩy"><Input value={r.campaignContains} onChange={(e) => patchRow(i, { campaignContains: e.target.value })} /></Field>
-                <Field label="Từ khoá thương hiệu" hint="Tuỳ chọn, cách nhau bằng dấu phẩy"><Input value={r.brandTerms} onChange={(e) => patchRow(i, { brandTerms: e.target.value })} /></Field>
+                <Field label="Từ khoá thương hiệu" hint="Tuỳ chọn, cách nhau bằng dấu phẩy. Bỏ trống = tool tự lấy từ tên công ty + tên miền. Sản phẩm / dịch vụ lấy từ Cài đặt → Hồ sơ doanh nghiệp."><Input value={r.brandTerms} onChange={(e) => patchRow(i, { brandTerms: e.target.value })} /></Field>
                 <Field label="Đối thủ" hint="Tuỳ chọn, cách nhau bằng dấu phẩy"><Input value={r.competitors} onChange={(e) => patchRow(i, { competitors: e.target.value })} /></Field>
               </div>
               {r.locked && <p className="text-xs text-slate-400">Mã này đã lưu — không đổi/xoá được.</p>}

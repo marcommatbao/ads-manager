@@ -251,6 +251,19 @@ export function Step5Actions({
                     </div>
                   )}
 
+                  {a.simulation?.moved && a.simulation.moved.terms > 0 && (
+                    <div className="rounded-lg border border-sky-200 bg-sky-50 p-2.5 text-xs text-sky-800">
+                      <div className="font-semibold">
+                        Chuyển sang “{a.simulation.moved.to}”: {num(a.simulation.moved.terms)} lượt tìm · {vnd(a.simulation.moved.cost)} · {num(a.simulation.moved.conversions, { maximumFractionDigits: 1 })} đơn, {num(a.simulation.moved.allConversions, { maximumFractionDigits: 1 })} chuyển đổi phụ
+                      </div>
+                      <div className="mt-0.5">
+                        {a.simulation.moved.live
+                          ? "Chiến dịch đã tách — các lượt tìm này do bản “· Chung” nhận, không tính vào đơn bị mất."
+                          : "Chiến dịch đã tách nhưng CHƯA chuyển từ khoá — chỉ đúng khi bản “· Chung” đang BẬT. Kiểm trước khi duyệt."}
+                      </div>
+                    </div>
+                  )}
+
                   {a.simulation && a.simulation.withConversions.length > 0 && (
                     <div className="rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-800">
                       <div className="mb-1 font-semibold">Lượt tìm bị chặn nhưng CÓ đơn/chuyển đổi phụ — xem kỹ trước khi duyệt</div>
@@ -258,6 +271,7 @@ export function Step5Actions({
                         {a.simulation.withConversions.map((w, i) => (
                           <li key={i}>
                             “{w.term}” · {vnd(w.cost)} · {num(w.conversions, { maximumFractionDigits: 1 })} đơn, {num(w.allConversions, { maximumFractionDigits: 1 })} chuyển đổi phụ
+                            {w.movedTo && <span className="text-sky-700"> → chuyển sang “{w.movedTo}”</span>}
                           </li>
                         ))}
                       </ul>
@@ -273,6 +287,15 @@ export function Step5Actions({
                             “{k.text}” ({k.match}) · {vnd(k.cost)} · {k.impressions} hiển thị — chặn theo “{k.by}”
                           </li>
                         ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {a.type === "ADD_NEGATIVES" && a.dropped && a.dropped.length > 0 && (
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-xs text-slate-600">
+                      <div className="mb-1 font-semibold">Đã bỏ {a.dropped.length} từ khỏi gói phủ định (để không chặn chính chiến dịch này)</div>
+                      <ul className="space-y-0.5">
+                        {a.dropped.map((d, i) => <li key={i}>“{d.text}” — {d.why}</li>)}
                       </ul>
                     </div>
                   )}

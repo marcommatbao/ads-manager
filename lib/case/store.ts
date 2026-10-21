@@ -23,7 +23,9 @@ const KEEP_MS = 180 * 24 * 60 * 60 * 1000
 export type CaseStep = 1 | 2 | 3 | 4 | 5 | 6 | 7
 
 export type CaseAction =
-  | { id: string; type: "ADD_NEGATIVES"; label: string; selected: boolean; campaignIds: string[]; negatives: NegativeKw[]; simulation?: SimulationResult }
+  | { id: string; type: "ADD_NEGATIVES"; label: string; selected: boolean; campaignIds: string[]; negatives: NegativeKw[]; simulation?: SimulationResult
+      /** 19/10: phủ định trong gói bị bỏ vì chặn từ khoá đang bật / lượt tìm thương hiệu của chiến dịch thương hiệu. */
+      dropped?: { text: string; why: string }[] }
   | { id: string; type: "REMOVE_NEGATIVE"; label: string; selected: boolean; campaignId: string; text: string; match: string }
   | { id: string; type: "PAUSE_CAMPAIGN"; label: string; selected: boolean; campaignId: string }
   /** Thêm từ vào danh sách phủ định DÙNG CHUNG (shared set) — mọi chiến dịch gắn list đều hưởng. */

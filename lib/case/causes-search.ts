@@ -35,6 +35,11 @@ const NETWORK_VI: Record<string, string> = {
 const vnd = (n: number) => `₫${Math.round(n).toLocaleString("vi-VN")}`
 const pct1 = (x: number) => (x * 100).toLocaleString("vi-VN", { minimumFractionDigits: 1, maximumFractionDigits: 1 })
 
+/** Chiến dịch thương hiệu — suy từ tên ("Brand", "Thương hiệu"). */
+export function isBrandCampaign(name: string): boolean {
+  return /\bbrand\b|thuong hieu/.test(stripDiacritics(name ?? ""))
+}
+
 export function diagnoseSearch(ev: SearchEvidence, opts: DiagnoseOptions): Diagnosis {
   const c = ev.campaign
   const causes: Cause[] = []
@@ -123,7 +128,10 @@ export function diagnoseSearch(ev: SearchEvidence, opts: DiagnoseOptions): Diagn
   }
   intentCause("competitor-spend", ["competitor"], "Tiền rơi vào người tìm tên đối thủ", "Phần lớn là khách của họ đi tra cứu hoặc tìm tổng đài.")
   intentCause("info-howto", ["info"], "Người tìm cách làm", "Hỏi kiến thức, chưa có ý định mua.")
-  intentCause("existing-customer", ["own_brand", "own_other"], "Khách cũ tìm thương hiệu để tra cứu/đăng nhập, hoặc tìm sản phẩm khác của Mắt Bão", "Không phải khách mới cho sản phẩm này.")
+  // 19/10: chiến dịch THƯƠNG HIỆU sinh ra để nhận lượt tìm thương hiệu — đó không phải nguyên nhân tốn tiền.
+  if (!isBrandCampaign(c.name)) intentCause("existing-customer", ["own_brand"], "Khách cũ tìm thương hiệu để tra cứu/đăng nhập", "Không phải khách mới cho sản phẩm này.")
+  const sibling = opts.lexicon.catalog?.sibling.site
+  intentCause("other-product", ["own_other"], `Tìm sản phẩm không bán ở chiến dịch này${sibling ? ` (thuộc ${sibling})` : ""}`, "Người tìm sản phẩm của công ty khác cùng thương hiệu.")
   intentCause("lookup", ["lookup"], "Người tra cứu / gõ địa chỉ trang", "Điều hướng, không phải mua.")
 
   // ── Giá thầu tự động không có đơn để học ─────────────────────
