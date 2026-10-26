@@ -26,3 +26,20 @@ export function backPage(next: string | null | undefined): string {
 
 export const NONCE_COOKIE = (provider: string) => `connect_nonce_${provider}`
 export const NEXT_COOKIE = "connect_next"
+
+/**
+ * Địa chỉ công khai của bản cài để chuyển hướng trình duyệt. KHÔNG dùng req.nextUrl.origin: sau proxy (Vibe Host) nó là
+ * http://0.0.0.0:3000 (đo 26/10). Thứ tự: APP_URL → X-Forwarded-Host/Proto → origin của yêu cầu.
+ */
+export function publicOrigin(req: { headers: Headers; nextUrl: { origin: string } }): string {
+  const app = (process.env.APP_URL ?? "").trim()
+  if (app) {
+    try { return new URL(app).origin } catch { /* sai dạng → bỏ qua */ }
+  }
+  const host = req.headers.get("x-forwarded-host")?.split(",")[0]?.trim()
+  if (host && /^[A-Za-z0-9.-]+(:\d+)?$/.test(host)) {
+    const proto = req.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() === "http" ? "http" : "https"
+    return `${proto}://${host}`
+  }
+  return req.nextUrl.origin
+}

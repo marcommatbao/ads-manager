@@ -7,7 +7,7 @@ import crypto from "crypto"
 import { NextResponse, type NextRequest } from "next/server"
 import type { SessionUser } from "@/lib/auth"
 import { clearGatewayTokenCache, gatewayFetch } from "./gateway"
-import { backPage, connectError, connectGuard, NEXT_COOKIE, NONCE_COOKIE } from "./route-kit"
+import { backPage, connectError, connectGuard, NEXT_COOKIE, NONCE_COOKIE, publicOrigin } from "./route-kit"
 import type { ConnectProvider } from "./store"
 
 const LABEL: Record<ConnectProvider, string> = { google: "Google", meta: "Meta" }
@@ -63,7 +63,7 @@ export async function returnConnect(
   const q = req.nextUrl.searchParams
   const page = backPage(req.cookies.get(NEXT_COOKIE)?.value)
   const back = (params: Record<string, string>) => {
-    const u = new URL(page, req.nextUrl.origin)
+    const u = new URL(page, publicOrigin(req))
     for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v)
     const res = NextResponse.redirect(u, 303)
     res.cookies.delete({ name: NONCE_COOKIE(provider), path: "/api/connect" })
