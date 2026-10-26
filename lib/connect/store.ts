@@ -18,8 +18,19 @@ export interface GoogleAccountPick {
 
 export interface ConnectState {
   google?: { connectionId: string; createdAt: string; createdBy: string; accounts: GoogleAccountPick[] }
-  meta?: { connectionId: string; createdAt: string; createdBy: string; adAccountId?: string; userName?: string }
+  meta?: {
+    connectionId: string
+    createdAt: string
+    createdBy: string
+    /** Tài khoản quảng cáo dùng cho cả bản cài (AdsCommand đọc một META_AD_ACCOUNT_ID — như chế độ dán khoá). */
+    adAccount?: MetaAdAccountPick
+    /** Pixel / Trang theo công ty → NEXT_PUBLIC_META_PIXEL_ID_<hậu tố>, NEXT_PUBLIC_META_PAGE_ID_<hậu tố>. */
+    companies?: Record<string, MetaCompanyPick>
+  }
 }
+
+export interface MetaAdAccountPick { id: string; name: string; currency: string }
+export interface MetaCompanyPick { pixelId?: string; pixelName?: string; pageId?: string; pageName?: string }
 
 const FILE = () => path.join(/*turbopackIgnore: true*/ process.cwd(), "data", "connect.json")
 let cache: { mtime: number; file: string; state: ConnectState } | null = null

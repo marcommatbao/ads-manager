@@ -72,6 +72,13 @@ export async function registerNode() {
     if (names.length) console.log(JSON.stringify({ level: "info", module: "startup", message: `Khoá từ Cài đặt: ${names.join(", ")}` }));
   } catch { /* non-fatal — instrumentation must not crash the server */ }
 
+  // Chế độ cổng: nạp kết nối Meta (token từ cổng + tài khoản/Pixel/Trang đã chọn) vào process.env, làm mới định kỳ.
+  // SAU bước nạp khoá đã lưu: kết nối qua cổng là nguồn đúng ở chế độ cổng.
+  try {
+    const { startMetaRuntime } = await import("@/lib/connect/meta-runtime");
+    await startMetaRuntime();
+  } catch (e) { console.error("[startup] connect meta", e); }
+
   // ── 2. Run startup checks ────────────────────────────────────────────────────
 
   try {

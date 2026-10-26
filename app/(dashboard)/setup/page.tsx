@@ -398,11 +398,17 @@ export default function SetupPage() {
 
       {/* 2 */}
       <Step n={2} title={st.connectMode === "gateway" ? "Kết nối tài khoản quảng cáo" : "Dán khoá API"} state={done2 ? "done" : "todo"}
-        desc={st.connectMode === "gateway" ? "Bấm kết nối, đăng nhập Google và chọn tài khoản quảng cáo — không cần dán khoá Google." : "Chỉ Super Admin xem/dán được khoá, ở trang Cài đặt."}>
+        desc={st.connectMode === "gateway" ? "Bấm kết nối, đăng nhập Google / Facebook và chọn tài khoản quảng cáo — không cần dán khoá." : "Chỉ Super Admin xem/dán được khoá, ở trang Cài đặt."}>
         {st.connectMode === "gateway" && (
           <div className="rounded-lg border border-slate-200 p-3">
             <p className="mb-2 text-sm font-semibold text-slate-700">Google Ads</p>
             <Suspense fallback={null}><ConnectCard provider="google" canEdit next="setup" /></Suspense>
+          </div>
+        )}
+        {st.connectMode === "gateway" && (
+          <div className="rounded-lg border border-slate-200 p-3">
+            <p className="mb-2 text-sm font-semibold text-slate-700">Facebook</p>
+            <Suspense fallback={null}><ConnectCard provider="meta" canEdit next="setup" /></Suspense>
           </div>
         )}
         <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200">

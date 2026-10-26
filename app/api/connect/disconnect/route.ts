@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server"
 import { clearGatewayTokenCache, gatewayFetch, GatewayError } from "@/lib/connect/gateway"
 import { readConnect, writeConnect } from "@/lib/connect/store"
 import { connectError, connectGuard } from "@/lib/connect/route-kit"
+import { syncMetaRuntime } from "@/lib/connect/meta-runtime"
 import { writeAuditEntry } from "@/lib/settings/audit"
 
 export const dynamic = "force-dynamic"
@@ -25,6 +26,7 @@ export async function POST(req: NextRequest) {
   delete next[provider]
   writeConnect(next)
   clearGatewayTokenCache()
+  if (provider === "meta") await syncMetaRuntime() // gỡ token + tài khoản/Pixel/Trang khỏi máy chủ ngay
   await writeAuditEntry(provider === "google" ? "credentials_google" : "credentials_meta", g.user, "update", "gateway_disconnect", null, null, "ALL")
   return NextResponse.json({ ok: true })
 }

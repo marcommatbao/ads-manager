@@ -10,12 +10,13 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { companyDef, companyIds } from "@/lib/companies/registry"
 import { useCompaniesVersion } from "@/lib/companies/use-companies"
+import { MetaConnectPanel, type MetaStatus } from "./MetaConnectPanel"
 
 interface Pick { customerId: string; loginCustomerId?: string; name: string; company: string }
 interface Status {
   gateway: boolean
   google?: { connected: boolean; createdAt?: string; createdBy?: string; accounts?: Pick[] }
-  meta?: { connected: boolean; createdAt?: string; createdBy?: string }
+  meta?: MetaStatus
 }
 interface AccountRow { customerId: string; name: string; status: string; currency: string; loginCustomerId?: string; viaName?: string }
 interface Preview { company: string; customerId: string; name?: string; currency?: string; cost?: number; clicks?: number; impressions?: number; error?: string }
@@ -113,8 +114,11 @@ export function ConnectCard({ provider, canEdit, next = "settings" }: { provider
 
   if (provider === "meta") {
     return (
-      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-        Kết nối Facebook qua Cổng kết nối Mắt Bão đang được hoàn thiện. Trong lúc chờ, Mắt Bão sẽ hỗ trợ kết nối giúp bạn.
+      <div className="space-y-4">
+        {message && (
+          <div className={`rounded-xl border p-3 text-sm ${message.ok ? "border-green-200 bg-green-50 text-green-800" : "border-red-200 bg-red-50 text-red-700"}`}>{message.text}</div>
+        )}
+        <MetaConnectPanel status={status.meta ?? { connected: false }} canEdit={canEdit} next={next} onChanged={load} />
       </div>
     )
   }

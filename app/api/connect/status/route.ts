@@ -17,6 +17,6 @@ export async function GET() {
   return NextResponse.json({
     gateway: true,
     google: c.google ? { connected: true, createdAt: c.google.createdAt, createdBy: c.google.createdBy, accounts: c.google.accounts } : { connected: false },
-    meta: c.meta ? { connected: true, createdAt: c.meta.createdAt, createdBy: c.meta.createdBy, adAccountId: c.meta.adAccountId } : { connected: false },
+    meta: c.meta ? { connected: true, createdAt: c.meta.createdAt, createdBy: c.meta.createdBy, adAccount: c.meta.adAccount ?? null, companies: c.meta.companies ?? {} } : { connected: false },
   })
 }
