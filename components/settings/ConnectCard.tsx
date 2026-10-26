@@ -24,6 +24,7 @@ interface Preview { company: string; customerId: string; name?: string; currency
 const fmtId = (id: string) => id.replace(/^(\d{3})(\d{3})(\d{4})$/, "$1-$2-$3")
 const fmtMoney = (n: number, cur: string) => `${n.toLocaleString("vi-VN")} ${cur === "VND" ? "₫" : cur}`
 const fmtTime = (iso?: string) => (iso ? new Date(iso).toLocaleString("vi-VN") : "")
+const STATUS_VI: Record<string, string> = { CANCELED: "đã huỷ", SUSPENDED: "bị tạm ngưng", CLOSED: "đã đóng", UNKNOWN: "không rõ trạng thái" }
 
 export function ConnectCard({ provider, canEdit, next = "settings" }: { provider: "google" | "meta"; canEdit: boolean; next?: "settings" | "setup" }) {
   useCompaniesVersion()
@@ -183,7 +184,7 @@ export function ConnectCard({ provider, canEdit, next = "settings" }: { provider
               {accounts.map((a) => (
                 <label key={a.customerId} className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2 text-sm">
                   <span>
-                    <span className="font-medium text-slate-800">{a.name}</span> <span className="text-slate-400">({fmtId(a.customerId)} · {a.currency}{a.status && a.status !== "ENABLED" ? ` · ${a.status}` : ""})</span>
+                    <span className="font-medium text-slate-800">{a.name}</span> <span className="text-slate-400">({fmtId(a.customerId)} · {a.currency}{a.status && a.status !== "ENABLED" ? ` · ${STATUS_VI[a.status] ?? a.status}` : ""})</span>
                     {a.viaName && <span className="block text-xs text-slate-400">qua tài khoản quản lý {a.viaName}</span>}
                   </span>
                   <select

@@ -42,6 +42,13 @@ export async function listAccessibleCustomerIds(): Promise<string[]> {
 
 type Row = Record<string, Record<string, unknown> | undefined>
 
+/** Thư viện trả trạng thái dạng SỐ (enum CustomerStatus) — đổi ra tên để giao diện so "ENABLED" và hiện chữ (lỗi 26/10: hiện "· 2"). */
+const CUSTOMER_STATUS: Record<number, string> = { 0: "UNSPECIFIED", 1: "UNKNOWN", 2: "ENABLED", 3: "CANCELED", 4: "SUSPENDED", 5: "CLOSED" }
+export function customerStatusName(v: unknown): string {
+  if (typeof v === "number") return CUSTOMER_STATUS[v] ?? String(v)
+  return v == null ? "" : String(v)
+}
+
 export async function listGoogleAccounts(): Promise<GoogleAccountsResult> {
   const ids = (await listAccessibleCustomerIds()).slice(0, MAX_TOP)
   const out = new Map<string, GoogleAccountRow>()
@@ -55,7 +62,7 @@ export async function listGoogleAccounts(): Promise<GoogleAccountsResult> {
       const c = rows[0]?.customer ?? {}
       const name = String(c.descriptive_name ?? id)
       if (!c.manager) {
-        out.set(id, { customerId: id, name, status: String(c.status ?? ""), currency: String(c.currency_code ?? "") })
+        out.set(id, { customerId: id, name, status: customerStatusName(c.status), currency: String(c.currency_code ?? "") })
         continue
       }
       // Tài khoản quản lý (MCC): không chạy quảng cáo → mở rộng tài khoản con, nhớ MCC làm login-customer-id.
@@ -66,7 +73,7 @@ export async function listGoogleAccounts(): Promise<GoogleAccountsResult> {
         const cc = r.customer_client ?? {}
         const cid = String(cc.id ?? "")
         if (!cid || out.has(cid)) continue // vào thẳng được thì giữ bản vào thẳng
-        out.set(cid, { customerId: cid, name: String(cc.descriptive_name ?? cid), status: String(cc.status ?? ""), currency: String(cc.currency_code ?? ""), loginCustomerId: id, viaName: name })
+        out.set(cid, { customerId: cid, name: String(cc.descriptive_name ?? cid), status: customerStatusName(cc.status), currency: String(cc.currency_code ?? ""), loginCustomerId: id, viaName: name })
       }
     } catch (e) {
       errors.push({ customerId: id, message: googleAdsErrorMessage(e) })
