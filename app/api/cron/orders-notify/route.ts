@@ -7,10 +7,13 @@
 //  3. "Đơn bị hủy"         — order flipped draft→cancel (e.g. abandoned
 //     online payment) between two poll ticks, so the draft pipeline above
 //     never saw it in time → sales calls back to try to save the sale
+//     TẮT từ 26/10/2026 theo user (task #7108) — bật lại: ORDERS_NOTIFY_CANCEL=on
+//     (lib/orders/notify-settings.ts). Khi tắt vẫn đánh dấu "đã xem" để không xả dồn lúc bật lại.
 // ============================================================
 
 import { NextRequest, NextResponse } from "next/server";
 import { checkCronAuth } from "@/lib/cron-auth";
+import { cancelCardsEnabled } from "@/lib/orders/notify-settings";
 import { startJobRun } from "@/lib/jobs/cron-guard";
 import { searchRead } from "@/lib/odoo-client";
 import { NOTIFY_ORDER_DOMAIN, isNotifiableOrder, mbiSourceLabel } from "@/lib/mbi-order-sources";
@@ -760,7 +763,17 @@ export async function GET(request: NextRequest) {
     const cancelRunDetail: string[] = [];
     const cancelEvents: Omit<NotifyEvent, "ts">[] = [];
 
-    for (const order of newCancel) {
+    // Thẻ đơn hủy đang tắt → đánh dấu đã xem, không gửi (xem đầu tệp).
+    const cancelOn = cancelCardsEnabled();
+    if (!cancelOn) {
+      for (const order of newCancel) {
+        sentCancelIds.push(order.id);
+        cancelEvents.push({ pipeline: "cancel", action: "skipped_permanent", orderId: order.id, orderName: order.name, reason: "thẻ đơn hủy đang tắt (ORDERS_NOTIFY_CANCEL)" });
+        cancelRunDetail.push(`${order.name}(off)`);
+      }
+    }
+
+    for (const order of (cancelOn ? newCancel : [])) {
       const oppId = Array.isArray(order.opportunity_id) ? order.opportunity_id[0] : null;
       const lead = oppId ? leadMap.get(oppId) : undefined;
 
