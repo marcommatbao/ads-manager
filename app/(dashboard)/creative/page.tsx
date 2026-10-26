@@ -2462,6 +2462,8 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                               </span>
                             ))}
                           </div>
+                          {/* Meta bỏ loại trừ theo sở thích/hành vi (v22, mọi phiên bản từ 21/04/2025) — các mục này KHÔNG được gửi khi tạo chiến dịch. */}
+                          <p className="mt-1 text-[10px] text-slate-400">Chỉ để tham khảo — Meta không còn cho loại trừ theo sở thích/hành vi. Muốn loại trừ, chọn tệp ở ô “Loại trừ tệp đối tượng”.</p>
                         </div>
                       )}
 
@@ -4213,7 +4215,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                   )}
                 >
                   <p className="text-xs font-bold text-slate-700">ABO — Ad Set Budget</p>
-                  <p className="text-[10px] text-slate-400">Mỗi Ad Set tự quản budget riêng</p>
+                  <p className="text-[10px] text-slate-400">Mỗi Ad Set có budget riêng · Meta được chia tối đa 20% giữa các nhóm</p>
                   {budgetType === "adset" && (
                     <div className="mt-3">
                       <label className="text-[10px] text-slate-500">Budget mỗi Ad Set/ngày (VNĐ)</label>

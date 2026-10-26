@@ -1,7 +1,8 @@
 // ============================================================
 // Creative Pipeline — Types, Helpers, FB Mapping
 // ============================================================
-import { META_GRAPH_BASE } from "@/lib/meta/graph-version"
+import { META_GRAPH_BASE, META_GRAPH_VERSION } from "@/lib/meta/graph-version"
+import { applyPlacementRules } from "@/lib/case/meta-placements"
 
 // ─────────────────────────────────────────────
 // Types
@@ -204,7 +205,10 @@ export interface FBTargeting {
 }
 
 // ─────────────────────────────────────────────
-// Placement theo Objective — FB Marketing API v19 (2025+)
+// Placement theo Objective — Marketing API v25/v26
+// 26/10/2026 (task #7099): bỏ instagram "explore" (lưới Khám phá — v26 báo lỗi khi khai rõ) và messenger "story"
+// (Meta tự bỏ ở mọi phiên bản từ 27/10/2026); giữ "explore_home". Phiên bản dưới v26 bắt khai "explore" đi kèm
+// "explore_home" → sanitizeTargeting gọi applyPlacementRules (lib/case/meta-placements.ts) để thêm/bỏ theo phiên bản.
 // ─────────────────────────────────────────────
 
 const PLACEMENT_BY_OBJECTIVE: Record<string, {
@@ -218,14 +222,14 @@ const PLACEMENT_BY_OBJECTIVE: Record<string, {
     facebook_positions: ["feed", "marketplace",
       "story", "search", "instream_video", "right_hand_column"],
     instagram_positions: ["stream", "story", "reels",
-      "explore", "explore_home", "profile_feed"],
+      "explore_home", "profile_feed"],
     messenger_positions: ["messenger_home"],
   },
   OUTCOME_SALES: {
     facebook_positions: ["feed", "marketplace",
       "story", "search", "instream_video", "right_hand_column"],
     instagram_positions: ["stream", "story", "reels",
-      "explore", "explore_home", "profile_feed"],
+      "explore_home", "profile_feed"],
     messenger_positions: ["messenger_home"],
   },
   // Traffic → reels FB không hợp lệ với API hiện tại
@@ -233,25 +237,25 @@ const PLACEMENT_BY_OBJECTIVE: Record<string, {
     facebook_positions: ["feed", "marketplace",
       "story", "search", "instream_video", "right_hand_column"],
     instagram_positions: ["stream", "story", "reels",
-      "explore", "explore_home", "profile_feed"],
+      "explore_home", "profile_feed"],
     audience_network_positions: ["classic", "instream_video"],
-    messenger_positions: ["messenger_home", "story"],
+    messenger_positions: ["messenger_home"],
   },
   // Awareness / Reach → rộng nhất
   OUTCOME_AWARENESS: {
     facebook_positions: ["feed", "marketplace",
       "story", "search", "instream_video", "right_hand_column"],
     instagram_positions: ["stream", "story", "reels",
-      "explore", "explore_home", "profile_feed", "profile_reels"],
+      "explore_home", "profile_feed", "profile_reels"],
     audience_network_positions: ["classic", "instream_video", "rewarded_video"],
-    messenger_positions: ["messenger_home", "story"],
+    messenger_positions: ["messenger_home"],
   },
   // Engagement
   OUTCOME_ENGAGEMENT: {
     facebook_positions: ["feed", "marketplace",
       "story", "search", "right_hand_column"],
     instagram_positions: ["stream", "story", "reels",
-      "explore", "explore_home", "profile_feed"],
+      "explore_home", "profile_feed"],
     messenger_positions: ["messenger_home"],
   },
 };
@@ -259,7 +263,7 @@ const PLACEMENT_BY_OBJECTIVE: Record<string, {
 // Default an toàn nhất (nếu objective không khớp)
 const SAFE_DEFAULT_PLACEMENT = {
   facebook_positions: ["feed", "story", "marketplace", "search"],
-  instagram_positions: ["stream", "story", "reels", "explore"],
+  instagram_positions: ["stream", "story", "reels", "explore_home"],
 };
 
 // ─────────────────────────────────────────────
@@ -371,7 +375,8 @@ function sanitizeGeoTargeting(targeting: any): any {
  */
 export function sanitizeTargeting(
   targeting: FBTargeting,
-  objective?: string
+  objective?: string,
+  version: string = META_GRAPH_VERSION
 ): FBTargeting {
   if (!targeting) return targeting;
 
@@ -451,7 +456,8 @@ export function sanitizeTargeting(
     }
   }
 
-  return sanitizedRecord as unknown as FBTargeting;
+  // Cuối cùng: quy tắc vị trí theo phiên bản Graph API (v25 bắt explore đi kèm explore_home, v26 cấm explore).
+  return applyPlacementRules(sanitizedRecord, version).body as unknown as FBTargeting;
 }
 
 // ─────────────────────────────────────────────
@@ -563,19 +569,12 @@ export function resolveCtaType(rawCta: string | undefined): string {
 }
 
 // ─────────────────────────────────────────────
-// FB Exclusion Map
+// Loại trừ chi tiết (sở thích/hành vi) — Meta ĐÃ BỎ
 // ─────────────────────────────────────────────
-
-const EXCLUSION_MAP: Record<string, { id: string; name: string }> = {
-  "Sinh viên":              { id: "6003400582954", name: "College students" },
-  "IT Support":             { id: "6003440278500", name: "IT Support" },
-  "Kỹ sư phần mềm":       { id: "6003382478500", name: "Software engineers" },
-  "Lập trình viên":        { id: "6003382478500", name: "Software developers" },
-  "Nhân viên tại PA Vietnam": { id: "6003138560372", name: "PA Vietnam employees" },
-  "College students":       { id: "6003400582954", name: "College students" },
-  "Software engineers":     { id: "6003382478500", name: "Software engineers" },
-  "Software developers":    { id: "6003382478500", name: "Software developers" },
-};
+// Changelog Marketing API v22.0: không tạo mới loại trừ nhắm chọn chi tiết (`targeting.exclusions`) — áp mọi phiên bản
+// từ 21/04/2025; các ID hành vi trong bảng EXCLUSION_MAP cũ cũng đã bị Meta khai tử (đo 25/08/2026, subcode 1487694).
+// Còn loại trừ được: TỆP KHÁCH (`excluded_custom_audiences`). `excludeAudiences` dạng chữ của AI chỉ còn được báo ra
+// nhật ký tạo chiến dịch (ignoredExclusions), không gửi lên Meta. Bỏ 26/10/2026, task #7099.
 
 // ─────────────────────────────────────────────
 // Interest ID Resolution via FB Search API (with cache)
@@ -946,7 +945,7 @@ export async function mapSegmentToFBTargeting(
   objective?: string,
   includeInstagram = false,
   useAdvantageAudience = false
-): Promise<{ targeting: FBTargeting; unresolvedLocations: string[] }> {
+): Promise<{ targeting: FBTargeting; unresolvedLocations: string[]; ignoredExclusions: string[] }> {
 
   // ── 1. LOCATION — lookup từ FB Geo Search API ──
   // FB phân loại VN: HCM, Hà Nội = "region" (KHÔNG phải "city")
@@ -1128,10 +1127,8 @@ export async function mapSegmentToFBTargeting(
     });
   }
 
-  // ── 7. EXCLUSIONS ──
-  const exclusions = (segment.excludeAudiences || [])
-    .map((ex: string) => EXCLUSION_MAP[ex])
-    .filter((ex): ex is { id: string; name: string } => !!ex && !!ex.id);
+  // ── 7. EXCLUSIONS ── loại trừ chi tiết không còn gửi được (xem đầu tệp, mục "Loại trừ chi tiết").
+  const ignoredExclusions = (segment.excludeAudiences || []).filter((ex) => typeof ex === "string" && ex.trim())
 
   // ── 8. PLACEMENTS — Tự động theo funnelStage ──
   //
@@ -1145,14 +1142,14 @@ export async function mapSegmentToFBTargeting(
     placements = {
       publisher_platforms: includeInstagram ? ["facebook", "instagram"] : ["facebook"],
       facebook_positions: ["feed", "story", "marketplace", "search"],
-      ...(includeInstagram ? { instagram_positions: ["stream", "story", "reels", "explore", "explore_home"] } : {}),
+      ...(includeInstagram ? { instagram_positions: ["stream", "story", "reels", "explore_home"] } : {}),
       device_platforms: ["mobile", "desktop"],
     };
   } else if (funnel === "MOFU") {
     placements = {
       publisher_platforms: includeInstagram ? ["facebook", "instagram"] : ["facebook"],
       facebook_positions: ["feed", "story", "instream_video", "search"],
-      ...(includeInstagram ? { instagram_positions: ["stream", "story", "reels", "explore", "explore_home", "profile_feed"] } : {}),
+      ...(includeInstagram ? { instagram_positions: ["stream", "story", "reels", "explore_home", "profile_feed"] } : {}),
       device_platforms: ["mobile", "desktop"],
     };
   } else if (funnel === "BOFU") {
@@ -1203,9 +1200,6 @@ export async function mapSegmentToFBTargeting(
     ...((segment.excludeCustomAudienceIds?.length ?? 0) > 0
       ? { excluded_custom_audiences: segment.excludeCustomAudienceIds!.map(id => ({ id })) }
       : {}),
-    ...(exclusions.length > 0
-      ? { exclusions: [{ behaviors: exclusions }] }
-      : {}),
     ...placements,
   };
 
@@ -1213,13 +1207,13 @@ export async function mapSegmentToFBTargeting(
   const targeting = sanitizeTargeting(rawTargeting, objective);
 
   console.log(`[Targeting] ${funnel} "${segment.segmentName}":`,
-    `locations=${locationNames.length}, interests=${interestIds.length}, behaviors=${behaviorTargets.length}, exclusions=${exclusions.length}`
+    `locations=${locationNames.length}, interests=${interestIds.length}, behaviors=${behaviorTargets.length}, ignoredExclusions=${ignoredExclusions.length}`
   );
   if (unresolvedLocations.length > 0) {
     console.warn(`[Targeting] "${segment.segmentName}" — ${unresolvedLocations.length} location(s) failed to resolve and were dropped: ${unresolvedLocations.join(", ")}`);
   }
 
-  return { targeting, unresolvedLocations };
+  return { targeting, unresolvedLocations, ignoredExclusions };
 }
 
 /**

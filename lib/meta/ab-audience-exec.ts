@@ -6,7 +6,7 @@
 import { detectCompany } from "@/lib/company-detect"
 import { adAccountId, metaGet, metaGetAll, metaPost } from "@/lib/case/meta-graph"
 import { readSource, undoD5 } from "@/lib/case/meta-new-adset"
-import { writableTargeting } from "@/lib/case/meta-placements"
+import { retiredPositionsNote, writableTargeting } from "@/lib/case/meta-placements"
 import { metaGoalKind } from "@/lib/case/goal-kind"
 import { vnDate } from "@/lib/case/dates"
 import { computeTargetingSimilarity } from "@/lib/audience-overlap"
@@ -48,7 +48,7 @@ async function buildPlan(company: string, sourceAdsetId: string, variant: AbVari
     winningT = w.targeting
   }
   const aT = (s.src.targeting ?? {}) as Record<string, unknown>
-  const { body: bT, dropped } = writableTargeting(variantTargeting(aT, variant, winningT) as never)
+  const { body: bT, dropped, retired } = writableTargeting(variantTargeting(aT, variant, winningT) as never)
   const overlapPct = Math.round(computeTargetingSimilarity({ targeting: aT } as never, { targeting: bT } as never).overall * 100)
   const daily = num(s.src.daily_budget), lifetime = num(s.src.lifetime_budget)
   const { blockers, warnings } = planWarnings({
@@ -57,6 +57,8 @@ async function buildPlan(company: string, sourceAdsetId: string, variant: AbVari
     adsetDaily: daily, adsetLifetime: lifetime, aStatus: String(s.src.status), activeAds: s.ads.length, skippedAds: s.skipped,
   })
   if (dropped.length) warnings.push(`Trường nhắm chọn không chép được (app không ghi được): ${dropped.join(", ")}.`)
+  const retiredNote = retiredPositionsNote(retired)
+  if (retiredNote) warnings.push(retiredNote)
   const bName = `${String(s.src.name).slice(0, 150)} · A/B tệp B · AdsCommand ${ddmm()}`
   const plan: AbPlan = {
     campaignId: String(camp.id), campaignName: String(camp.name ?? ""), goalKind: metaGoalKind(String(camp.objective ?? "")),

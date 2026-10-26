@@ -13,7 +13,7 @@
 import { detectCompany } from "@/lib/company-detect"
 import { checkRecentCampaignMutation, recordCampaignMutation } from "@/lib/mutation-guard"
 import { metaGet, metaPost } from "./meta-graph"
-import { excludePlacements, placementLabel, placementSummary, writableTargeting, type Targeting } from "./meta-placements"
+import { excludePlacements, placementLabel, placementSummary, retiredPositionsNote, writableTargeting, type Targeting } from "./meta-placements"
 import type { CaseAction, Execution, MetaChange, ReadbackRow } from "./store"
 import type { Company, MetaEvidence } from "./types"
 import { executeD5, undoD5 } from "./meta-new-adset"
@@ -88,6 +88,8 @@ export function planMetaOps(input: {
       if (!r.changed) { out.skipped.push(`Nhóm “${s.name}” đã không còn ${a.placementLabels.join(", ")} — không cần đổi.`); continue }
       const w = writableTargeting(r.next)
       if (w.dropped.length) out.warnings.push(`Nhóm “${s.name}”: app không ghi được ${w.dropped.join(", ")} (tệp khách WhatsApp) — thiết lập này sẽ mất sau khi loại vị trí, hoàn tác cũng không khôi phục được.`)
+      const retiredNote = retiredPositionsNote(w.retired)
+      if (retiredNote) out.warnings.push(`Nhóm “${s.name}”: ${retiredNote}`)
       out.ops.push({ id: s.id, body: { targeting: w.body }, label: `Loại ${a.placementLabels.join(", ")} khỏi ${s.name}`, change: { kind: "adset_targeting", id: s.id, name: s.name, before: s.targeting, after: r.next } })
     }
   }

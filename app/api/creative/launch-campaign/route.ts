@@ -22,6 +22,8 @@ import { hasPermission, canAccessCompany } from "@/lib/permissions";
 import { META_GRAPH_BASE } from "@/lib/meta/graph-version";
 import { friendlyError } from "@/lib/not-configured";
 import { getWinning } from "@/lib/meta/winning-audiences";
+import { retiredPositionsNote, writableTargeting } from "@/lib/case/meta-placements";
+import { buildCampaignParams } from "@/lib/meta/campaign-params";
 
 const META_BASE = META_GRAPH_BASE;
 
@@ -117,18 +119,15 @@ export async function POST(request: NextRequest) {
     const launchStatus = config.launchActive ? "ACTIVE" : "PAUSED";
     addLog(config.launchActive ? "🚀 Tạo campaign — sẽ CHẠY THẬT ngay khi tạo xong..." : "🚀 Tạo campaign (tắt sẵn)...");
 
-    const campaignParams: Record<string, unknown> = {
+    // CBO: ngân sách + bid_strategy ở chiến dịch; ABO: is_adset_budget_sharing_enabled=false (bắt buộc từ v24) — xem lib/meta/campaign-params.ts.
+    const campaignParams = buildCampaignParams({
       name: config.campaignName,
       objective: config.objectiveKey,
       status: launchStatus,
-      special_ad_categories: [],
-    };
-
-    if (config.budgetType === "cbo" && config.dailyBudget > 0) {
-      // VND is a zero-decimal currency — pass amount directly (no ×100 conversion)
-      campaignParams.daily_budget = String(config.dailyBudget);
-      campaignParams.bid_strategy = config.bidStrategy ?? "LOWEST_COST_WITHOUT_CAP";
-    }
+      budgetType: config.budgetType,
+      dailyBudget: config.dailyBudget,
+      bidStrategy: config.bidStrategy,
+    });
 
     const campaignRes = await fbApiCall(
       `/act_${adAccountId}/campaigns`,
@@ -156,8 +155,10 @@ export async function POST(request: NextRequest) {
       if (segment.winningAudienceId && (!saved || saved.company !== config.company)) {
         throw new Error(`Tệp thắng “${segment.segmentName}” không còn hoặc không thuộc công ty này — chọn lại tệp`);
       }
-      const { targeting, unresolvedLocations } = saved
-        ? { targeting: structuredClone(saved.targeting) as unknown as Awaited<ReturnType<typeof mapSegmentToFBTargeting>>["targeting"], unresolvedLocations: [] as string[] }
+      // Tệp thắng lưu trước 26/10/2026 có thể còn vị trí Meta đã khai tử (vd instagram "explore") → đi qua writableTargeting.
+      const savedW = saved ? writableTargeting(structuredClone(saved.targeting) as Record<string, unknown>) : null;
+      const { targeting, unresolvedLocations, ignoredExclusions } = savedW
+        ? { targeting: savedW.body as unknown as Awaited<ReturnType<typeof mapSegmentToFBTargeting>>["targeting"], unresolvedLocations: [] as string[], ignoredExclusions: [] as string[] }
         : await mapSegmentToFBTargeting(
           segment,
           token,
@@ -170,6 +171,11 @@ export async function POST(request: NextRequest) {
         const t = targeting as unknown as { excluded_custom_audiences?: { id: string }[] };
         const ids = new Set([...(t.excluded_custom_audiences ?? []).map((x) => String(x.id)), ...segment.excludeCustomAudienceIds.map(String)]);
         t.excluded_custom_audiences = [...ids].map((id) => ({ id }));
+      }
+      const retiredNote = savedW ? retiredPositionsNote(savedW.retired) : null;
+      if (retiredNote) addLog(`⚠️ ${retiredNote}`);
+      if (ignoredExclusions.length > 0) {
+        addLog(`⚠️ Meta không còn cho loại trừ theo sở thích/hành vi — bỏ qua: ${ignoredExclusions.join(", ")}. Muốn loại trừ thì chọn tệp ở ô "Loại trừ tệp đối tượng".`);
       }
       if (saved) addLog(`🏆 Dùng tệp thắng đã lưu “${saved.name}” (${saved.summary}) — lưu ${saved.savedAt.slice(0, 10)}${saved.droppedKeys.length ? `; bỏ trường app không ghi được: ${saved.droppedKeys.join(", ")}` : ""}`);
 

@@ -8,6 +8,8 @@
 // phải dịch đúng tên, dịch sai thì Meta từ chối hoặc — tệ hơn — loại nhầm chỗ khác.
 // Vị trí không có trong bảng → không loại được bằng tool (báo, không đoán).
 
+import { META_GRAPH_VERSION } from "@/lib/meta/graph-version"
+
 export type PlacementField =
   | "facebook_positions" | "instagram_positions" | "audience_network_positions" | "messenger_positions"
 
@@ -72,11 +74,65 @@ export type Targeting = Record<string, unknown>
  */
 export const UNWRITABLE_TARGETING_KEYS = ["subscriber_universe"]
 
-export function writableTargeting(t: Targeting): { body: Targeting; dropped: string[] } {
+/** Số phiên bản chính của Graph API, vd "v25.0" → 25. */
+export function graphMajor(version: string = META_GRAPH_VERSION): number {
+  return Number(/^v(\d+)/.exec(version)?.[1] ?? 0)
+}
+
+/**
+ * Vị trí Meta đã KHAI TỬ theo phiên bản (changelog Meta + đo validate_only 26/10/2026, task #7099):
+ * - facebook `video_feeds`: lỗi từ v24; messenger `story`: Meta tự bỏ ở mọi phiên bản từ 27/10/2026.
+ * - instagram `explore` (lưới Khám phá): v26 TỪ CHỐI ("IG Explore placement is deprecated", subcode 2490589),
+ *   nhưng v25 lại BẮT khai `explore` khi có `explore_home` ("please also select Instagram Explore", subcode 2490392).
+ *   Hai phiên bản ngược nhau → quy tắc phải theo phiên bản đang gọi, xem applyPlacementRules.
+ */
+export function retiredPositions(version: string = META_GRAPH_VERSION): Record<string, string[]> {
+  const out: Record<string, string[]> = { facebook_positions: ["video_feeds"], messenger_positions: ["story"] }
+  if (graphMajor(version) >= 26) out.instagram_positions = ["explore"]
+  return out
+}
+
+/**
+ * Đưa danh sách vị trí về dạng phiên bản `version` chấp nhận. Hàm thuần.
+ * - Bỏ vị trí khai tử (`retired`, dạng "instagram_positions:explore"); danh sách rỗng sau khi bỏ → bỏ hẳn trường
+ *   (= Meta tự chọn trong nền tảng; gửi mảng rỗng bị từ chối).
+ * - Dưới v26: có `explore_home` mà thiếu `explore` → thêm `explore` (Meta bắt đi cặp).
+ */
+export function applyPlacementRules(t: Targeting, version: string = META_GRAPH_VERSION): { body: Targeting; retired: string[] } {
   const body = { ...t }
-  const dropped = UNWRITABLE_TARGETING_KEYS.filter((k) => k in body)
-  for (const k of dropped) delete body[k]
-  return { body, dropped }
+  const retired: string[] = []
+  for (const [field, gone] of Object.entries(retiredPositions(version))) {
+    const cur = body[field]
+    if (!Array.isArray(cur)) continue
+    const keep = (cur as string[]).filter((p) => !gone.includes(p))
+    if (keep.length === cur.length) continue
+    for (const p of cur as string[]) if (gone.includes(p)) retired.push(`${field}:${p}`)
+    if (keep.length) body[field] = keep
+    else delete body[field]
+  }
+  const ig = body.instagram_positions
+  if (graphMajor(version) < 26 && Array.isArray(ig) && ig.includes("explore_home") && !ig.includes("explore")) {
+    body.instagram_positions = [...(ig as string[]), "explore"]
+  }
+  return { body, retired }
+}
+
+/**
+ * Bản targeting ghi được lên Meta: bỏ trường app không ghi được (`dropped`, vd tệp WhatsApp) rồi áp quy tắc vị trí
+ * của phiên bản đang gọi (`retired` = vị trí khai tử đã bỏ).
+ */
+export function writableTargeting(t: Targeting, version: string = META_GRAPH_VERSION): { body: Targeting; dropped: string[]; retired: string[] } {
+  const stripped = { ...t }
+  const dropped = UNWRITABLE_TARGETING_KEYS.filter((k) => k in stripped)
+  for (const k of dropped) delete stripped[k]
+  const { body, retired } = applyPlacementRules(stripped, version)
+  return { body, dropped, retired }
+}
+
+/** Câu cảnh báo cho người dùng khi writableTargeting bỏ vị trí Meta đã khai tử; null nếu không bỏ gì. */
+export function retiredPositionsNote(retired: string[]): string | null {
+  if (!retired.length) return null
+  return `Bỏ vị trí Meta đã ngừng hỗ trợ (nhóm cũ còn giữ, gửi lại sẽ bị Meta từ chối): ${retired.map((r) => r.replace(":", " → ")).join(", ")}.`
 }
 
 /** Nhóm quảng cáo đang để Meta tự chọn vị trí (không khai nền tảng/vị trí) không. */

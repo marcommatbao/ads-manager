@@ -10,7 +10,7 @@
 // Nhóm + quảng cáo tạo ở trạng thái TẠM DỪNG; bật chạy là việc riêng.
 
 import { metaGet, metaPost, adAccountId } from "./meta-graph"
-import { writableTargeting } from "./meta-placements"
+import { retiredPositionsNote, writableTargeting } from "./meta-placements"
 import type { CaseAction, MetaChange, ReadbackRow } from "./store"
 import type { MetaEvidence } from "./types"
 import { EVENTS_PER_WEEK_TO_LEARN } from "./causes-meta"
@@ -70,6 +70,8 @@ export function proposeCreateAdset(ev: MetaEvidence, opts: { viewHeavy?: boolean
     "Quảng cáo được tạo lại bằng đúng nội dung/bài viết cũ (giữ lượt thích, bình luận).",
   ]
   if (Object.keys(source.targeting).includes("subscriber_universe")) warnings.push("Thiết lập tệp khách WhatsApp (subscriber_universe) không chép được — app không ghi được trường này.")
+  const retiredNote = retiredPositionsNote(writableTargeting(source.targeting as Record<string, unknown>).retired)
+  if (retiredNote) warnings.push(retiredNote)
   if (clickOnly) warnings.push("Nhóm mới chỉ tính lượt mua từ lượt BẤM 7 ngày — số \"kết quả\" trên Meta sẽ THẤP hơn nhiều so với nhóm cũ (bỏ phần chỉ-xem); so sánh bằng đơn thật (GA4/Odoo), không bằng số Meta.")
   if (lowSignal) warnings.unshift(`Không sự kiện chuẩn nào đủ ${EVENTS_PER_WEEK_TO_LEARN} lượt/tuần trên pixel — nhóm mới cũng có thể học thất bại.`)
   return {
@@ -100,6 +102,8 @@ export function proposeLeadAdset(ev: MetaEvidence): CaseAction | null {
   ]
   if (changesGoal) warnings.push(`Nhóm nguồn đang tối ưu theo “${source.optEvent.label}”; nhóm mới đổi sang tối ưu chuyển đổi trên web (OFFSITE_CONVERSIONS).`)
   if (Object.keys(source.targeting).includes("subscriber_universe")) warnings.push("Thiết lập tệp khách WhatsApp (subscriber_universe) không chép được — app không ghi được trường này.")
+  const retiredNote = retiredPositionsNote(writableTargeting(source.targeting as Record<string, unknown>).retired)
+  if (retiredNote) warnings.push(retiredNote)
   if (lowSignal) warnings.unshift(`Sự kiện lead trên pixel chưa đủ ${EVENTS_PER_WEEK_TO_LEARN} lượt/tuần — nhóm mới cũng có thể học thất bại.`)
   return {
     id: aid("newadset"), type: "CREATE_ADSET_WITH_EVENT", selected: false,

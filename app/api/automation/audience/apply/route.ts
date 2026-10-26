@@ -10,6 +10,14 @@ import type { MetricSnapshot } from "@/lib/change-tracker";
 import { getCurrentUser } from "@/lib/auth";
 import { hasPermission, canAccessCompany } from "@/lib/permissions";
 import { verifyMetaCampaignAccess } from "@/lib/meta-campaign-company";
+import { writableTargeting } from "@/lib/case/meta-placements";
+import { buildGenderCloneBody, metaGenderIds } from "@/lib/meta/campaign-params";
+
+/**
+ * Mọi targeting gửi lên Meta ở file này đi qua đây: bỏ trường app không ghi được (subscriber_universe → lỗi #3)
+ * và vị trí Meta đã khai tử. Trước 26/10/2026 file này gửi nguyên targeting đọc về (các đường khác đã bỏ từ 27/09).
+ */
+const writable = (t: Record<string, unknown>) => writableTargeting(t).body;
 // Route này TỰ VIẾT metaGet/metaPost riêng thay vì đi qua lib/meta-client.ts —
 // nên nó bỏ lỡ cả ba thứ client kia đã có: (1) đọc header x-ad-account-usage để
 // biết bậc truy cập, (2) tôn trọng thời gian nghỉ nên không nện thêm vào lúc
@@ -149,12 +157,21 @@ interface AdsetRaw {
   status: string;
   targeting: Record<string, unknown>;
   daily_budget?: string;
+  lifetime_budget?: string;
+  end_time?: string;
   created_time?: string;
+  optimization_goal?: string;
+  billing_event?: string;
+  promoted_object?: Record<string, unknown>;
+  destination_type?: string;
+  attribution_spec?: unknown[];
+  bid_strategy?: string;
+  bid_amount?: string;
 }
 
 async function getAdsets(campaignId: string, token: string): Promise<AdsetRaw[]> {
   const data = await metaGet<{ data: AdsetRaw[] }>(
-    `/${campaignId}/adsets?fields=id,name,status,targeting,daily_budget,created_time&limit=50`,
+    `/${campaignId}/adsets?fields=id,name,status,targeting,daily_budget,lifetime_budget,end_time,created_time,optimization_goal,billing_event,promoted_object,destination_type,attribution_spec,bid_strategy,bid_amount&limit=50`,
     token
   );
   return data.data ?? [];
@@ -187,7 +204,7 @@ async function applyAgeExclusion(
       };
 
       await metaPost(`/${adset.id}`, token, {
-        targeting: newTargeting,
+        targeting: writable(newTargeting),
       });
       successCount++;
 
@@ -251,7 +268,7 @@ async function applyPlacementOptimization(
       }
 
       await metaPost(`/${adset.id}`, token, {
-        targeting: newTargeting,
+        targeting: writable(newTargeting),
       });
       successCount++;
 
@@ -295,36 +312,33 @@ async function applyGenderFocus(
 
   // Pick first active adset as template
   const templateAdset = activeAdsets[0];
-  const genderValue = params.gender === "female" ? [{ id: 1 }] : [{ id: 2 }];
+  // Trước 26/10/2026 gửi [{id:1}] cho "Nữ" = sai dạng và đảo giới tính (Meta: 1 = Nam, 2 = Nữ).
+  const genderValue = metaGenderIds(params.gender === "female" ? "female" : "male");
   const genderLabel = params.gender === "female" ? "Nữ" : "Nam";
   const budgetRatio = params.budget_ratio ?? 1.5;
 
   try {
-    const baseBudget = parseInt(templateAdset.daily_budget ?? "0", 10);
-    const newBudget = Math.round(baseBudget * budgetRatio);
-
     const newTargeting = {
       ...(templateAdset.targeting || {}),
       genders: genderValue,
     };
 
+    // Chiến dịch CBO (ngân sách ở chiến dịch) thì nhóm mới KHÔNG được có ngân sách — xem buildGenderCloneBody.
+    const campaign = await metaGet<{ daily_budget?: string; lifetime_budget?: string }>(
+      `/${campaignId}?fields=daily_budget,lifetime_budget`, token
+    );
+    const campaignHasBudget = Number(campaign.daily_budget) > 0 || Number(campaign.lifetime_budget) > 0;
+
     // Create new adset in same campaign
-    await metaPost(`/act_${process.env.META_AD_ACCOUNT_ID}/adsets`, token, {
-      campaign_id: campaignId,
-      name: `${templateAdset.name} — ${genderLabel} ưu tiên`,
-      status: "PAUSED",
-      daily_budget: String(newBudget || baseBudget),
-      targeting: newTargeting,
-      billing_event: "IMPRESSIONS",
-      optimization_goal: "LINK_CLICKS",
-      bid_strategy: "LOWEST_COST_WITHOUT_CAP",
-    });
+    await metaPost(`/act_${process.env.META_AD_ACCOUNT_ID}/adsets`, token, buildGenderCloneBody(templateAdset, {
+      campaignId, campaignHasBudget, targeting: writable(newTargeting), genderLabel, budgetRatio,
+    }));
 
     return {
       type: "focus_gender",
       label: `Tạo adset ${genderLabel} ưu tiên`,
       success: true,
-      detail: `Đã tạo adset mới (PAUSED) — cần bật thủ công trên Facebook`,
+      detail: `Đã tạo adset mới (PAUSED) — cần bật thủ công trên Facebook${campaignHasBudget ? " · chiến dịch dùng ngân sách chiến dịch (CBO) nên nhóm mới không có ngân sách riêng" : ""}`,
     };
   } catch (err) {
     return {
@@ -369,7 +383,7 @@ async function applyGenderExclusion(
         genders: params.keepGenders,
       };
 
-      await metaPost(`/${adset.id}`, token, { targeting: newTargeting });
+      await metaPost(`/${adset.id}`, token, { targeting: writable(newTargeting) });
       successCount++;
 
       if (successCount < activeAdsets.length) {
@@ -424,7 +438,7 @@ async function applyAgeRangeChange(
         age_max: params.newAgeMax,
       };
 
-      await metaPost(`/${adset.id}`, token, { targeting: newTargeting });
+      await metaPost(`/${adset.id}`, token, { targeting: writable(newTargeting) });
       successCount++;
 
       if (successCount < activeAdsets.length) {
@@ -538,7 +552,7 @@ async function applyAddInterests(
         continue;
       }
 
-      await metaPost(`/${adset.id}`, token, { targeting: merged.targeting });
+      await metaPost(`/${adset.id}`, token, { targeting: writable(merged.targeting) });
       successCount++;
 
       if (successCount < activeAdsets.length) {
