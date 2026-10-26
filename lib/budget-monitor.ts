@@ -8,6 +8,7 @@ import { promises as fs } from "fs";
 import { writeFileAtomic } from "@/lib/fs-atomic";
 import { withFileLock } from "@/lib/file-lock";
 import path from "path";
+import { appLink } from "@/lib/app-url";
 
 // ─────────────────────────────────────────────
 // Types
@@ -526,8 +527,7 @@ export function buildAlertMessage(
       : `✅ Trong ngân sách`,
     ``,
     `💡 Budget/ngày đề nghị còn lại: ${formatVND(pacing.recommendedDailyBudget)}/ngày`,
-    ``,
-    `🔗 Xem chi tiết: https://adscommand.vn/settings/budget`,
+    ...budgetLinkLines("Xem chi tiết"),
   ].join("\n");
 }
 
@@ -555,9 +555,14 @@ export function buildForecastWarningMessage(
     ``,
     `💡 Để đúng ngân sách, hãy giảm xuống:`,
     `   *${formatVND(pacing.recommendedDailyBudget)}/ngày* cho ${pacing.daysLeft} ngày còn lại`,
-    ``,
-    `🔗 Điều chỉnh: https://adscommand.vn/settings/budget`,
+    ...budgetLinkLines("Điều chỉnh"),
   ].join("\n");
+}
+
+/** Liên kết tới trang ngân sách của CHÍNH bản cài (APP_URL). Không biết địa chỉ → không có dòng nào. */
+function budgetLinkLines(label: string): string[] {
+  const url = appLink("/settings/budget");
+  return url ? [``, `🔗 ${label}: ${url}`] : [];
 }
 
 // ─────────────────────────────────────────────
