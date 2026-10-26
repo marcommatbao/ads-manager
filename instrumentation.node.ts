@@ -37,6 +37,12 @@ export async function registerNode() {
     console.log(JSON.stringify({ level: "info", module: "startup", message: `Setup wizard: ${setupEnabled() ? (setupPending() ? "on (chưa hoàn tất)" : "on (đã hoàn tất)") : "off"}` }));
   } catch (e) { console.error("[startup] setup state", e); }
 
+  // Khôi phục quản trị viên (ADMIN_RECOVERY_*) — áp một lần cho mỗi cặp giá trị; không chặn khởi động.
+  try {
+    const { applyAdminRecovery } = await import("@/lib/team");
+    await applyAdminRecovery();
+  } catch (e) { console.error("[startup] admin recovery", e); }
+
   // ── 0. Verify DATA_ENCRYPTION_KEY is configured ─────────────────────────────
   // Deliberately NOT inside the non-fatal try/catch below: an app that can't
   // decrypt its own stored Meta/Google credentials should refuse to boot,

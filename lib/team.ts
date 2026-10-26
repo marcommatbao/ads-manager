@@ -247,3 +247,54 @@ export async function updateLastLogin(id: string): Promise<void> {
     }
   });
 }
+
+// ─────────────────────────────────────────────
+// Khôi phục quản trị viên (26/10/2026): bản cài tự host mất mật khẩu quản trị → không ai vào được để đặt lại.
+// Người giữ quyền máy chủ đặt ADMIN_RECOVERY_EMAIL + ADMIN_RECOVERY_PASSWORD (≥12 ký tự) rồi khởi động lại:
+// tài khoản đó thành super_admin đang hoạt động với mật khẩu này, buộc đổi ở lần đăng nhập đầu, mọi phiên cũ hết hiệu lực.
+// Áp ĐÚNG MỘT LẦN cho mỗi cặp giá trị (dấu vết băm ở data/admin-recovery.json) — để quên biến thì lần khởi động sau KHÔNG
+// đặt lại mật khẩu người dùng đã tự đổi. Xong thì xoá hai biến.
+// ─────────────────────────────────────────────
+const RECOVERY_FILE = path.join(DATA_DIR, "admin-recovery.json");
+
+export async function applyAdminRecovery(): Promise<"none" | "skipped" | "applied" | "invalid"> {
+  const email = (process.env.ADMIN_RECOVERY_EMAIL ?? "").trim().toLowerCase();
+  const password = process.env.ADMIN_RECOVERY_PASSWORD ?? "";
+  if (!email && !password) return "none";
+  if (!email.includes("@") || password.length < 12) {
+    console.error("[team] ADMIN_RECOVERY_EMAIL/ADMIN_RECOVERY_PASSWORD không hợp lệ (cần email + mật khẩu ≥12 ký tự) — bỏ qua khôi phục.");
+    return "invalid";
+  }
+  const { verifyPassword } = await import("./auth");
+  let marker: { email?: string; hash?: string } = {};
+  try { marker = JSON.parse(await fs.readFile(RECOVERY_FILE, "utf-8")); } catch { /* chưa áp lần nào */ }
+  if (marker.email === email && marker.hash && verifyPassword(password, marker.hash)) return "skipped";
+
+  await withFileLock(TEAM_FILE, async () => {
+    const all = await readMembers();
+    const idx = all.findIndex((m) => m.email.toLowerCase() === email);
+    const now = new Date().toISOString();
+    const fields = {
+      role: "super_admin" as Role,
+      company_access: ["ALL"],
+      password_hash: hashPassword(password),
+      must_change_password: true,
+      status: "active" as MemberStatus,
+      is_active: true,
+    };
+    if (idx >= 0) {
+      all[idx] = { ...all[idx], ...fields, session_version: (all[idx].session_version ?? 0) + 1 };
+    } else {
+      all.push({
+        id: `user_${Date.now()}_${crypto.randomBytes(3).toString("hex")}`,
+        email, name: email.split("@")[0], ...fields,
+        session_version: crypto.randomInt(1, 1_000_000_000),
+        last_active: now, invited_at: now,
+      });
+    }
+    await writeMembers(all);
+  });
+  await writeFileAtomic(RECOVERY_FILE, JSON.stringify({ email, hash: hashPassword(password), appliedAt: new Date().toISOString() }));
+  console.warn(`[team] ĐÃ KHÔI PHỤC quản trị viên ${email} từ ADMIN_RECOVERY_* — đăng nhập rồi đổi mật khẩu, sau đó XOÁ hai biến này.`);
+  return "applied";
+}
