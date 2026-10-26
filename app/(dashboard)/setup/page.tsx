@@ -1,6 +1,7 @@
 "use client";
 // Đợt 21 A6 — Trình thiết lập ban đầu (Super Admin). API: /api/setup/*, /api/connectors/health, /api/settings/users.
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
+import { ConnectCard } from "@/components/settings/ConnectCard";
 import Link from "next/link";
 import { Loader2, Plus, Save, Trash2, CheckCircle2, AlertCircle, Eye, EyeOff, Play } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,7 +21,7 @@ interface Member { id: string; email: string; name: string; role: string; compan
 interface SmokeSummary { at: string; ok: number; failed: { company: string; label: string; detail: string }[]; skipped: number }
 interface SmokeResult { company: string; id: string; label: string; ok: boolean; skipped?: boolean; ms: number; detail: string }
 interface Status {
-  enabled: boolean; pending: boolean;
+  enabled: boolean; pending: boolean; connectMode?: "gateway" | "keys";
   completedAt?: string | null; completedBy?: string | null;
   options?: { colors: string[]; modules: { id: string; label: string }[] };
   companies?: { fileExists: boolean; config: CompaniesCfg | null; error: string | null };
@@ -396,7 +397,14 @@ export default function SetupPage() {
       </Step>
 
       {/* 2 */}
-      <Step n={2} title="Dán khoá API" state={done2 ? "done" : "todo"} desc="Chỉ Super Admin xem/dán được khoá, ở trang Cài đặt.">
+      <Step n={2} title={st.connectMode === "gateway" ? "Kết nối tài khoản quảng cáo" : "Dán khoá API"} state={done2 ? "done" : "todo"}
+        desc={st.connectMode === "gateway" ? "Bấm kết nối, đăng nhập Google và chọn tài khoản quảng cáo — không cần dán khoá Google." : "Chỉ Super Admin xem/dán được khoá, ở trang Cài đặt."}>
+        {st.connectMode === "gateway" && (
+          <div className="rounded-lg border border-slate-200 p-3">
+            <p className="mb-2 text-sm font-semibold text-slate-700">Google Ads</p>
+            <Suspense fallback={null}><ConnectCard provider="google" canEdit next="setup" /></Suspense>
+          </div>
+        )}
         <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200">
           {KEY_IDS.map((id) => {
             const k = keyOf(id);

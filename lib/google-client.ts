@@ -3,7 +3,11 @@
 // ============================================================
 
 import { GoogleAdsApi } from "google-ads-api";
-import { googleDevToken } from "./google-ads-client";
+import { gatewayEnabled } from "./connect/gateway";
+import { gatewayCustomerIdFor, loginCustomerIdFor } from "./connect/store";
+import { companyIds } from "./companies/registry";
+import { envFor } from "./companies";
+import { gatewayGoogleCustomer, googleDevToken } from "./google-ads-client";
 
 // ─────────────────────────────────────────────
 // Patch Node.js built-in https.request to add "Accept-Encoding: identity"
@@ -196,10 +200,10 @@ export interface UniqueUsersResult {
 class GoogleAdsClient {
   /** All configured customer IDs (filtered for truthy values). */
   get customerIds(): string[] {
-    return [
-      process.env.GOOGLE_ADS_CUSTOMER_ID_MBC,
-      process.env.GOOGLE_ADS_CUSTOMER_ID_MBI,
-    ].filter(Boolean) as string[];
+    // Theo danh sách công ty của bản cài (bản Mắt Bão = MBC, MBI như cũ). Trước 26/10/2026 viết cứng MBC/MBI → bản cài
+    // khách (công ty khác) không thấy tài khoản nào dù đã chọn (mini-spec GATEWAY-CONNECT-1, điểm B).
+    if (gatewayEnabled()) return companyIds().map((id) => gatewayCustomerIdFor(id) ?? "").filter(Boolean);
+    return companyIds().map((id) => envFor(id, "GOOGLE_ADS_CUSTOMER_ID")).filter(Boolean);
   }
 
   private get baseCredentials() {
@@ -221,6 +225,8 @@ class GoogleAdsClient {
 
   /** Return a cached Customer instance so the internal OAuth token is shared and not re-fetched per call. */
   private getCustomer(customerId: string) {
+    // Chế độ cổng: token từ Cổng kết nối Mắt Bão, MCC theo từng tài khoản đã chọn (lib/connect/store.ts).
+    if (gatewayEnabled()) return gatewayGoogleCustomer(customerId, loginCustomerIdFor(customerId));
     // Đợt 21 A4: khoá đổi (dán ở Cài đặt) → bỏ bộ đệm, tạo lại — có hiệu lực ngay, không cần khởi động lại.
     {
       const c = this.baseCredentials;

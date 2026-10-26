@@ -38,6 +38,7 @@ import { ReadOnlyBanner } from "@/components/settings/PermissionGate";
 import { ConnectorHealth } from "@/components/settings/ConnectorHealth";
 import { ExtraConnections } from "@/components/settings/ExtraConnections";
 import { ServiceKeys } from "@/components/settings/ServiceKeys";
+import { ConnectCard } from "@/components/settings/ConnectCard";
 
 interface ApiSection {
   title: string;
@@ -261,6 +262,8 @@ function SettingsContent() {
   const [status, setStatus] = useState({ facebook: false, google: false, ga4: false, gemini: false, telegram: false });
   // 15/10/2026: chưa có kết quả /api/status thì KHÔNG vẽ "Not connected" (kiểm Meta mất vài giây → người dùng tưởng mất kết nối).
   const [statusLoaded, setStatusLoaded] = useState(false);
+  // Chế độ cổng (MB_CONNECT_*): Google/Meta kết nối bằng nút qua Cổng kết nối Mắt Bão, không dán khoá.
+  const [gatewayMode, setGatewayMode] = useState(false);
   const { fetchGA4 } = useAdsStore();
 
   useEffect(() => {
@@ -272,6 +275,7 @@ function SettingsContent() {
           ga4: searchParams.get("ga4_connected") === "true" || !!data.ga4,
           google: searchParams.get("google_connected") === "true" || !!data.google,
         });
+        setGatewayMode(data.connectMode === "gateway");
       })
       .catch((e) => console.error("Error fetching status:", e))
       .finally(() => setStatusLoaded(true));
@@ -671,6 +675,9 @@ function SettingsContent() {
           </CardHeader>
 
           <CardContent className="space-y-4">
+            {gatewayMode && (section.platform === "google" || section.platform === "meta") ? (
+              <ConnectCard provider={section.platform} canEdit={perms.canEditCredentials} />
+            ) : (<>
             {statusLoaded && section.platform === "meta" && !status.facebook && (
               <div className="mb-2 rounded-xl border border-amber-100 bg-amber-50 p-4 space-y-2">
                 <p className="text-sm text-amber-800 font-medium">
@@ -914,6 +921,7 @@ function SettingsContent() {
                 </div>
               </div>
             )}
+            </>)}
           </CardContent>
 
           {idx < shownSections.length - 1 && <Separator className="mt-0" />}

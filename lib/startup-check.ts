@@ -11,6 +11,7 @@
 import { isPlaceholderSecret } from "./secret-placeholders";
 import { getMissingRequired, getConfiguredGroups } from "@/lib/env";
 import { log } from "@/lib/logger";
+import { gatewayHalfConfigured } from "./connect/gateway";
 
 const MODULE = "startup";
 const isProd = process.env.NODE_ENV === "production";
@@ -33,6 +34,12 @@ export function runStartupChecks(): StartupCheckResult {
   }
   if (nbaMode === "on") {
     log.warn(MODULE, "NBA_AUTO_APPLY=on — real ad mutations ENABLED; confirm this is intentional");
+  }
+
+  // ── Chế độ cổng: MB_CONNECT_URL và MB_CONNECT_INSTALL_KEY phải đi cùng nhau (thiếu một = cấu hình hỏng, không âm
+  //    thầm rơi về chế độ dán khoá) ──
+  if (gatewayHalfConfigured()) {
+    warnings.push("Chỉ đặt một trong hai MB_CONNECT_URL / MB_CONNECT_INSTALL_KEY — chế độ cổng KHÔNG bật; đặt đủ cả hai hoặc bỏ cả hai");
   }
 
   // ── AUTH_SECRET strength ──────────────────────────────────

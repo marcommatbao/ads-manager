@@ -15,7 +15,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { hasPermission, canAccessCompany } from "@/lib/permissions";
-import { getGoogleAdsCustomer } from "@/lib/google-ads-client";
+import { GOOGLE_CUSTOMER_IDS, getGoogleAdsCustomer } from "@/lib/google-ads-client";
 import { resolveAlert } from "@/lib/alert-engine";
 import { dismissImprovement } from "@/lib/improvements-store";
 import { checkRecentCampaignMutation, recordCampaignMutation } from "@/lib/mutation-guard";
@@ -231,9 +231,8 @@ export async function applyOne(company: Company, payload: ApplyPayload): Promise
       // resource_name, update_mask rỗng, Google từ chối. Nhánh này chưa bao
       // giờ chạy được — kể cả khi cron improvements-auto-apply tự bấm, vì
       // UPDATE_DEVICE_BID nằm trong danh sách được tự động áp dụng.
-      const customerId = (company === "MBC"
-        ? process.env.GOOGLE_ADS_CUSTOMER_ID_MBC
-        : process.env.GOOGLE_ADS_CUSTOMER_ID_MBI) ?? "";
+      // Theo công ty của bản cài + chế độ cổng (trước 26/10/2026 đọc cứng MBC/MBI — bản cài khách không có).
+      const customerId = GOOGLE_CUSTOMER_IDS[company] ?? "";
       if (!customerId) return { success: false, error: "Chưa cấu hình Google Ads customer ID" };
 
       const deviceRes = await applyDeviceBidModifier(customer, {
@@ -399,9 +398,7 @@ export async function POST(req: NextRequest) {
         // Thứ vừa tạo trước đó không tồn tại → hoàn tác là XOÁ nó đi.
         await customer.campaignCriteria.remove([entry.resourceName]);
       } else if ("device_bid_modifier" in b) {
-        const customerId = (body.company === "MBC"
-          ? process.env.GOOGLE_ADS_CUSTOMER_ID_MBC
-          : process.env.GOOGLE_ADS_CUSTOMER_ID_MBI) ?? "";
+        const customerId = GOOGLE_CUSTOMER_IDS[body.company] ?? "";
         if (!customerId) {
           return NextResponse.json({ success: false, error: "Chưa cấu hình Google Ads customer ID" }, { status: 500 });
         }

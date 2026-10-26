@@ -2,6 +2,10 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { META_GRAPH_BASE } from "@/lib/meta/graph-version";
+import { envSatisfied } from "@/lib/connect/env-satisfied";
+import { gatewayEnabled } from "@/lib/connect/gateway";
+import { GOOGLE_CUSTOMER_IDS } from "@/lib/google-ads-client";
+import { companyIds } from "@/lib/companies/registry";
 
 // `facebook: !!process.env.META_ACCESS_TOKEN` used to mean "a token string
 // exists" — not "the token still works". Meta access tokens expire; an
@@ -42,10 +46,10 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const googleConfigured = !!(
-    process.env.GOOGLE_ADS_REFRESH_TOKEN &&
-    process.env.GOOGLE_ADS_CLIENT_ID &&
-    process.env.GOOGLE_ADS_CLIENT_SECRET &&
-    (process.env.GOOGLE_ADS_CUSTOMER_ID_MBC || process.env.GOOGLE_ADS_CUSTOMER_ID_MBI)
+    envSatisfied("GOOGLE_ADS_REFRESH_TOKEN") &&
+    envSatisfied("GOOGLE_ADS_CLIENT_ID") &&
+    envSatisfied("GOOGLE_ADS_CLIENT_SECRET") &&
+    companyIds().some((id) => !!GOOGLE_CUSTOMER_IDS[id])
   );
 
   const facebookConnected = await isMetaTokenValid();
@@ -55,6 +59,8 @@ export async function GET() {
     facebook: facebookConnected,
     ga4: !!(process.env.GOOGLE_CLIENT_ID || process.env.GOOGLE_ADS_CLIENT_ID),
     google: googleConfigured,
+    // "gateway" = Google/Meta kết nối qua Cổng kết nối Mắt Bão (MB_CONNECT_*); giao diện thay ô dán khoá bằng nút Kết nối.
+    connectMode: gatewayEnabled() ? "gateway" : "keys",
     gemini: !!process.env.GEMINI_API_KEY,
     telegram: !!(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID),
     googleAccounts: googleConfigured

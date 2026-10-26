@@ -1,6 +1,8 @@
 // Google Ads connector check — token refresh + account list
 import type { CheckResult } from "../types";
 import { googleDevToken } from "@/lib/google-ads-client";
+import { envSatisfied } from "@/lib/connect/env-satisfied";
+import { GatewayError, gatewayEnabled, getGatewayToken } from "@/lib/connect/gateway";
 
 interface TokenResponse {
   access_token?: string;
@@ -9,6 +11,15 @@ interface TokenResponse {
 }
 
 async function getAccessToken(): Promise<{ token: string } | { error: string; category: "auth" | "network" }> {
+  // Chế độ cổng: token xin từ Cổng kết nối Mắt Bão (bản cài không có client secret / refresh token).
+  if (gatewayEnabled()) {
+    try {
+      return { token: await getGatewayToken("google") };
+    } catch (e) {
+      const network = e instanceof GatewayError && (e.code === "unreachable" || e.status >= 500);
+      return { error: e instanceof Error ? e.message : String(e), category: network ? "network" : "auth" };
+    }
+  }
   const clientId     = process.env.GOOGLE_ADS_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_ADS_CLIENT_SECRET;
   const refreshToken = process.env.GOOGLE_ADS_REFRESH_TOKEN;
@@ -37,7 +48,7 @@ async function getAccessToken(): Promise<{ token: string } | { error: string; ca
 export async function checkGoogle(): Promise<CheckResult> {
   // 12/10: developer token không còn bắt buộc (Google bỏ từ 09/2026); có thì gửi, không có thì bỏ hẳn header.
   const devToken = googleDevToken();
-  if (!process.env.GOOGLE_ADS_CLIENT_ID || !process.env.GOOGLE_ADS_CLIENT_SECRET || !process.env.GOOGLE_ADS_REFRESH_TOKEN) {
+  if (!envSatisfied("GOOGLE_ADS_CLIENT_ID") || !envSatisfied("GOOGLE_ADS_CLIENT_SECRET") || !envSatisfied("GOOGLE_ADS_REFRESH_TOKEN")) {
     return { ok: false, status: "missing_config", failureCategory: "invalid_config", failureReason: "Google Ads env vars incomplete" };
   }
 

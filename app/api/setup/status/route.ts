@@ -14,6 +14,8 @@ import { getAllMembers } from "@/lib/team"
 import { allowedLoginDomains, savedLoginAllowlist } from "@/lib/login-domain"
 import { savedBrandProfile } from "@/lib/brand/store"
 import { listTargets } from "@/lib/case/targets"
+import { GOOGLE_CUSTOMER_IDS } from "@/lib/google-ads-client"
+import { gatewayEnabled } from "@/lib/connect/gateway"
 
 export const dynamic = "force-dynamic"
 
@@ -36,7 +38,8 @@ export async function GET() {
   const companies = fileExists ? cfg.companies.filter((c) => c.ads) : []
   const perCompany = companies.map((c) => ({
     id: c.id, label: c.label,
-    googleCustomerId: !!envFor(c.id, "GOOGLE_ADS_CUSTOMER_ID"),
+    // Cả hai chế độ: dán khoá (biến môi trường) và cổng (tài khoản đã chọn ở data/connect.json).
+    googleCustomerId: !!GOOGLE_CUSTOMER_IDS[c.id],
     metaPixelId: !!envFor(c.id, "NEXT_PUBLIC_META_PIXEL_ID"),
     metaPageId: !!envFor(c.id, "NEXT_PUBLIC_META_PAGE_ID"),
     brandProfile: !!savedBrandProfile(c.id),
@@ -53,7 +56,7 @@ export async function GET() {
   const members = (await getAllMembers()).map((m) => ({ id: m.id, email: m.email, name: m.name, role: m.role, company_access: m.company_access, is_active: m.is_active }))
 
   return NextResponse.json({
-    success: true, enabled, pending,
+    success: true, enabled, pending, connectMode: gatewayEnabled() ? "gateway" : "keys",
     completedAt: state.completedAt ?? null, completedBy: state.completedBy ?? null,
     options: { colors: WIZARD_COLORS, modules: WIZARD_MODULES.map((id) => ({ id, label: MODULE_LABEL[id] })) },
     companies: { fileExists, config: fileExists ? cfg : null, error: companiesConfigError() },

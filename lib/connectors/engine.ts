@@ -9,6 +9,7 @@ import { maskSecret } from "@/lib/settings/validators/credentials";
 import { saveHealthRecord, saveHealthRecords, getStoredHealth } from "./health-store";
 import { CONNECTOR_REGISTRY, getDescriptor, isConnectorDisabled } from "./registry";
 import type { ConnectorHealthRecord, ConnectorId, CheckResult, ConnectorStatus } from "./types";
+import { envSatisfied } from "@/lib/connect/env-satisfied";
 
 // ── Individual check dispatch ─────────────────────────────
 
@@ -62,7 +63,7 @@ function buildMaskedConfig(id: ConnectorId): Record<string, string> {
 
 function computeConfigCompleteness(id: ConnectorId): { configComplete: boolean; partialConfig: boolean } {
   const desc    = getDescriptor(id);
-  const present = desc.requiredEnv.filter(k => !!process.env[k]).length;
+  const present = desc.requiredEnv.filter(k => envSatisfied(k)).length;
   const total   = desc.requiredEnv.length;
 
   if (total === 0) return { configComplete: true, partialConfig: false };

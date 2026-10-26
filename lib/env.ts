@@ -81,6 +81,8 @@ export const ENV_REGISTRY: EnvDescriptor[] = [
   { key: "NBA_AUTO_APPLY_MAX", required: false, secret: false, group: "app",      description: "Max auto-apply actions per company per run", default: "3" },
   { key: "GOOGLE_AUDIT_AI_ENABLED", required: false, secret: false, group: "app", description: "Enable real Gemini AI insight on /google-audit (read-only, cached 1/company/day): true|false", default: "true" },
   { key: "NEXT_PUBLIC_APP_URL",required: false, secret: false, group: "app",      description: "Public app URL" },
+  { key: "MB_CONNECT_URL",     required: false, secret: false, group: "app",      description: "Cổng kết nối Mắt Bão — đặt cùng MB_CONNECT_INSTALL_KEY để Google/Meta kết nối bằng nút (không dán khoá)" },
+  { key: "MB_CONNECT_INSTALL_KEY", required: false, secret: true, group: "app",   description: "Khoá bản cài do Mắt Bão cấp trên Cổng kết nối (mbk_…)" },
 
   // Misc
   { key: "APIFY_API_TOKEN",    required: false, secret: true,  group: "misc",     description: "Apify scraping API token" },

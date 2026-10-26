@@ -20,6 +20,7 @@ import crypto from "crypto";
 import { getJobControl, appendJobRun, updateJobRun } from "./store";
 import { getJobDescriptor } from "./registry";
 import type { JobId, JobRunStatus } from "./types";
+import { envSatisfied } from "@/lib/connect/env-satisfied";
 
 // In-process overlap guard (shared across all route invocations)
 const RUNNING: Set<JobId> = new Set();
@@ -63,7 +64,7 @@ export async function startJobRun(
 
   // 2. Preflight — required env vars (except CRON_SECRET which is already checked)
   const desc       = getJobDescriptor(jobId);
-  const missingEnv = desc.requiredEnv.filter(k => k !== "CRON_SECRET" && !process.env[k]);
+  const missingEnv = desc.requiredEnv.filter(k => k !== "CRON_SECRET" && !envSatisfied(k));
   if (missingEnv.length > 0) {
     const runId = crypto.randomUUID();
     const now   = new Date().toISOString();

@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { canAccessCompany } from "@/lib/permissions";
 import { pickCompany } from "@/lib/companies"
 import { friendlyError } from "@/lib/not-configured";
+import { GOOGLE_CUSTOMER_IDS } from "@/lib/google-ads-client";
 
 export async function GET(request: NextRequest) {
   const user = await getCurrentUser();
@@ -18,9 +19,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Access denied for this company" }, { status: 403 });
     }
 
-    const customerId = company === "MBI"
-      ? process.env.GOOGLE_ADS_CUSTOMER_ID_MBI
-      : process.env.GOOGLE_ADS_CUSTOMER_ID_MBC;
+    // Theo công ty của bản cài + chế độ cổng (trước 26/10/2026 đọc cứng MBC/MBI).
+    const customerId = GOOGLE_CUSTOMER_IDS[company];
 
     if (!customerId) {
       return NextResponse.json(
