@@ -101,3 +101,19 @@ export function sumConversionActions(
   }
   return 0;
 }
+
+/** "Giá trị kết quả" (như cột Ads Manager): cộng `action_values[]` theo ĐÚNG loại kết quả mà cột "Kết quả" đang đếm
+ *  (cùng danh sách ưu tiên, cùng luật lấy loại đầu tiên có mặt — omni_purchase/purchase không cộng đôi).
+ *  null = Meta không trả giá trị cho loại đó (vd chiến dịch tối ưu click, khách tiềm năng không gắn giá trị) → giao diện
+ *  hiện "—" như Ads Manager, KHÔNG hiện 0. */
+export function sumConversionValues(
+  actionValues: Array<{ action_type: string; value: string }> | null | undefined,
+  actionTypes: string[],
+): number | null {
+  if (!actionValues?.length) return null;
+  for (const type of actionTypes) {
+    const rows = actionValues.filter((a) => a.action_type === type);
+    if (rows.length > 0) return rows.reduce((sum, a) => sum + Number(a.value || 0), 0);
+  }
+  return null;
+}

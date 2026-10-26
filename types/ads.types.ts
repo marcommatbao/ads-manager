@@ -24,6 +24,10 @@ export interface CampaignMetrics {
   // Google only. null/undefined = Google KHÔNG trả số cho chiến dịch này
   // (Search/PMax không có chỉ số reach) → giao diện phải hiện "—", không hiện 0.
   uniqueUsers?: number | null
+  // Meta only — như cột Ads Manager. "Giá trị kết quả" = action_values của ĐÚNG loại kết quả chiến dịch đang tối ưu;
+  // "ROAS kết quả" = giá trị kết quả / chi tiêu. null = Meta không có giá trị cho loại kết quả đó → hiện "—".
+  resultValue?: number | null
+  resultRoas?: number | null
 }
 
 // Campaign object

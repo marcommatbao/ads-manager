@@ -3,7 +3,7 @@ import { metaClient, initMetaClient } from "@/lib/meta-client";
 import { getCurrentUser } from "@/lib/auth";
 import { getCompaniesForRole } from "@/lib/permissions";
 import { detectCompany } from "@/lib/company-detect";
-import { resolveConversionActionTypes, buildGoalByCampaignMap, sumConversionActions } from "@/lib/meta-conversion-goal";
+import { resolveConversionActionTypes, buildGoalByCampaignMap, sumConversionActions, sumConversionValues } from "@/lib/meta-conversion-goal";
 import type { Campaign } from "@/types/ads.types";
 import { friendlyError, isNotConfigured } from "@/lib/not-configured";
 
@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
     /** true = không lấy được mục tiêu chuyển đổi → cột "Kết quả"/CPL đáng ngờ. */
     let conversionGoalsUnavailable = false;
 
-    const insightsMap = new Map<string, { spend: number; revenue: number; impressions: number; clicks: number; roas: number; conversions: number }>();
+    const insightsMap = new Map<string, { spend: number; revenue: number; impressions: number; clicks: number; roas: number; conversions: number; resultValue: number | null; resultRoas: number | null }>();
 
     if (from && to) {
       const campaignIds = rawCampaigns.map((c) => c.id);
@@ -70,8 +70,12 @@ export async function GET(request: NextRequest) {
         // Ads Manager. sumConversionActions() lấy đúng một loại.
         const conversions = sumConversionActions(ins.actions, actionTypes);
         const roas = spend > 0 ? revenue / spend : 0;
+        // Cột "Giá trị kết quả" / "ROAS kết quả" (như Ads Manager): cùng loại kết quả với "Kết quả" ở trên — không dùng
+        // `revenue` (cố định purchase) vì chiến dịch tối ưu sự kiện khác sẽ lệch Ads Manager.
+        const resultValue = sumConversionValues(ins.action_values, actionTypes);
+        const resultRoas = resultValue !== null && spend > 0 ? resultValue / spend : null;
 
-        insightsMap.set(ins.campaign_id, { spend, revenue, impressions, clicks, roas, conversions });
+        insightsMap.set(ins.campaign_id, { spend, revenue, impressions, clicks, roas, conversions, resultValue, resultRoas });
       }
     }
 
@@ -113,6 +117,8 @@ export async function GET(request: NextRequest) {
             roas:        ins?.roas ?? 0,
             conversions: ins?.conversions ?? 0,
             revenue:     ins?.revenue ?? 0,
+            resultValue: ins?.resultValue ?? null,
+            resultRoas:  ins?.resultRoas ?? null,
           },
         } satisfies Campaign;
       })

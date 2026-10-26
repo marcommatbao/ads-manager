@@ -68,7 +68,7 @@ import { quickFatigueCheck, FATIGUE_BADGES, OBJECTIVE_LABELS } from "@/lib/fatig
 // ─────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────
-type SortKey = "name" | "spend" | "cpl";
+type SortKey = "name" | "spend" | "cpl" | "results" | "resultRoas" | "resultValue";
 type SortDir = "asc" | "desc" | null;
 type CompanyFilter = "all" | string;
 
@@ -131,6 +131,13 @@ export function fmtSpend(v: number, currency = "USD") {
   if (v >= 1_000_000) return `${config.symbol}${(v / 1_000_000).toFixed(1)}M`;
   if (v >= 1_000) return `${config.symbol}${(v / 1_000).toFixed(1)}K`;
   return `${config.symbol}${v.toFixed(config.decimals)}`;
+}
+
+/** Số tiền ĐẦY ĐỦ (không rút gọn "Tr"/"K") — để đối chiếu từng đồng với cột cùng tên trong Ads Manager. */
+export function fmtMoneyFull(v: number, currency = "USD") {
+  if (currency === "VND") return `${Math.round(v).toLocaleString("vi-VN")} ₫`
+  const config = CURRENCY_CONFIG[currency] || CURRENCY_CONFIG["USD"]
+  return `${config.symbol}${v.toLocaleString("en-US", { minimumFractionDigits: config.decimals, maximumFractionDigits: config.decimals })}`
 }
 
 export function fmtNumber(v: number) {
@@ -679,7 +686,16 @@ export default function CampaignTable({ campaigns, isLoading = false, currency =
       }
       return true;
     });
-    if (sortKey && sortDir) {
+    if (sortKey && sortDir && (sortKey === "results" || sortKey === "resultRoas" || sortKey === "resultValue")) {
+      // Cột Meta có thể "—" (null: Meta không có giá trị cho loại kết quả đó) → luôn xếp cuối, chiều nào cũng vậy.
+      const val = (c: Campaign): number | null =>
+        sortKey === "results" ? c.metrics.conversions : sortKey === "resultRoas" ? c.metrics.resultRoas ?? null : c.metrics.resultValue ?? null;
+      list = [...list].sort((a, b) => {
+        const av = val(a), bv = val(b);
+        if (av === null || bv === null) return av === bv ? 0 : av === null ? 1 : -1;
+        return sortDir === "asc" ? av - bv : bv - av;
+      });
+    } else if (sortKey && sortDir) {
       list = [...list].sort((a, b) => {
         const aCpl = a.metrics.conversions ? a.metrics.spend / a.metrics.conversions : Infinity;
         const bCpl = b.metrics.conversions ? b.metrics.spend / b.metrics.conversions : Infinity;
@@ -862,8 +878,19 @@ export default function CampaignTable({ campaigns, isLoading = false, currency =
                     <TableHead className="w-[80px] text-right text-xs font-semibold uppercase tracking-wider text-slate-500">CTR</TableHead>
                     <TableHead className="w-[80px] text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Clicks</TableHead>
                     <TableHead className="w-[80px] text-right text-xs font-semibold uppercase tracking-wider text-slate-500">CPC</TableHead>
+                    {/* Như Ads Manager: Kết quả → Chi phí/kết quả (CPL) → ROAS kết quả → Giá trị kết quả.
+                        Kết quả / giá trị lấy theo ĐÚNG loại kết quả chiến dịch đang tối ưu (app/api/meta/campaigns). */}
+                    <TableHead className="w-[90px] text-right" aria-sort={ariaSort("results")}>
+                      <ThSort col="results" label="Kết quả" />
+                    </TableHead>
                     <TableHead className="w-[100px] text-right" aria-sort={ariaSort("cpl")}>
                       <ThSort col="cpl" label="CPL" />
+                    </TableHead>
+                    <TableHead className="w-[90px] text-right" aria-sort={ariaSort("resultRoas")} title="Giá trị kết quả ÷ chi tiêu — như cột “ROAS kết quả” trong Trình quản lý quảng cáo Meta">
+                      <ThSort col="resultRoas" label="ROAS kết quả" />
+                    </TableHead>
+                    <TableHead className="w-[120px] text-right" aria-sort={ariaSort("resultValue")} title="Giá trị chuyển đổi của đúng loại kết quả — như cột “Giá trị kết quả” trong Trình quản lý quảng cáo Meta">
+                      <ThSort col="resultValue" label="Giá trị kết quả" />
                     </TableHead>
                   </>
                 )}
@@ -922,7 +949,7 @@ export default function CampaignTable({ campaigns, isLoading = false, currency =
               {/* Empty */}
               {!isLoading && rows.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={11}>
+                  <TableCell colSpan={14}>
                     <div className="flex flex-col items-center justify-center py-16 text-center">
                       <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100">
                         <Inbox className="h-6 w-6 text-slate-400" />
@@ -1123,6 +1150,11 @@ export default function CampaignTable({ campaigns, isLoading = false, currency =
                             {fmtSpend(m.cpc, currency)}
                           </TableCell>
 
+                          {/* Kết quả */}
+                          <TableCell className="text-right text-sm text-slate-700 tabular-nums">
+                            {c.platform === "facebook" ? m.conversions.toLocaleString("vi-VN") : <span className="text-slate-300">—</span>}
+                          </TableCell>
+
                           {/* CPL */}
                           <TableCell className="text-right">
                             {(() => {
@@ -1134,6 +1166,18 @@ export default function CampaignTable({ campaigns, isLoading = false, currency =
                                  </span>
                                );
                             })()}
+                          </TableCell>
+
+                          {/* ROAS kết quả — "—" khi Meta không có giá trị cho loại kết quả (như Ads Manager) */}
+                          <TableCell className="text-right text-sm text-slate-700 tabular-nums">
+                            {m.resultRoas != null
+                              ? m.resultRoas.toLocaleString("vi-VN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                              : <span className="text-slate-300">—</span>}
+                          </TableCell>
+
+                          {/* Giá trị kết quả */}
+                          <TableCell className="text-right text-sm text-slate-700 tabular-nums">
+                            {m.resultValue != null ? fmtMoneyFull(m.resultValue, currency) : <span className="text-slate-300">—</span>}
                           </TableCell>
                         </>
                       )}

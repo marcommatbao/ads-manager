@@ -274,7 +274,8 @@ export default function CampaignsPage() {
 
     const headers = [
       "Chiến dịch", "Nền tảng", "Tài khoản", "Trạng thái",
-      "Ngân sách/ngày", "Lượt hiển thị", "CTR", "CPC", "ROAS", "Chi tiêu", "Ngày bắt đầu"
+      "Ngân sách/ngày", "Lượt hiển thị", "CTR", "CPC", "ROAS", "Chi tiêu",
+      "Kết quả (Meta)", "ROAS kết quả (Meta)", "Giá trị kết quả (Meta)", "Ngày bắt đầu"
     ];
 
     const statusMap: Record<string, string> = {
@@ -293,6 +294,10 @@ export default function CampaignsPage() {
         `"${formatCurrency(m.cpc, currency, false)}"`,
         `"${m.roas.toFixed(1)}x"`,
         `"${formatCurrency(m.spend, currency, false)}"`,
+        // Cột Meta: để trống (không ghi 0) khi Meta không có giá trị cho loại kết quả — như Ads Manager.
+        c.platform === "facebook" ? m.conversions : "",
+        m.resultRoas != null ? m.resultRoas.toFixed(2) : "",
+        m.resultValue != null ? Math.round(m.resultValue) : "",
         c.startDate || ""
       ].join(",");
     });
