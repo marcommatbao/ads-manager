@@ -36,7 +36,10 @@ claude mcp add --transport http adscommand https://<địa-chỉ-adscommand>/api
 
 Trang Cài đặt hiện sẵn hai đoạn trên, có điền đúng địa chỉ và khoá. Bạn chỉ cần sao chép.
 
-Nối từ **claude.ai** (mục Connectors) cần đăng nhập OAuth. Phần này để giai đoạn sau.
+**claude.ai** (Settings → Connectors → Add custom connector): dán `https://<địa-chỉ-adscommand>/api/mcp`, không cần khoá.
+claude.ai mở trang đăng nhập AdsCommand. Bạn đăng nhập, chọn **Chỉ đọc** hoặc **Đọc + Ghi**, rồi bấm **Đồng ý**.
+Khoá do claude.ai tạo hiện ở Cài đặt → Claude với tên "… (OAuth)" và thu hồi được như khoá thường.
+Bản cài phải mở được từ Internet, và `APP_URL` phải đúng địa chỉ công khai: claude.ai gọi từ máy chủ của Anthropic.
 
 ## 3. Hỏi gì
 
