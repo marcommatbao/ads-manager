@@ -5,6 +5,7 @@
 // ============================================================
 
 import type { BriefFunnelStage, BriefPlatform, ComplianceNote, CreativeBrief } from "./types";
+import { makeT, type TFunction } from "@/lib/i18n/translate";
 
 // Shared regexes — used both by the brief-intent RULES below and by
 // runGeneratedCompliance(), which re-checks the same policy risks against
@@ -18,7 +19,7 @@ const FB_COMPETITOR_RE    = /PA Vietnam|Tenten|Nhanhoa|Mắt Bão competitor|FPT
 
 interface Rule {
   id:    string;
-  check: (brief: Partial<CreativeBrief>) => ComplianceNote | null;
+  check: (brief: Partial<CreativeBrief>, t: TFunction) => ComplianceNote | null;
 }
 
 // ── Rules ─────────────────────────────────────────────────────
@@ -28,7 +29,7 @@ const RULES: Rule[] = [
   // 1. Superlative ban without proof
   {
     id: "superlative-ban",
-    check(brief) {
+    check(brief, t) {
       const probe = [
         brief.usp ?? "",
         brief.valueProposition ?? "",
@@ -40,7 +41,7 @@ const RULES: Rule[] = [
           return {
             severity:   "warn",
             rule:       "SUPERLATIVE_WITHOUT_PROOF",
-            suggestion: "Tránh 'tốt nhất', 'rẻ nhất', 'số 1' nếu không có dẫn chứng cụ thể (giải thưởng, số liệu thực). Thay bằng lợi ích cụ thể.",
+            suggestion: t("libmeta.cb.superlative"),
           };
         }
       }
@@ -51,7 +52,7 @@ const RULES: Rule[] = [
   // 2. Uptime guarantee claim for hosting products (MBC)
   {
     id: "uptime-claim",
-    check(brief) {
+    check(brief, t) {
       if (brief.product?.key !== "hosting") return null;
       const allText = [
         brief.usp ?? "",
@@ -61,7 +62,7 @@ const RULES: Rule[] = [
         return {
           severity:   "block",
           rule:       "UPTIME_OVERCLAIM",
-          suggestion: "Không claim 'uptime 100%' hoặc 'không bao giờ lỗi'. Dùng 'uptime 99.9% theo SLA' và dẫn link SLA.",
+          suggestion: t("libmeta.cb.uptime"),
         };
       }
       return null;
@@ -71,14 +72,14 @@ const RULES: Rule[] = [
   // 3. Discount without promo context
   {
     id: "discount-no-promo",
-    check(brief) {
+    check(brief, t) {
       const ctaText = (brief.ctaStrategy?.primaryCta ?? "").toLowerCase();
       const hasPromo = !!brief.promotionContext;
       if (!hasPromo && DISCOUNT_NO_PROMO_RE.test(ctaText)) {
         return {
           severity:   "warn",
           rule:       "DISCOUNT_NO_PROMO",
-          suggestion: "CTA đề cập đến giảm giá cụ thể nhưng không có promotionContext. Thêm promo hoặc dùng CTA chung hơn.",
+          suggestion: t("libmeta.cb.discountBrief"),
         };
       }
       return null;
@@ -88,14 +89,14 @@ const RULES: Rule[] = [
   // 4. TOFU + hard conversion CTA mismatch
   {
     id: "tofu-hard-cta",
-    check(brief) {
+    check(brief, t) {
       if (brief.funnelStage !== "top") return null;
       const cta = brief.ctaStrategy?.primaryCta ?? "";
       if (TOFU_HARD_CTA_RE.test(cta)) {
         return {
           severity:   "warn",
           rule:       "TOFU_HARD_CTA",
-          suggestion: "CTA 'đăng ký ngay' / 'mua ngay' quá cứng cho TOFU audience chưa warm. Dùng 'Tìm hiểu thêm', 'Khám phá', hoặc 'Xem ngay'.",
+          suggestion: t("libmeta.cb.tofuCta"),
         };
       }
       return null;
@@ -105,7 +106,7 @@ const RULES: Rule[] = [
   // 5. Facebook policy — competitor name in headline
   {
     id: "fb-competitor-name",
-    check(brief) {
+    check(brief, t) {
       if (brief.platform !== "facebook" && brief.platform !== "both") return null;
       const allText = [
         ...(brief.painPoints ?? []).map(p => p.text),
@@ -115,7 +116,7 @@ const RULES: Rule[] = [
         return {
           severity:   "warn",
           rule:       "FB_COMPETITOR_MENTION",
-          suggestion: "Facebook hạn chế quảng cáo nhắc đến tên đối thủ trực tiếp. Dùng 'nhà cung cấp khác' hoặc so sánh thuộc tính thay vì tên.",
+          suggestion: t("libmeta.cb.competitor"),
         };
       }
       return null;
@@ -125,13 +126,13 @@ const RULES: Rule[] = [
   // 6. Empty proof points for BOFU
   {
     id: "bofu-no-proof",
-    check(brief) {
+    check(brief, t) {
       if (brief.funnelStage !== "bottom") return null;
       if ((brief.proofPoints ?? []).length === 0) {
         return {
           severity:   "warn",
           rule:       "LOW_PROOF_BOFU",
-          suggestion: "Quảng cáo chốt đơn (BOFU) chạy tốt hơn khi có bằng chứng: số khách hàng, đánh giá, case study. Điền vào ô \"Social proof\" ở Bước 1 (mở phần mở rộng dưới Sản phẩm & Mục tiêu) rồi tạo lại. Đây là CẢNH BÁO, không chặn — vẫn tạo được nếu bạn chấp nhận.",
+          suggestion: t("libmeta.cb.bofuProof"),
         };
       }
       return null;
@@ -141,13 +142,13 @@ const RULES: Rule[] = [
   // 7. Promo on TOFU waste warning
   {
     id: "promo-tofu-waste",
-    check(brief) {
+    check(brief, t) {
       if (brief.funnelStage !== "top") return null;
       if (brief.promotionContext) {
         return {
           severity:   "warn",
           rule:       "PROMO_ON_TOFU",
-          suggestion: "Chạy promotion offer cho TOFU (cold audience) thường tốn ngân sách không hiệu quả. Cân nhắc giữ promo cho MOFU/BOFU retargeting.",
+          suggestion: t("libmeta.cb.promoTofu"),
         };
       }
       return null;
@@ -157,14 +158,14 @@ const RULES: Rule[] = [
   // 8. Low budget for conversion objective
   {
     id: "budget-conversion-floor",
-    check(brief) {
+    check(brief, t) {
       if (brief.objective !== "conversion") return null;
       const budget = brief.launchConstraints?.dailyBudgetVnd ?? 0;
       if (budget > 0 && budget < 200_000) {
         return {
           severity:   "warn",
           rule:       "LOW_BUDGET_CONVERSION",
-          suggestion: `Ngân sách ${budget.toLocaleString("vi-VN")}₫/ngày có thể quá thấp cho conversion objective. Facebook/Google cần ít nhất 5×CPL/ngày để học tốt. Khuyến nghị: ≥200.000₫/ngày.`,
+          suggestion: t("libmeta.cb.lowBudget", { budget: budget.toLocaleString(t("libmeta.numLocale")) }),
         };
       }
       return null;
@@ -172,8 +173,8 @@ const RULES: Rule[] = [
   },
 ];
 
-export function runCompliance(brief: Partial<CreativeBrief>): ComplianceNote[] {
-  return RULES.map(r => r.check(brief)).filter((n): n is ComplianceNote => n !== null);
+export function runCompliance(brief: Partial<CreativeBrief>, t: TFunction = makeT("vi")): ComplianceNote[] {
+  return RULES.map(r => r.check(brief, t)).filter((n): n is ComplianceNote => n !== null);
 }
 
 export function getSensitiveTerms(platform: BriefPlatform, funnelStage: BriefFunnelStage): string[] {
@@ -205,7 +206,7 @@ export interface GeneratedComplianceInput {
   hasPromo?:    boolean;
 }
 
-export function runGeneratedCompliance(input: GeneratedComplianceInput): ComplianceNote[] {
+export function runGeneratedCompliance(input: GeneratedComplianceInput, t: TFunction = makeT("vi")): ComplianceNote[] {
   const notes: ComplianceNote[] = [];
   const allText = `${input.headline} ${input.primaryText} ${input.description} ${input.usp ?? ""}`.toLowerCase();
 
@@ -214,7 +215,7 @@ export function runGeneratedCompliance(input: GeneratedComplianceInput): Complia
     notes.push({
       severity:   "warn",
       rule:       "SUPERLATIVE_WITHOUT_PROOF",
-      suggestion: "Tránh 'tốt nhất', 'rẻ nhất', 'số 1' nếu không có dẫn chứng cụ thể (giải thưởng, số liệu thực). Thay bằng lợi ích cụ thể.",
+      suggestion: t("libmeta.cb.superlative"),
     });
   }
 
@@ -223,7 +224,7 @@ export function runGeneratedCompliance(input: GeneratedComplianceInput): Complia
     notes.push({
       severity:   "block",
       rule:       "UPTIME_OVERCLAIM",
-      suggestion: "Không claim 'uptime 100%' hoặc 'không bao giờ lỗi'. Dùng 'uptime 99.9% theo SLA' và dẫn link SLA.",
+      suggestion: t("libmeta.cb.uptime"),
     });
   }
 
@@ -232,7 +233,7 @@ export function runGeneratedCompliance(input: GeneratedComplianceInput): Complia
     notes.push({
       severity:   "warn",
       rule:       "DISCOUNT_NO_PROMO",
-      suggestion: "CTA đề cập đến giảm giá cụ thể nhưng không có promotion context. Thêm offer hoặc dùng CTA chung hơn.",
+      suggestion: t("libmeta.cb.discountGen"),
     });
   }
 
@@ -241,7 +242,7 @@ export function runGeneratedCompliance(input: GeneratedComplianceInput): Complia
     notes.push({
       severity:   "warn",
       rule:       "TOFU_HARD_CTA",
-      suggestion: "CTA 'đăng ký ngay' / 'mua ngay' quá cứng cho TOFU audience chưa warm. Dùng 'Tìm hiểu thêm', 'Khám phá', hoặc 'Xem ngay'.",
+      suggestion: t("libmeta.cb.tofuCta"),
     });
   }
 
@@ -250,7 +251,7 @@ export function runGeneratedCompliance(input: GeneratedComplianceInput): Complia
     notes.push({
       severity:   "warn",
       rule:       "FB_COMPETITOR_MENTION",
-      suggestion: "Facebook hạn chế quảng cáo nhắc đến tên đối thủ trực tiếp. Dùng 'nhà cung cấp khác' hoặc so sánh thuộc tính thay vì tên.",
+      suggestion: t("libmeta.cb.competitor"),
     });
   }
 
@@ -259,7 +260,7 @@ export function runGeneratedCompliance(input: GeneratedComplianceInput): Complia
     notes.push({
       severity:   "warn",
       rule:       "LOW_PROOF_BOFU",
-      suggestion: "Quảng cáo chốt đơn (BOFU) chạy tốt hơn khi có bằng chứng: số khách hàng, đánh giá, case study. Điền vào ô \"Social proof\" ở Bước 1 (mở phần mở rộng dưới Sản phẩm & Mục tiêu) rồi tạo lại. Đây là CẢNH BÁO, không chặn — vẫn tạo được nếu bạn chấp nhận.",
+      suggestion: t("libmeta.cb.bofuProof"),
     });
   }
 

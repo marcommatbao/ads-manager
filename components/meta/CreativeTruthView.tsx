@@ -15,16 +15,17 @@ import { Pill, type PillTone } from "@/components/measure/Pill";
 import { datetimeVN, num, vnd } from "@/components/case/format";
 import { getJson, ApiError } from "@/components/case/api";
 import { cn } from "@/lib/utils";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import type { DateRangeValue } from "@/components/DateRangeControl";
 import type { CreativeTruth, Verdict } from "@/lib/meta/creative-truth";
 
 type Resp = CreativeTruth & { verdictLabels: Record<Verdict, string> };
 const TONE: Record<Verdict, PillTone> = { nhan_ban: "green", nen_tat: "red", bi_nham: "amber", meta_bao_ho: "amber", on: "blue", chua_du_so: "grey" };
 const FILTERS: (Verdict | "all")[] = ["all", "nhan_ban", "nen_tat", "bi_nham", "meta_bao_ho", "on", "chua_du_so"];
-const n1 = (x: number | null | undefined) => (x == null ? "—" : num(Math.round(x * 10) / 10));
+const n1 = (x: number | null | undefined, loc?: string) => (x == null ? "—" : num(Math.round(x * 10) / 10, undefined, loc));
 
 export function CreativeTruthView({ company, range }: { company: string; range: DateRangeValue }) {
+  const intl = useIntlLocale();
   const tr = useT();
   const url = `/api/meta/creative-truth?company=${company}&from=${range.from}&to=${range.to}`;
   const { data, error, isLoading, mutate } = useSWR<Resp>(url, getJson, { revalidateOnFocus: false });
@@ -48,10 +49,10 @@ export function CreativeTruthView({ company, range }: { company: string; range: 
   return (
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-4">
-        <div className="rounded-xl border border-slate-200 bg-white p-3"><div className="text-xs text-slate-500">{tr("meta.truth.sum.spend", { n: num(t.ads) })}</div><div className="text-lg font-bold">{vnd(t.spend)}</div></div>
-        <div className="rounded-xl border border-slate-200 bg-white p-3"><div className="text-xs text-slate-500">{tr("meta.truth.sum.metaClaims")}</div><div className="text-lg font-bold text-slate-400 line-through decoration-1">{n1(t.meta)}</div></div>
-        <div className="rounded-xl border border-blue-200 bg-blue-50 p-3"><div className="text-xs text-blue-700">{tr("meta.truth.sum.scored")}</div><div className="text-lg font-bold text-blue-900">{n1(t.truth)}</div><div className="text-[11px] text-blue-700">{data.sourceLabel}</div></div>
-        <div className="rounded-xl border border-slate-200 bg-white p-3"><div className="text-xs text-slate-500">{tr("meta.truth.sum.cpa")}</div><div className="text-lg font-bold">{data.accountCpa ? vnd(data.accountCpa) : "—"}</div>{t.value != null && t.spend > 0 && <div className="text-[11px] text-slate-500">{tr("meta.truth.sum.roas", { value: (t.value / t.spend).toFixed(2) })}</div>}</div>
+        <div className="rounded-xl border border-slate-200 bg-white p-3"><div className="text-xs text-slate-500">{tr("meta.truth.sum.spend", { n: num(t.ads, undefined, intl) })}</div><div className="text-lg font-bold">{vnd(t.spend, intl)}</div></div>
+        <div className="rounded-xl border border-slate-200 bg-white p-3"><div className="text-xs text-slate-500">{tr("meta.truth.sum.metaClaims")}</div><div className="text-lg font-bold text-slate-400 line-through decoration-1">{n1(t.meta, intl)}</div></div>
+        <div className="rounded-xl border border-blue-200 bg-blue-50 p-3"><div className="text-xs text-blue-700">{tr("meta.truth.sum.scored")}</div><div className="text-lg font-bold text-blue-900">{n1(t.truth, intl)}</div><div className="text-[11px] text-blue-700">{data.sourceLabel}</div></div>
+        <div className="rounded-xl border border-slate-200 bg-white p-3"><div className="text-xs text-slate-500">{tr("meta.truth.sum.cpa")}</div><div className="text-lg font-bold">{data.accountCpa ? vnd(data.accountCpa, intl) : "—"}</div>{t.value != null && t.spend > 0 && <div className="text-[11px] text-slate-500">{tr("meta.truth.sum.roas", { value: (t.value / t.spend).toFixed(2) })}</div>}</div>
       </div>
 
       {data.notes.length > 0 && (
@@ -72,7 +73,7 @@ export function CreativeTruthView({ company, range }: { company: string; range: 
           ))}
         </div>
         <div className="flex items-center gap-2 text-xs text-slate-400">
-          <span>{tr("meta.truth.read", { time: datetimeVN(data.collectedAt), n: data.calls })}</span>
+          <span>{tr("meta.truth.read", { time: datetimeVN(data.collectedAt, intl), n: data.calls })}</span>
           <Button variant="outline" size="sm" onClick={pull} disabled={pulling}>{pulling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />} {tr("meta.truth.refetch")}</Button>
         </div>
       </div>
@@ -105,12 +106,12 @@ export function CreativeTruthView({ company, range }: { company: string; range: 
                     </div>
                   </div>
                 </td>
-                <td className="px-3 py-2 text-right tabular-nums">{vnd(a.spend)}</td>
-                <td className="px-3 py-2 text-right tabular-nums text-slate-400">{n1(a.metaPurchases)}{a.viewShare != null && a.metaPurchases > 0 && <div className="text-[10px]">{tr("meta.truth.viewOnlyPct", { pct: Math.round(a.viewShare * 100) })}</div>}</td>
-                <td className="px-3 py-2 text-right tabular-nums">{n1(a.click)}</td>
-                {data.setup.odooConversion && <td className="px-3 py-2 text-right tabular-nums font-semibold">{n1(a.odoo)}</td>}
-                {data.setup.ga4AdsTagged > 0 && <td className="px-3 py-2 text-right tabular-nums">{n1(a.ga4)}</td>}
-                <td className="px-3 py-2 text-right tabular-nums font-semibold">{a.cpa ? vnd(a.cpa) : "—"}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{vnd(a.spend, intl)}</td>
+                <td className="px-3 py-2 text-right tabular-nums text-slate-400">{n1(a.metaPurchases, intl)}{a.viewShare != null && a.metaPurchases > 0 && <div className="text-[10px]">{tr("meta.truth.viewOnlyPct", { pct: Math.round(a.viewShare * 100) })}</div>}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{n1(a.click, intl)}</td>
+                {data.setup.odooConversion && <td className="px-3 py-2 text-right tabular-nums font-semibold">{n1(a.odoo, intl)}</td>}
+                {data.setup.ga4AdsTagged > 0 && <td className="px-3 py-2 text-right tabular-nums">{n1(a.ga4, intl)}</td>}
+                <td className="px-3 py-2 text-right tabular-nums font-semibold">{a.cpa ? vnd(a.cpa, intl) : "—"}</td>
                 {data.source === "odoo" && <td className="px-3 py-2 text-right tabular-nums">{a.roas != null ? `${a.roas.toFixed(2)}x` : "—"}</td>}
                 <td className={cn("px-3 py-2 text-right tabular-nums", (a.frequency ?? 0) >= 3.5 && "text-amber-700 font-semibold")}>{a.frequency != null ? a.frequency.toFixed(1) : "—"}</td>
                 <td className="px-3 py-2">

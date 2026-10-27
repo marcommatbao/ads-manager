@@ -27,6 +27,8 @@ import { gtmApiConfigured, liveToContainer, readLive } from "./gtm-api"
 import { epochRange, HEALTH_DAYS, metaHealth } from "./meta-health"
 import { addDays, rangeDays, vnDate } from "@/lib/case/dates"
 import { readStandardLinks } from "./utm-links"
+import { makeT, type TFunction } from "@/lib/i18n/translate"
+import type { MessageKey } from "@/lib/i18n/messages"
 
 type Row = Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
 const en = (e: Record<string | number, string | number>, v: unknown) => (typeof v === "number" ? String(e[v] ?? v) : String(v ?? ""))
@@ -112,20 +114,25 @@ export interface TagDoctorReport extends TagDoctorInput {
   sources: EvidenceSource[]
 }
 
-const fmt = (n: number) => n.toLocaleString("vi-VN", { maximumFractionDigits: 1 })
+const fmtL = (n: number, t: TFunction) => n.toLocaleString(t("libmeta.numLocale"), { maximumFractionDigits: 1 })
+/** Nhãn hành động kinh doanh theo ngôn ngữ (BUSINESS_ACTIONS[].label là bản tiếng Việt cố định). */
+const actLabel = (key: ActionKey, t: TFunction) => t(`libmeta.td.act.${key}` as MessageKey)
 
 /** Hàm thuần: số liệu → bảng bản chuẩn + danh sách lỗi + đề xuất sửa Google. */
-export function buildTagDoctor(i: TagDoctorInput): Pick<TagDoctorReport, "canonical" | "issues" | "fixes" | "gtmFixes"> {
+export function buildTagDoctor(i: TagDoctorInput, t: TFunction = makeT("vi")): Pick<TagDoctorReport, "canonical" | "issues" | "fixes" | "gtmFixes"> {
+  const fmt = (n: number) => fmtL(n, t)
+  // Thẻ (theo hành động + mã thẻ) đã được nêu trong lỗi "pixel bắn nhiều tên" — dò bằng tập, KHÔNG dò chữ trong detail.
+  const variantTags = new Set<string>()
   const issues: TagIssue[] = []
   const fixes: GoogleFixProposal[] = []
   const gtmFixes: GtmFixProposal[] = []
   const allEvents = i.pixelEvents.flatMap((p) => p.events)
   const pixelTags = i.gtm.flatMap((g) => g.pixelTags.map((t) => ({ ...t, container: g.id, version: g.version })))
   const gtmApi = (container: string) => i.gtm.some((g) => g.id === container && g.source === "api")
-  const tagName = (container: string, tagId: string) => i.gtm.find((g) => g.id === container)?.tagsDetail?.find((t) => t.tagId === tagId)?.name ?? `thẻ ${tagId}`
+  const tagName = (container: string, tagId: string) => i.gtm.find((g) => g.id === container)?.tagsDetail?.find((x) => x.tagId === tagId)?.name ?? t("libmeta.td.tagFallback", { id: tagId })
   const stdFix = (container: string, tagId: string, fromName: string, toName: string) => {
     const id = `gtm_std_${container}_${tagId}`
-    if (!gtmFixes.some((f) => f.id === id)) gtmFixes.push({ id, kind: "tag_standard", container, tagId, tagName: tagName(container, tagId), fromName, toName, label: `${container} · ${tagName(container, tagId)}: đổi “${fromName}” (Custom) → ${toName} (Standard)` })
+    if (!gtmFixes.some((f) => f.id === id)) gtmFixes.push({ id, kind: "tag_standard", container, tagId, tagName: tagName(container, tagId), fromName, toName, label: t("libmeta.td.fixStd", { container, tag: tagName(container, tagId), from: fromName, to: toName }) })
     return id
   }
 
@@ -136,16 +143,16 @@ export function buildTagDoctor(i: TagDoctorInput): Pick<TagDoctorReport, "canoni
   const primarySilent = purchaseActions.filter((a) => a.primary && a.last7 === 0)
   const secondaryAlive = purchaseActions.filter((a) => !a.primary && a.last7 > 0).sort((a, b) => b.last7 - a.last7)
   if (purchaseGoal && !purchaseGoal.biddable) {
-    fixes.push({ id: "goal_purchase_on", kind: "goal_biddable", resourceName: purchaseGoal.resourceName, category: "PURCHASE", origin: "WEBSITE", before: false, after: true, label: "Đặt “Mua hàng” làm mục tiêu đặt giá" })
+    fixes.push({ id: "goal_purchase_on", kind: "goal_biddable", resourceName: purchaseGoal.resourceName, category: "PURCHASE", origin: "WEBSITE", before: false, after: true, label: t("libmeta.td.fixGoalPurchaseOn") })
   }
-  for (const [cat, id, label] of [["ADD_TO_CART", "goal_cart_off", "Tắt đặt giá theo “Thêm vào giỏ”"], ["BEGIN_CHECKOUT", "goal_checkout_off", "Tắt đặt giá theo “Bắt đầu thanh toán”"]] as const) {
+  for (const [cat, id, label] of [["ADD_TO_CART", "goal_cart_off", t("libmeta.td.fixGoalCartOff")], ["BEGIN_CHECKOUT", "goal_checkout_off", t("libmeta.td.fixGoalCheckoutOff")]] as const) {
     const g = goal(cat)
     if (g?.biddable && purchaseGoal && !purchaseGoal.biddable) fixes.push({ id, kind: "goal_biddable", resourceName: g.resourceName, category: cat, origin: "WEBSITE", before: true, after: false, label })
   }
   if (primarySilent.length && secondaryAlive.length) {
     const alive = secondaryAlive[0]
-    fixes.push({ id: "action_primary_alive", kind: "action_primary", resourceName: alive.resourceName, name: alive.name, before: false, after: true, label: `Đặt “${alive.name}” (${fmt(alive.last7)} lượt/7 ngày) làm hành động CHÍNH cho Mua hàng` })
-    for (const s of primarySilent) fixes.push({ id: `action_secondary_${s.id}`, kind: "action_primary", resourceName: s.resourceName, name: s.name, before: true, after: false, label: `Chuyển “${s.name}” (0 lượt/7 ngày) sang PHỤ` })
+    fixes.push({ id: "action_primary_alive", kind: "action_primary", resourceName: alive.resourceName, name: alive.name, before: false, after: true, label: t("libmeta.td.fixPrimaryAlive", { name: alive.name, n: fmt(alive.last7) }) })
+    for (const s of primarySilent) fixes.push({ id: `action_secondary_${s.id}`, kind: "action_primary", resourceName: s.resourceName, name: s.name, before: true, after: false, label: t("libmeta.td.fixSecondary", { name: s.name }) })
   }
 
   // ── Bảng bản chuẩn ──
@@ -162,24 +169,24 @@ export function buildTagDoctor(i: TagDoctorInput): Pick<TagDoctorReport, "canoni
     const odooOrders = a.key === "purchase" ? i.odooOrders : null
     const std = meta.find((m) => m.standard)
     const custom = meta.filter((m) => !m.standard)
-    let verdict: CanonicalRow["verdict"] = { tone: "ok", text: "Tên chuẩn, không có bản trùng" }
+    let verdict: CanonicalRow["verdict"] = { tone: "ok", text: t("libmeta.td.vOk") }
     const stopped = custom.length > 0 && custom.every((c) => c.last7 === 0) && i.pixelEvents.some((p) => p.events.some((e) => e.last7 !== undefined))
-    if (!meta.length && !google.length) verdict = { tone: "ok", text: "Chưa dùng hành động này" }
-    else if (stopped) verdict = { tone: "ok", text: `Bản tự đặt (${custom.map((c) => c.name).join(", ")}) đã NGỪNG bắn trong 7 ngày gần nhất — có vẻ đã sửa; số 28 ngày còn gồm những ngày trước khi sửa` }
-    else if (!std && custom.length) verdict = { tone: "bad", text: `Chỉ có bản tự đặt (${custom.map((c) => c.name).join(", ")}) — Meta không tối ưu được. Đổi nguồn bắn sang tên chuẩn ${a.meta}` }
+    if (!meta.length && !google.length) verdict = { tone: "ok", text: t("libmeta.td.vUnused") }
+    else if (stopped) verdict = { tone: "ok", text: t("libmeta.td.vStopped", { names: custom.map((c) => c.name).join(", ") }) }
+    else if (!std && custom.length) verdict = { tone: "bad", text: t("libmeta.td.vOnlyCustom", { names: custom.map((c) => c.name).join(", "), std: a.meta }) }
     else if (std && custom.length) {
       const big = custom.reduce((s, c) => s + c.total, 0)
       verdict = big > std.total
-        ? { tone: "bad", text: `Bản tự đặt đếm nhiều hơn bản chuẩn (${fmt(big)} vs ${fmt(std.total)}) — bản chuẩn đang đếm thiếu: sửa nguồn bắn, đừng đổi sang tối ưu bản tự đặt` }
-        : { tone: "warn", text: `Có thêm bản tự đặt (${custom.map((c) => c.name).join(", ")}) — gom về một tên chuẩn để khỏi đếm lẫn` }
+        ? { tone: "bad", text: t("libmeta.td.vCustomMore", { big: fmt(big), std: fmt(std.total) }) }
+        : { tone: "warn", text: t("libmeta.td.vExtraCustom", { names: custom.map((c) => c.name).join(", ") }) }
     }
     if (odooOrders !== null && std && odooOrders > 0) {
       const ratio = std.total / odooOrders
-      if (ratio < 0.5 || ratio > 2) verdict = { tone: "bad", text: `${verdict.text}. Bản chuẩn ${fmt(std.total)} lượt so với ${fmt(odooOrders)} đơn Odoo — lệch ${ratio < 1 ? "thiếu" : "thừa"} ${fmt(ratio)} lần` }
+      if (ratio < 0.5 || ratio > 2) verdict = { tone: "bad", text: t("libmeta.td.vOdoo", { text: verdict.text, std: fmt(std.total), odoo: fmt(odooOrders), dir: ratio < 1 ? t("libmeta.td.dirShort") : t("libmeta.td.dirExcess"), ratio: fmt(ratio) }) }
     }
     const gp = google.filter((g) => g.primary)
-    if (a.google && gp.length > 1) verdict = { tone: "warn", text: `${verdict.text}. Google có ${gp.length} hành động CHÍNH cho cùng nhóm — dễ đếm trùng` }
-    return { key: a.key, label: a.label, meta, google, odooOrders, verdict }
+    if (a.google && gp.length > 1) verdict = { tone: "warn", text: t("libmeta.td.vGooglePrimaries", { text: verdict.text, n: gp.length }) }
+    return { key: a.key, label: actLabel(a.key, t), meta, google, odooOrders, verdict }
   })
 
   // ── Lỗi: Meta tên trùng / tự đặt ──
@@ -187,55 +194,56 @@ export function buildTagDoctor(i: TagDoctorInput): Pick<TagDoctorReport, "canoni
     const custom = row.meta.filter((m) => !m.standard)
     if (!custom.length || row.verdict.tone === "ok") continue
     const std = row.meta.find((m) => m.standard)
-    const tags = pixelTags.filter((t) => custom.some((c) => c.name === t.eventName))
+    const tags = pixelTags.filter((pt) => custom.some((c) => c.name === pt.eventName))
     const a = BUSINESS_ACTIONS.find((x) => x.key === row.key)!
+    for (const pt of tags) variantTags.add(`${a.key}|${pt.tagId}`)
     issues.push({
       id: `meta_variant_${row.key}`, severity: std ? "warn" : "bad", platform: "meta",
-      title: `${row.label}: pixel bắn ${std ? "2 tên" : "chỉ tên tự đặt"} — ${row.meta.map((m) => `${m.name} (${fmt(m.total)}; 7 ngày: ${fmt(m.last7)})`).join(" / ")}`,
+      title: t("libmeta.td.metaVariantTitle", { label: row.label, kind: std ? t("libmeta.td.metaTwoNames") : t("libmeta.td.metaOnlyCustom"), list: row.meta.map((m) => t("libmeta.td.metaVariantItem", { name: m.name, total: fmt(m.total), last7: fmt(m.last7) })).join(" / ") }),
       detail: tags.length
-        ? `Nguồn trong GTM: ${tags.map((t) => `${t.container} thẻ ${t.tagId} (${t.source === "html" ? "HTML tự viết" : "mẫu Facebook Pixel"}, ${t.kind})`).join("; ")}.`
-        : `Không thẻ Facebook nào trong GTM gửi tên ${custom.map((c) => `“${c.name}”`).join(", ")} — nguồn khác (mã trang, tích hợp đối tác, API máy chủ). Xem Events Manager → Pixel → sự kiện → Nguồn.`,
-      gtmFixIds: tags.filter((t) => t.source === "template" && gtmApi(t.container)).map((t) => stdFix(t.container, t.tagId, t.eventName, a.meta)),
+        ? t("libmeta.td.metaDetailTags", { list: tags.map((pt) => t("libmeta.td.metaDetailTag", { container: pt.container, tagId: pt.tagId, src: pt.source === "html" ? t("libmeta.td.srcHtml") : t("libmeta.td.srcTemplate"), kind: pt.kind })).join("; ") })
+        : t("libmeta.td.metaDetailNoTags", { names: custom.map((c) => `“${c.name}”`).join(", ") }),
+      gtmFixIds: tags.filter((pt) => pt.source === "template" && gtmApi(pt.container)).map((pt) => stdFix(pt.container, pt.tagId, pt.eventName, a.meta)),
       steps: tags.length
-        ? tags.map((t) => `GTM ${t.container} → Thẻ ${t.tagId} → Event Name: Standard → ${a.meta} → Lưu → Submit/Publish`)
-        : [`Events Manager → Pixel → sự kiện ${custom.map((c) => c.name).join(", ")} → xem mục nguồn/tích hợp`, `Đổi nơi gửi sang tên chuẩn ${a.meta} (hoặc tắt nếu trùng với bản chuẩn đang gửi)`],
+        ? tags.map((pt) => t("libmeta.td.metaStepTag", { container: pt.container, tagId: pt.tagId, std: a.meta }))
+        : [t("libmeta.td.metaStepEm", { names: custom.map((c) => c.name).join(", ") }), t("libmeta.td.metaStepSwitch", { std: a.meta })],
       fixIds: [],
     })
   }
   // ── Lỗi: thẻ GTM Custom trùng nghĩa sự kiện chuẩn (kể cả khi pixel chưa bắn) ──
-  for (const t of pixelTags) {
-    if (t.kind !== "custom" || t.dynamic) continue
-    const a = BUSINESS_ACTIONS.find((x) => normEvent(x.meta) === normEvent(t.eventName))
-    if (!a || issues.some((x) => x.id === `meta_variant_${a.key}` && x.detail.includes(`thẻ ${t.tagId}`))) continue
+  for (const pt of pixelTags) {
+    if (pt.kind !== "custom" || pt.dynamic) continue
+    const a = BUSINESS_ACTIONS.find((x) => normEvent(x.meta) === normEvent(pt.eventName))
+    if (!a || variantTags.has(`${a.key}|${pt.tagId}`)) continue
     issues.push({
-      id: `gtm_custom_${t.container}_${t.tagId}`, severity: "bad", platform: "gtm",
-      title: `GTM ${t.container} thẻ ${t.tagId} gửi “${t.eventName}” dạng Custom — trùng nghĩa ${a.meta}`,
-      detail: "Meta coi là sự kiện tự đặt, nhóm tối ưu theo sự kiện chuẩn không thấy lượt này.",
-      steps: [`GTM ${t.container} → Thẻ ${t.tagId} → Event Name: Standard → ${a.meta} → Lưu → Submit/Publish`], fixIds: [],
-      gtmFixIds: t.source === "template" && gtmApi(t.container) ? [stdFix(t.container, t.tagId, t.eventName, a.meta)] : [],
+      id: `gtm_custom_${pt.container}_${pt.tagId}`, severity: "bad", platform: "gtm",
+      title: t("libmeta.td.gtmCustomTitle", { container: pt.container, tagId: pt.tagId, event: pt.eventName, std: a.meta }),
+      detail: t("libmeta.td.gtmCustomDetail"),
+      steps: [t("libmeta.td.metaStepTag", { container: pt.container, tagId: pt.tagId, std: a.meta })], fixIds: [],
+      gtmFixIds: pt.source === "template" && gtmApi(pt.container) ? [stdFix(pt.container, pt.tagId, pt.eventName, a.meta)] : [],
     })
   }
-  for (const t of pixelTags.filter((x) => !x.hasEventId && x.kind === "standard" && !x.dynamic)) {
+  for (const pt of pixelTags.filter((x) => !x.hasEventId && x.kind === "standard" && !x.dynamic)) {
     issues.push({
-      id: `gtm_no_event_id_${t.container}_${t.tagId}`, severity: "warn", platform: "gtm",
-      title: `GTM ${t.container} thẻ ${t.tagId} (${t.eventName}) không gửi event_id`,
-      detail: "Nếu sự kiện này cũng gửi qua API máy chủ, Meta không khử trùng được → đếm 2 lần.",
-      steps: [`GTM ${t.container} → Thẻ ${t.tagId} → Event ID: gắn biến mã sự kiện (cùng giá trị với API máy chủ)`], fixIds: [],
+      id: `gtm_no_event_id_${pt.container}_${pt.tagId}`, severity: "warn", platform: "gtm",
+      title: t("libmeta.td.noEventIdTitle", { container: pt.container, tagId: pt.tagId, event: pt.eventName }),
+      detail: t("libmeta.td.noEventIdDetail"),
+      steps: [t("libmeta.td.noEventIdStep", { container: pt.container, tagId: pt.tagId })], fixIds: [],
     })
   }
   for (const d of i.dualSource.filter((x) => x.browser > 0 && x.server > 0)) {
-    const tag = pixelTags.find((t) => t.eventName === d.event && (!t.pixelId || t.pixelId === d.pixelId))
+    const tag = pixelTags.find((pt) => pt.eventName === d.event && (!pt.pixelId || pt.pixelId === d.pixelId))
     if (tag?.hasEventId) continue
     issues.push({
       id: `dual_${d.pixelId}_${d.event}`, severity: "warn", platform: "meta",
-      title: `${d.event} gửi 2 đường (trình duyệt ${fmt(d.browser)} · máy chủ ${fmt(d.server)}) mà không thấy thẻ có event_id`,
-      detail: "Meta chỉ gộp khi hai bên gửi cùng event_id — không thì mỗi đơn đếm 2 lần.",
-      steps: ["Kiểm thẻ trình duyệt và API máy chủ gửi cùng event_id cho mỗi lần mua"], fixIds: [],
+      title: t("libmeta.td.dualTitle", { event: d.event, browser: fmt(d.browser), server: fmt(d.server) }),
+      detail: t("libmeta.td.dualDetail"),
+      steps: [t("libmeta.td.dualStep")], fixIds: [],
     })
   }
 
   // ── C1: đọc trigger qua API ──
-  gtmTriggerIssues(i, issues, gtmFixes)
+  gtmTriggerIssues(i, issues, gtmFixes, t)
 
   // ── Lỗi: Google ──
   const fixIdsOf = (...ids: string[]) => fixes.filter((f) => ids.includes(f.id) || ids.some((p) => p.endsWith("*") && f.id.startsWith(p.slice(0, -1)))).map((f) => f.id)
@@ -243,33 +251,29 @@ export function buildTagDoctor(i: TagDoctorInput): Pick<TagDoctorReport, "canoni
     const bidding = i.googleGoals.filter((g) => g.biddable && g.origin === "WEBSITE").map((g) => g.category)
     issues.push({
       id: "google_goal_not_purchase", severity: "bad", platform: "google",
-      title: `Google đặt giá theo ${bidding.length ? bidding.join(", ") : "không mục tiêu website nào"} — KHÔNG theo Mua hàng`,
-      detail: "Mục tiêu cấp tài khoản: mọi chiến dịch dùng mục tiêu tài khoản đang tối ưu để có người thêm giỏ/bắt đầu thanh toán, không phải người mua.",
-      steps: [
-        "Trước hết làm cho hành động Mua hàng CHÍNH có số ổn định ≥ 7 ngày (xem lỗi hành động chính bên dưới nếu có)",
-        "Google Ads → Mục tiêu → Tóm tắt → Mua hàng → Dùng làm mục tiêu tài khoản",
-        "Cân nhắc bỏ Thêm vào giỏ / Bắt đầu thanh toán khỏi mục tiêu tài khoản",
-      ],
+      title: t("libmeta.td.gNotPurchaseTitle", { list: bidding.length ? bidding.join(", ") : t("libmeta.td.noWebsiteGoal") }),
+      detail: t("libmeta.td.gNotPurchaseDetail"),
+      steps: [t("libmeta.td.gStep1"), t("libmeta.td.gStep2"), t("libmeta.td.gStep3")],
       fixIds: fixIdsOf("goal_purchase_on", "goal_cart_off", "goal_checkout_off"),
     })
   }
   for (const s of primarySilent) {
     issues.push({
       id: `google_primary_silent_${s.id}`, severity: "bad", platform: "google",
-      title: `“${s.name}” là hành động CHÍNH của Mua hàng mà 0 lượt/7 ngày (${fmt(s.total)} lượt/${i.days ?? HEALTH_DAYS} ngày)`,
-      detail: s.inGtm === true ? `Thẻ có trong GTM (${s.sendTo.join(", ")}) nhưng gần như không bắn → nghi điều kiện kích hoạt (trigger).`
-        : s.inGtm === false ? `Không thấy thẻ ${s.sendTo.join(", ")} trong GTM → thẻ chưa được cài hoặc cài ngoài GTM.`
-        : "Không đối chiếu được với GTM.",
-      steps: s.inGtm === true ? ["GTM → mở thẻ Google Ads có nhãn trên → kiểm trigger có bắn ở trang cảm ơn/đơn thành công không → Xem trước (Preview) một lần mua thử"]
-        : ["Cài thẻ chuyển đổi Google Ads với nhãn trên vào trang đơn thành công (qua GTM)"],
+      title: t("libmeta.td.gSilentTitle", { name: s.name, total: fmt(s.total), days: i.days ?? HEALTH_DAYS }),
+      detail: s.inGtm === true ? t("libmeta.td.gSilentInGtm", { sendTo: s.sendTo.join(", ") })
+        : s.inGtm === false ? t("libmeta.td.gSilentNotInGtm", { sendTo: s.sendTo.join(", ") })
+        : t("libmeta.td.gSilentNoCompare"),
+      steps: s.inGtm === true ? [t("libmeta.td.gSilentStepIn")]
+        : [t("libmeta.td.gSilentStepOut")],
       fixIds: fixIdsOf("action_primary_alive", "action_secondary_*"),
     })
   }
   for (const a of i.googleActions.filter((x) => x.origin === "WEBSITE" && x.type === "WEBPAGE" && x.inGtm === false && !primarySilent.includes(x))) {
     issues.push({
       id: `google_no_tag_${a.id}`, severity: a.primary ? "bad" : "warn", platform: "google",
-      title: `“${a.name}” không có thẻ trong GTM`, detail: `Nhãn ${a.sendTo.join(", ")} không thấy trong container nào.`,
-      steps: ["Cài thẻ vào GTM, hoặc xoá/ẩn hành động nếu không còn dùng"], fixIds: [],
+      title: t("libmeta.td.gNoTagTitle", { name: a.name }), detail: t("libmeta.td.gNoTagDetail", { sendTo: a.sendTo.join(", ") }),
+      steps: [t("libmeta.td.gNoTagStep")], fixIds: [],
     })
   }
   issues.sort((x, y) => Number(y.severity === "bad") - Number(x.severity === "bad"))
@@ -278,19 +282,19 @@ export function buildTagDoctor(i: TagDoctorInput): Pick<TagDoctorReport, "canoni
 
 const memo = new Map<string, { at: number; value: TagDoctorReport }>()
 
-export async function tagDoctor(company: Company, opts: { force?: boolean; range?: { from: string; to: string } } = {}): Promise<TagDoctorReport> {
-  // Đệm theo công ty + KHOẢNG — trước 28/09 chỉ theo công ty (khoảng luôn cố định).
-  const memoKey = `${company}|${opts.range?.from ?? ""}|${opts.range?.to ?? ""}`
+export async function tagDoctor(company: Company, opts: { force?: boolean; range?: { from: string; to: string } } = {}, t: TFunction = makeT("vi")): Promise<TagDoctorReport> {
+  // Đệm theo công ty + KHOẢNG — trước 28/09 chỉ theo công ty (khoảng luôn cố định). Văn bản sinh theo ngôn ngữ → khoá có ngôn ngữ.
+  const memoKey = `${t("libmeta.localeTag")}|${company}|${opts.range?.from ?? ""}|${opts.range?.to ?? ""}`
   const hit = memo.get(memoKey)
   if (!opts.force && hit && Date.now() - hit.at < 30 * 60_000) return hit.value
   const sources: EvidenceSource[] = []
 
   // Meta: dùng lại Sức khoẻ đo lường (đệm chung, không tốn thêm lượt gọi).
-  const mh = await metaHealth(company, { force: opts.force, range: opts.range })
+  const mh = await metaHealth(company, { force: opts.force, range: opts.range }, t)
   const days = rangeDays(mh.range)
   const current = mh.range.to === vnDate()
   const pixelEvents = mh.pixels.filter((p) => p.known).map((p) => ({ pixelId: p.pixelId, events: p.events.map((e) => ({ name: e.name, total: e.total, last7: e.perDay.slice(-7).reduce((s, x) => s + x, 0) })) }))
-  sources.push({ id: "pixel", label: `Sự kiện pixel ${days} ngày`, status: pixelEvents.length ? "ok" : "error", rows: pixelEvents.length })
+  sources.push({ id: "pixel", label: t("libmeta.td.srcPixel", { days }), status: pixelEvents.length ? "ok" : "error", rows: pixelEvents.length })
 
   // Purchase gửi qua trình duyệt và máy chủ (1 lượt/pixel).
   const dualSource: TagDoctorInput["dualSource"] = []
@@ -313,17 +317,17 @@ export async function tagDoctor(company: Company, opts: { force?: boolean; range
     const apiNotes: string[] = []
     gtm = await Promise.all(ids.map(async (id) => {
       if (gtmApiConfigured()) {
-        try { return liveToContainer(await readLive(id)) } catch (e) { apiNotes.push(`${id}: ${e instanceof Error ? e.message : String(e)} — dùng gtm.js công khai`) }
+        try { return liveToContainer(await readLive(id)) } catch (e) { apiNotes.push(t("libmeta.td.apiNote", { id, msg: e instanceof Error ? e.message : String(e) })) }
       }
       return { ...(await fetchGtm(id)), source: "public" as const }
     }))
     const viaApi = gtm.filter((g) => g.source === "api").length
     sources.push({
-      id: "gtm", label: viaApi ? "Cấu hình GTM (Tag Manager API)" : "Cấu hình GTM công khai", status: gtm.length ? (apiNotes.length ? "partial" : "ok") : "partial", rows: gtm.length,
-      note: gtm.length ? [gtm.map((g) => `${g.id} bản ${g.version ?? "?"}${g.source === "api" ? " (API)" : " (gtm.js)"}`).join(", "), ...apiNotes].join(" · ") : "Không thấy mã GTM trên trang đích",
+      id: "gtm", label: viaApi ? t("libmeta.td.srcGtmApi") : t("libmeta.td.srcGtmPublic"), status: gtm.length ? (apiNotes.length ? "partial" : "ok") : "partial", rows: gtm.length,
+      note: gtm.length ? [gtm.map((g) => t(g.source === "api" ? "libmeta.td.gtmVersion" : "libmeta.td.gtmVersionJs", { id: g.id, version: g.version ?? "?" })).join(", "), ...apiNotes].join(" · ") : t("libmeta.td.gtmNone"),
     })
   } catch (e) {
-    sources.push({ id: "gtm", label: "Cấu hình GTM công khai", status: "error", rows: 0, note: e instanceof Error ? e.message : String(e) })
+    sources.push({ id: "gtm", label: t("libmeta.td.srcGtmPublic"), status: "error", rows: 0, note: e instanceof Error ? e.message : String(e) })
   }
   const gtmLabels = new Set(gtm.flatMap((g) => g.googleAdsLabels.map((l) => l.sendTo)))
 
@@ -358,9 +362,9 @@ export async function tagDoctor(company: Company, opts: { force?: boolean; range
     })
     googleGoals = ((await c.query(`SELECT customer_conversion_goal.resource_name, customer_conversion_goal.category, customer_conversion_goal.origin, customer_conversion_goal.biddable FROM customer_conversion_goal`)) as Row[])
       .map((r) => ({ resourceName: String(r.customer_conversion_goal.resource_name), category: en(enums.ConversionActionCategory, r.customer_conversion_goal.category), origin: en(enums.ConversionOrigin, r.customer_conversion_goal.origin), biddable: !!r.customer_conversion_goal.biddable }))
-    sources.push({ id: "google", label: "Hành động + mục tiêu Google Ads", status: "ok", rows: googleActions.length })
+    sources.push({ id: "google", label: t("libmeta.td.srcGoogle"), status: "ok", rows: googleActions.length })
   } catch (e) {
-    sources.push({ id: "google", label: "Hành động + mục tiêu Google Ads", status: "error", rows: 0, note: e instanceof Error ? e.message : String(e) })
+    sources.push({ id: "google", label: t("libmeta.td.srcGoogle"), status: "error", rows: 0, note: e instanceof Error ? e.message : String(e) })
   }
 
   // Odoo: đơn marketing MBI đã thu tiền cùng kỳ (bộ lọc phòng MKT). MBC chưa có bộ lọc → null.
@@ -369,21 +373,21 @@ export async function tagDoctor(company: Company, opts: { force?: boolean; range
     try {
       const rows = (await readGroup("sale.order", mktOrderDomain(mh.range.from, mh.range.to) as unknown[][], ["amount_untaxed:sum"], ["state"])) as Row[]
       odooOrders = rows.reduce((s, r) => s + Number(r.__count ?? 0), 0)
-      sources.push({ id: "odoo", label: "Đơn marketing Odoo (đã thu tiền)", status: "ok", rows: odooOrders })
+      sources.push({ id: "odoo", label: t("libmeta.td.srcOdooMkt"), status: "ok", rows: odooOrders })
     } catch (e) {
-      sources.push({ id: "odoo", label: "Đơn marketing Odoo (đã thu tiền)", status: "error", rows: 0, note: e instanceof Error ? e.message : String(e) })
+      sources.push({ id: "odoo", label: t("libmeta.td.srcOdooMkt"), status: "error", rows: 0, note: e instanceof Error ? e.message : String(e) })
     }
-  } else sources.push({ id: "odoo", label: "Đơn Odoo", status: "partial", rows: 0, note: "Chưa có bộ lọc đơn marketing cho MBC — không so số" })
+  } else sources.push({ id: "odoo", label: t("libmeta.td.srcOdoo"), status: "partial", rows: 0, note: t("libmeta.td.odooNoFilter") })
 
   const input: TagDoctorInput = { company, pixelEvents, gtm, googleActions, googleGoals, dualSource, odooOrders, days }
-  const built = buildTagDoctor(input)
+  const built = buildTagDoctor(input, t)
   if (!current) {
     // Xem khoảng cũ: số liệu để xem, KHÔNG đề xuất sửa — cấu hình GTM/Google là của hôm nay.
     built.fixes = []; built.gtmFixes = []
     built.issues = built.issues.map((x) => ({ ...x, fixIds: [], gtmFixIds: [] }))
-    sources.push({ id: "range", label: "Khoảng đang xem", status: "partial", rows: 0, note: `Khoảng kết thúc ${mh.range.to} (trước hôm nay) — chỉ xem; chọn khoảng tới hôm nay để tool đề xuất sửa.` })
+    sources.push({ id: "range", label: t("libmeta.td.srcRange"), status: "partial", rows: 0, note: t("libmeta.td.rangeNote", { to: mh.range.to }) })
   }
-  const value: TagDoctorReport = { ...input, ...built, current, roadmap: current ? purchaseRoadmap(input, built) : [], range: mh.range, collectedAt: new Date().toISOString(), sources }
+  const value: TagDoctorReport = { ...input, ...built, current, roadmap: current ? purchaseRoadmap(input, built, t) : [], range: mh.range, collectedAt: new Date().toISOString(), sources }
   memo.set(memoKey, { at: Date.now(), value })
   return value
 }
@@ -399,7 +403,8 @@ const ACTION_DL_EVENT = Object.fromEntries(Object.entries(DL_EVENT_ACTION).map((
 const actionOfMeta = (name: string | null) => BUSINESS_ACTIONS.find((a) => name && a.meta === name)?.key ?? null
 const actionOfGoogle = (category: string) => BUSINESS_ACTIONS.find((a) => a.google === category)?.key ?? null
 
-export function gtmTriggerIssues(i: TagDoctorInput, issues: TagIssue[], gtmFixes: GtmFixProposal[]): void {
+export function gtmTriggerIssues(i: TagDoctorInput, issues: TagIssue[], gtmFixes: GtmFixProposal[], tr: TFunction = makeT("vi")): void {
+  const fmt = (n: number) => fmtL(n, tr)
   const meta7 = (name: string) => {
     const hits = i.pixelEvents.flatMap((p) => p.events.filter((e) => e.name === name))
     return hits.some((e) => e.last7 !== undefined) ? hits.reduce((s, e) => s + (e.last7 ?? 0), 0) : null
@@ -429,10 +434,10 @@ export function gtmTriggerIssues(i: TagDoctorInput, issues: TagIssue[], gtmFixes
       const peers = live.filter((o) => o.tagId !== t.tagId && o.triggers.some((x) => x.id === toId)).map((o) => ({ o, s: signal(o) })).filter((x) => x.s)
       const after = peers.length ? Math.max(...peers.map((x) => x.s!.last7)) : null
       if (after !== null && after >= a.last7 * 0.5) return undefined
-      const role = biddable(a.category) ? "đang là MỤC TIÊU ĐẶT GIÁ của Google" : "đang là hành động CHÍNH của Google"
+      const role = biddable(a.category) ? tr("libmeta.td.roleBid") : tr("libmeta.td.rolePrimary")
       return after === null
-        ? `“${a.name}” ${role} (${fmt(a.last7)} lượt/7 ngày). Không đo được trigger đích bắn bao nhiêu → có thể mất gần hết tín hiệu; chiến dịch tối ưu chuyển đổi sẽ học lại.`
-        : `“${a.name}” ${role} (${fmt(a.last7)} lượt/7 ngày). Trigger đích chỉ ~${fmt(after)} lượt/7 ngày (thẻ ${peers.map((x) => x.o.tagId).join(", ")}) → Google mất ~${Math.round((1 - after / Math.max(a.last7, 1)) * 100)}% tín hiệu đặt giá; chiến dịch tối ưu chuyển đổi sẽ thiếu dữ liệu. Nên sửa đo lường Mua hàng và chuyển đặt giá sang Mua hàng TRƯỚC khi đổi.`
+        ? tr("libmeta.td.signalLoss1", { name: a.name, role, last7: fmt(a.last7) })
+        : tr("libmeta.td.signalLoss2", { name: a.name, role, last7: fmt(a.last7), after: fmt(after), tags: peers.map((x) => x.o.tagId).join(", "), pct: Math.round((1 - after / Math.max(a.last7, 1)) * 100) })
     }
 
     // (A) Sự kiện dataLayer mà MỌI thẻ chờ nó đều im — trang không đẩy sự kiện đó.
@@ -450,8 +455,8 @@ export function gtmTriggerIssues(i: TagDoctorInput, issues: TagIssue[], gtmFixes
       const a = BUSINESS_ACTIONS.find((x) => x.key === action)!
       const others = i.pixelEvents.flatMap((p) => p.events).filter((e) => normEvent(e.name) === normEvent(a.meta) && e.name !== a.meta && (e.last7 ?? 0) > 0)
       const evidence = [
-        ...others.map((e) => `“${e.name}” (không từ thẻ này) vẫn ${fmt(e.last7 ?? 0)} lượt/7 ngày`),
-        ...(action === "purchase" && i.odooOrders ? [`Odoo có ${fmt(i.odooOrders)} đơn marketing trong 28 ngày`] : []),
+        ...others.map((e) => tr("libmeta.td.evOthers", { name: e.name, n: fmt(e.last7 ?? 0) })),
+        ...(action === "purchase" && i.odooOrders ? [tr("libmeta.td.evOdoo", { n: fmt(i.odooOrders) })] : []),
       ]
       if (!evidence.length) continue
       // Thẻ KHÁC cùng hành động đang có số nhờ trigger theo trang → trigger đó đã được chứng minh bắn.
@@ -467,24 +472,24 @@ export function gtmTriggerIssues(i: TagDoctorInput, issues: TagIssue[], gtmFixes
           if (gtmFixes.some((f) => f.id === id)) continue
           const warn = signalLoss(m.t, to.id)
           gtmFixes.push({ id, kind: "tag_retrigger", container: g.id, tagId: m.t.tagId, tagName: m.t.name, fromTriggerIds: m.t.triggers.map((x) => x.id), toTriggerId: to.id, toTriggerName: to.name, ...(warn ? { signalWarning: warn } : {}),
-            label: `${g.id} · ${m.t.name}: đổi trigger ${m.t.triggers.map((x) => `“${x.name}”`).join(", ")} → “${to.name}” (${to.condition}) — trigger thẻ ${sibling.o.tagId} đang dùng, ${fmt(sibling.s!.last7)} lượt/7 ngày` })
+            label: tr("libmeta.td.fixRetriggerSibling", { container: g.id, tag: m.t.name, from: m.t.triggers.map((x) => `“${x.name}”`).join(", "), to: to.name, cond: to.condition, sibling: sibling.o.tagId, n: fmt(sibling.s!.last7) }) })
           fixIds.push(id)
         }
       }
       issues.push({
         id: `gtm_dl_silent_${g.id}_${ev}`, severity: "bad", platform: "gtm",
-        title: `${g.id}: sự kiện dataLayer “${ev}” gần như không được đẩy — ${measured.length} thẻ chờ nó đều 0 lượt/7 ngày`,
+        title: tr("libmeta.td.dlSilentTitle", { container: g.id, ev, n: measured.length }),
         detail: [
-          `Thẻ chờ “${ev}”: ${measured.map((x) => `${x.t.tagId} ${x.t.name} (${x.s.label}: 0/7 ngày)`).join("; ")}.`,
-          `Trong khi đó ${evidence.join("; ")} → hành động vẫn xảy ra, chỉ là trang không gửi sự kiện “${ev}” vào dataLayer.`,
-          ...(sibling ? [`Thẻ ${sibling.o.tagId} “${sibling.o.name}” cùng hành động bắn theo ${sibling.o.triggers.map((x) => `trigger ${x.id} (${x.condition})`).join(", ")} và có ${fmt(sibling.s!.last7)} lượt/7 ngày.${action === "purchase" ? " Không tự nối cho Mua hàng: trigger theo trang không mang giá trị đơn." : ""}`] : []),
-          ...(pageTriggers.length ? [`Có trigger theo trang chưa thẻ nào dùng: ${pageTriggers.map((x) => `${x.id} ${x.name} (${x.condition})`).join("; ")} — nối vào thì thẻ bắn được nhưng giá trị đơn/mã đơn TRỐNG (các số đó nằm trong dataLayer).`] : []),
+          tr("libmeta.td.dlD1", { ev, list: measured.map((x) => tr("libmeta.td.dlD1Item", { tagId: x.t.tagId, name: x.t.name, label: x.s.label })).join("; ") }),
+          tr("libmeta.td.dlD2", { evidence: evidence.join("; "), ev }),
+          ...(sibling ? [tr("libmeta.td.dlD3", { tagId: sibling.o.tagId, name: sibling.o.name, triggers: sibling.o.triggers.map((x) => tr("libmeta.td.dlD3Trigger", { id: x.id, cond: x.condition })).join(", "), n: fmt(sibling.s!.last7), extra: action === "purchase" ? tr("libmeta.td.dlD3Purchase") : "" })] : []),
+          ...(pageTriggers.length ? [tr("libmeta.td.dlD4", { list: pageTriggers.map((x) => `${x.id} ${x.name} (${x.condition})`).join("; ") })] : []),
         ].join(" "),
         steps: [
-          `Đội web: ở trang hoàn tất đơn, đẩy dataLayer.push({ event: "${ev}", ecommerce: { transaction_id: <mã đơn>, value: <giá trị chưa VAT>, currency: "VND", items: [...] } }) — đúng tên “${ev}”, đẩy SAU khi đơn thành công`,
-          "Gửi kèm event_id (dùng làm mã khử trùng với API máy chủ) — cùng giá trị cho pixel trình duyệt và máy chủ",
-          "Kiểm bằng GTM Preview một đơn thử: thẻ phải chuyển sang “Fired” — tool tự thấy số về trong 1–2 ngày",
-          ...(fixIds.length ? ["Hoặc tạm thời: để tool nối thẻ vào trigger đang có số (bên dưới) — bắn ngay, không cần đội web"] : []),
+          tr("libmeta.td.dlStep1", { ev }),
+          tr("libmeta.td.dlStep2"),
+          tr("libmeta.td.dlStep3"),
+          ...(fixIds.length ? [tr("libmeta.td.dlStep4")] : []),
         ],
         fixIds: [], gtmFixIds: fixIds,
       })
@@ -503,20 +508,20 @@ export function gtmTriggerIssues(i: TagDoctorInput, issues: TagIssue[], gtmFixes
       // hành động add_payment_info bị xếp vào Bắt đầu thanh toán; thẻ 248 bắn theo add_payment_info là ĐÚNG).
       if (wrong.some((e) => normEvent(t.name).includes(normEvent(e)))) continue
       const target = triggers.filter((x) => x.customEvent === want).sort((x, y) => Number(usedTriggerIds.has(y.id)) - Number(usedTriggerIds.has(x.id)))[0]
-      const expectedLabel = BUSINESS_ACTIONS.find((a) => a.key === expectedAction)!.label
+      const expectedLabel = actLabel(expectedAction, tr)
       const id = `gtm_retrigger_${g.id}_${t.tagId}`
       const warn = target ? signalLoss(t, target.id) : undefined
       if (target) gtmFixes.push({
         id, kind: "tag_retrigger", container: g.id, tagId: t.tagId, tagName: t.name, fromTriggerIds: t.triggers.map((x) => x.id), toTriggerId: target.id, toTriggerName: target.name, ...(warn ? { signalWarning: warn } : {}),
-        label: `${g.id} · ${t.name}: đổi trigger ${t.triggers.map((x) => `“${x.name}”`).join(", ")} → “${target.name}” (${target.condition})`,
+        label: tr("libmeta.td.fixRetrigger", { container: g.id, tag: t.name, from: t.triggers.map((x) => `“${x.name}”`).join(", "), to: target.name, cond: target.condition }),
       })
       issues.push({
         id: `gtm_mismatch_${g.id}_${t.tagId}`, severity: "bad", platform: "gtm",
-        title: `${g.id} thẻ ${t.tagId} “${t.name}” đo ${expectedLabel} nhưng bắn theo sự kiện “${wrong.join(", ")}”`,
-        detail: `${t.type === "google" ? `Hành động Google của thẻ thuộc nhóm ${expectedLabel}` : `Thẻ gửi ${t.eventName}`}, trigger lại là ${t.triggers.map((x) => `${x.id} ${x.name} (${x.condition})`).join("; ")} → số ${expectedLabel} thực chất là số của hành động khác.${warn ? ` ⚠ ${warn}` : ""}`,
+        title: tr("libmeta.td.mismatchTitle", { container: g.id, tagId: t.tagId, name: t.name, expected: expectedLabel, wrong: wrong.join(", ") }),
+        detail: tr("libmeta.td.mismatchDetail", { head: t.type === "google" ? tr("libmeta.td.mismatchDetailGoogle", { expected: expectedLabel }) : tr("libmeta.td.mismatchDetailMeta", { event: t.eventName ?? "" }), triggers: t.triggers.map((x) => `${x.id} ${x.name} (${x.condition})`).join("; "), expected: expectedLabel, warn: warn ? ` ⚠ ${warn}` : "" }),
         steps: target
-          ? [`GTM ${g.id} → Thẻ ${t.tagId} → Kích hoạt: bỏ ${t.triggers.map((x) => x.name).join(", ")} → chọn “${target.name}” → Lưu → Submit/Publish`]
-          : [`GTM ${g.id} → tạo trigger Sự kiện tuỳ chỉnh “${want}” → gắn vào thẻ ${t.tagId} thay trigger hiện tại`],
+          ? [tr("libmeta.td.mismatchStepTarget", { container: g.id, tagId: t.tagId, from: t.triggers.map((x) => x.name).join(", "), to: target.name })]
+          : [tr("libmeta.td.mismatchStepNew", { container: g.id, want, tagId: t.tagId })],
         fixIds: [], gtmFixIds: target ? [id] : [],
       })
     }
@@ -537,7 +542,8 @@ export interface RoadmapStep {
   action: string
   href: string
 }
-export function purchaseRoadmap(i: TagDoctorInput, built: Pick<TagDoctorReport, "issues" | "fixes" | "gtmFixes">): RoadmapStep[] {
+export function purchaseRoadmap(i: TagDoctorInput, built: Pick<TagDoctorReport, "issues" | "fixes" | "gtmFixes">, tr: TFunction = makeT("vi")): RoadmapStep[] {
+  const fmt = (n: number) => fmtL(n, tr)
   const purchaseGoal = i.googleGoals.find((g) => g.category === "PURCHASE" && g.origin === "WEBSITE")
   const dlIssue = built.issues.find((x) => x.id.startsWith("gtm_dl_silent_") && x.id.endsWith("_purchase"))
   const primary = i.googleActions.filter((a) => a.category === "PURCHASE" && a.origin === "WEBSITE" && a.primary)
@@ -555,18 +561,18 @@ export function purchaseRoadmap(i: TagDoctorInput, built: Pick<TagDoctorReport, 
   const gtmReadable = i.gtm.some((g) => g.source === "api")
   const fixDone = gtmReadable && mislabeled.length === 0
   const steps: Omit<RoadmapStep, "status">[] = [
-    { id: "dl_purchase", label: "Trang đẩy sự kiện Mua hàng (purchase) vào dataLayer",
-      evidence: `Purchase chuẩn từ GTM ${fmt(std)} lượt/7 ngày${variant ? ` (bản tự đặt ${fmt(variant)})` : ""}${dlIssue ? " · thẻ chờ purchase đang im" : ""}`,
-      action: "Gửi dặn việc cho đội web (nút “Sao chép dặn việc cho đội web” ở lỗi dataLayer bên dưới)", href: "/do-luong?tab=tags" },
-    { id: "google_purchase_signal", label: "Google ghi nhận Mua hàng",
-      evidence: primary.length ? primary.map((a) => `“${a.name}” ${fmt(a.last7)} lượt/7 ngày`).join(" · ") : "Chưa có hành động Mua hàng CHÍNH",
-      action: "Chờ 1–2 ngày sau khi đội web sửa; nếu vẫn 0 → kiểm thẻ Google Purchase trong GTM Preview", href: "/do-luong?tab=google" },
-    { id: "bid_purchase", label: "Chuyển Google sang đặt giá theo Mua hàng",
-      evidence: purchaseGoal ? (purchaseGoal.biddable ? "Mua hàng đang là mục tiêu đặt giá" : `Đang đặt giá theo ${i.googleGoals.filter((g) => g.biddable && g.origin === "WEBSITE").map((g) => g.category).join(", ") || "không mục tiêu nào"}`) : "Không thấy mục tiêu Mua hàng",
-      action: "Mục “Sửa trên Google”: chọn “Đặt Mua hàng làm mục tiêu đặt giá” (+ tắt Thêm giỏ / Bắt đầu thanh toán) → Kiểm trước → XAC NHAN", href: "/do-luong?tab=tags" },
-    { id: "fix_mislabeled", label: "Sửa các thẻ đo nhầm nhóm",
-      evidence: !gtmReadable ? "Chưa đọc được GTM qua API (Cài đặt → Kết nối → Google Tag Manager)" : fixDone ? "Không còn thẻ đo nhầm nhóm" : mislabeled.map((x) => x.title).join(" · "),
-      action: "Mục “Sửa trên GTM”: chọn việc đổi trigger → Kiểm trước → Publish", href: "/do-luong?tab=tags" },
+    { id: "dl_purchase", label: tr("libmeta.td.rm.dl.label"),
+      evidence: tr("libmeta.td.rm.dl.evidence", { std: fmt(std), variant: variant ? tr("libmeta.td.rm.dl.variant", { n: fmt(variant) }) : "", silent: dlIssue ? tr("libmeta.td.rm.dl.silent") : "" }),
+      action: tr("libmeta.td.rm.dl.action"), href: "/do-luong?tab=tags" },
+    { id: "google_purchase_signal", label: tr("libmeta.td.rm.sig.label"),
+      evidence: primary.length ? primary.map((a) => tr("libmeta.td.rm.sig.evidenceItem", { name: a.name, n: fmt(a.last7) })).join(" · ") : tr("libmeta.td.rm.sig.noPrimary"),
+      action: tr("libmeta.td.rm.sig.action"), href: "/do-luong?tab=google" },
+    { id: "bid_purchase", label: tr("libmeta.td.rm.bid.label"),
+      evidence: purchaseGoal ? (purchaseGoal.biddable ? tr("libmeta.td.rm.bid.on") : tr("libmeta.td.rm.bid.off", { list: i.googleGoals.filter((g) => g.biddable && g.origin === "WEBSITE").map((g) => g.category).join(", ") || tr("libmeta.td.rm.bid.noneGoal") })) : tr("libmeta.td.rm.bid.noPurchaseGoal"),
+      action: tr("libmeta.td.rm.bid.action"), href: "/do-luong?tab=tags" },
+    { id: "fix_mislabeled", label: tr("libmeta.td.rm.fix.label"),
+      evidence: !gtmReadable ? tr("libmeta.td.rm.fix.noApi") : fixDone ? tr("libmeta.td.rm.fix.none") : mislabeled.map((x) => x.title).join(" · "),
+      action: tr("libmeta.td.rm.fix.action"), href: "/do-luong?tab=tags" },
   ]
   const done = [dlDone, sigDone, bidDone, fixDone]
   let reachedTodo = false

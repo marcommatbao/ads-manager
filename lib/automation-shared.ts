@@ -1,3 +1,4 @@
+import { makeT, type TFunction } from "@/lib/i18n/translate"
 // ============================================================
 // AdsCommand — Automation Engine Shared Types & Constants
 // ============================================================
@@ -194,6 +195,18 @@ export function sanitizeGoogleChannelTypes(x: unknown): string[] {
   if (!Array.isArray(x)) return [];
   return [...new Set(x.filter((v): v is string => typeof v === "string" && GOOGLE_CHANNEL_TYPE_VALUES.has(v)))];
 }
+
+// Nhãn theo ngôn ngữ — hằng số bên trên giữ nguyên bản tiếng Việt (cron/Teams/MCP dùng); giao diện gọi các hàm dưới đây kèm t.
+export const metricLabel = (k: MetricKey, t: TFunction = makeT("vi")): string => t(`libcase.auto.metric.${k}` as never);
+export const operatorLabel = (k: ConditionOperator, t: TFunction = makeT("vi")): string => t(`libcase.auto.op.${k}` as never);
+export const actionLabel = (k: ActionType, t: TFunction = makeT("vi")): { label: string; icon: string } => ({ label: t(`libcase.auto.act.${k}` as never), icon: ACTION_LABELS[k].icon });
+export const intervalLabel = (k: CheckInterval, t: TFunction = makeT("vi")): string => t(`libcase.auto.interval.${k}` as never);
+export const timeWindowLabel = (k: TimeWindow, t: TFunction = makeT("vi")): string => t(`libcase.auto.tw.${k}` as never);
+export const googleChannelTypeLabel = (v: string, t: TFunction = makeT("vi")): string => (v in GOOGLE_CHANNEL_TYPE_LABEL ? t(`libcase.auto.chtype.${v}` as never) : v);
+export const googleChannelTypeOptions = (t: TFunction = makeT("vi")): { value: string; label: string }[] =>
+  GOOGLE_CHANNEL_TYPE_OPTIONS.map((o) => ({ value: o.value, label: googleChannelTypeLabel(o.value, t) }));
+/** Tên luật mẫu theo chỉ số trong PREBUILT_RULES (chỉ tên; nội dung thông báo của luật vẫn tiếng Việt vì do cron gửi). */
+export const prebuiltRuleName = (index: number, t: TFunction = makeT("vi")): string => (index >= 0 && index < PREBUILT_RULES.length ? t(`libcase.auto.rule.${index}` as never) : "");
 
 // ─────────────────────────────────────────────
 // Pre-built Rules (6 Templates)

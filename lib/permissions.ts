@@ -1,3 +1,4 @@
+import { makeT, type TFunction } from "@/lib/i18n/translate"
 import { companyIds, isCompany } from "@/lib/companies/registry";
 // ============================================================
 // AdsCommand — Permissions & RBAC (Company-Based Roles)
@@ -266,13 +267,13 @@ const BLOCKED_MESSAGES: Record<string, string> = {
   "/creative":                "Bạn không có quyền truy cập Creative AI",
 };
 
-export function getBlockedMessage(pathname: string): string {
-  for (const [route, msg] of Object.entries(BLOCKED_MESSAGES)) {
+export function getBlockedMessage(pathname: string, t: TFunction = makeT("vi")): string {
+  for (const route of Object.keys(BLOCKED_MESSAGES)) {
     if (pathname === route || pathname.startsWith(route + "/")) {
-      return msg;
+      return t(`libcase.blocked.${route}` as never);
     }
   }
-  return "Bạn không có quyền truy cập tính năng này";
+  return t("libcase.blocked.default");
 }
 
 // ─────────────────────────────────────────────
@@ -377,3 +378,9 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   can_edit_credentials: "Lưu/cập nhật API credentials",
   can_manage_policy_radar: "Thêm/duyệt mục Policy Radar",
 };
+
+// Nhãn theo ngôn ngữ (không đổi logic vai trò/quyền): giao diện gọi kèm t; ROLE_CONFIG/PERMISSION_LABELS giữ bản tiếng Việt.
+export const roleLabelVi = (role: Role, t: TFunction = makeT("vi")): string => t(`libcase.role.${role}.labelVi` as never);
+export const roleDescription = (role: Role, t: TFunction = makeT("vi")): string => t(`libcase.role.${role}.desc` as never);
+export const roleCompanyLabel = (role: Role, t: TFunction = makeT("vi")): string => t(`libcase.role.${role}.company` as never);
+export const permissionLabel = (key: PermissionKey, t: TFunction = makeT("vi")): string => t(`libcase.perm.${key}` as never);

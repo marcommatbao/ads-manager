@@ -21,7 +21,7 @@ import {
   RefreshCw, Sparkles, Undo2, XCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import type { MessageKey } from "@/lib/i18n/messages";
 import { getJson, postJson, putJson, ApiError } from "@/components/case/api";
 import { vnd, datetimeVN } from "@/components/case/format";
@@ -118,6 +118,7 @@ function ApplyControls({
   confirmText: string;
   onDone: () => void;
 }) {
+  const intl = useIntlLocale();
   const t = useT();
   const confirmId = useId();
   const ids = items.map((p) => p.id);
@@ -203,7 +204,7 @@ function ApplyControls({
                   {p.label}
                   {p.campaignName && <span className="text-slate-400"> · {p.campaignName}</span>}
                 </span>
-                {p.cost !== null && <span className="shrink-0 tabular-nums text-slate-500">{vnd(p.cost)}</span>}
+                {p.cost !== null && <span className="shrink-0 tabular-nums text-slate-500">{vnd(p.cost, intl)}</span>}
               </li>
             ))}
           </ul>
@@ -278,6 +279,7 @@ function RecommendationCard({
   onAutoToggle: (kind: AutoKind, enable: boolean) => void;
   onApplied: () => void;
 }) {
+  const intl = useIntlLocale();
   const t = useT();
   const [open, setOpen] = useState(rec.priority === 1);
   const meta = PRIORITY_META[rec.priority];
@@ -292,7 +294,7 @@ function RecommendationCard({
         </div>
         <p className="text-xs text-slate-500">{rec.why}</p>
         {rec.moneyAtStake !== null && (
-          <p className="text-xs font-semibold text-red-600">{t("google.pmaxActions.atStake")}: {vnd(rec.moneyAtStake)}</p>
+          <p className="text-xs font-semibold text-red-600">{t("google.pmaxActions.atStake")}: {vnd(rec.moneyAtStake, intl)}</p>
         )}
       </div>
 
@@ -368,6 +370,7 @@ function GlobalApplyBar({
 // ── Lịch sử áp dụng ──
 
 function HistoryRow({ h, onUndo }: { h: ControlExecution; onUndo: (id: string) => void }) {
+  const intl = useIntlLocale();
   const t = useT();
   const ok = h.status === "done";
   const isAuto = h.by === "Tự động (PMax)";
@@ -378,7 +381,7 @@ function HistoryRow({ h, onUndo }: { h: ControlExecution; onUndo: (id: string) =
           {ok ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> : <XCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
           {h.mode === "validate" ? t("google.pmaxActions.hValidate") : t("google.pmaxActions.hWritten")}
         </span>
-        <span className="text-slate-400">{datetimeVN(h.at)}</span>
+        <span className="text-slate-400">{datetimeVN(h.at, intl)}</span>
         <span className="flex items-center gap-1 text-slate-500">
           {isAuto ? <><Bot className="h-3 w-3 shrink-0" aria-hidden="true" /> {t("google.pmaxActions.autoPmax")}</> : h.by}
         </span>
@@ -396,7 +399,7 @@ function HistoryRow({ h, onUndo }: { h: ControlExecution; onUndo: (id: string) =
       {h.mode === "write" && (
         h.undoneAt ? (
           <div className="mt-2 rounded-md border border-slate-200 bg-white p-2 text-slate-600">
-            <p className="font-semibold">{t("google.pmaxActions.undoneAt", { time: datetimeVN(h.undoneAt) })}</p>
+            <p className="font-semibold">{t("google.pmaxActions.undoneAt", { time: datetimeVN(h.undoneAt, intl) })}</p>
             {h.undoReport && h.undoReport.length > 0 && (
               <ul className="mt-1 list-disc space-y-0.5 pl-4">{h.undoReport.map((l, i) => <li key={i}>{l}</li>)}</ul>
             )}

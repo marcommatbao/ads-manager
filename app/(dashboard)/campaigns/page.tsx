@@ -292,11 +292,11 @@ export default function CampaignsPage() {
       return [
         `"${c.name.replace(/"/g, '""')}"`, c.platform, `"${acctName}"`,
         statusMap[c.status] || c.status,
-        `"${formatCurrency(c.dailyBudget, currency, true)}"`,
+        `"${formatCurrency(c.dailyBudget, currency, true, intl)}"`,
         m.impressions, `"${m.ctr.toFixed(2)}%"`,
-        `"${formatCurrency(m.cpc, currency, false)}"`,
+        `"${formatCurrency(m.cpc, currency, false, intl)}"`,
         `"${m.roas.toFixed(1)}x"`,
-        `"${formatCurrency(m.spend, currency, false)}"`,
+        `"${formatCurrency(m.spend, currency, false, intl)}"`,
         // Cột Meta: để trống (không ghi 0) khi Meta không có giá trị cho loại kết quả — như Ads Manager.
         c.platform === "facebook" ? m.conversions : "",
         m.resultRoas != null ? m.resultRoas.toFixed(2) : "",

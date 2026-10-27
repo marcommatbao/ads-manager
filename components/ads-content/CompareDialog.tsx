@@ -22,7 +22,7 @@ import { CreativeTypeBadge } from "./CreativeTypeBadge";
 import { CreativeStatusBadge } from "./CreativeStatusBadge";
 import { formatCurrency, formatNumber } from "@/lib/utils";
 import { cn } from "@/lib/utils";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import type { CreativeItem } from "@/types/creative-content.types";
 import type { CompareResult, CompareSide, MetricVerdict, ComparabilityLevel } from "@/lib/creative-compare";
 
@@ -37,11 +37,11 @@ const fetcher = async ([url, ids, level]: [string, string[], string]): Promise<C
   return json.data as CompareResult;
 };
 
-function formatValue(v: number | null, unit: MetricVerdict["unit"], currency: string): string {
+function formatValue(v: number | null, unit: MetricVerdict["unit"], currency: string, loc: string): string {
   if (v === null) return "—";
   switch (unit) {
     case "percent": return `${v.toFixed(2)}%`;
-    case "currency": return formatCurrency(v, currency, false);
+    case "currency": return formatCurrency(v, currency, false, loc);
     case "ratio": return `${v.toFixed(2)}x`;
     case "seconds": return `${v.toFixed(1)}s`;
   }
@@ -54,6 +54,7 @@ const LEVEL_STYLE: Record<ComparabilityLevel, { dot: string; text: string }> = {
 };
 
 function SideHeader({ item, side, label }: { item: CreativeItem; side: CompareSide | null; label: string }) {
+  const intl = useIntlLocale();
   const t = useT();
   return (
     <div className="min-w-0 flex-1">
@@ -76,7 +77,7 @@ function SideHeader({ item, side, label }: { item: CreativeItem; side: CompareSi
       )}
       {side && (
         <p className="text-[11px] text-slate-500">
-          {t("creative.adsContent.compare.spent", { spend: formatCurrency(side.metrics.spend, "VND", false), impressions: formatNumber(side.metrics.impressions), conversions: side.metrics.conversions })}
+          {t("creative.adsContent.compare.spent", { spend: formatCurrency(side.metrics.spend, "VND", false, intl), impressions: formatNumber(side.metrics.impressions, intl), conversions: side.metrics.conversions })}
         </p>
       )}
       {side?.level === "campaign" && (
@@ -90,6 +91,7 @@ function SideHeader({ item, side, label }: { item: CreativeItem; side: CompareSi
 }
 
 function VerdictRow({ v, currency }: { v: MetricVerdict; currency: string }) {
+  const intl = useIntlLocale();
   const t = useT();
   const [open, setOpen] = useState(false);
   const aWins = v.winner === "a";
@@ -111,14 +113,14 @@ function VerdictRow({ v, currency }: { v: MetricVerdict; currency: string }) {
           aWins ? "bg-emerald-50 font-bold text-emerald-700" : "text-slate-600"
         )}>
           {aWins && <Trophy className="h-3 w-3" />}
-          {formatValue(v.aValue, v.unit, currency)}
+          {formatValue(v.aValue, v.unit, currency, intl)}
         </span>
         <span className={cn(
           "flex items-center justify-end gap-1 whitespace-nowrap rounded px-2 py-0.5 text-xs tabular-nums",
           bWins ? "bg-emerald-50 font-bold text-emerald-700" : "text-slate-600"
         )}>
           {bWins && <Trophy className="h-3 w-3" />}
-          {formatValue(v.bValue, v.unit, currency)}
+          {formatValue(v.bValue, v.unit, currency, intl)}
         </span>
       </button>
 

@@ -69,7 +69,7 @@ const shortVnd = (n: number, loc: string, t: TFunction) => {
   return f(n);
 };
 const fmtCard = (n: number | null, unit: Card["unit"], loc: string) =>
-  n === null ? "—" : unit === "vnd" ? vnd(n) : unit === "pct" ? `${n.toLocaleString(loc, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%` : num(n);
+  n === null ? "—" : unit === "vnd" ? vnd(n, loc) : unit === "pct" ? `${n.toLocaleString(loc, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%` : num(n, undefined, loc);
 const verdictText = (v: Verdict | null, t: TFunction) => (v ? VERDICT_LABEL[v] : t("overview.trends.notMeasured"));
 
 function KpiCard({ card }: { card: Card }) {
@@ -144,9 +144,9 @@ function BreakdownRow({ row, kind }: { row: BRowOut; kind: BTable["kind"] }) {
           <div className="h-1.5 rounded-full bg-blue-400" style={{ width: `${pct}%` }} />
         </div>
       </td>
-      <td className="py-2 pr-3 text-right tabular-nums">{vnd(row.spend)}</td>
-      <td className="py-2 pr-3 text-right tabular-nums">{num(row.results)} <span className="text-xs text-slate-400">{kind === "sales" ? t("overview.trends.unitPurchases") : t("overview.trends.unitLeads")}</span></td>
-      <td className="py-2 pr-3 text-right tabular-nums">{row.costPerResult === null ? "—" : vnd(row.costPerResult)}</td>
+      <td className="py-2 pr-3 text-right tabular-nums">{vnd(row.spend, loc)}</td>
+      <td className="py-2 pr-3 text-right tabular-nums">{num(row.results, undefined, loc)} <span className="text-xs text-slate-400">{kind === "sales" ? t("overview.trends.unitPurchases") : t("overview.trends.unitLeads")}</span></td>
+      <td className="py-2 pr-3 text-right tabular-nums">{row.costPerResult === null ? "—" : vnd(row.costPerResult, loc)}</td>
       <td className="py-2 text-right tabular-nums">{row.ctr === null ? "—" : `${row.ctr.toLocaleString(loc, { maximumFractionDigits: 2 })}%`}</td>
     </tr>
   );
@@ -387,7 +387,7 @@ export function TrendsTab() {
                       ))}
                       <Tooltip
                         labelFormatter={(l) => ddmm(String(l))}
-                        formatter={(v, name) => [name === t("overview.trends.thCost") ? vnd(Number(v)) : num(Number(v)), name]}
+                        formatter={(v, name) => [name === t("overview.trends.thCost") ? vnd(Number(v), loc) : num(Number(v), undefined, loc), name]}
                       />
                       <Legend wrapperStyle={{ fontSize: 12 }} />
                       <Bar yAxisId="left" dataKey="spend" name={t("overview.trends.thCost")} fill="#93c5fd" />

@@ -17,6 +17,10 @@ import { checkRecentCampaignMutation, recordCampaignMutation } from "@/lib/mutat
 import type { CaseAction, Execution, ReadbackRow } from "./store"
 import type { Company } from "./types"
 import { tokens } from "./text"
+import { makeT, type TFunction } from "@/lib/i18n/translate"
+import type { MessageKey } from "@/lib/i18n/messages"
+
+const xg = (k: string): MessageKey => `libcase.s.xg.${k}` as MessageKey
 
 type Row = Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -55,19 +59,19 @@ export interface PlannedOps {
 }
 
 /** Hàm thuần: trạng thái hiện tại + các việc được chọn → thao tác cụ thể + số dự kiến sau khi ghi. */
-export function planOps(states: CampaignState[], actions: CaseAction[], shared: SharedListState[] = []): PlannedOps {
+export function planOps(states: CampaignState[], actions: CaseAction[], shared: SharedListState[] = [], t: TFunction = makeT("vi")): PlannedOps {
   const byId = new Map(states.map((s) => [s.campaignId, s]))
   const lists = new Map(shared.map((l) => [l.sharedSetId, l]))
   const out: PlannedOps = { creates: [], removes: [], pauses: [], sharedCreates: [], sharedRemoves: [], attaches: [], expected: {}, expectedShared: {}, skipped: [] }
   const needList = (id: string) => {
     const l = lists.get(id)
-    if (!l) throw new Error(`Danh sách dùng chung ${id} không còn`)
+    if (!l) throw new Error(t(xg("errListGone"), { id }))
     return l
   }
   for (const l of shared) out.expectedShared[l.sharedSetId] = { members: l.members.length, attached: l.attachedCampaigns.map((a) => a.campaignId) }
   const need = (id: string) => {
     const s = byId.get(id)
-    if (!s) throw new Error(`Chiến dịch ${id} không còn (đã xoá hoặc không thuộc tài khoản này)`)
+    if (!s) throw new Error(t(xg("errCampGone"), { id }))
     return s
   }
   for (const s of states) out.expected[s.campaignId] = { negatives: s.negatives.length, status: s.status }
@@ -91,7 +95,7 @@ export function planOps(states: CampaignState[], actions: CaseAction[], shared: 
     } else if (a.type === "REMOVE_NEGATIVE") {
       const s = need(a.campaignId)
       const hits = s.negatives.filter((n) => negKey(n.text, n.match) === negKey(a.text, a.match))
-      if (!hits.length) { out.skipped.push(`Phủ định “${a.text}” không còn ở ${s.name}`); continue }
+      if (!hits.length) { out.skipped.push(t(xg("skipNegGone"), { text: a.text, name: s.name })); continue }
       for (const h of hits) {
         out.removes.push({ campaignId: a.campaignId, resourceName: h.resourceName, text: h.text, match: h.match })
         out.expected[a.campaignId].negatives -= 1
@@ -101,7 +105,7 @@ export function planOps(states: CampaignState[], actions: CaseAction[], shared: 
       const have = new Set(l.members.map((m) => negKey(m.text, m.match)))
       for (const n of a.negatives) {
         const k = negKey(n.text, n.match)
-        if (have.has(k)) { existed.set(`danh sách “${l.name}”`, [...(existed.get(`danh sách “${l.name}”`) ?? []), n.text]); continue }
+        if (have.has(k)) { const ln = t(xg("listName"), { name: l.name }); existed.set(ln, [...(existed.get(ln) ?? []), n.text]); continue }
         have.add(k)
         out.sharedCreates.push({ sharedSetId: l.sharedSetId, sharedSetResource: l.resourceName, text: norm(n.text), match: n.match })
         out.expectedShared[l.sharedSetId].members += 1
@@ -110,7 +114,7 @@ export function planOps(states: CampaignState[], actions: CaseAction[], shared: 
       const l = needList(a.sharedSetId)
       for (const w of a.words) {
         const hits = l.members.filter((m) => negKey(m.text, m.match) === negKey(w.text, w.match))
-        if (!hits.length) { out.skipped.push(`“${w.text}” không còn trong danh sách “${l.name}”`); continue }
+        if (!hits.length) { out.skipped.push(t(xg("skipWordGone"), { text: w.text, name: l.name })); continue }
         for (const h of hits) {
           out.sharedRemoves.push({ sharedSetId: l.sharedSetId, resourceName: h.resourceName, text: h.text, match: h.match })
           out.expectedShared[l.sharedSetId].members -= 1
@@ -119,61 +123,63 @@ export function planOps(states: CampaignState[], actions: CaseAction[], shared: 
     } else if (a.type === "ATTACH_SHARED_LIST") {
       const s = need(a.campaignId)
       const l = needList(a.sharedSetId)
-      if (l.attachedCampaigns.some((x) => x.campaignId === a.campaignId)) { out.skipped.push(`Danh sách “${l.name}” đã gắn sẵn vào ${s.name}`); continue }
+      if (l.attachedCampaigns.some((x) => x.campaignId === a.campaignId)) { out.skipped.push(t(xg("skipAttached"), { list: l.name, name: s.name })); continue }
       out.attaches.push({ campaignId: a.campaignId, campaignResource: s.resourceName, sharedSetId: l.sharedSetId, sharedSetResource: l.resourceName })
       out.expectedShared[l.sharedSetId].attached.push(a.campaignId)
     } else if (a.type === "PAUSE_CAMPAIGN") {
       const s = need(a.campaignId)
-      if (s.status === "PAUSED") { out.skipped.push(`${s.name} đã dừng sẵn`); continue }
+      if (s.status === "PAUSED") { out.skipped.push(t(xg("skipPaused"), { name: s.name })); continue }
       out.pauses.push({ campaignId: a.campaignId, resourceName: s.resourceName, before: s.status })
       out.expected[a.campaignId].status = "PAUSED"
     }
   }
   for (const [name, words] of existed) {
     const head = words.slice(0, 5).map((w) => `“${w}”`).join(", ")
-    out.skipped.unshift(`${words.length} phủ định đã có sẵn ở ${name} — bỏ qua (${head}${words.length > 5 ? `, và ${words.length - 5} từ khác` : ""})`)
+    out.skipped.unshift(t(xg("skipExisting"), { n: words.length, name, head: head + (words.length > 5 ? t(xg("andMore"), { n: words.length - 5 }) : "") }))
   }
   return out
 }
 
 const STATUS_VI: Record<string, string> = { ENABLED: "Đang chạy", PAUSED: "Đã dừng" }
+const viStatus = (s: string, t: TFunction) => (s in STATUS_VI ? t(xg(`status.${s}`)) : s)
 
 /** Hàm thuần: so trạng thái đọc lại với dự kiến, từng dòng. */
 export function compareReadback(
   before: CampaignState[], after: CampaignState[], plan: PlannedOps,
-  sharedBefore: SharedListState[] = [], sharedAfter: SharedListState[] = [],
+  sharedBefore: SharedListState[] = [], sharedAfter: SharedListState[] = [], t: TFunction = makeT("vi"),
 ): ReadbackRow[] {
+  const unreadable = t(xg("unreadable")), yes = t(xg("yes")), no = t(xg("no"))
   const rows: ReadbackRow[] = []
   for (const b of sharedBefore) {
     const a = sharedAfter.find((x) => x.sharedSetId === b.sharedSetId)
     const exp = plan.expectedShared[b.sharedSetId]
     if (!exp) continue
     if (exp.members !== b.members.length) {
-      rows.push({ label: `Số từ · danh sách “${b.name}”`, before: String(b.members.length), after: a ? String(a.members.length) : "không đọc được", expected: String(exp.members), ok: a?.members.length === exp.members })
+      rows.push({ label: t(xg("rbWordCount"), { name: b.name }), before: String(b.members.length), after: a ? String(a.members.length) : unreadable, expected: String(exp.members), ok: a?.members.length === exp.members })
     }
     for (const r of plan.sharedRemoves.filter((x) => x.sharedSetId === b.sharedSetId)) {
       const still = a ? a.members.some((m) => negKey(m.text, m.match) === negKey(r.text, r.match)) : true
-      rows.push({ label: `Còn “${r.text}” trong “${b.name}”?`, before: "Có", after: a ? (still ? "Có" : "Không") : "không đọc được", expected: "Không", ok: !still })
+      rows.push({ label: t(xg("rbStillInList"), { text: r.text, name: b.name }), before: yes, after: a ? (still ? yes : no) : unreadable, expected: no, ok: !still })
     }
     for (const cid of exp.attached.filter((id) => !b.attachedCampaigns.some((x) => x.campaignId === id))) {
       const name = before.find((x) => x.campaignId === cid)?.name ?? cid
       const ok = !!a?.attachedCampaigns.some((x) => x.campaignId === cid)
-      rows.push({ label: `Gắn “${b.name}” vào ${name}`, before: "Chưa", after: a ? (ok ? "Đã gắn" : "Chưa") : "không đọc được", expected: "Đã gắn", ok })
+      rows.push({ label: t(xg("rbAttach"), { list: b.name, name }), before: t(xg("notYet")), after: a ? (ok ? t(xg("attached")) : t(xg("notYet"))) : unreadable, expected: t(xg("attached")), ok })
     }
   }
   for (const b of before) {
     const a = after.find((x) => x.campaignId === b.campaignId)
     const exp = plan.expected[b.campaignId]
     const afterNeg = a ? a.negatives.length : -1
-    rows.push({ label: `Phủ định · ${b.name}`, before: String(b.negatives.length), after: a ? String(afterNeg) : "không đọc được", expected: String(exp.negatives), ok: afterNeg === exp.negatives })
+    rows.push({ label: t(xg("rbNegatives"), { name: b.name }), before: String(b.negatives.length), after: a ? String(afterNeg) : unreadable, expected: String(exp.negatives), ok: afterNeg === exp.negatives })
     if (exp.status !== b.status || plan.pauses.some((p) => p.campaignId === b.campaignId)) {
-      rows.push({ label: `Trạng thái · ${b.name}`, before: STATUS_VI[b.status] ?? b.status, after: a ? (STATUS_VI[a.status] ?? a.status) : "không đọc được", expected: STATUS_VI[exp.status] ?? exp.status, ok: a?.status === exp.status })
+      rows.push({ label: t(xg("rbStatus"), { name: b.name }), before: viStatus(b.status, t), after: a ? viStatus(a.status, t) : unreadable, expected: viStatus(exp.status, t), ok: a?.status === exp.status })
     }
   }
   for (const r of plan.removes) {
     const a = after.find((x) => x.campaignId === r.campaignId)
     const still = a?.negatives.some((n) => negKey(n.text, n.match) === negKey(r.text, r.match)) ?? true
-    rows.push({ label: `Còn phủ định “${r.text}”?`, before: "Có", after: still ? "Có" : "Không", expected: "Không", ok: !still })
+    rows.push({ label: t(xg("rbStillNeg"), { text: r.text }), before: yes, after: still ? yes : no, expected: no, ok: !still })
   }
   return rows
 }
@@ -270,8 +276,10 @@ export async function executeGoogleActions(input: {
   customer: Customer; company: Company; actions: CaseAction[]; actor: string; idempotencyKey: string
   /** true = chỉ nhờ Google kiểm hợp lệ rồi dừng — KHÔNG ghi gì (nút "Kiểm trước"). */
   validateOnly?: boolean
+  t?: TFunction
 }): Promise<Execution> {
   const { customer, company, actions, actor } = input
+  const t = input.t ?? makeT("vi")
   const exec: Execution = {
     id: `exec_${Date.now().toString(36)}`, at: new Date().toISOString(), by: actor, idempotencyKey: input.idempotencyKey,
     mode: input.validateOnly ? "validate" : "write",
@@ -287,9 +295,9 @@ export async function executeGoogleActions(input: {
   try {
     before = await readCampaignStates(customer, ids)
     sharedBefore = await readSharedStates(customer, listIds)
-    plan = planOps(before, actions, sharedBefore)
+    plan = planOps(before, actions, sharedBefore, t)
   } catch (e) {
-    exec.errors.push(`Không đọc được trạng thái trước khi ghi: ${gErr(e)}`)
+    exec.errors.push(t(xg("errReadBefore"), { error: gErr(e) }))
     return exec
   }
   exec.warnings.push(...plan.skipped)
@@ -301,19 +309,19 @@ export async function executeGoogleActions(input: {
   try {
     await runOps(customer, plan, true)
   } catch (e) {
-    exec.errors.push(`Google từ chối khi kiểm hợp lệ — CHƯA ghi gì: ${gErr(e)}`)
+    exec.errors.push(t(xg("errValidate"), { error: gErr(e) }))
     return exec
   }
   if (input.validateOnly) {
     exec.status = "done"
     exec.readback = Object.entries(plan.expected).map(([id, e]) => {
       const b = before.find((x) => x.campaignId === id)!
-      const vi = (st: string) => STATUS_VI[st] ?? st
-      return { label: `Dự kiến · ${b.name}`, before: `${b.negatives.length} phủ định · ${vi(b.status)}`, after: "chưa ghi", expected: `${e.negatives} phủ định · ${vi(e.status)}`, ok: true }
+      const vi = (st: string) => viStatus(st, t)
+      return { label: t(xg("rbExpected"), { name: b.name }), before: t(xg("rbNegStatus"), { n: b.negatives.length, status: vi(b.status) }), after: t(xg("rbNotWritten")), expected: t(xg("rbNegStatus"), { n: e.negatives, status: vi(e.status) }), ok: true }
     })
     const extra = plan.sharedCreates.length || plan.sharedRemoves.length || plan.attaches.length
-      ? `, bỏ ${plan.sharedRemoves.length} và thêm ${plan.sharedCreates.length} từ ở danh sách dùng chung, gắn ${plan.attaches.length} danh sách` : ""
-    exec.warnings.unshift(`Chỉ kiểm hợp lệ: Google chấp nhận ${plan.creates.length} phủ định mới, xoá ${plan.removes.length}, dừng ${plan.pauses.length}${extra}. Chưa ghi gì.`)
+      ? t(xg("validateExtra"), { removes: plan.sharedRemoves.length, creates: plan.sharedCreates.length, attaches: plan.attaches.length }) : ""
+    exec.warnings.unshift(t(xg("validateOnly"), { creates: plan.creates.length, removes: plan.removes.length, pauses: plan.pauses.length, extra }))
     return exec
   }
   try {
@@ -326,7 +334,7 @@ export async function executeGoogleActions(input: {
     exec.paused = plan.pauses.map(({ campaignId, before: b }) => ({ campaignId, before: b }))
   } catch (e) {
     // Lô trước có thể đã ghi — đọc lại bên dưới sẽ cho biết thật sự đã đổi gì.
-    exec.errors.push(`Lỗi khi ghi: ${gErr(e)}`)
+    exec.errors.push(t(xg("errWrite"), { error: gErr(e) }))
   }
   for (const p of plan.pauses) {
     const name = before.find((b) => b.campaignId === p.campaignId)?.name ?? ""
@@ -335,18 +343,19 @@ export async function executeGoogleActions(input: {
   try {
     const after = await readCampaignStates(customer, ids)
     const sharedAfter = await readSharedStates(customer, listIds)
-    exec.readback = compareReadback(before, after, plan, sharedBefore, sharedAfter)
+    exec.readback = compareReadback(before, after, plan, sharedBefore, sharedAfter, t)
   } catch (e) {
-    exec.errors.push(`Đã ghi nhưng không đọc lại được để xác nhận: ${gErr(e)}`)
+    exec.errors.push(t(xg("errReadback"), { error: gErr(e) }))
   }
   exec.status = exec.errors.length === 0 && exec.readback.every((r) => r.ok) ? "done" : "failed"
   return exec
 }
 
 export async function undoGoogleExecution(input: {
-  customer: Customer; company: Company; exec: Execution; actor: string
+  customer: Customer; company: Company; exec: Execution; actor: string; t?: TFunction
 }): Promise<string[]> {
   const { customer, exec } = input
+  const t = input.t ?? makeT("vi")
   const report: string[] = []
   const ids = [...new Set([...exec.removed.map((r) => r.campaignId), ...exec.paused.map((p) => p.campaignId),
     ...exec.created.map((rn) => rn.split("/campaignCriteria/")[1]?.split("~")[0] ?? "").filter(Boolean)])]
@@ -354,9 +363,9 @@ export async function undoGoogleExecution(input: {
   const existing = new Set(now.flatMap((s) => s.negatives.map((n) => n.resourceName)))
 
   const toDelete = exec.created.filter((rn) => existing.has(rn))
-  if (exec.created.length - toDelete.length > 0) report.push(`${exec.created.length - toDelete.length} phủ định đã bị người khác xoá trước — bỏ qua.`)
+  if (exec.created.length - toDelete.length > 0) report.push(t(xg("undoNegDeletedByOther"), { n: exec.created.length - toDelete.length }))
   for (const batch of chunk(toDelete, 200)) await customer.campaignCriteria.remove(batch)
-  if (toDelete.length) report.push(`Đã xoá ${toDelete.length} phủ định do phiên thêm.`)
+  if (toDelete.length) report.push(t(xg("undoNegDeleted"), { n: toDelete.length }))
 
   const readd = exec.removed.filter((r) => {
     const s = now.find((x) => x.campaignId === r.campaignId)
@@ -367,17 +376,17 @@ export async function undoGoogleExecution(input: {
       campaign: now.find((s) => s.campaignId === r.campaignId)!.resourceName, negative: true,
       keyword: { text: r.text, match_type: matchEnum(r.match) },
     })))
-    report.push(`Đã thêm lại ${readd.length} phủ định: ${readd.map((r) => `“${r.text}”`).join(", ")}.`)
+    report.push(t(xg("undoNegReadded"), { n: readd.length, list: readd.map((r) => `“${r.text}”`).join(", ") }))
   }
 
   for (const p of exec.paused) {
     const s = now.find((x) => x.campaignId === p.campaignId)
-    if (!s) { report.push(`Chiến dịch ${p.campaignId} không còn — bỏ qua.`); continue }
-    if (s.status !== "PAUSED") { report.push(`${s.name} đang ở trạng thái ${s.status} (đã có người đổi) — giữ nguyên.`); continue }
+    if (!s) { report.push(t(xg("undoCampGone"), { id: p.campaignId })); continue }
+    if (s.status !== "PAUSED") { report.push(t(xg("undoStatusChanged"), { name: s.name, status: s.status })); continue }
     const target = (enums.CampaignStatus as unknown as Record<string, number>)[p.before]
     await customer.campaigns.update([{ resource_name: s.resourceName, status: target }])
     recordCampaignMutation({ source: { type: "human_manual", actor: input.actor }, event: "campaign.resume", company: input.company, campaignId: p.campaignId, campaignName: s.name, rationale: "Xử lý chiến dịch — hoàn tác" })
-    report.push(`Đã bật lại ${s.name}.`)
+    report.push(t(xg("undoResumed"), { name: s.name }))
   }
   // Danh sách dùng chung: gỡ liên kết phiên đã gắn, xoá từ phiên đã thêm (còn tồn tại mới xoá).
   const sharedCreated = exec.sharedCreated ?? []
@@ -393,12 +402,12 @@ export async function undoGoogleExecution(input: {
     const liveLinks = new Set(lists.flatMap((l) => l.attachedCampaigns.map((a) => a.resourceName)))
     const liveMembers = new Set(lists.flatMap((l) => l.members.map((m) => m.resourceName)))
     const unlink = attached.filter((rn) => liveLinks.has(rn))
-    if (unlink.length) { await customer.campaignSharedSets.remove(unlink); report.push(`Đã gỡ ${unlink.length} liên kết danh sách dùng chung do phiên gắn.`) }
-    if (attached.length > unlink.length) report.push(`${attached.length - unlink.length} liên kết đã bị người khác gỡ trước — bỏ qua.`)
+    if (unlink.length) { await customer.campaignSharedSets.remove(unlink); report.push(t(xg("undoUnlinked"), { n: unlink.length })) }
+    if (attached.length > unlink.length) report.push(t(xg("undoLinksGone"), { n: attached.length - unlink.length }))
     const delMembers = sharedCreated.filter((rn) => liveMembers.has(rn))
     for (const batch of chunk(delMembers, 200)) await customer.sharedCriteria.remove(batch)
-    if (delMembers.length) report.push(`Đã xoá ${delMembers.length} từ do phiên thêm vào danh sách dùng chung.`)
-    if (sharedCreated.length > delMembers.length) report.push(`${sharedCreated.length - delMembers.length} từ trong danh sách đã bị người khác xoá trước — bỏ qua.`)
+    if (delMembers.length) report.push(t(xg("undoWordsDeleted"), { n: delMembers.length }))
+    if (sharedCreated.length > delMembers.length) report.push(t(xg("undoWordsGone"), { n: sharedCreated.length - delMembers.length }))
     // Thêm lại từ phiên đã bỏ (nếu chưa có ai thêm lại).
     const readd = sharedRemoved.filter((r) => {
       const l = lists.find((x) => x.sharedSetId === r.sharedSetId)
@@ -408,7 +417,7 @@ export async function undoGoogleExecution(input: {
       await customer.sharedCriteria.create(readd.map((r) => ({
         shared_set: lists.find((x) => x.sharedSetId === r.sharedSetId)!.resourceName, keyword: { text: r.text, match_type: matchEnum(r.match) },
       })))
-      report.push(`Đã thêm lại ${readd.length} từ vào danh sách dùng chung: ${readd.map((r) => `“${r.text}”`).join(", ")}.`)
+      report.push(t(xg("undoWordsReadded"), { n: readd.length, list: readd.map((r) => `“${r.text}”`).join(", ") }))
     }
   }
   return report

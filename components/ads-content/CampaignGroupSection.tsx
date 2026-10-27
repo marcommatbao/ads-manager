@@ -8,7 +8,7 @@ import { CreativeStatusBadge } from "./CreativeStatusBadge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn, formatCurrency, formatNumber } from "@/lib/utils";
 import { getCampaignDuration } from "@/lib/campaign-utils";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import type { CampaignCreativeGroup, CreativeItem } from "@/types/creative-content.types";
 
 function formatShortDate(iso: string): string {
@@ -36,6 +36,7 @@ export function CampaignGroupSection({
   onViewDetail,
   defaultOpen = true,
 }: CampaignGroupSectionProps) {
+  const intl = useIntlLocale();
   const t = useT();
   const [open, setOpen] = useState(defaultOpen);
   const groupItemIds = group.items.map((i) => i.id);
@@ -79,8 +80,8 @@ export function CampaignGroupSection({
 
           <div className="flex shrink-0 items-center gap-4 text-xs text-slate-500">
             <span>{t("creative.adsContent.group.creativeCount", { n: group.creativeCount })}</span>
-            <span className="font-semibold text-slate-700">{formatCurrency(group.totalSpend, currency, false)}</span>
-            <span>{t("creative.adsContent.group.clicks", { n: formatNumber(group.totalClicks) })}</span>
+            <span className="font-semibold text-slate-700">{formatCurrency(group.totalSpend, currency, false, intl)}</span>
+            <span>{t("creative.adsContent.group.clicks", { n: formatNumber(group.totalClicks, intl) })}</span>
             <span className="hidden sm:inline">{t("creative.adsContent.group.latest", { date: formatShortDate(group.latestActiveDate) })}</span>
             <span
               className={cn("hidden md:inline font-medium", duration.hasEnded ? "text-slate-400" : "text-slate-600")}

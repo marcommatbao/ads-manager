@@ -1,3 +1,4 @@
+import { makeT, type TFunction } from "@/lib/i18n/translate"
 // ============================================================
 // lib/trend-utils.ts
 // Period-over-period comparison utilities for Reports
@@ -49,13 +50,13 @@ export function getPreviousPeriod(from: string, to: string): { from: string; to:
 }
 
 /** Human-readable label for the comparison period */
-export function getPeriodLabel(from: string, to: string): string {
+export function getPeriodLabel(from: string, to: string, t: TFunction = makeT("vi")): string {
   const days = Math.round(
     (new Date(to).getTime() - new Date(from).getTime()) / 86400000
   ) + 1;
-  if (days === 7) return "vs 7 ngày trước";
-  if (days === 30) return "vs tháng trước";
-  return "vs kỳ trước tương đương";
+  if (days === 7) return t("libcase.trend.vs7");
+  if (days === 30) return t("libcase.trend.vs30");
+  return t("libcase.trend.vsEq");
 }
 
 /** Format a date string "YYYY-MM-DD" → "DD/MM" */

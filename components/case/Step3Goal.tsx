@@ -16,7 +16,7 @@ import type { CampaignCase } from "@/lib/case/store";
 import type { Company } from "@/lib/case/types";
 import type { CaseBasis, TargetBasis } from "@/lib/case/verdict";
 import { evidenceGoalKind } from "@/lib/case/goal-kind";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 
 // Hình dạng tối thiểu của một dòng /api/case-targets — chỉ lấy phần cần để
 // gợi ý mục tiêu, KHÔNG import lib/case/targets.ts (đó là file backend có fs).
@@ -41,6 +41,7 @@ export function Step3Goal({
   onSubmitted: (next: CampaignCase) => void;
   busy?: boolean;
 }) {
+  const intl = useIntlLocale();
   const t = useT();
   const group = productGroupOf(c.campaignName);
   const groupLabel = PRODUCT_LABEL[group];
@@ -154,7 +155,7 @@ export function Step3Goal({
           </div>
         </div>
         {basis !== "roas" && targetN > 0 && ceilingN > 0 && (
-          <p className="text-xs text-slate-400">{t("overview.step3.overCeil", { amount: vnd(ceilingN), unit: basis === "cpl" ? t("overview.step3.unit.lead") : t("overview.step3.unit.order") })}</p>
+          <p className="text-xs text-slate-400">{t("overview.step3.overCeil", { amount: vnd(ceilingN, intl), unit: basis === "cpl" ? t("overview.step3.unit.lead") : t("overview.step3.unit.order") })}</p>
         )}
 
         <label className="flex min-h-10 cursor-pointer items-center gap-2 text-sm text-slate-700">

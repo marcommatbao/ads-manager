@@ -275,6 +275,8 @@ export interface SweepOptions {
    * (FEATURE-INVENTORY dòng 189), nên lượt dọn dẹp phải bật cờ này.
    */
   includePaused?: boolean;
+  /** Ngôn ngữ câu giải thích `problem` (mặc định tiếng Việt). */
+  t?: import("@/lib/i18n/translate").TFunction;
 }
 
 /**
@@ -328,7 +330,7 @@ export async function sweepLandingPages(
     // Mở thử bản ĐÃ GỠ ValueTrack, nhưng giữ `url` gốc để người đọc còn nhận
     // ra dòng nào trong Google Ads — xem ghi chú ở stripValueTrack.
     const { url: probeUrl, changed } = stripValueTrack(base.url);
-    const res = await checkFinalUrl(probeUrl, timeoutMs);
+    const res = await checkFinalUrl(probeUrl, timeoutMs, opts.t);
     const verdict: SweepVerdict = !res.ok ? "dead" : res.status === null ? "inconclusive" : "alive";
     return {
       ...base, verdict, status: res.status, finalUrl: res.finalUrl, problem: res.problem,
@@ -348,7 +350,7 @@ export async function sweepLandingPages(
   const needRetry = checks.filter(c => c.verdict === "inconclusive");
   for (const row of needRetry) {
     const { url: probeUrl } = stripValueTrack(row.url);
-    const res = await checkFinalUrl(probeUrl, timeoutMs * 2);
+    const res = await checkFinalUrl(probeUrl, timeoutMs * 2, opts.t);
     row.verdict = !res.ok ? "dead" : res.status === null ? "inconclusive" : "alive";
     row.status = res.status;
     row.finalUrl = res.finalUrl;

@@ -11,6 +11,9 @@
 // kiểm chứng được lý do trước khi tách một ad group đang tiêu tiền, mà
 // "AI bảo thế" thì không kiểm chứng được.
 
+import type { TFunction } from "@/lib/i18n/translate";
+import { viT, tk } from "@/lib/google-i18n";
+
 export type KeywordIntent = "BRAND" | "COMPETITOR" | "TRANSACTIONAL" | "TOOL_FREE" | "INFORMATIONAL" | "GENERIC";
 
 export interface IntentRule {
@@ -53,6 +56,11 @@ export const INTENT_META: Record<KeywordIntent, IntentRule> = {
     rationale: "Từ khoá danh mục, chưa lộ ý định cụ thể. Đây là nhóm nền — nên giữ lại sau khi đã tách các nhóm trên ra.",
   },
 };
+
+/** Nhãn + lý do của một ý định theo ngôn ngữ của t (INTENT_META giữ bản tiếng Việt cho nơi không truyền t). */
+export function intentMetaT(intent: KeywordIntent, t: TFunction = viT): { label: string; rationale: string } {
+  return { label: tk(t, `libgoogle.kis.${intent}.label`), rationale: tk(t, `libgoogle.kis.${intent}.rationale`) };
+}
 
 /** Bỏ dấu tiếng Việt để so khớp không phụ thuộc cách gõ. */
 function stripDiacritics(s: string): string {

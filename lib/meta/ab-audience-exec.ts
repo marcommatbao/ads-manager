@@ -14,6 +14,7 @@ import { recordCampaignMutation } from "@/lib/mutation-guard"
 import { setCapped } from "@/lib/cost-guard"
 import { getWinning } from "./winning-audiences"
 import { targetingSummary } from "./winning-audiences-text"
+import { makeT, type TFunction } from "@/lib/i18n/translate"
 import { compareGroup, type CompareGroup } from "./audience-compare"
 import { adsetRow, ADSET_INSIGHT_FIELDS, ATTRIBUTION_WINDOWS } from "./audience-compare-fetch"
 import { busyAdset, daysRunning, newAbId, planWarnings, saveAbTest, validateEdit, variantTargeting, type AbAudienceTest, type AbVariant } from "./ab-audience"
@@ -33,9 +34,9 @@ export interface AbPlan {
 }
 
 /** Đọc nhóm A + chiến dịch, dựng nhóm B (chưa ghi). */
-async function buildPlan(company: string, sourceAdsetId: string, variant: AbVariant) {
+async function buildPlan(company: string, sourceAdsetId: string, variant: AbVariant, t: TFunction = makeT("vi")) {
   if (!/^\d{5,25}$/.test(sourceAdsetId)) throw new AbRefused("Mã nhóm quảng cáo không hợp lệ")
-  if (variant.kind === "edit") { const e = validateEdit(variant); if (e) throw new AbRefused(e) }
+  if (variant.kind === "edit") { const e = validateEdit(variant, t); if (e) throw new AbRefused(e) }
   const busy = busyAdset(sourceAdsetId)
   if (busy) throw new AbRefused("Nhóm này đang nằm trong một thử nghiệm chưa xong — kết thúc thử nghiệm đó trước")
   const s = await readSource(sourceAdsetId)
@@ -55,15 +56,15 @@ async function buildPlan(company: string, sourceAdsetId: string, variant: AbVari
     aTargeting: writableTargeting(aT as never).body as Record<string, unknown>, bTargeting: bT as Record<string, unknown>, overlapPct,
     campaignBudget: num(camp.daily_budget) !== null || num(camp.lifetime_budget) !== null,
     adsetDaily: daily, adsetLifetime: lifetime, aStatus: String(s.src.status), activeAds: s.ads.length, skippedAds: s.skipped,
-  })
-  if (dropped.length) warnings.push(`Trường nhắm chọn không chép được (app không ghi được): ${dropped.join(", ")}.`)
+  }, t)
+  if (dropped.length) warnings.push(t("libmeta.ab.warnDropped", { keys: dropped.join(", ") }))
   const retiredNote = retiredPositionsNote(retired)
   if (retiredNote) warnings.push(retiredNote)
   const bName = `${String(s.src.name).slice(0, 150)} · A/B tệp B · AdsCommand ${ddmm()}`
   const plan: AbPlan = {
     campaignId: String(camp.id), campaignName: String(camp.name ?? ""), goalKind: metaGoalKind(String(camp.objective ?? "")),
-    a: { adsetId: String(s.src.id), adsetName: String(s.src.name ?? ""), summary: targetingSummary(aT) },
-    bName, bSummary: targetingSummary(bT as Record<string, unknown>), bTargeting: bT as Record<string, unknown>, droppedKeys: dropped,
+    a: { adsetId: String(s.src.id), adsetName: String(s.src.name ?? ""), summary: targetingSummary(aT, t) },
+    bName, bSummary: targetingSummary(bT as Record<string, unknown>, t), bTargeting: bT as Record<string, unknown>, droppedKeys: dropped,
     dailyBudget: daily, ads: s.ads.length, overlapPct, blockers, warnings,
   }
   return { plan, src: s.src, ads: s.ads }
@@ -82,8 +83,8 @@ export function variantBody(src: Row, targeting: Record<string, unknown>, name: 
 }
 
 /** Bước 1 — xem trước + nhờ Meta Kiểm trước (không tạo gì). */
-export async function planAbTest(company: string, sourceAdsetId: string, variant: AbVariant): Promise<AbPlan & { validated: boolean; metaError: string | null }> {
-  const { plan, src, ads } = await buildPlan(company, sourceAdsetId, variant)
+export async function planAbTest(company: string, sourceAdsetId: string, variant: AbVariant, t: TFunction = makeT("vi")): Promise<AbPlan & { validated: boolean; metaError: string | null }> {
+  const { plan, src, ads } = await buildPlan(company, sourceAdsetId, variant, t)
   if (plan.blockers.length) return { ...plan, validated: false, metaError: null }
   const act = `act_${adAccountId()}`
   try {

@@ -18,6 +18,7 @@
 import { callGemini } from "@/lib/gemini";
 import { log } from "@/lib/logger";
 import type { CompareResult } from "@/lib/creative-compare";
+import { makeT, type TFunction } from "@/lib/i18n/translate";
 
 /** Tách mọi cụm số trong một đoạn văn, bỏ dấu phân cách nghìn và ký hiệu đơn
  *  vị để "₫6.200" và "6200" được coi là cùng một số. */
@@ -63,13 +64,13 @@ function factsFrom(result: CompareResult): string {
   return lines.join("\n");
 }
 
-export async function buildNarrative(result: CompareResult): Promise<NarrativeResult> {
+export async function buildNarrative(result: CompareResult, t: TFunction = makeT("vi")): Promise<NarrativeResult> {
   if (!process.env.GEMINI_API_KEY) return { text: null, source: "off" };
 
   const facts = factsFrom(result);
   const prompt = `Bạn là trợ lý viết lại nội dung. Dưới đây là kết quả so sánh hai quảng cáo, đã được phân tích xong bằng công thức thống kê.
 
-NHIỆM VỤ DUY NHẤT: viết lại thành 3-5 câu tiếng Việt liền mạch, dễ đọc cho người không rành quảng cáo.
+${t("libmeta.cn.langTask")}
 
 CẤM TUYỆT ĐỐI:
 - Không thêm bất kỳ con số nào không có trong dữ liệu dưới đây.
@@ -85,7 +86,7 @@ ${facts}`;
   try {
     const res = await callGemini(prompt, { temperature: 0.3, maxOutputTokens: 500, thinkingBudget: 0, timeoutMs: 20000 });
     const text = res.text?.trim();
-    if (!text) return { text: null, source: "rules", note: "Gemini trả về rỗng." };
+    if (!text) return { text: null, source: "rules", note: t("libmeta.cn.empty") };
 
     const invented = findInventedNumbers(facts, text);
     if (invented.length > 0) {
@@ -93,12 +94,12 @@ ${facts}`;
       return {
         text: null,
         source: "rules",
-        note: `Đoạn diễn giải bị loại vì AI đưa vào số không có trong dữ liệu (${invented.slice(0, 5).join(", ")}).`,
+        note: t("libmeta.cn.invented", { list: invented.slice(0, 5).join(", ") }),
       };
     }
     return { text, source: "ai" };
   } catch (err) {
     log.warn("compare_narrative", `Gemini hỏng: ${err instanceof Error ? err.message : String(err)}`);
-    return { text: null, source: "rules", note: "Không gọi được Gemini." };
+    return { text: null, source: "rules", note: t("libmeta.cn.failed") };
   }
 }

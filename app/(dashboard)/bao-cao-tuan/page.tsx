@@ -15,7 +15,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { datetimeVN } from "@/components/case/format";
 import { getJson, postJson, ApiError } from "@/components/case/api";
 import { cn } from "@/lib/utils";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import type { WeeklyReport } from "@/lib/reports/weekly";
 
 interface Resp {
@@ -27,6 +27,7 @@ interface Resp {
 const TONE: Record<string, string> = { good: "text-green-700", bad: "text-red-700", warn: "text-amber-700" };
 
 function WeeklyReportPage() {
+  const intl = useIntlLocale();
   const t = useT();
   const sp = useSearchParams();
   const [week, setWeek] = useState<string | null>(sp.get("week"));
@@ -72,8 +73,8 @@ function WeeklyReportPage() {
         <>
           <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
             <span className="font-semibold text-slate-700">{r.label}</span>
-            <span>{t("overview.weekly.built", { time: datetimeVN(r.builtAt) })}</span>
-            {r.sent && <span>{r.sent.sent ? t("overview.weekly.sentOk", { time: datetimeVN(r.sent.at) }) : r.sent.notConfigured ? t("overview.weekly.sentNotConfigured") : t("overview.weekly.sentError", { error: r.sent.error ?? "" })}</span>}
+            <span>{t("overview.weekly.built", { time: datetimeVN(r.builtAt, intl) })}</span>
+            {r.sent && <span>{r.sent.sent ? t("overview.weekly.sentOk", { time: datetimeVN(r.sent.at, intl) }) : r.sent.notConfigured ? t("overview.weekly.sentNotConfigured") : t("overview.weekly.sentError", { error: r.sent.error ?? "" })}</span>}
           </div>
           {r.errors.length > 0 && <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">{t("overview.weekly.unreadable", { list: r.errors.join(" · ") })}</div>}
           {r.sections.map((s) => (

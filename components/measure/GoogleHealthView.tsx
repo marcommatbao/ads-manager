@@ -4,7 +4,7 @@
 "use client";
 
 import Link from "next/link";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import type { MessageKey } from "@/lib/i18n/messages";
 import { vnd, num, pct } from "@/components/case/format";
 import { Pill, type PillTone } from "@/components/measure/Pill";
@@ -32,9 +32,9 @@ const CATEGORY_LABEL: Record<string, MessageKey> = {
   ADD_TO_CART: "meta.measure.gh.cat.ADD_TO_CART",
 };
 
-function valueText(v: ConversionActionHealth["value"], t: TFunction): string {
+function valueText(v: ConversionActionHealth["value"], t: TFunction, loc: string): string {
   if (v.kind === "real") return t("meta.measure.gh.value.real");
-  if (v.kind === "fixed") return t("meta.measure.gh.value.fixed", { value: vnd(v.defaultValue) });
+  if (v.kind === "fixed") return t("meta.measure.gh.value.fixed", { value: vnd(v.defaultValue, loc) });
   return t("meta.measure.gh.value.none");
 }
 
@@ -46,6 +46,7 @@ const UTM_STATUS: Record<string, { tone: PillTone; text: MessageKey }> = {
 };
 
 export function GoogleHealthView({ data }: { data: GoogleHealth }) {
+  const intl = useIntlLocale();
   const t = useT();
   const tagPct = data.utm.distinctTags > 0 ? data.utm.matchedTags / data.utm.distinctTags : null;
   const days = rangeDays(data.range);
@@ -76,9 +77,9 @@ export function GoogleHealthView({ data }: { data: GoogleHealth }) {
                   <td className="px-3 py-2.5">
                     <span className={c.primary ? "font-semibold text-slate-800" : "text-slate-500"}>{c.primary ? t("meta.measure.gh.conv.primary") : t("meta.measure.gh.conv.secondary")}</span>
                   </td>
-                  <td className="px-3 py-2.5 text-slate-600">{valueText(c.value, t)}</td>
+                  <td className="px-3 py-2.5 text-slate-600">{valueText(c.value, t, intl)}</td>
                   <td className="px-3 py-2.5"><Sparkline values={c.perDay} /></td>
-                  <td className="px-3 py-2.5 text-right tabular-nums">{num(c.last7, { maximumFractionDigits: 1 })}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums">{num(c.last7, { maximumFractionDigits: 1 }, intl)}</td>
                   <td className="px-3 py-2.5">
                     <div className="flex max-w-[260px] flex-col gap-1">
                       {c.flags.length === 0 && c.category === "PURCHASE" && <Pill tone="green">{t("meta.measure.gh.conv.ok")}</Pill>}
@@ -115,8 +116,8 @@ export function GoogleHealthView({ data }: { data: GoogleHealth }) {
         <h2 className="mb-1 text-base font-bold text-slate-900">{t("meta.measure.gh.utmsec.title")}</h2>
         <div className="rounded-xl border border-slate-200 bg-white p-4">
           <div className="mb-1.5 flex items-baseline justify-between">
-            <span className="text-sm text-slate-500">{t("meta.measure.gh.utmsec.matched", { matched: num(data.utm.matchedTags), total: num(data.utm.distinctTags) })}</span>
-            <b className="tabular-nums text-lg">{tagPct !== null ? pct(tagPct, 0) : "—"}</b>
+            <span className="text-sm text-slate-500">{t("meta.measure.gh.utmsec.matched", { matched: num(data.utm.matchedTags, undefined, intl), total: num(data.utm.distinctTags, undefined, intl) })}</span>
+            <b className="tabular-nums text-lg">{tagPct !== null ? pct(tagPct, 0, intl) : "—"}</b>
           </div>
           <div className="h-2 overflow-hidden rounded-full bg-slate-100">
             <div className="h-full bg-red-500" style={{ width: `${tagPct !== null ? Math.round(tagPct * 100) : 0}%` }} />
@@ -145,10 +146,10 @@ export function GoogleHealthView({ data }: { data: GoogleHealth }) {
                     <tr key={c.campaignId} className="border-b border-slate-50 last:border-0 align-top">
                       <td className="py-2">
                         <div className="font-medium text-slate-800">{c.name}</div>
-                        <div className="text-xs text-slate-400">{c.channel} · {vnd(c.cost)}</div>
+                        <div className="text-xs text-slate-400">{c.channel} · {vnd(c.cost, intl)}</div>
                       </td>
                       <td className="py-2">{c.tags.length ? c.tags.map((tag) => <code key={tag} className="mr-1 text-xs text-slate-600">{tag}</code>) : <span className="text-slate-400">—</span>}</td>
-                      <td className="py-2 text-right tabular-nums">{num(c.odooOrders)}</td>
+                      <td className="py-2 text-right tabular-nums">{num(c.odooOrders, undefined, intl)}</td>
                       <td className="py-2"><Pill tone={st.tone}>{t(st.text)}</Pill></td>
                       <td className="py-2">
                         {c.linkIssues.length === 0 ? (
@@ -187,7 +188,7 @@ export function GoogleHealthView({ data }: { data: GoogleHealth }) {
                   <tr key={d.url} className="border-b border-slate-50 last:border-0">
                     <td className="px-4 py-2.5"><code className="text-xs">{d.url}</code></td>
                     <td className="px-3 py-2.5"><Pill tone="red">✕ {d.reason}</Pill></td>
-                    <td className="px-3 py-2.5 text-right tabular-nums">{vnd(d.spend)}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums">{vnd(d.spend, intl)}</td>
                   </tr>
                 ))}
               </tbody>

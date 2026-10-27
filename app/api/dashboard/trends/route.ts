@@ -14,7 +14,8 @@ import { add, buildCards, buildNotable, previousRange, ZERO, type CampaignPeriod
 import { googleTrend, metaTrend, type PlatformTrend } from "@/lib/trends/fetch"
 import { collectWrites } from "@/lib/writes/feed"
 import { readOutcomes, outcomeKey } from "@/lib/writes/job"
-import { prettyWriteLabel } from "@/lib/writes/labels"
+import { prettyWriteLabelT } from "@/lib/writes/labels"
+import { getT } from "@/lib/i18n/server"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
@@ -33,6 +34,7 @@ function mergeDays(lists: TrendDay[][]): TrendDay[] {
 export async function GET(request: NextRequest) {
   const u = await requireUser()
   if (!u.ok) return u.response
+  const t = await getT()
   const q = request.nextUrl.searchParams
   const co = requireCompany(u.value, q.get("company"))
   if (!co.ok) return co.response
@@ -68,13 +70,13 @@ export async function GET(request: NextRequest) {
       .filter((e) => e.company === co.value && (platform === "all" || e.platform === platform) && !e.undoneAt)
       .map((e) => ({ e, date: vnDate(new Date(e.at)) }))
       .filter(({ date }) => date >= prev.from && date <= to)
-      .map(({ e, date }) => ({ date, platform: e.platform, label: prettyWriteLabel(e.label), by: e.by, verdict7: outcomes[outcomeKey(e.id, 7)]?.verdict ?? null, verdict14: outcomes[outcomeKey(e.id, 14)]?.verdict ?? null }))
+      .map(({ e, date }) => ({ date, platform: e.platform, label: prettyWriteLabelT(e.label, t), by: e.by, verdict7: outcomes[outcomeKey(e.id, 7)]?.verdict ?? null, verdict14: outcomes[outcomeKey(e.id, 14)]?.verdict ?? null }))
       .slice(0, 200)
   } catch { /* mốc là lớp bổ sung */ }
 
   return NextResponse.json({
     success: true, company: co.value, platform, range, prevRange: prev,
     errors: results.filter((r) => r.error).map((r) => ({ platform: r.platform, error: r.error })),
-    cards: buildCards(cur, before), days, markers, notable: buildNotable(campaigns, targetOf),
+    cards: buildCards(cur, before, t), days, markers, notable: buildNotable(campaigns, targetOf, t),
   })
 }

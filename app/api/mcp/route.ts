@@ -4,6 +4,7 @@ import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/
 import { authenticateMcp } from "@/lib/mcp/auth"
 import { buildMcpServer } from "@/lib/mcp/server"
 import { rateLimited, touchKey } from "@/lib/mcp/store"
+import { issuer } from "@/lib/mcp/oauth-meta"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 120
@@ -13,7 +14,8 @@ const jsonRpcError = (status: number, message: string, headers: Record<string, s
 
 async function handle(req: Request): Promise<Response> {
   const auth = await authenticateMcp(req.headers.get("authorization"))
-  if (!auth.ok) return jsonRpcError(auth.status, auth.error, auth.status === 401 ? { "WWW-Authenticate": 'Bearer realm="adscommand-mcp"' } : {})
+  // RFC 9728: chỉ cho client (claude.ai) chỗ tìm máy chủ OAuth.
+  if (!auth.ok) return jsonRpcError(auth.status, auth.error, auth.status === 401 ? { "WWW-Authenticate": `Bearer realm="adscommand-mcp", resource_metadata="${issuer(req)}/.well-known/oauth-protected-resource"` } : {})
   if (rateLimited(auth.ctx.key.id)) return jsonRpcError(429, "Quá 60 lượt/phút cho khoá này — thử lại sau ít giây", { "Retry-After": "30" })
   void touchKey(auth.ctx.key.id)
   const server = buildMcpServer(auth.ctx)

@@ -10,6 +10,7 @@
 // nên quyết định phải là của người chạy, sau khi nhìn số thật.
 
 import { NextRequest, NextResponse } from "next/server";
+import { getT } from "@/lib/i18n/server";
 import { googleAdsErrorMessage } from "@/lib/google-ads-error";
 import { getGoogleAdsCustomer } from "@/lib/google-ads-client";
 import { getCurrentUser } from "@/lib/auth";
@@ -18,7 +19,7 @@ import { safeDateRange } from "@/lib/google-ads-guards";
 import { resolveMatchType } from "@/lib/google-ads-helpers";
 import {
   classifyKeyword,
-  INTENT_META,
+  intentMetaT,
   OVERSIZED_AD_GROUP,
   UNDERSIZED_AD_GROUP,
   MIN_SPLIT_SIZE,
@@ -57,6 +58,7 @@ interface KeywordEntry {
 }
 
 export async function GET(req: NextRequest) {
+  const t = await getT();
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -137,8 +139,8 @@ export async function GET(req: NextRequest) {
         const splits = [...byIntent.entries()]
           .map(([intent, kws]) => ({
             intent,
-            label: INTENT_META[intent].label,
-            rationale: INTENT_META[intent].rationale,
+            label: intentMetaT(intent, t).label,
+            rationale: intentMetaT(intent, t).rationale,
             count: kws.length,
             cost: Math.round(kws.reduce((s, k) => s + k.cost, 0)),
             conversions: Math.round(kws.reduce((s, k) => s + k.conversions, 0) * 100) / 100,
@@ -178,12 +180,12 @@ export async function GET(req: NextRequest) {
         let verdict: "SPLIT" | "KEEP" = "KEEP";
         let verdictReason: string;
         if (dominantShare >= DOMINANT_SHARE) {
-          verdictReason = `KHÔNG nên tách: ${Math.round(dominantShare * 100)}% chi phí của nhóm nằm ở một ý định duy nhất (${dominant.label}). Nhóm này nhiều từ khoá nhưng thống nhất về ý định — tách ra chỉ chia nhỏ dữ liệu và reset lịch sử Quality Score, không đổi được gì.`;
+          verdictReason = t("libgoogle.ags.noSplitSingle", { pct: Math.round(dominantShare * 100), label: dominant.label });
         } else if (viable.length >= 2) {
           verdict = "SPLIT";
-          verdictReason = `Nên tách thành ${viable.length} nhóm: ${viable.map((v) => `${v.label} (${v.count} từ khoá, ${Math.round(v.costShare * 100)}% chi phí)`).join(" · ")}.`;
+          verdictReason = t("libgoogle.ags.split", { n: viable.length, list: viable.map((v) => t("libgoogle.ags.splitItem", { label: v.label, count: v.count, pct: Math.round(v.costShare * 100) })).join(" · ") });
         } else {
-          verdictReason = "KHÔNG nên tách: không có đủ hai nhóm con vừa đủ lớn vừa thật sự mang chi phí/chuyển đổi. Xử lý bằng cách viết RSA sát từ khoá hơn.";
+          verdictReason = t("libgoogle.ags.noSplitSmall");
         }
 
         return {

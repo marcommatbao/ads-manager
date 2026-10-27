@@ -29,7 +29,7 @@ import { SearchSplitDialog } from "./SearchSplitDialog";
 import type { SearchCampaign, SearchWarning, IntentCell } from "@/lib/search/xray";
 import type { SearchProposal, SearchExecution } from "@/lib/search/controls";
 import type { SearchRecommendation } from "@/lib/search/recommend";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import type { MessageKey } from "@/lib/i18n/messages";
 
 type Company = string;
@@ -153,6 +153,7 @@ function ApplyControls({
 }: {
   company: Company; range: Range; items: SearchProposal[]; confirmText: string; onDone: () => void;
 }) {
+  const intl = useIntlLocale();
   const t = useT();
   const confirmId = useId();
   const ids = items.map((p) => p.id);
@@ -227,7 +228,7 @@ function ApplyControls({
             {items.map((p) => (
               <li key={p.id} className="flex items-start justify-between gap-2">
                 <span className="text-slate-700">{p.label}{p.campaignName && <span className="text-slate-400"> · {p.campaignName}</span>}</span>
-                {p.cost !== null && <span className="shrink-0 tabular-nums text-slate-500">{vnd(p.cost)}</span>}
+                {p.cost !== null && <span className="shrink-0 tabular-nums text-slate-500">{vnd(p.cost, intl)}</span>}
               </li>
             ))}
           </ul>
@@ -264,6 +265,7 @@ function RecommendationCard({
   onApplied: () => void;
   onOpenSplit: (campaignId: string) => void;
 }) {
+  const intl = useIntlLocale();
   const t = useT();
   const [open, setOpen] = useState(rec.priority === 1);
   const meta = PRIORITY_META[rec.priority];
@@ -281,7 +283,7 @@ function RecommendationCard({
           <h4 className="text-sm font-bold text-slate-800">{rec.title}</h4>
         </div>
         <p className="text-xs text-slate-500">{rec.why}</p>
-        {rec.moneyAtStake !== null && <p className="text-xs font-semibold text-red-600">{t("google.searchXray.moneyAtStake", { amount: vnd(rec.moneyAtStake) })}</p>}
+        {rec.moneyAtStake !== null && <p className="text-xs font-semibold text-red-600">{t("google.searchXray.moneyAtStake", { amount: vnd(rec.moneyAtStake, intl) })}</p>}
       </div>
 
       {action.type === "manual" && (
@@ -348,6 +350,7 @@ function GlobalApplyBar({
 // ── Lịch sử áp dụng ──
 
 function HistoryRow({ h, onUndo }: { h: SearchExecution; onUndo: (id: string) => void }) {
+  const intl = useIntlLocale();
   const t = useT();
   const ok = h.status === "done";
   return (
@@ -357,7 +360,7 @@ function HistoryRow({ h, onUndo }: { h: SearchExecution; onUndo: (id: string) =>
           {ok ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> : <XCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
           {h.mode === "validate" ? t("google.searchXray.modeValidate") : t("google.searchXray.modeWrite")}
         </span>
-        <span className="text-slate-400">{datetimeVN(h.at)}</span>
+        <span className="text-slate-400">{datetimeVN(h.at, intl)}</span>
         <span className="text-slate-500">{h.by}</span>
       </div>
       {h.applied.length > 0 && <ul className="mt-1.5 list-disc space-y-0.5 pl-4 text-slate-600">{h.applied.map((a) => <li key={a.proposalId}>{a.label}</li>)}</ul>}
@@ -365,7 +368,7 @@ function HistoryRow({ h, onUndo }: { h: SearchExecution; onUndo: (id: string) =>
       {h.mode === "write" && (
         h.undoneAt ? (
           <div className="mt-2 rounded-md border border-slate-200 bg-white p-2 text-slate-600">
-            <p className="font-semibold">{t("google.searchXray.undoneAt", { time: datetimeVN(h.undoneAt) })}</p>
+            <p className="font-semibold">{t("google.searchXray.undoneAt", { time: datetimeVN(h.undoneAt, intl) })}</p>
             {h.undoReport && h.undoReport.length > 0 && <ul className="mt-1 list-disc space-y-0.5 pl-4">{h.undoReport.map((l, i) => <li key={i}>{l}</li>)}</ul>}
           </div>
         ) : ok ? (
@@ -432,6 +435,7 @@ function HistorySection({ history, company, onChanged, confirmText }: { history:
 // ── Bảng chiến dịch (chi phí, đơn, CPA, IS, % thương hiệu) + tách theo ý định ──
 
 function IntentBars({ intents, campaignCost }: { intents: IntentCell[]; campaignCost: number }) {
+  const intl = useIntlLocale();
   const t = useT();
   return (
     <div className="overflow-x-auto rounded-lg border border-slate-100 bg-white">
@@ -450,14 +454,14 @@ function IntentBars({ intents, campaignCost }: { intents: IntentCell[]; campaign
               <td className="px-2 py-1.5 font-medium text-slate-700">{it.label}</td>
               <td className="px-2 py-1.5">
                 <div className="flex items-center gap-2">
-                  <span className="shrink-0 whitespace-nowrap tabular-nums text-slate-700">{vnd(it.cost)}</span>
+                  <span className="shrink-0 whitespace-nowrap tabular-nums text-slate-700">{vnd(it.cost, intl)}</span>
                   <div className="h-1.5 max-w-[100px] min-w-[24px] flex-1 rounded-full bg-slate-100">
                     <div className="h-1.5 rounded-full bg-indigo-500" style={{ width: `${campaignCost > 0 ? Math.round((it.cost / campaignCost) * 100) : 0}%` }} />
                   </div>
                 </div>
               </td>
-              <td className="px-2 py-1.5 text-right tabular-nums text-slate-600">{num(it.purchases, { maximumFractionDigits: 1 })}</td>
-              <td className="px-2 py-1.5 text-right tabular-nums text-slate-600">{vnd(it.cpa)}</td>
+              <td className="px-2 py-1.5 text-right tabular-nums text-slate-600">{num(it.purchases, { maximumFractionDigits: 1 }, intl)}</td>
+              <td className="px-2 py-1.5 text-right tabular-nums text-slate-600">{vnd(it.cpa, intl)}</td>
             </tr>
           ))}
         </tbody>
@@ -467,6 +471,7 @@ function IntentBars({ intents, campaignCost }: { intents: IntentCell[]; campaign
 }
 
 function CampaignRow({ c }: { c: SearchCampaign }) {
+  const intl = useIntlLocale();
   const t = useT();
   const [open, setOpen] = useState(false);
   return (
@@ -480,13 +485,13 @@ function CampaignRow({ c }: { c: SearchCampaign }) {
           </div>
         </td>
         <td className="px-3 py-2.5 text-slate-500">{STATUS_LABEL[c.status] ? t(STATUS_LABEL[c.status]) : c.status}</td>
-        <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">{vnd(c.cost)}</td>
-        <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">{num(c.purchases, { maximumFractionDigits: 1 })}</td>
-        <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">{vnd(c.cpa)}</td>
-        <td className="px-3 py-2.5 text-right tabular-nums text-slate-500">{c.impressionShare === null ? "—" : pct(c.impressionShare, 0)}</td>
-        <td className="px-3 py-2.5 text-right tabular-nums text-slate-500">{c.lostBudget === null ? "—" : pct(c.lostBudget, 0)}</td>
-        <td className="px-3 py-2.5 text-right tabular-nums text-slate-500">{c.lostRank === null ? "—" : pct(c.lostRank, 0)}</td>
-        <td className="px-3 py-2.5 text-right tabular-nums text-slate-500">{pct(c.brandShareOfCost, 0)}</td>
+        <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">{vnd(c.cost, intl)}</td>
+        <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">{num(c.purchases, { maximumFractionDigits: 1 }, intl)}</td>
+        <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">{vnd(c.cpa, intl)}</td>
+        <td className="px-3 py-2.5 text-right tabular-nums text-slate-500">{c.impressionShare === null ? "—" : pct(c.impressionShare, 0, intl)}</td>
+        <td className="px-3 py-2.5 text-right tabular-nums text-slate-500">{c.lostBudget === null ? "—" : pct(c.lostBudget, 0, intl)}</td>
+        <td className="px-3 py-2.5 text-right tabular-nums text-slate-500">{c.lostRank === null ? "—" : pct(c.lostRank, 0, intl)}</td>
+        <td className="px-3 py-2.5 text-right tabular-nums text-slate-500">{pct(c.brandShareOfCost, 0, intl)}</td>
       </tr>
       {open && (
         <tr className="border-b border-slate-50 bg-slate-50/50 last:border-0">
@@ -541,6 +546,7 @@ function SmallCard({ title, children }: { title: string; children: React.ReactNo
 }
 
 function MiniTable({ rows }: { rows: { key: string; label: string; cost: number; purchases: number; extra?: string }[] }) {
+  const intl = useIntlLocale();
   const t = useT();
   if (rows.length === 0) return <p className="text-[11px] text-slate-400">{t("google.searchXray.noData")}</p>;
   return (
@@ -549,8 +555,8 @@ function MiniTable({ rows }: { rows: { key: string; label: string; cost: number;
         {rows.map((r) => (
           <tr key={r.key} className="border-b border-slate-50 last:border-0">
             <td className="py-1 pr-2 text-slate-600">{r.label}{r.extra && <span className="ml-1 text-slate-400">{r.extra}</span>}</td>
-            <td className="py-1 text-right tabular-nums text-slate-700">{vnd(r.cost)}</td>
-            <td className="py-1 pl-2 text-right tabular-nums text-slate-500">{num(r.purchases, { maximumFractionDigits: 1 })} {t("google.searchXray.ordersWord")}</td>
+            <td className="py-1 text-right tabular-nums text-slate-700">{vnd(r.cost, intl)}</td>
+            <td className="py-1 pl-2 text-right tabular-nums text-slate-500">{num(r.purchases, { maximumFractionDigits: 1 }, intl)} {t("google.searchXray.ordersWord")}</td>
           </tr>
         ))}
       </tbody>

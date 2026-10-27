@@ -1,3 +1,4 @@
+import { makeT, type TFunction } from "@/lib/i18n/translate"
 // Ngày theo giờ Việt Nam cho GAQL. Các route cũ tính bằng toISOString() (UTC)
 // nên từ 0h–7h sáng giờ VN "hôm nay" bị lùi một ngày — phần này không lặp lại.
 
@@ -44,16 +45,16 @@ export const MIN_CASE_DAYS = 7
 export const rangeDays = (r: { from: string; to: string }) => Math.round((Date.parse(r.to) - Date.parse(r.from)) / 86_400_000) + 1
 
 /** Đọc from/to từ query/body. Không truyền cả hai → mặc định `defaultDays` ngày gần nhất. */
-export function parseRange(from: unknown, to: unknown, opts: { defaultDays: number; maxDays?: number; minDays?: number; now?: Date }):
+export function parseRange(from: unknown, to: unknown, opts: { defaultDays: number; maxDays?: number; minDays?: number; now?: Date }, t: TFunction = makeT("vi")):
   { ok: true; range: { from: string; to: string } } | { ok: false; error: string } {
   if ((from === null || from === undefined || from === "") && (to === null || to === undefined || to === "")) return { ok: true, range: lastDays(opts.defaultDays, opts.now) }
-  if (!isYmd(from) || !isYmd(to)) return { ok: false, error: "Ngày không hợp lệ (cần YYYY-MM-DD)" }
+  if (!isYmd(from) || !isYmd(to)) return { ok: false, error: t("libcase.c.dates.invalid") }
   const today = vnDate(opts.now)
-  if (from > to) return { ok: false, error: "Ngày bắt đầu phải trước ngày kết thúc" }
-  if (to > today) return { ok: false, error: "Ngày kết thúc không được sau hôm nay" }
+  if (from > to) return { ok: false, error: t("libcase.c.dates.order") }
+  if (to > today) return { ok: false, error: t("libcase.c.dates.future") }
   const n = rangeDays({ from, to })
   const max = opts.maxDays ?? MAX_RANGE_DAYS
-  if (n > max) return { ok: false, error: `Tối đa ${max} ngày một lần (đang chọn ${n} ngày)` }
-  if (opts.minDays && n < opts.minDays) return { ok: false, error: `Tối thiểu ${opts.minDays} ngày (đang chọn ${n} ngày)` }
+  if (n > max) return { ok: false, error: t("libcase.c.dates.max", { max, n }) }
+  if (opts.minDays && n < opts.minDays) return { ok: false, error: t("libcase.c.dates.min", { min: opts.minDays, n }) }
   return { ok: true, range: { from, to } }
 }

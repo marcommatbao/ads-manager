@@ -9,6 +9,8 @@
 import type { FeatureKind, Metric, Platform } from "@/lib/playbook/engine";
 import type { EntryStatus } from "@/lib/playbook/store";
 import type { PillTone } from "@/components/measure/Pill";
+import type { TFunction } from "@/lib/i18n/translate";
+import type { MessageKey } from "@/lib/i18n/messages";
 
 export const METRIC_LABEL: Record<Metric, string> = {
   purchase: "Mua hàng",
@@ -79,3 +81,31 @@ export const VERDICT_LABEL: Record<"win" | "lose" | "neutral", { text: string; t
   lose: { text: "✕ thua", tone: "red" },
   neutral: { text: "– trung tính", tone: "grey" },
 };
+
+// ── Bản theo ngôn ngữ: truyền `t` (useT()) → chữ EN/VI theo cookie; không truyền → đúng như các bảng trên (tiếng Việt). ──
+
+export const metricLabel = (m: Metric, t?: TFunction): string =>
+  t ? t(`common.playbook.metric.${m}` as MessageKey) : METRIC_LABEL[m];
+
+const GROUP_KEY: Record<string, string> = {
+  "Đối tượng": "audience", "Vị trí": "placement", "Sự kiện tối ưu": "optEvent", "Ngân sách": "budget",
+  "Nội dung": "content", "Từ khoá / cụm tìm kiếm": "keyword", "Trang đích": "landing", "Thiết bị / giờ": "deviceHour",
+};
+
+/** Nhãn của một nhóm (giá trị tiếng Việt trong KIND_GROUP / KIND_GROUP_OPTIONS — vẫn dùng làm khoá lọc). */
+export const kindGroupLabel = (group: string, t?: TFunction): string =>
+  t && group in GROUP_KEY ? t(`common.playbook.group.${GROUP_KEY[group]}` as MessageKey) : group;
+
+export const kindGroup = (kind: FeatureKind, t?: TFunction): string => kindGroupLabel(KIND_GROUP[kind], t);
+
+export const statusLabel = (s: EntryStatus, t?: TFunction): { text: string; tone: PillTone } =>
+  t ? { text: t(`common.playbook.status.${s}` as MessageKey), tone: STATUS_LABEL[s].tone } : STATUS_LABEL[s];
+
+export const statusOptions = (t?: TFunction): { value: EntryStatus; label: string }[] =>
+  t ? STATUS_OPTIONS.map((o) => ({ value: o.value, label: t(`common.playbook.statusOpt.${o.value}` as MessageKey) })) : STATUS_OPTIONS;
+
+export const confidenceLabel = (c: "high" | "medium", t?: TFunction): { text: string; tone: PillTone } =>
+  t ? { text: t(`common.playbook.confidence.${c}` as MessageKey), tone: CONFIDENCE_LABEL[c].tone } : CONFIDENCE_LABEL[c];
+
+export const verdictLabel = (v: "win" | "lose" | "neutral", t?: TFunction): { text: string; tone: PillTone } =>
+  t ? { text: t(`common.playbook.verdict.${v}` as MessageKey), tone: VERDICT_LABEL[v].tone } : VERDICT_LABEL[v];

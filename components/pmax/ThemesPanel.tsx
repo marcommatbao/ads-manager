@@ -15,7 +15,7 @@
 import { useId, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Loader2, Tags, Undo2, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import type { MessageKey } from "@/lib/i18n/messages";
 import { postJson, ApiError } from "@/components/case/api";
 import { datetimeVN } from "@/components/case/format";
@@ -228,6 +228,7 @@ function ThemeGroupCard({
 // ── Lịch sử đổi theme ──
 
 function ThemeHistoryRow({ h, onUndo, undoing }: { h: ThemeExecution; onUndo: (id: string) => void; undoing: boolean }) {
+  const intl = useIntlLocale();
   const t = useT();
   const ok = h.status === "done";
   return (
@@ -237,7 +238,7 @@ function ThemeHistoryRow({ h, onUndo, undoing }: { h: ThemeExecution; onUndo: (i
           {ok ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> : <XCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
           {h.assetGroupName}
         </span>
-        <span className="text-slate-400">{datetimeVN(h.at)}</span>
+        <span className="text-slate-400">{datetimeVN(h.at, intl)}</span>
         <span className="text-slate-500">{h.by}</span>
       </div>
       {h.added.length > 0 && <p className="mt-1 text-slate-600">{t("google.pmaxThemes.added")}: {h.added.map((th) => `“${th.text}”`).join(", ")}</p>}
@@ -245,7 +246,7 @@ function ThemeHistoryRow({ h, onUndo, undoing }: { h: ThemeExecution; onUndo: (i
       {h.errors.length > 0 && <ul className="mt-1.5 list-disc space-y-0.5 pl-4 text-red-700">{h.errors.map((e, i) => <li key={i}>{e}</li>)}</ul>}
       {ok && (
         h.undoneAt ? (
-          <p className="mt-1.5 text-slate-500">{t("google.pmaxThemes.undoneAt", { time: datetimeVN(h.undoneAt) })}</p>
+          <p className="mt-1.5 text-slate-500">{t("google.pmaxThemes.undoneAt", { time: datetimeVN(h.undoneAt, intl) })}</p>
         ) : (
           <div className="mt-2 flex justify-end">
             <Button variant="destructive" size="sm" className="h-8" onClick={() => onUndo(h.id)} disabled={undoing}>

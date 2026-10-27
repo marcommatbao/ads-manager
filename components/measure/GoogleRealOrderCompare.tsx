@@ -10,7 +10,7 @@ import useSWR from "swr";
 import { CheckCircle2, CircleAlert, Loader2 } from "lucide-react";
 import { num, vnd } from "@/components/case/format";
 import { getJson, ApiError } from "@/components/case/api";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import type { MessageKey } from "@/lib/i18n/messages";
 import type { Company } from "@/lib/case/types";
 import type { CampaignCompare, Readiness } from "@/lib/conversions/google-compare";
@@ -27,6 +27,7 @@ const VERDICT: Record<CampaignCompare["verdict"], { label: MessageKey; cls: stri
 };
 
 export function GoogleRealOrderCompare({ company }: { company: Company }) {
+  const intl = useIntlLocale();
   const t = useT();
   const { data, error, isLoading } = useSWR<Resp>(`/api/conversions/real-orders?company=${company}&view=google`, getJson);
   if (isLoading) return <div className="flex items-center gap-2 text-sm text-slate-500"><Loader2 className="h-4 w-4 animate-spin" /> {t("meta.measure.gc.loading")}</div>;
@@ -62,7 +63,7 @@ export function GoogleRealOrderCompare({ company }: { company: Company }) {
       ) : (
         <div className="overflow-x-auto">
           <p className="mb-1 text-xs text-slate-500">
-            {bold(t("meta.measure.gc.summary", { from: data.range.from, to: data.range.to, g: num(Math.round(totals.g)), real: num(Math.round(totals.real)), value: vnd(totals.v) }))}{" "}{t("meta.measure.gc.summaryNote")}
+            {bold(t("meta.measure.gc.summary", { from: data.range.from, to: data.range.to, g: num(Math.round(totals.g), undefined, intl), real: num(Math.round(totals.real), undefined, intl), value: vnd(totals.v, intl) }))}{" "}{t("meta.measure.gc.summaryNote")}
           </p>
           <table className="w-full min-w-[640px] text-left text-xs">
             <thead className="text-slate-400">
@@ -72,11 +73,11 @@ export function GoogleRealOrderCompare({ company }: { company: Company }) {
               {data.campaigns.slice(0, 40).map((c) => (
                 <tr key={c.id} className="border-t border-slate-100 align-top">
                   <td className="max-w-[260px] py-1.5 pr-2 text-slate-700">{c.name}</td>
-                  <td className="text-right tabular-nums">{vnd(c.cost)}</td>
-                  <td className="text-right tabular-nums">{num(Math.round(c.googleConv * 10) / 10)}</td>
-                  <td className="text-right tabular-nums">{c.cpaGoogle != null ? vnd(c.cpaGoogle) : "—"}</td>
-                  <td className="text-right font-semibold tabular-nums">{num(Math.round(c.realOrders * 10) / 10)}</td>
-                  <td className="text-right font-semibold tabular-nums">{c.cpaReal != null ? vnd(c.cpaReal) : "—"}</td>
+                  <td className="text-right tabular-nums">{vnd(c.cost, intl)}</td>
+                  <td className="text-right tabular-nums">{num(Math.round(c.googleConv * 10) / 10, undefined, intl)}</td>
+                  <td className="text-right tabular-nums">{c.cpaGoogle != null ? vnd(c.cpaGoogle, intl) : "—"}</td>
+                  <td className="text-right font-semibold tabular-nums">{num(Math.round(c.realOrders * 10) / 10, undefined, intl)}</td>
+                  <td className="text-right font-semibold tabular-nums">{c.cpaReal != null ? vnd(c.cpaReal, intl) : "—"}</td>
                   <td className="pl-3"><span className={`rounded-full px-2 py-0.5 font-semibold ${VERDICT[c.verdict].cls}`} title={c.note}>{t(VERDICT[c.verdict].label)}</span></td>
                 </tr>
               ))}

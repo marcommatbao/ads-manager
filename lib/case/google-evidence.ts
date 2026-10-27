@@ -10,6 +10,7 @@
 // Mọi truy vấn lọc theo campaign.id — KHÔNG theo tên: tài khoản MBI có chiến
 // dịch đã xoá trùng tên chiến dịch đang chạy (đo 25/09).
 
+import { CaseError } from "./errors"
 import { enums } from "google-ads-api"
 import type { Customer } from "google-ads-api"
 import type { Company, EvidenceSource, SearchEvidence } from "./types"
@@ -157,7 +158,7 @@ export function buildSearchEvidence(input: {
   const { raw, campaignId } = input
   const errors = input.errors ?? {}
   const cr = raw.campaign?.[0]
-  if (!cr) throw new Error(errors.campaign ? `Không đọc được chiến dịch: ${errors.campaign}` : "Không có số liệu chiến dịch trong kỳ")
+  if (!cr) throw new CaseError(errors.campaign ? `Không đọc được chiến dịch: ${errors.campaign}` : "Không có số liệu chiến dịch trong kỳ", 500, errors.campaign ? { key: "libcase.s.ev.campReadFail", vars: { error: errors.campaign } } : { key: "libcase.s.ev.noCampData" })
   const cm = cr.metrics ?? {}
   const campaign = {
     id: String(cr.campaign.id),

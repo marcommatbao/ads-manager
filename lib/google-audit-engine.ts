@@ -4,6 +4,8 @@ import { enumName } from "./google-ads-enums";
 import { generateAuditInsight } from "./google-audit-ai";
 
 import { googleAdsErrorMessage } from "@/lib/google-ads-error";
+import type { TFunction } from "@/lib/i18n/translate";
+import { viT, nfOf } from "@/lib/google-i18n";
 export interface AuditCheck {
   id: string;
   name: string;
@@ -63,7 +65,7 @@ const CAP_QUALITY_SCORE = 500;
 const CAP_LANDING_PAGES = 50;
 
 export class GoogleAuditEngine {
-  async runAudit(customerId: string): Promise<AuditResult> {
+  async runAudit(customerId: string, t: TFunction = viT): Promise<AuditResult> {
     const company: string =
       customerId === process.env.GOOGLE_ADS_CUSTOMER_ID_MBI?.replace(/-/g, "")
         ? "MBI"
@@ -93,13 +95,13 @@ export class GoogleAuditEngine {
       if (broken.length > 0) {
         return {
           dataStatus: "UNREADABLE",
-          dataNote: `Không đọc được dữ liệu từ Google Ads: ${broken.map((b) => b.err).join(" · ")}`,
+          dataNote: t("libgoogle.ae.noRead", { err: broken.map((b) => b.err).join(" · ") }),
         };
       }
       if (sources.some((r) => r.capped)) {
         return {
           dataStatus: "PARTIAL",
-          dataNote: "Truy vấn chạm trần số dòng — kết luận tính trên phần dữ liệu đọc được, không phải toàn bộ tài khoản.",
+          dataNote: t("libgoogle.ae.capped"),
         };
       }
       return { dataStatus: "OK" };
@@ -204,10 +206,10 @@ export class GoogleAuditEngine {
     {
       const count = campRows.length;
       let score = 9; let status: "PASS" | "WARNING" | "FAIL" = "PASS";
-      let rec = `Cấu trúc ổn định — ${count} chiến dịch đang hoạt động.`;
-      if (count > 25) { score = 5; status = "WARNING"; rec = `Tài khoản có ${count} chiến dịch đang chạy — quá nhiều dẫn đến phân mảnh dữ liệu. Cân nhắc hợp nhất.`; }
-      else if (count === 0) { score = 3; status = "FAIL"; rec = "Không có chiến dịch nào đang hoạt động."; }
-      checks.push({ id: "campaign_count", name: "Account Structure", description: "Quy mô số lượng campaign hợp lý, chống phân mảnh.", score, status, recommendation: rec, ...dataOf(campQ), fixable: false });
+      let rec = t("libgoogle.ae.structOk", { n: count });
+      if (count > 25) { score = 5; status = "WARNING"; rec = t("libgoogle.ae.structMany", { n: count }); }
+      else if (count === 0) { score = 3; status = "FAIL"; rec = t("libgoogle.ae.structNone"); }
+      checks.push({ id: "campaign_count", name: "Account Structure", description: t("libgoogle.ae.structDesc"), score, status, recommendation: rec, ...dataOf(campQ), fixable: false });
     }
 
     // ── 2. Budget Utilization ──
@@ -229,9 +231,9 @@ export class GoogleAuditEngine {
       const total = budgetRows.length || 1;
       const pct = Math.round((underSpent / total) * 100);
       let score = 9; let status: "PASS" | "WARNING" | "FAIL" = "PASS";
-      let rec = "Ngân sách được phân phối hiệu quả trên hầu hết chiến dịch.";
-      if (underSpent > 0) { score = 5; status = "WARNING"; rec = `${underSpent}/${total} chiến dịch (${pct}%) chi tiêu dưới 30% budget. Cần tăng bid hoặc mở rộng targeting.`; }
-      checks.push({ id: "budget_utilization", name: "Budget Utilization", description: "Khả năng tiêu hao budget định mức.", score, status, recommendation: rec, ...dataOf(budgetQ), fixable: false });
+      let rec = t("libgoogle.ae.budOk");
+      if (underSpent > 0) { score = 5; status = "WARNING"; rec = t("libgoogle.ae.budLow", { u: underSpent, total, pct }); }
+      checks.push({ id: "budget_utilization", name: "Budget Utilization", description: t("libgoogle.ae.budDesc"), score, status, recommendation: rec, ...dataOf(budgetQ), fixable: false });
     }
 
     // ── 3. Ad Strength ──
@@ -242,11 +244,11 @@ export class GoogleAuditEngine {
       const total = rated.length || 1;
       const pct = Math.round((goodCount / total) * 100);
       let score = 8; let status: "PASS" | "WARNING" | "FAIL" = "PASS";
-      let rec = `${pct}% quảng cáo đạt Ad Strength Good/Excellent. Chất lượng tốt.`;
-      if (rated.length === 0) { score = 4; status = "WARNING"; rec = "Chưa phát hiện quảng cáo nào có Ad Strength đã được đánh giá. Kiểm tra trạng thái quảng cáo."; }
-      else if (pct < 40) { score = 4; status = "FAIL"; rec = `Chỉ ${pct}% quảng cáo đạt Ad Strength Good/Excellent. Cần đa dạng hoá headline/description (dùng Creative AI Studio).`; }
-      else if (pct < 65) { score = 6; status = "WARNING"; rec = `${pct}% quảng cáo đạt Ad Strength Good/Excellent. Nên bổ sung thêm headline/description cho các ad còn lại.`; }
-      checks.push({ id: "ad_strength", name: "Ad Strength", description: "Tỷ lệ quảng cáo có Ad Strength Good/Excellent.", score, status, recommendation: rec, ...dataOf(rsaQ), fixable: false });
+      let rec = t("libgoogle.ae.adsOk", { pct });
+      if (rated.length === 0) { score = 4; status = "WARNING"; rec = t("libgoogle.ae.adsNone"); }
+      else if (pct < 40) { score = 4; status = "FAIL"; rec = t("libgoogle.ae.adsFail", { pct }); }
+      else if (pct < 65) { score = 6; status = "WARNING"; rec = t("libgoogle.ae.adsWarn", { pct }); }
+      checks.push({ id: "ad_strength", name: "Ad Strength", description: t("libgoogle.ae.adsDesc"), score, status, recommendation: rec, ...dataOf(rsaQ), fixable: false });
     }
 
     // ── 4. Ad Assets (Extensions) ──
@@ -254,10 +256,10 @@ export class GoogleAuditEngine {
       const uniqueTypes = new Set(extensionRows.map((r: Row) => r.campaign_extension_setting?.extension_type));
       const count = uniqueTypes.size;
       let score = 4; let status: "PASS" | "WARNING" | "FAIL" = "FAIL";
-      let rec = "Chưa cấu hình Ad Extension nào. Cần thêm Sitelink, Callout, Structured Snippet.";
-      if (count >= 3) { score = 9; status = "PASS"; rec = `Đang dùng ${count} loại extension (${[...uniqueTypes].join(", ").toLowerCase()}). Tốt.`; }
-      else if (count > 0) { score = 6; status = "WARNING"; rec = `Chỉ có ${count} loại extension. Nên thêm Sitelink, Callout và Structured Snippet để tăng Ad Rank.`; }
-      checks.push({ id: "ad_extensions", name: "Ad Assets (Extensions)", description: "Tỷ lệ dùng Sitelinks, Callouts trên chiến dịch search.", score, status, recommendation: rec, ...dataOf(extensionQ), fixable: false });
+      let rec = t("libgoogle.ae.extNone");
+      if (count >= 3) { score = 9; status = "PASS"; rec = t("libgoogle.ae.extGood", { n: count, types: [...uniqueTypes].join(", ").toLowerCase() }); }
+      else if (count > 0) { score = 6; status = "WARNING"; rec = t("libgoogle.ae.extFew", { n: count }); }
+      checks.push({ id: "ad_extensions", name: "Ad Assets (Extensions)", description: t("libgoogle.ae.extDesc"), score, status, recommendation: rec, ...dataOf(extensionQ), fixable: false });
     }
 
     // ── 5. Search Term Waste ──
@@ -267,20 +269,20 @@ export class GoogleAuditEngine {
       const wastedCost = wastedRows.reduce((s: number, r: Row) => s + Number(r.metrics?.cost_micros ?? 0), 0);
       const wastedPct  = totalCost > 0 ? Math.round((wastedCost / totalCost) * 100) : 0;
       let score = 8; let status: "PASS" | "WARNING" | "FAIL" = "PASS";
-      let rec = "Search Terms đang có tỷ lệ conversion tốt. Ít lãng phí ngân sách.";
-      if (wastedPct > 50) { score = 3; status = "FAIL"; rec = `${wastedPct}% ngân sách search đang lãng phí vào ${wastedRows.length} query không có conversion. Cần review N-Gram và thêm negative keyword.`; }
-      else if (wastedPct > 25) { score = 5; status = "WARNING"; rec = `${wastedPct}% ngân sách (${wastedRows.length} terms) không tạo ra conversion. Xem chi tiết N-Gram để chặn.`; }
-      checks.push({ id: "search_term_waste", name: "Search Term Waste", description: "Chi phí các query không ra conversion.", score, status, recommendation: rec, ...dataOf(searchTermQ), fixable: true });
+      let rec = t("libgoogle.ae.stwOk");
+      if (wastedPct > 50) { score = 3; status = "FAIL"; rec = t("libgoogle.ae.stwFail", { pct: wastedPct, n: wastedRows.length }); }
+      else if (wastedPct > 25) { score = 5; status = "WARNING"; rec = t("libgoogle.ae.stwWarn", { pct: wastedPct, n: wastedRows.length }); }
+      checks.push({ id: "search_term_waste", name: "Search Term Waste", description: t("libgoogle.ae.stwDesc"), score, status, recommendation: rec, ...dataOf(searchTermQ), fixable: true });
     }
 
     // ── 6. Shared Negative Keyword Lists ──
     {
       const count = negListRows.length;
       let score = 4; let status: "PASS" | "WARNING" | "FAIL" = "FAIL";
-      let rec = "Không có Shared Negative Keyword List nào. Rủi ro cao bị tốn ngân sách vào query không liên quan.";
-      if (count >= 2) { score = 10; status = "PASS"; rec = `Tài khoản có ${count} Shared Negative List đang hoạt động. Cấu hình bảo vệ tốt.`; }
-      else if (count === 1) { score = 7; status = "PASS"; rec = `Có 1 Shared Negative List. Nên tạo thêm để phân loại theo danh mục (brand, competitor, generic).`; }
-      checks.push({ id: "negative_lists", name: "Shared Negative Keyword Lists", description: "Tệp phủ định cấp độ tài khoản.", score, status, recommendation: rec, ...dataOf(negListQ), fixable: false });
+      let rec = t("libgoogle.ae.negNone");
+      if (count >= 2) { score = 10; status = "PASS"; rec = t("libgoogle.ae.negMany", { n: count }); }
+      else if (count === 1) { score = 7; status = "PASS"; rec = t("libgoogle.ae.negOne"); }
+      checks.push({ id: "negative_lists", name: "Shared Negative Keyword Lists", description: t("libgoogle.ae.negDesc"), score, status, recommendation: rec, ...dataOf(negListQ), fixable: false });
     }
 
     // ── 7. Ad Group Keyword Coverage ──
@@ -295,13 +297,13 @@ export class GoogleAuditEngine {
       const tooMany = groups.filter(c => c > 20).length;
       const tooFew  = groups.filter(c => c < 3).length;
       let score = 9; let status: "PASS" | "WARNING" | "FAIL" = "PASS";
-      let rec = `Trung bình ${avgKw} từ khóa/Ad Group — phân bố hợp lý.`;
+      let rec = t("libgoogle.ae.kwOk", { avg: avgKw });
       if (tooMany > 0 || tooFew > groups.length * 0.3) {
         score = 6; status = "WARNING";
-        rec = `${tooMany} Ad Group có >20 từ khóa (phân mảnh), ${tooFew} Ad Group <3 từ khóa (thiếu coverage). Trung bình: ${avgKw} từ khóa/group.`;
+        rec = t("libgoogle.ae.kwWarn", { many: tooMany, few: tooFew, avg: avgKw });
       }
-      if (groups.length === 0) { score = 3; status = "FAIL"; rec = "Không phát hiện từ khóa đang hoạt động."; }
-      checks.push({ id: "keyword_coverage", name: "Ad Group Keyword Coverage", description: "Số lượng từ khóa trong 1 nhóm.", score, status, recommendation: rec, ...dataOf(kwQ), fixable: false });
+      if (groups.length === 0) { score = 3; status = "FAIL"; rec = t("libgoogle.ae.kwNone"); }
+      checks.push({ id: "keyword_coverage", name: "Ad Group Keyword Coverage", description: t("libgoogle.ae.kwDesc"), score, status, recommendation: rec, ...dataOf(kwQ), fixable: false });
     }
 
     // ── 8. Quality Score Distribution ──
@@ -312,21 +314,21 @@ export class GoogleAuditEngine {
       const pct    = Math.round((highQS / total) * 100);
       const avg    = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length * 10) / 10 : 0;
       let score = 8; let status: "PASS" | "WARNING" | "FAIL" = "PASS";
-      let rec = `${pct}% từ khóa đạt QS ≥ 7 (trung bình: ${avg}). Chất lượng tốt.`;
-      if (pct < 40) { score = 4; status = "FAIL"; rec = `Chỉ ${pct}% từ khóa có QS ≥ 7 (trung bình: ${avg}). Cần cải thiện Ad Relevance và Landing Page Experience.`; }
-      else if (pct < 65) { score = 6; status = "WARNING"; rec = `${pct}% từ khóa QS ≥ 7 (trung bình: ${avg}). Một số keyword cốt lõi bị Expected CTR thấp.`; }
-      if (scores.length === 0) { score = 5; status = "WARNING"; rec = "Không đọc được dữ liệu Quality Score. Kiểm tra quyền truy cập tài khoản."; }
-      checks.push({ id: "quality_score", name: "Quality Score Distribution", description: "Từ khóa có điểm QS >= 7.", score, status, recommendation: rec, ...dataOf(qsQ), fixable: true });
+      let rec = t("libgoogle.ae.qsOk", { pct, avg });
+      if (pct < 40) { score = 4; status = "FAIL"; rec = t("libgoogle.ae.qsFail", { pct, avg }); }
+      else if (pct < 65) { score = 6; status = "WARNING"; rec = t("libgoogle.ae.qsWarn", { pct, avg }); }
+      if (scores.length === 0) { score = 5; status = "WARNING"; rec = t("libgoogle.ae.qsNone"); }
+      checks.push({ id: "quality_score", name: "Quality Score Distribution", description: t("libgoogle.ae.qsDesc"), score, status, recommendation: rec, ...dataOf(qsQ), fixable: true });
     }
 
     // ── 9. Conversion Health ──
     {
       const count = convRows.length;
       let score = 4; let status: "PASS" | "WARNING" | "FAIL" = "FAIL";
-      let rec = "Không có conversion action nào đang hoạt động. Không có dữ liệu để tối ưu tự động.";
-      if (count >= 2) { score = 10; status = "PASS"; rec = `${count} conversion action đang hoạt động. Đủ dữ liệu để Smart Bidding tối ưu tốt.`; }
-      else if (count === 1) { score = 7; status = "PASS"; rec = "Có 1 conversion action. Nên thêm ít nhất 1 micro-conversion để Smart Bidding có thêm tín hiệu."; }
-      checks.push({ id: "conversion_tracking", name: "Conversion Health", description: "Trạng thái thẻ chuyển đổi.", score, status, recommendation: rec, ...dataOf(convQ), fixable: false });
+      let rec = t("libgoogle.ae.convNone");
+      if (count >= 2) { score = 10; status = "PASS"; rec = t("libgoogle.ae.convMany", { n: count }); }
+      else if (count === 1) { score = 7; status = "PASS"; rec = t("libgoogle.ae.convOne"); }
+      checks.push({ id: "conversion_tracking", name: "Conversion Health", description: t("libgoogle.ae.convDesc"), score, status, recommendation: rec, ...dataOf(convQ), fixable: false });
     }
 
     // ── 10. Geographic Accuracy ──
@@ -344,18 +346,18 @@ export class GoogleAuditEngine {
       const criteriaCount = geoRows.length;
       const count = geoByCampaign.size;
       let score = 4; let status: "PASS" | "WARNING" | "FAIL" = "FAIL";
-      let rec = "Chưa cấu hình geo targeting. Quảng cáo có thể đang hiển thị ra ngoài thị trường mục tiêu.";
+      let rec = t("libgoogle.ae.geoNone");
       if (count > 0) {
         const modes = [...geoByCampaign.values()];
         const presenceOrInterest = modes.filter((t) => t === "PRESENCE_OR_INTEREST").length;
         const presencePct = Math.round(((count - presenceOrInterest) / count) * 100);
-        score = 10; status = "PASS"; rec = `${count} chiến dịch đã cấu hình nhắm địa lý (${criteriaCount} tiêu chí vị trí). Quảng cáo đang được target địa lý đúng.`;
+        score = 10; status = "PASS"; rec = t("libgoogle.ae.geoOk", { n: count, c: criteriaCount });
         if (presenceOrInterest > count / 2) {
           score = 7; status = "WARNING";
-          rec = `${count} chiến dịch đã cấu hình nhắm địa lý, nhưng chỉ ${presencePct}% dùng chế độ Presence (thay vì Presence or Interest — mặc định cũ). Presence or Interest có thể hiển thị quảng cáo cho người chỉ "quan tâm" tới khu vực mà không thực sự ở đó. Nên chuyển sang Presence để target chính xác hơn.`;
+          rec = t("libgoogle.ae.geoWarn", { n: count, pct: presencePct });
         }
       }
-      checks.push({ id: "geo_targeting", name: "Geographic Accuracy", description: "Location setting Presence vs Presence or Interest.", score, status, recommendation: rec, ...dataOf(geoQ), fixable: false });
+      checks.push({ id: "geo_targeting", name: "Geographic Accuracy", description: t("libgoogle.ae.geoDesc"), score, status, recommendation: rec, ...dataOf(geoQ), fixable: false });
     }
 
     // ── 11. Device Bid Adjustments ──
@@ -377,11 +379,11 @@ export class GoogleAuditEngine {
       const ratio = cpaDesktop > 0 && cpaMobile > 0 ? cpaMobile / cpaDesktop : 1;
 
       let score = 8; let status: "PASS" | "WARNING" | "FAIL" = "PASS";
-      let rec = "CPA Mobile và Desktop cân bằng tốt.";
-      if (ratio > 2.5) { score = 4; status = "FAIL"; rec = `CPA Mobile đang cao gấp ${ratio.toFixed(1)}x Desktop. Cần điều chỉnh bid giảm mobile hoặc tối ưu landing page mobile.`; }
-      else if (ratio > 1.5) { score = 6; status = "WARNING"; rec = `CPA Mobile cao hơn Desktop ${ratio.toFixed(1)}x. Nên theo dõi và cân nhắc điều chỉnh bid theo device.`; }
-      if (cpaMobile === 0 && cpaDesktop === 0) { score = 5; status = "WARNING"; rec = "Không đủ dữ liệu conversion theo device để đánh giá."; }
-      checks.push({ id: "device_bid", name: "Device Bid Adjustments", description: "Chênh lệch CPA Mobile/Desktop.", score, status, recommendation: rec, ...dataOf(deviceQ), fixable: true });
+      let rec = t("libgoogle.ae.devOk");
+      if (ratio > 2.5) { score = 4; status = "FAIL"; rec = t("libgoogle.ae.devFail", { r: ratio.toFixed(1) }); }
+      else if (ratio > 1.5) { score = 6; status = "WARNING"; rec = t("libgoogle.ae.devWarn", { r: ratio.toFixed(1) }); }
+      if (cpaMobile === 0 && cpaDesktop === 0) { score = 5; status = "WARNING"; rec = t("libgoogle.ae.devNone"); }
+      checks.push({ id: "device_bid", name: "Device Bid Adjustments", description: t("libgoogle.ae.devDesc"), score, status, recommendation: rec, ...dataOf(deviceQ), fixable: true });
     }
 
     // ── 12. Landing Page — Mobile Friendliness ──
@@ -396,22 +398,22 @@ export class GoogleAuditEngine {
         ? Math.round(scores.reduce((a: number, b: number) => a + b, 0) / scores.length)
         : -1;
       let score = 7; let status: "PASS" | "WARNING" | "FAIL" = "PASS";
-      let rec = "Landing page đang hoạt động ổn định.";
+      let rec = t("libgoogle.ae.lpOk");
       if (avg >= 0) {
-        if (avg < 50) { score = 3; status = "FAIL"; rec = `Chỉ ${avg}% clicks từ mobile được Google đánh giá mobile-friendly. Cần kiểm tra trang đích trên thiết bị di động (dùng PageSpeed Insights để đo tốc độ thực tế — Google Ads API không cung cấp dữ liệu này).`; }
-        else if (avg < 75) { score = 5; status = "WARNING"; rec = `${avg}% clicks mobile-friendly. Nên kiểm tra Core Web Vitals và tối ưu hình ảnh trên mobile qua PageSpeed Insights.`; }
-        else { score = 9; status = "PASS"; rec = `${avg}% clicks đến từ landing page được đánh giá mobile-friendly. Tốt.`; }
+        if (avg < 50) { score = 3; status = "FAIL"; rec = t("libgoogle.ae.lpFail", { avg }); }
+        else if (avg < 75) { score = 5; status = "WARNING"; rec = t("libgoogle.ae.lpWarn", { avg }); }
+        else { score = 9; status = "PASS"; rec = t("libgoogle.ae.lpGood", { avg }); }
       } else if (lpRows.length > 0) {
         // Có trang đích, chỉ là Google không trả chỉ số mobile-friendly cho
         // dòng nào. Nói "kiểm tra cấu hình tracking URL" ở đây là chỉ sai chỗ:
         // trang đích rõ ràng đang được ghi nhận, thứ thiếu là CHỈ SỐ.
         score = 5; status = "WARNING";
-        rec = `Đọc được ${lpRows.length} trang đích nhưng Google chưa trả chỉ số mobile-friendly cho trang nào — chỉ số này cần đủ lượng nhấp chuột từ điện thoại mới có. Chưa kết luận được gì; đo trực tiếp bằng PageSpeed Insights.`;
+        rec = t("libgoogle.ae.lpNoMetric", { n: lpRows.length });
       } else {
         score = 5; status = "WARNING";
-        rec = "Không có trang đích nào trong 30 ngày qua. Kiểm tra lại cấu hình tracking URL hoặc chiến dịch có thật sự đang chạy không.";
+        rec = t("libgoogle.ae.lpNone");
       }
-      checks.push({ id: "lp_speed", name: "Landing Page — Mobile Friendliness", description: "Tỷ lệ click từ thiết bị mobile được Google đánh giá mobile-friendly (không đo tốc độ tải trang thực tế).", score, status, recommendation: rec, ...dataOf(lpQ), fixable: false });
+      checks.push({ id: "lp_speed", name: "Landing Page — Mobile Friendliness", description: t("libgoogle.ae.lpDesc"), score, status, recommendation: rec, ...dataOf(lpQ), fixable: false });
     }
 
     // ── 13. Impression Share Lost (Budget vs Rank) ──
@@ -425,17 +427,17 @@ export class GoogleAuditEngine {
       const avgBudgetLostPct = budgetLostVals.length > 0 ? Math.round((budgetLostVals.reduce((a: number, b: number) => a + b, 0) / budgetLostVals.length) * 100) : 0;
       const avgRankLostPct = rankLostVals.length > 0 ? Math.round((rankLostVals.reduce((a: number, b: number) => a + b, 0) / rankLostVals.length) * 100) : 0;
       const worstPct = Math.max(avgBudgetLostPct, avgRankLostPct);
-      const cause = avgBudgetLostPct >= avgRankLostPct ? "ngân sách thấp" : "Ad Rank thấp";
+      const cause = avgBudgetLostPct >= avgRankLostPct ? t("libgoogle.ae.causeBudget") : t("libgoogle.ae.causeRank");
       const fixHint = avgBudgetLostPct >= avgRankLostPct
-        ? "tăng budget để không bỏ lỡ traffic tiềm năng"
-        : "cải thiện Quality Score và/hoặc tăng bid";
+        ? t("libgoogle.ae.fixBudget")
+        : t("libgoogle.ae.fixRank");
 
       let score = 9; let status: "PASS" | "WARNING" | "FAIL" = "PASS";
-      let rec = "Impression Share ổn định — ít mất traffic do budget hoặc Ad Rank.";
-      if (validRows.length === 0) { score = 5; status = "WARNING"; rec = "Không đủ dữ liệu Impression Share (tài khoản có thể không chạy Search campaign nào)."; }
-      else if (worstPct > 40) { score = 3; status = "FAIL"; rec = `Mất ${worstPct}% Impression Share do ${cause}. Cần ${fixHint} — đang bỏ lỡ lượng traffic đáng kể.`; }
-      else if (worstPct > 20) { score = 5; status = "WARNING"; rec = `Mất ${worstPct}% Impression Share do ${cause}. Nên ${fixHint}.`; }
-      checks.push({ id: "impression_share", name: "Impression Share Lost", description: "Tỷ lệ impression bị mất do ngân sách thấp hoặc Ad Rank thấp (Search campaigns).", score, status, recommendation: rec, ...dataOf(impressionShareQ), fixable: false });
+      let rec = t("libgoogle.ae.isOk");
+      if (validRows.length === 0) { score = 5; status = "WARNING"; rec = t("libgoogle.ae.isNone"); }
+      else if (worstPct > 40) { score = 3; status = "FAIL"; rec = t("libgoogle.ae.isFail", { pct: worstPct, cause, fix: fixHint }); }
+      else if (worstPct > 20) { score = 5; status = "WARNING"; rec = t("libgoogle.ae.isWarn", { pct: worstPct, cause, fix: fixHint }); }
+      checks.push({ id: "impression_share", name: "Impression Share Lost", description: t("libgoogle.ae.isDesc"), score, status, recommendation: rec, ...dataOf(impressionShareQ), fixable: false });
     }
 
     // ── 14. Bidding Strategy Coverage ──
@@ -447,10 +449,10 @@ export class GoogleAuditEngine {
       const pct = totalConversioning > 0 ? Math.round((manualConversioning.length / totalConversioning) * 100) : 0;
 
       let score = 9; let status: "PASS" | "WARNING" | "FAIL" = "PASS";
-      let rec = "Hầu hết campaign có conversion đang dùng Smart Bidding — tối ưu tự động hiệu quả.";
-      if (totalConversioning === 0) { score = 5; status = "WARNING"; rec = "Không đủ dữ liệu conversion để đánh giá chiến lược đặt giá thầu."; }
-      else if (pct > 30) { score = 6; status = "WARNING"; rec = `${manualConversioning.length}/${totalConversioning} campaign (${pct}%) đang dùng Manual Bidding dù đã có đủ conversion data. Cân nhắc chuyển sang Target CPA/Maximize Conversions để AI tối ưu tự động.`; }
-      checks.push({ id: "bidding_strategy", name: "Bidding Strategy Coverage", description: "Tỷ lệ campaign có conversion vẫn dùng Manual Bidding thay vì Smart Bidding.", score, status, recommendation: rec, ...dataOf(biddingStrategyQ), fixable: false });
+      let rec = t("libgoogle.ae.bidOk");
+      if (totalConversioning === 0) { score = 5; status = "WARNING"; rec = t("libgoogle.ae.bidNone"); }
+      else if (pct > 30) { score = 6; status = "WARNING"; rec = t("libgoogle.ae.bidWarn", { m: manualConversioning.length, total: totalConversioning, pct }); }
+      checks.push({ id: "bidding_strategy", name: "Bidding Strategy Coverage", description: t("libgoogle.ae.bidDesc"), score, status, recommendation: rec, ...dataOf(biddingStrategyQ), fixable: false });
     }
 
     // ── Đợt 10a · F2: kiểm tra PMax — cùng dữ liệu với trang PMax X-quang ──
@@ -458,10 +460,10 @@ export class GoogleAuditEngine {
       const { pmaxXray } = await import("@/lib/pmax/xray");
       const { pmaxAuditChecks } = await import("@/lib/pmax/audit-checks");
       const { lastDays } = await import("@/lib/case/dates");
-      checks.push(...pmaxAuditChecks(await pmaxXray(company, lastDays(30)), null));
+      checks.push(...pmaxAuditChecks(await pmaxXray(company, lastDays(30), {}, t), null, t));
     } catch (e) {
       const { pmaxAuditChecks } = await import("@/lib/pmax/audit-checks");
-      checks.push(...pmaxAuditChecks(null, e instanceof Error ? e.message : String(e)));
+      checks.push(...pmaxAuditChecks(null, e instanceof Error ? e.message : String(e), t));
     }
 
     // Tiêu chí không đọc được KHÔNG được tính điểm. Trước đây truy vấn hỏng
@@ -481,7 +483,7 @@ export class GoogleAuditEngine {
     for (const c of unreadable) {
       c.score = 0;
       c.status = "WARNING";
-      c.recommendation = `CHƯA KIỂM ĐƯỢC — ${c.dataNote ?? "truy vấn Google Ads thất bại"}. Kết quả trước đó của tiêu chí này không đáng tin và đã bị loại khỏi điểm tổng.`;
+      c.recommendation = t("libgoogle.ae.unreadable", { note: c.dataNote ?? t("libgoogle.ae.unreadableDefault") });
     }
 
     // Không đọc được tiêu chí NÀO thì không có điểm nào để chấm. Để rơi
@@ -499,7 +501,8 @@ export class GoogleAuditEngine {
     // vừa mời AI bình luận về những kết luận không tồn tại.
     const aiInsight = scored.length === 0 ? null : await generateAuditInsight(
       { overallScore, letterGrade, checks, aiInsight: null, unreadableCount: unreadable.length, scoredCount: scored.length },
-      company
+      company,
+      nfOf(t) === nfOf(viT) ? "vi" : "en"
     );
 
     return {

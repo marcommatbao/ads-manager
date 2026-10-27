@@ -27,7 +27,7 @@ import type { InboxKind, InboxSource } from "@/lib/inbox/build";
 import type { InboxStatus, InboxView } from "@/lib/inbox/store";
 import type { Company } from "@/lib/case/types";
 import { orderedCompanyIds, companyLabel } from "@/lib/companies/registry";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import type { MessageKey } from "@/lib/i18n/messages";
 import type { TFunction } from "@/lib/i18n/translate";
 
@@ -385,6 +385,7 @@ function ItemCard({
   onSnooze: () => void;
   onDismiss: () => void;
 }) {
+  const intl = useIntlLocale();
   const t = useT();
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4">
@@ -408,7 +409,7 @@ function ItemCard({
         <div className="w-full min-w-0 text-left sm:w-auto sm:max-w-xs sm:text-right">
           {item.money != null && (
             <>
-              <div className="tabular-nums text-sm font-bold text-red-600">{vnd(item.money)}</div>
+              <div className="tabular-nums text-sm font-bold text-red-600">{vnd(item.money, intl)}</div>
               <div className="text-xs text-slate-400">{moneySuffix(item.moneyLabel, t)}</div>
             </>
           )}
@@ -430,7 +431,7 @@ function ItemCard({
                   <div className="font-medium text-slate-700">{c.name}</div>
                   <div className="text-slate-400">{c.detail}</div>
                 </div>
-                {c.money != null && <div className="shrink-0 tabular-nums text-slate-600">{vnd(c.money)}</div>}
+                {c.money != null && <div className="shrink-0 tabular-nums text-slate-600">{vnd(c.money, intl)}</div>}
               </li>
             ))}
           </ul>

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getT } from "@/lib/i18n/server";
 import { GoogleAuditEngine } from "@/lib/google-audit-engine";
 import { getCurrentUser } from "@/lib/auth";
 import { canAccessCompany } from "@/lib/permissions";
@@ -7,6 +8,7 @@ import { friendlyError } from "@/lib/not-configured";
 import { GOOGLE_CUSTOMER_IDS } from "@/lib/google-ads-client";
 
 export async function GET(request: NextRequest) {
+  const t = await getT();
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -30,7 +32,7 @@ export async function GET(request: NextRequest) {
     }
 
     const engine = new GoogleAuditEngine();
-    const data = await engine.runAudit(customerId);
+    const data = await engine.runAudit(customerId, t);
 
     return NextResponse.json({ success: true, data });
   } catch (error: unknown) {

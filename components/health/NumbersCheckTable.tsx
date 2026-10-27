@@ -5,9 +5,10 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@
 import { vnd, ddmmyyyy, datetimeVN } from "@/components/case/format";
 import type { NumbersCheckResult } from "@/lib/jobs/numbers-check";
 import { Badge, NUMBERS_STATUS_META } from "./badges";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 
 export function NumbersCheckTable({ numbersCheck }: { numbersCheck: NumbersCheckResult | null }) {
+  const intl = useIntlLocale();
   const t = useT();
   return (
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-4 space-y-3">
@@ -21,7 +22,7 @@ export function NumbersCheckTable({ numbersCheck }: { numbersCheck: NumbersCheck
       ) : (
         <>
           <p className="text-xs text-slate-500">
-            {t("overview.health.numbers.range", { from: ddmmyyyy(numbersCheck.range.from), to: ddmmyyyy(numbersCheck.range.to), time: datetimeVN(numbersCheck.at) })}
+            {t("overview.health.numbers.range", { from: ddmmyyyy(numbersCheck.range.from, intl), to: ddmmyyyy(numbersCheck.range.to, intl), time: datetimeVN(numbersCheck.at, intl) })}
           </p>
           <Table>
             <TableHeader>
@@ -41,8 +42,8 @@ export function NumbersCheckTable({ numbersCheck }: { numbersCheck: NumbersCheck
                   <TableRow key={`${c.company}-${c.name}-${i}`}>
                     <TableCell className="text-xs font-medium text-slate-700">{c.company}</TableCell>
                     <TableCell className="whitespace-normal max-w-[220px] text-xs text-slate-600">{c.name}</TableCell>
-                    <TableCell className="text-xs tabular-nums text-slate-700">{vnd(c.tool)}</TableCell>
-                    <TableCell className="text-xs tabular-nums text-slate-700">{vnd(c.reference)}</TableCell>
+                    <TableCell className="text-xs tabular-nums text-slate-700">{vnd(c.tool, intl)}</TableCell>
+                    <TableCell className="text-xs tabular-nums text-slate-700">{vnd(c.reference, intl)}</TableCell>
                     <TableCell className="text-xs tabular-nums text-slate-600">
                       {c.diff === null ? "—" : `${Math.round(c.diff * 100)}%`}
                     </TableCell>

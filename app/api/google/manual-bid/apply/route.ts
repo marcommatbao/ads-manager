@@ -12,6 +12,7 @@
 // Body: { company, days?, campaignId, resourceNames: string[], dryRun?: boolean }
 
 import { NextRequest, NextResponse } from "next/server";
+import { getT } from "@/lib/i18n/server";
 import { getCurrentUser } from "@/lib/auth";
 import { hasPermission, canAccessCompany } from "@/lib/permissions";
 import { getGoogleAdsCustomer } from "@/lib/google-ads-client";
@@ -35,34 +36,35 @@ const MICROS = 1_000_000;
 const MAX_CHANGE_RATIO = 0.4;
 
 export async function POST(req: NextRequest) {
+  const t = await getT();
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
   if (!hasPermission(user.role, "can_edit")) {
-    return NextResponse.json({ success: false, error: "Không có quyền thay đổi giá thầu" }, { status: 403 });
+    return NextResponse.json({ success: false, error: t("libgoogle.mba.noEdit") }, { status: 403 });
   }
 
   let body: { company?: string; days?: number; campaignId?: string; resourceNames?: unknown; dryRun?: boolean };
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ success: false, error: "Body không phải JSON hợp lệ" }, { status: 400 });
+    return NextResponse.json({ success: false, error: t("libgoogle.mba.badJson") }, { status: 400 });
   }
 
   const company = pickCompany(body.company);
   if (!canAccessCompany(user, company)) {
-    return NextResponse.json({ success: false, error: `Không có quyền thao tác trên ${company}` }, { status: 403 });
+    return NextResponse.json({ success: false, error: t("libgoogle.mba.noOpCo", { co: company }) }, { status: 403 });
   }
 
   const campaignId = String(body.campaignId ?? "");
   if (!/^\d+$/.test(campaignId)) {
-    return NextResponse.json({ success: false, error: "Thiếu campaignId hợp lệ" }, { status: 400 });
+    return NextResponse.json({ success: false, error: t("libgoogle.mba.noCampaignId") }, { status: 400 });
   }
 
   const wanted = Array.isArray(body.resourceNames)
     ? body.resourceNames.filter((r): r is string => typeof r === "string" && r.startsWith("customers/"))
     : [];
   if (wanted.length === 0) {
-    return NextResponse.json({ success: false, error: "Chưa chọn từ khoá nào" }, { status: 400 });
+    return NextResponse.json({ success: false, error: t("libgoogle.mba.noKw") }, { status: 400 });
   }
 
   const dryRun = body.dryRun !== false; // mặc định AN TOÀN: không ghi trừ khi nói rõ
@@ -70,15 +72,15 @@ export async function POST(req: NextRequest) {
   try {
     // Tính LẠI từ đầu, ngay lúc áp dụng — số liệu và ước tính của Google đổi
     // theo ngày, nên không dùng lại kết quả người dùng đang nhìn trên màn hình.
-    const { campaigns } = await fetchManualBidRecommendations(company, body.days ?? 30, campaignId);
+    const { campaigns } = await fetchManualBidRecommendations(company, body.days ?? 30, campaignId, t);
     const camp = campaigns.find((c) => c.campaignId === campaignId);
     if (!camp) {
-      return NextResponse.json({ success: false, error: "Không tìm thấy chiến dịch, hoặc chiến dịch không có từ khoá nào đang chạy" }, { status: 404 });
+      return NextResponse.json({ success: false, error: t("libgoogle.mba.noCamp") }, { status: 404 });
     }
     if (!camp.isManualCpc) {
       return NextResponse.json({
         success: false,
-        error: `Chiến dịch đang chạy ${camp.biddingStrategy}, không phải Manual CPC — Google sẽ bỏ qua mọi giá thầu đặt tay. Phải đổi chiến lược chiến dịch trong Google Ads trước.`,
+        error: t("libgoogle.mba.notManual", { strategy: camp.biddingStrategy }),
       }, { status: 409 });
     }
 
@@ -95,11 +97,11 @@ export async function POST(req: NextRequest) {
       if (!wantedSet.has(kw.resourceName)) continue;
 
       if (kw.recommendedBid === null) {
-        skipped.push({ keyword: kw.text, why: kw.verdict === "khong_dat_duoc" ? "không có giá thầu nào vừa đủ rẻ vừa hiện được" : "chưa đủ dữ liệu để tính" });
+        skipped.push({ keyword: kw.text, why: kw.verdict === "khong_dat_duoc" ? t("libgoogle.mba.skipUnreach") : t("libgoogle.mba.skipNoData") });
         continue;
       }
       if (kw.verdict === "giu") {
-        skipped.push({ keyword: kw.text, why: "đang nằm trong biên ±15%, không cần đổi" });
+        skipped.push({ keyword: kw.text, why: t("libgoogle.mba.skipHold") });
         continue;
       }
 
@@ -108,15 +110,15 @@ export async function POST(req: NextRequest) {
       if (kw.currentBid > 0) {
         const maxUp = kw.currentBid * (1 + MAX_CHANGE_RATIO);
         const maxDown = kw.currentBid * (1 - MAX_CHANGE_RATIO);
-        if (target > maxUp) { target = maxUp; note = `chặn ở mức tăng tối đa ${MAX_CHANGE_RATIO * 100}%/lần — chạy lại sau vài ngày để đi tiếp`; }
-        if (target < maxDown) { target = maxDown; note = `chặn ở mức giảm tối đa ${MAX_CHANGE_RATIO * 100}%/lần — chạy lại sau vài ngày để đi tiếp`; }
+        if (target > maxUp) { target = maxUp; note = t("libgoogle.mba.noteUp", { pct: MAX_CHANGE_RATIO * 100 }); }
+        if (target < maxDown) { target = maxDown; note = t("libgoogle.mba.noteDown", { pct: MAX_CHANGE_RATIO * 100 }); }
       }
       target = Math.max(target, MIN_CPC_VND);
       const micros = Math.round(target * MICROS);
 
       // Làm tròn xong mà không đổi gì thì đừng gửi lên Google cho tốn lượt gọi.
       if (Math.round(kw.currentBid) === Math.round(target)) {
-        skipped.push({ keyword: kw.text, why: "sau khi chặn biên thì bằng đúng giá cũ" });
+        skipped.push({ keyword: kw.text, why: t("libgoogle.mba.skipSame") });
         continue;
       }
 
@@ -125,7 +127,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (ops.length === 0) {
-      return NextResponse.json({ success: true, dryRun, applied: 0, preview, skipped, warnings, message: "Không có từ khoá nào cần đổi." });
+      return NextResponse.json({ success: true, dryRun, applied: 0, preview, skipped, warnings, message: t("libgoogle.mba.noChange") });
     }
 
     if (dryRun) {

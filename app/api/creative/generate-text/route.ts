@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getInsightsForToneSegment } from "@/lib/creative-tracker";
 import { callGemini, type GeminiResponse } from "@/lib/gemini";
 import { scoreCreative } from "@/lib/creative-scorer";
+import { getT } from "@/lib/i18n/server";
 import { getRelevantMemories, buildMemoryPromptSection } from "@/lib/ai-memory-engine";
 import { creativeBrandPrompt } from "@/lib/brand/creative";
 import { isCompany } from "@/lib/companies";
@@ -253,7 +254,7 @@ export async function POST(request: NextRequest) {
       socialProof: body.socialProof ?? "",
       offer:       body.offer       ?? "",
       cta,
-    });
+    }, await getT());
 
     // Product display name → key heuristic (main wizard only sends the label,
     // e.g. "Hosting" — see _constants.ts ALL_PRODUCTS_LIST). Only "hosting"
@@ -269,7 +270,7 @@ export async function POST(request: NextRequest) {
       productKey,
       hasProof: !!body.socialProof,
       hasPromo: !!body.offer,
-    });
+    }, await getT());
 
     const data = {
       id: `gen_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,

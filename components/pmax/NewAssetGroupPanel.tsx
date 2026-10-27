@@ -17,7 +17,7 @@ import {
   CheckCircle2, Loader2, Pause, Play, Plus, Sparkles, Trash2, X, XCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import type { MessageKey } from "@/lib/i18n/messages";
 import { postJson, ApiError } from "@/components/case/api";
 import { datetimeVN } from "@/components/case/format";
@@ -122,6 +122,7 @@ const ACTION_LABEL: Record<"enable" | "pause" | "remove", MessageKey> = { enable
 function NewAssetGroupRow({ rec, company, canEdit, confirmText, onChanged }: {
   rec: NewAssetGroupRecord; company: Company; canEdit: boolean; confirmText: string; onChanged: () => void;
 }) {
+  const intl = useIntlLocale();
   const t = useT();
   const confirmId = useId();
   const [action, setAction] = useState<"enable" | "pause" | "remove" | null>(null);
@@ -153,7 +154,7 @@ function NewAssetGroupRow({ rec, company, canEdit, confirmText, onChanged }: {
         <p className="truncate font-semibold text-slate-800" title={rec.name}>{rec.name}</p>
         <span className={cn("shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold", statusCls)}>{status}</span>
       </div>
-      <p className="text-[10px] text-slate-400">{datetimeVN(rec.at)} · {rec.by}</p>
+      <p className="text-[10px] text-slate-400">{datetimeVN(rec.at, intl)} · {rec.by}</p>
       {rec.errors.length > 0 && <ul className="list-disc space-y-0.5 pl-4 text-red-700">{rec.errors.filter((e) => !e.startsWith("[")).map((e, i) => <li key={i}>{e}</li>)}</ul>}
       {created && !removed && canEdit && (
         <div className="flex flex-wrap items-center gap-1.5 pt-1">

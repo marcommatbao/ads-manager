@@ -11,6 +11,8 @@
 // and rate-limited: GET serves the day's in-memory cache when present and
 // only generates on a miss. POST always regenerates (the card's refresh).
 // ============================================================
+import { getT } from "@/lib/i18n/server";
+import type { TFunction } from "@/lib/i18n/translate";
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { rateLimit } from "@/lib/rate-limit";
@@ -27,11 +29,11 @@ export const maxDuration = 60;
 
 /** Trả về khi tính năng đang tắt. 200 chứ không phải lỗi: tắt có chủ đích là
  *  một trạng thái bình thường, không phải sự cố — thẻ ẩn đi lặng lẽ. */
-function disabledResponse() {
+function disabledResponse(t: TFunction) {
   return NextResponse.json({
     success: false,
     disabled: true,
-    error: "Bản tin buổi sáng đang tắt (ENABLE_MORNING_BRIEFING chưa bật).",
+    error: t("libcase.r.mb.1"),
   });
 }
 
@@ -46,9 +48,10 @@ async function build(force: boolean) {
 }
 
 export async function GET() {
+  const t = await getT();
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
-  if (!MORNING_BRIEFING_ENABLED) return disabledResponse();
+  if (!MORNING_BRIEFING_ENABLED) return disabledResponse(t);
 
   try {
     const { data, cached } = await build(false);
@@ -56,7 +59,7 @@ export async function GET() {
   } catch (err) {
     // Return the real reason — the card shows json.error rather than
     // pretending there is simply no briefing today.
-    const message = err instanceof Error ? err.message : "Không tạo được bản tin buổi sáng";
+    const message = err instanceof Error ? err.message : t("libcase.r.mb.2");
     console.error("[automation/morning-briefing GET]", err);
     return NextResponse.json({ success: false, error: friendlyError(message) }, { status: 502 });
   }
@@ -69,16 +72,17 @@ const REFRESH_RATE_MAX = 3;
 const REFRESH_RATE_WINDOW_MS = 5 * 60_000;
 
 export async function POST() {
+  const t = await getT();
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
   // Chặn TRƯỚC rate-limit: đang tắt thì nút refresh cũng không được phép đốt
   // một lượt gọi Meta + một lượt sinh Gemini.
-  if (!MORNING_BRIEFING_ENABLED) return disabledResponse();
+  if (!MORNING_BRIEFING_ENABLED) return disabledResponse(t);
 
   const { allowed } = await rateLimit(`briefing-refresh:${user.id}`, REFRESH_RATE_MAX, REFRESH_RATE_WINDOW_MS);
   if (!allowed) {
     return NextResponse.json(
-      { success: false, error: "Bản tin vừa được tạo lại. Đợi vài phút rồi thử lại." },
+      { success: false, error: t("libcase.r.mb.3") },
       { status: 429 },
     );
   }
@@ -87,7 +91,7 @@ export async function POST() {
     const { data } = await build(true);
     return NextResponse.json({ success: true, data, cached: false });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Không tạo được bản tin buổi sáng";
+    const message = err instanceof Error ? err.message : t("libcase.r.mb.2");
     console.error("[automation/morning-briefing POST]", err);
     return NextResponse.json({ success: false, error: friendlyError(message) }, { status: 502 });
   }

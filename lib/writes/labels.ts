@@ -1,3 +1,4 @@
+import { makeT, type TFunction } from "@/lib/i18n/translate"
 // Nhãn tiếng Việt cho mã sự kiện decision-memory trên trang "Đã làm & kết quả" — tệp THUẦN, dùng được ở trình duyệt.
 export const EVENT_LABEL: Record<string, string> = {
   "budget.increase": "tăng ngân sách", "budget.decrease": "giảm ngân sách", "budget.redistribute": "chia lại ngân sách",
@@ -13,4 +14,10 @@ const CODE = /: ([a-z_]+\.[a-z_]+)(?= — |$)/
 /** Đổi mã sự kiện trong nhãn ("Tên: campaign.pause — …") sang tiếng Việt; nhãn khác giữ nguyên (cả bản đã lưu trước đây). */
 export function prettyWriteLabel(label: string): string {
   return label.replace(CODE, (m, code: string) => (EVENT_LABEL[code] ? `: ${EVENT_LABEL[code]}` : m))
+}
+
+export const eventLabel = (code: string, t: TFunction = makeT("vi")): string => (code in EVENT_LABEL ? t(`libcase.event.${code}` as never) : code)
+/** Bản theo ngôn ngữ của prettyWriteLabel. */
+export function prettyWriteLabelT(label: string, t: TFunction = makeT("vi")): string {
+  return label.replace(CODE, (m, code: string) => (EVENT_LABEL[code] ? `: ${eventLabel(code, t)}` : m))
 }

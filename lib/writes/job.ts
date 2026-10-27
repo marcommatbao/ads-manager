@@ -4,6 +4,7 @@
 // Mỗi (lần ghi × mốc) đo ĐÚNG MỘT lần rồi lưu (data/write-outcomes.json, giữ theo luồng ghi ~400 ngày). Meta ~60 lượt/giờ →
 // mỗi lượt chạy đo tối đa META_MAX_RANGES khoảng ngày Meta, phần còn lại để hôm sau. Mốc 14 ngày ra XẤU → một thẻ Teams (kênh
 // Ads nếu có, không thì kênh IT) kèm chỗ hoàn tác — KHÔNG tự hoàn tác.
+import { makeT, type TFunction } from "@/lib/i18n/translate"
 import fs from "fs"
 import path from "path"
 import { writeFileAtomicSync } from "@/lib/fs-atomic"
@@ -21,12 +22,12 @@ export function readOutcomes(): Record<string, OutcomeRecord> { try { return JSO
 function saveOutcomes(o: Record<string, OutcomeRecord>) { fs.mkdirSync(path.dirname(FILE), { recursive: true }); writeFileAtomicSync(FILE, JSON.stringify(o, null, 1)) }
 
 /** Lý do KHÔNG đo (không tốn lượt gọi) — HÀM THUẦN. null = cần đo. */
-export function skipReason(ev: WriteEvent, days: number): string | null {
-  if (ev.ownOutcome === "case") return "Phiên xử lý tự đo lại (xem phiên)"
-  if (ev.ownOutcome === "split") return "Bản tách tự đo lại (X-quang Search → bản tách)"
-  if (ev.accountLevel) return "Cấp tài khoản — không đo riêng chiến dịch"
-  if (!ev.campaignIds.length && !ev.pending.length) return "Không xác định được chiến dịch bị chạm"
-  if (ev.undoneAt && vnDate(new Date(ev.undoneAt)) <= windowRanges(ev.at, days).after.to) return `Đã hoàn tác ${vnDate(new Date(ev.undoneAt)).slice(5).split("-").reverse().join("/")}`
+export function skipReason(ev: WriteEvent, days: number, t: TFunction = makeT("vi")): string | null {
+  if (ev.ownOutcome === "case") return t("libcase.w.skip.case")
+  if (ev.ownOutcome === "split") return t("libcase.w.skip.split")
+  if (ev.accountLevel) return t("libcase.w.skip.account")
+  if (!ev.campaignIds.length && !ev.pending.length) return t("libcase.w.skip.unknown")
+  if (ev.undoneAt && vnDate(new Date(ev.undoneAt)) <= windowRanges(ev.at, days).after.to) return t("libcase.w.skip.undone", { d: vnDate(new Date(ev.undoneAt)).slice(5).split("-").reverse().join("/") })
   return null
 }
 

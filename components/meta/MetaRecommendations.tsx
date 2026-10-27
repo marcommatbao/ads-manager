@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { postJson, ApiError } from "@/components/case/api";
 import { vnd } from "@/components/case/format";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import type { MessageKey } from "@/lib/i18n/messages";
 import type { MetaRecommendation } from "@/lib/meta/recommend";
 
@@ -42,6 +42,7 @@ function Badge({ cls, symbol, children }: { cls: string; symbol: string; childre
 }
 
 function RecommendationCard({ rec, company, range }: { rec: MetaRecommendation; company: Company; range: Range }) {
+  const intl = useIntlLocale();
   const t = useT();
   const router = useRouter();
   const [opening, setOpening] = useState(false);
@@ -71,7 +72,7 @@ function RecommendationCard({ rec, company, range }: { rec: MetaRecommendation; 
           <h4 className="text-sm font-bold text-slate-800">{rec.title}</h4>
         </div>
         <p className="text-xs text-slate-500">{rec.why}</p>
-        {rec.moneyAtStake !== null && <p className="text-xs font-semibold text-red-600">{t("meta.xray.rec.atStake", { value: vnd(rec.moneyAtStake) })}</p>}
+        {rec.moneyAtStake !== null && <p className="text-xs font-semibold text-red-600">{t("meta.xray.rec.atStake", { value: vnd(rec.moneyAtStake, intl) })}</p>}
       </div>
 
       {action.type === "open_case" && (

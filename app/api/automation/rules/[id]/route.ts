@@ -2,6 +2,7 @@
 // Automation Rule [id] API — GET/PUT/DELETE single rule
 // ============================================================
 
+import { getT } from "@/lib/i18n/server";
 import { NextRequest, NextResponse } from "next/server";
 import {
   getAllRules,
@@ -43,10 +44,11 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const t = await getT();
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (!hasPermission(user.role, "can_edit")) {
-    return NextResponse.json({ success: false, error: "Không có quyền chỉnh sửa automation rule" }, { status: 403 });
+    return NextResponse.json({ success: false, error: t("libcase.r.ari.1") }, { status: 403 });
   }
 
   const { id } = await params;
@@ -68,7 +70,7 @@ export async function PUT(
       if (!canTouchRuleScope(user, c)) {
         return NextResponse.json({
           success: false,
-          error: `Không có quyền với rule của công ty ${String(c ?? "cả hai công ty")}`,
+          error: t("libcase.r.ari.2", { v1: String(c ?? "cả hai công ty") }),
         }, { status: 403 });
       }
     }
@@ -78,7 +80,7 @@ export async function PUT(
         && !hasPermission(user.role, "can_manage_budget")) {
       return NextResponse.json({
         success: false,
-        error: "Rule có hành động đổi ngân sách — cần quyền quản lý ngân sách",
+        error: t("libcase.r.ari.3"),
       }, { status: 403 });
     }
     const updated = updateRule(id, body);
@@ -99,10 +101,11 @@ export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const t = await getT();
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (!hasPermission(user.role, "can_edit")) {
-    return NextResponse.json({ success: false, error: "Không có quyền chỉnh sửa automation rule" }, { status: 403 });
+    return NextResponse.json({ success: false, error: t("libcase.r.ari.1") }, { status: 403 });
   }
 
   const { id } = await params;
@@ -117,7 +120,7 @@ export async function DELETE(
       if (!ok) {
         return NextResponse.json({
           success: false,
-          error: `Không có quyền với rule của công ty ${current.company}`,
+          error: t("libcase.r.ari.4", { v1: current.company }),
         }, { status: 403 });
       }
     }
@@ -140,10 +143,11 @@ export async function PATCH(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const t = await getT();
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (!hasPermission(user.role, "can_edit")) {
-    return NextResponse.json({ success: false, error: "Không có quyền chỉnh sửa automation rule" }, { status: 403 });
+    return NextResponse.json({ success: false, error: t("libcase.r.ari.1") }, { status: 403 });
   }
 
   const { id } = await params;
@@ -154,13 +158,13 @@ export async function PATCH(
     // Xác minh audit 01/10: PATCH (bật/tắt) cũng phải kiểm công ty của rule đang lưu — trước đây admin_mbc bật/tắt
     // được rule của MBI qua đường này dù PUT/DELETE đã chặn.
     if (existing && !canTouchRuleScope(user, existing.company)) {
-      return NextResponse.json({ success: false, error: "Không có quyền với rule của công ty khác" }, { status: 403 });
+      return NextResponse.json({ success: false, error: t("libcase.r.ari.5") }, { status: 403 });
     }
     if (existing && !existing.isActive && ruleTouchesBudget(existing.actions)
         && !hasPermission(user.role, "can_manage_budget")) {
       return NextResponse.json({
         success: false,
-        error: "Rule này tự đổi ngân sách — cần quyền quản lý ngân sách mới bật được",
+        error: t("libcase.r.ari.6"),
       }, { status: 403 });
     }
     const toggled = toggleRule(id);

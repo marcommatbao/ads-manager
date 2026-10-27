@@ -16,6 +16,7 @@ import { sendTeamsAlert } from "@/lib/teams-alert"
 import { vnDate } from "@/lib/case/dates"
 import type { Company } from "@/lib/case/types"
 import { metaHealth, type MetaHealth } from "@/lib/measure/meta-health"
+import { makeT, type TFunction } from "@/lib/i18n/translate"
 import { normEvent, tagDoctor, type TagDoctorReport } from "@/lib/measure/tag-doctor"
 
 const DIR = path.join(process.cwd(), "data", "measure-snapshots")
@@ -56,7 +57,8 @@ export interface MonitorRun {
 }
 
 const round1 = (n: number) => Math.round(n * 10) / 10
-const fmt = (n: number) => n.toLocaleString("vi-VN", { maximumFractionDigits: 1 })
+const fmtL = (n: number, loc: string) => n.toLocaleString(loc, { maximumFractionDigits: 1 })
+const fmt = (n: number) => fmtL(n, "vi-VN")
 
 /** Hàm thuần: kết quả Chẩn đoán gắn thẻ + Sức khoẻ đo lường → ảnh chụp gọn. */
 export function snapshotOf(company: Company, tags: TagDoctorReport | null, meta: MetaHealth | null, errors: string[] = []): CompanySnapshot {
@@ -91,50 +93,51 @@ export function snapshotOf(company: Company, tags: TagDoctorReport | null, meta:
 }
 
 /** Hàm thuần: so hai ảnh chụp cùng công ty → thay đổi. Phần nào một bên không đọc được thì KHÔNG so. */
-export function diffSnapshots(prev: CompanySnapshot, cur: CompanySnapshot): MonitorChange[] {
+export function diffSnapshots(prev: CompanySnapshot, cur: CompanySnapshot, t: TFunction = makeT("vi")): MonitorChange[] {
+  const fmt = (n: number) => fmtL(n, t("libcase.r.numLocale"))
   const co = cur.company
   const out: MonitorChange[] = []
   const add = (level: ChangeLevel, text: string) => out.push({ company: co, level, text: `${co} · ${text}` })
   if (prev.tagsOk && cur.tagsOk) {
     const prevIds = new Set(prev.issues.map((i) => i.id)), curIds = new Set(cur.issues.map((i) => i.id))
-    for (const i of cur.issues) if (!prevIds.has(i.id) && i.severity === "bad") add("bad", `Vấn đề mới: ${i.title}`)
-    for (const i of prev.issues) if (!curIds.has(i.id)) add("good", `Đã khỏi: ${i.title}`)
+    for (const i of cur.issues) if (!prevIds.has(i.id) && i.severity === "bad") add("bad", t("libcase.r.mm.newIssue", { title: i.title }))
+    for (const i of prev.issues) if (!curIds.has(i.id)) add("good", t("libcase.r.mm.fixed", { title: i.title }))
     for (const g of cur.gtm) {
       const p = prev.gtm.find((x) => x.id === g.id)
       if (!p || p.version === g.version) continue
-      const diffs = g.tags.flatMap((t) => {
-        const o = p.tags.find((x) => x.tagId === t.tagId)
-        if (!o) return [`thẻ ${t.tagId} mới (${t.kind} ${t.eventName})`]
-        return o.kind !== t.kind || o.eventName !== t.eventName ? [`thẻ ${t.tagId} ${o.kind} ${o.eventName} → ${t.kind} ${t.eventName}`] : []
+      const diffs = g.tags.flatMap((gt) => {
+        const o = p.tags.find((x) => x.tagId === gt.tagId)
+        if (!o) return [t("libcase.r.mm.tagNew", { id: gt.tagId, kind: gt.kind, ev: gt.eventName })]
+        return o.kind !== gt.kind || o.eventName !== gt.eventName ? [t("libcase.r.mm.tagChg", { id: gt.tagId, ok: o.kind, oe: o.eventName, nk: gt.kind, ne: gt.eventName })] : []
       })
-      const removed = p.tags.filter((o) => !g.tags.some((t) => t.tagId === o.tagId)).map((o) => `thẻ ${o.tagId} bị gỡ (${o.eventName})`)
-      add("info", `${g.id} đổi bản ${p.version ?? "?"} → ${g.version ?? "?"}${[...diffs, ...removed].length ? `: ${[...diffs, ...removed].join("; ")}` : " (thẻ Pixel không đổi)"}`)
+      const removed = p.tags.filter((o) => !g.tags.some((x) => x.tagId === o.tagId)).map((o) => t("libcase.r.mm.tagRm", { id: o.tagId, ev: o.eventName }))
+      add("info", t("libcase.r.mm.gtm", { id: g.id, from: p.version ?? "?", to: g.version ?? "?", rest: [...diffs, ...removed].length ? `: ${[...diffs, ...removed].join("; ")}` : t("libcase.r.mm.gtmSame") }))
     }
     for (const g of cur.googleGoals) {
       const p = prev.googleGoals.find((x) => x.category === g.category && x.origin === g.origin)
-      if (p && p.biddable !== g.biddable) add("info", `Google mục tiêu ${g.category}: ${p.biddable ? "đặt giá" : "không đặt giá"} → ${g.biddable ? "đặt giá" : "không đặt giá"}`)
+      if (p && p.biddable !== g.biddable) add("info", t("libcase.r.mm.goal", { cat: g.category, a: p.biddable ? t("libcase.r.mm.bid") : t("libcase.r.mm.nobid"), b: g.biddable ? t("libcase.r.mm.bid") : t("libcase.r.mm.nobid") }))
     }
     // Lộ trình: bước vừa xong → báo "xong" + việc tiếp theo.
     for (const r of cur.roadmap ?? []) {
       const p = (prev.roadmap ?? []).find((x) => x.id === r.id)
       if (p && p.status !== "done" && r.status === "done") {
         const next = (cur.roadmap ?? []).find((x) => x.status === "todo")
-        add("good", `Lộ trình đo lường: xong “${r.label}”${next ? ` — việc tiếp: ${next.label} (${next.action})` : " — đã xong cả lộ trình"}`)
+        add("good", t("libcase.r.mm.road", { label: r.label, rest: next ? t("libcase.r.mm.roadNext", { label: next.label, action: next.action }) : t("libcase.r.mm.roadAll") }))
       }
-      if (p && p.status === "done" && r.status !== "done") add("bad", `Lộ trình đo lường: “${r.label}” hỏng lại`)
+      if (p && p.status === "done" && r.status !== "done") add("bad", t("libcase.r.mm.roadBack", { label: r.label }))
     }
     const ps = new Set(prev.primarySilent.map((x) => x.name)), cs = new Set(cur.primarySilent.map((x) => x.name))
-    for (const x of cur.primarySilent) if (!ps.has(x.name)) add("bad", `Google “${x.name}” (Mua hàng CHÍNH) 0 lượt trong 7 ngày`)
-    for (const x of prev.primarySilent) if (!cs.has(x.name)) add("good", `Google “${x.name}” (Mua hàng CHÍNH) có lượt trở lại`)
+    for (const x of cur.primarySilent) if (!ps.has(x.name)) add("bad", t("libcase.r.mm.silent", { name: x.name }))
+    for (const x of prev.primarySilent) if (!cs.has(x.name)) add("good", t("libcase.r.mm.silentBack", { name: x.name }))
   }
   if (prev.metaOk && cur.metaOk) {
     const k = (x: { pixelId: string; name: string }) => `${x.pixelId}|${x.name}`
     const pStop = new Set(prev.stopped.map(k)), cStop = new Set(cur.stopped.map(k))
-    for (const s of cur.stopped) if (!pStop.has(k(s))) add("bad", `${s.name} (chuẩn) NGỪNG bắn — hôm qua 0 lượt, trung bình 7 ngày trước ${fmt(s.prevAvg)}/ngày`)
-    for (const s of prev.stopped) if (!cStop.has(k(s))) add("good", `${s.name} (chuẩn) bắn lại`)
+    for (const s of cur.stopped) if (!pStop.has(k(s))) add("bad", t("libcase.r.mm.stopped", { name: s.name, avg: fmt(s.prevAvg) }))
+    for (const s of prev.stopped) if (!cStop.has(k(s))) add("good", t("libcase.r.mm.resumed", { name: s.name }))
     const pVar = new Map(prev.customVariants.map((x) => [k(x), x])), cVar = new Set(cur.customVariants.map(k))
-    for (const v of cur.customVariants) if (!pVar.has(k(v))) add("bad", `Tên tự đặt “${v.name}” bắn lại (${fmt(v.last7)} lượt/7 ngày) — trùng nghĩa sự kiện chuẩn`)
-    for (const v of prev.customVariants) if (!cVar.has(k(v))) add("good", `Tên tự đặt “${v.name}” đã ngừng bắn — 7 ngày: 0 (trước: ${fmt(v.last7)})`)
+    for (const v of cur.customVariants) if (!pVar.has(k(v))) add("bad", t("libcase.r.mm.variant", { name: v.name, n: fmt(v.last7) }))
+    for (const v of prev.customVariants) if (!cVar.has(k(v))) add("good", t("libcase.r.mm.variantStop", { name: v.name, n: fmt(v.last7) }))
   }
   return out
 }
@@ -199,4 +202,30 @@ export async function runMonitor(companies: Company[] = ["MBI", "MBC"], now: Dat
   }
   saveRun(run)
   return run
+}
+
+/** Bản theo ngôn ngữ của các thay đổi trong một lần chạy đã lưu (cho giao diện): dựng lại từ ảnh chụp hai ngày nên không phụ thuộc chữ đã lưu.
+ *  `all` = các lần chạy đã lưu (để tìm lần so sánh). Không tìm thấy lần so sánh → giữ nguyên chữ đã lưu. */
+export function localizedChanges(run: MonitorRun, all: MonitorRun[], t: TFunction): MonitorChange[] {
+  if (t("libcase.r.numLocale") === "vi-VN") return run.changes
+  const prev = run.comparedTo ? all.find((r) => r.date === run.comparedTo) : null
+  if (!prev) return run.changes
+  const out: MonitorChange[] = []
+  for (const s of run.snapshots) {
+    const p = prev.snapshots.find((x) => x.company === s.company)
+    if (p) out.push(...diffSnapshots(p, s, t))
+    if (s.errors.length) out.push({ company: s.company, level: "info", text: t("libcase.r.mm.notRead", { co: s.company, errs: s.errors.join("; ") }) })
+  }
+  return out
+}
+
+/** Lý do không gửi Teams theo ngôn ngữ (chuỗi đã lưu bằng tiếng Việt → nhận ra rồi dịch; lạ thì giữ nguyên). */
+export function localizedTeams(teams: MonitorRun["teams"], t: TFunction): MonitorRun["teams"] {
+  const map: Record<string, string> = {
+    "Lần chạy đầu — chỉ lưu, chưa có gì để so": "libcase.r.mm.skipFirst",
+    "Không có thay đổi — không gửi Teams": "libcase.r.mm.skipNone",
+    "Chưa cấu hình kênh Teams (MEASURE_MONITOR_TEAMS_WEBHOOK hoặc CASE_TASK_TEAMS_WEBHOOK)": "libcase.r.mm.skipWebhook",
+  }
+  const key = teams.skipped ? map[teams.skipped] : undefined
+  return key ? { ...teams, skipped: t(key as never) } : teams
 }

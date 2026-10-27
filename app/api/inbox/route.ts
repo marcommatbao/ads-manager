@@ -6,6 +6,8 @@ import { actorOf, fail, requireUser } from "@/lib/case/http"
 import { canAccessCompany, hasPermission } from "@/lib/permissions"
 import { readSnapshot, readStates, setItemStatus, validateStatusInput, viewItems } from "@/lib/inbox/store"
 import { isTeamsAlertConfigured } from "@/lib/teams-alert"
+import { getT } from "@/lib/i18n/server"
+import { localizeItem } from "@/lib/inbox/localize"
 
 export const dynamic = "force-dynamic"
 
@@ -13,12 +15,13 @@ export async function GET() {
   const u = await requireUser()
   if (!u.ok) return u.response
   try {
+    const t = await getT()
     const snap = readSnapshot()
     if (!snap) return NextResponse.json({ success: true, builtAt: null, items: [], errors: [], digest: null, adsChannel: !!(process.env.TEAMS_WEBHOOK_ADS ?? "").trim(), canEdit: hasPermission(u.value.role, "can_edit") })
     const ok = (co: string) => co === "ALL" || canAccessCompany(u.value, co as string)
     return NextResponse.json({
       success: true, builtAt: snap.builtAt,
-      items: viewItems(snap.items.filter((i) => ok(i.company)), readStates()),
+      items: viewItems(snap.items.filter((i) => ok(i.company)), readStates(), Date.now(), t).map((v) => localizeItem(v, t)),
       errors: snap.errors.filter((e) => ok(e.company)), digest: snap.digest ?? null,
       adsChannel: !!(process.env.TEAMS_WEBHOOK_ADS ?? "").trim(), opsChannel: isTeamsAlertConfigured(),
       canEdit: hasPermission(u.value.role, "can_edit"),
@@ -30,11 +33,12 @@ export async function POST(request: NextRequest) {
   const u = await requireUser("can_edit")
   if (!u.ok) return u.response
   try {
-    const input = validateStatusInput(await request.json().catch(() => null))
+    const t = await getT()
+    const input = validateStatusInput(await request.json().catch(() => null), t)
     if (typeof input === "string") return NextResponse.json({ success: false, error: input }, { status: 400 })
     const item = readSnapshot()?.items.find((i) => i.key === input.key)
-    if (!item) return NextResponse.json({ success: false, error: "Không tìm thấy việc (hộp việc đã dựng lại?) — tải lại trang" }, { status: 404 })
-    if (!canAccessCompany(u.value, item.company)) return NextResponse.json({ success: false, error: "Không có quyền với công ty này" }, { status: 403 })
+    if (!item) return NextResponse.json({ success: false, error: t("libcase.w.err.itemNotFound") }, { status: 404 })
+    if (!canAccessCompany(u.value, item.company)) return NextResponse.json({ success: false, error: t("libcase.w.err.noCompanyAccess") }, { status: 403 })
     return NextResponse.json({ success: true, state: setItemStatus(input, actorOf(u.value)) })
   } catch (e) { return fail(e) }
 }

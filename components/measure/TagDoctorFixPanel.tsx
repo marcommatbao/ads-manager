@@ -19,7 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { datetimeVN } from "@/components/case/format";
 import { postJson, ApiError } from "@/components/case/api";
 import { cn } from "@/lib/utils";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import type { TFunction } from "@/lib/i18n/translate";
 import type { Company } from "@/lib/case/types";
 import type { GoogleFixProposal } from "@/lib/measure/tag-doctor";
@@ -213,6 +213,7 @@ export function TagDoctorFixPanel({
 
 /** Thẻ hiển thị kết quả 1 lần validate/write/lịch sử — dùng chung ở đây + TagDoctorView (lịch sử). */
 export function ExecutionCard({ exec, title }: { exec: GoalFixExecution; title: string }) {
+  const intl = useIntlLocale();
   const t = useT();
   const ok = exec.status === "done";
   const validate = exec.mode === "validate";
@@ -221,7 +222,7 @@ export function ExecutionCard({ exec, title }: { exec: GoalFixExecution; title: 
       <div className={cn("flex items-center gap-1.5 font-semibold", !ok ? "text-red-700" : validate ? "text-sky-800" : "text-emerald-700")}>
         {ok ? <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> : <XCircle className="h-4 w-4" aria-hidden="true" />}
         {title}
-        <span className="ml-auto font-normal text-slate-400">{datetimeVN(exec.at)}</span>
+        <span className="ml-auto font-normal text-slate-400">{datetimeVN(exec.at, intl)}</span>
       </div>
 
       {exec.skipped.length > 0 && (

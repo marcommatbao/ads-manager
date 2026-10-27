@@ -4,7 +4,7 @@
 // ============================================================
 import { CheckCircle2, TriangleAlert, AlertTriangle } from "lucide-react";
 import { num } from "@/components/case/format";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import type { MessageKey } from "@/lib/i18n/messages";
 import type { EvidenceSource, SourceStatus } from "@/lib/case/types";
 
@@ -16,6 +16,7 @@ const SOURCE_PILL: Record<SourceStatus, { icon: typeof CheckCircle2; cls: string
 
 export function SourceTable({ sources }: { sources: EvidenceSource[] }) {
   const t = useT();
+  const intl = useIntlLocale();
   return (
     <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
       <div className="border-b border-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-800">{t("meta.measure.src.title")}</div>
@@ -35,7 +36,7 @@ export function SourceTable({ sources }: { sources: EvidenceSource[] }) {
             return (
               <tr key={s.id} className="border-b border-slate-50 last:border-0">
                 <td className="px-4 py-2.5 text-slate-800">{s.label}</td>
-                <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">{num(s.rows)}</td>
+                <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">{num(s.rows, undefined, intl)}</td>
                 <td className="px-3 py-2.5 text-slate-500">{s.note ?? "—"}</td>
                 <td className="px-3 py-2.5">
                   <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium ${pill.cls}`}>

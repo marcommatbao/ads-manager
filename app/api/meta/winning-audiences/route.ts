@@ -7,6 +7,8 @@ import { actorOf, fail, requireCompany, requireUser } from "@/lib/case/http"
 import { canAccessCompany } from "@/lib/permissions"
 import { parseRange } from "@/lib/case/dates"
 import { compareAudiences } from "@/lib/meta/audience-compare-fetch"
+import { targetingSummary } from "@/lib/meta/winning-audiences-text"
+import { getT } from "@/lib/i18n/server"
 import { buildWinning, deleteWinning, getWinning, listWinning, saveWinning } from "@/lib/meta/winning-audiences"
 
 export const dynamic = "force-dynamic"
@@ -17,7 +19,9 @@ export async function GET(request: NextRequest) {
   if (!u.ok) return u.response
   const co = requireCompany(u.value, request.nextUrl.searchParams.get("company"))
   if (!co.ok) return co.response
-  return NextResponse.json({ success: true, rows: listWinning(co.value) })
+  const t = await getT()
+  // Bản tóm tắt nhắm chọn được lưu bằng tiếng Việt lúc lưu → dựng lại theo ngôn ngữ đang xem từ chính cấu hình nhắm chọn đã lưu.
+  return NextResponse.json({ success: true, rows: listWinning(co.value).map((w) => ({ ...w, summary: targetingSummary(w.targeting, t) })) })
 }
 
 export async function POST(request: NextRequest) {

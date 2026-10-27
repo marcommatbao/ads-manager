@@ -12,10 +12,11 @@ import { postJson, ApiError } from "./api";
 import type { CampaignCase } from "@/lib/case/store";
 import { NextStepsPanel } from "./NextStepsPanel";
 import { evidenceGoalKind } from "@/lib/case/goal-kind";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import type { MessageKey } from "@/lib/i18n/messages";
 
-const cpa = (n: number | null | undefined) => (n === null || n === undefined ? "—" : vnd(n));
+const cpa = (n: number | null | undefined, loc?: string) => (n === null || n === undefined ? "—" : vnd(n, loc));
+const numL = (n: number | null | undefined, loc?: string) => num(n, undefined, loc);
 const freq = (n: number | null | undefined) => (n === null || n === undefined || !Number.isFinite(n) ? "—" : n.toFixed(2));
 
 /** "2026-10-04" → "04/10" (không kèm năm — khớp mockup d6-so-nhom). */
@@ -31,18 +32,18 @@ const MOC_LABELS: MessageKey[] = ["overview.step7.moc.7", "overview.step7.moc.14
  *  newAdsetComparison). Phát hiện qua chính `result` — không tự suy đoán field khác. */
 const hasAdsetKeys = (result?: Record<string, number | null>): boolean => !!result && "newCost" in result;
 
-interface RemeasureColumn { key: string; label: MessageKey; fmt: (n: number | null | undefined) => string }
+interface RemeasureColumn { key: string; label: MessageKey; fmt: (n: number | null | undefined, loc: string) => string }
 
 const GOOGLE_REMEASURE_COLUMNS: RemeasureColumn[] = [
   { key: "cost", label: "overview.step7.col.cost", fmt: vnd },
-  { key: "orders", label: "overview.step7.col.orders", fmt: num },
+  { key: "orders", label: "overview.step7.col.orders", fmt: numL },
   { key: "cpa", label: "overview.step7.col.cpo", fmt: cpa },
   { key: "competitorSpend", label: "overview.step7.col.competitor", fmt: vnd },
 ];
 
 const META_REMEASURE_COLUMNS: RemeasureColumn[] = [
   { key: "cost", label: "overview.step7.col.cost", fmt: vnd },
-  { key: "orders", label: "overview.step7.col.purchases", fmt: num },
+  { key: "orders", label: "overview.step7.col.purchases", fmt: numL },
   { key: "cpa", label: "overview.step7.col.cpp", fmt: cpa },
   { key: "orderValue", label: "overview.step7.col.metaRevenue", fmt: vnd },
   { key: "frequency", label: "overview.step7.col.frequency", fmt: freq },
@@ -50,13 +51,13 @@ const META_REMEASURE_COLUMNS: RemeasureColumn[] = [
 // Đợt 23 (3d): phiên thu lead — "orders"/"cpa" của kết quả đo lại là lead / chi phí mỗi lead.
 const META_LEAD_REMEASURE_COLUMNS: RemeasureColumn[] = [
   { key: "cost", label: "overview.step7.col.cost", fmt: vnd },
-  { key: "orders", label: "overview.step7.col.leads", fmt: num },
+  { key: "orders", label: "overview.step7.col.leads", fmt: numL },
   { key: "cpa", label: "overview.step7.col.cpl", fmt: cpa },
   { key: "frequency", label: "overview.step7.col.frequency", fmt: freq },
 ];
 const GOOGLE_LEAD_REMEASURE_COLUMNS: RemeasureColumn[] = [
   { key: "cost", label: "overview.step7.col.cost", fmt: vnd },
-  { key: "orders", label: "overview.step7.col.leads", fmt: num },
+  { key: "orders", label: "overview.step7.col.leads", fmt: numL },
   { key: "cpa", label: "overview.step7.col.cpl", fmt: cpa },
   { key: "competitorSpend", label: "overview.step7.col.competitor", fmt: vnd },
 ];
@@ -70,6 +71,7 @@ export function Step7Done({
   onRefresh: (next: CampaignCase) => void;
   onBack: () => void;
 }) {
+  const intl = useIntlLocale();
   const t = useT();
   const [closing, setClosing] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -103,7 +105,7 @@ export function Step7Done({
         <Kpi label={t("overview.step7.kpi.toolDone")} value={`${doneCount}/${selected.length}`} />
         <Kpi label={t("overview.step7.kpi.assigned")} value={t("overview.step7.kpi.openTasks", { n: openTasks })} sub={c.manualTasks.length > 0 ? t("overview.step7.kpi.tasksDone", { done: doneTasks, total: c.manualTasks.length }) : undefined} />
         {c.remeasure.map((r, i) => (
-          <Kpi key={i} label={t("overview.step7.kpi.remeasureN", { n: i + 1 })} value={ddmmyyyy(r.due)} sub={r.status === "done" ? t("overview.step7.measured") : t("overview.step7.pending")} />
+          <Kpi key={i} label={t("overview.step7.kpi.remeasureN", { n: i + 1 })} value={ddmmyyyy(r.due, intl)} sub={r.status === "done" ? t("overview.step7.measured") : t("overview.step7.pending")} />
         ))}
       </div>
 
@@ -125,22 +127,22 @@ export function Step7Done({
             <tbody>
               {c.remeasure.map((r, i) => (
                 <tr key={i} className="border-b border-slate-50 last:border-0">
-                  <td className="px-4 py-2.5 text-slate-800">{ddmmyyyy(r.due)}</td>
+                  <td className="px-4 py-2.5 text-slate-800">{ddmmyyyy(r.due, intl)}</td>
                   <td className="px-3 py-2.5">
                     {r.status === "done" ? (
                       <span className="inline-flex items-center gap-1 text-emerald-700"><CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" /> {t("overview.step7.measured")}</span>
                     ) : (
-                      <span className="text-slate-400">{t("overview.step7.waiting", { date: ddmmyyyy(r.due) })}</span>
+                      <span className="text-slate-400">{t("overview.step7.waiting", { date: ddmmyyyy(r.due, intl) })}</span>
                     )}
                   </td>
                   {r.status === "done" && r.result ? (
                     <>
                       {remeasureColumns.map((col) => (
-                        <td key={col.key} className="px-3 py-2.5 text-right tabular-nums">{col.fmt(r.result![col.key])}</td>
+                        <td key={col.key} className="px-3 py-2.5 text-right tabular-nums">{col.fmt(r.result![col.key], intl)}</td>
                       ))}
                     </>
                   ) : (
-                    <td className="px-3 py-2.5 text-slate-400" colSpan={remeasureColumns.length}>{t("overview.step7.waiting", { date: ddmmyyyy(r.due) })}</td>
+                    <td className="px-3 py-2.5 text-slate-400" colSpan={remeasureColumns.length}>{t("overview.step7.waiting", { date: ddmmyyyy(r.due, intl) })}</td>
                   )}
                 </tr>
               ))}
@@ -191,6 +193,7 @@ function Kpi({ label, value, sub }: { label: string; value: string; sub?: string
 
 /** Đợt 6 · B2 — bảng "Nhóm mới vs Nhóm cũ" cho một mốc đo lại (7 hoặc 14 ngày). */
 function AdsetComparisonCard({ label, r }: { label: string; r: CampaignCase["remeasure"][number] }) {
+  const intl = useIntlLocale();
   const t = useT();
   const result = r.status === "done" ? r.result : undefined;
   const done = hasAdsetKeys(result);
@@ -215,17 +218,17 @@ function AdsetComparisonCard({ label, r }: { label: string; r: CampaignCase["rem
             <tbody>
               <tr className="border-b border-slate-50">
                 <td className="px-4 py-2.5 font-semibold text-slate-800">{t("overview.step7.cmp.new")}</td>
-                <td className="px-3 py-2.5 text-right tabular-nums">{cpa(result!.newCost)}</td>
-                <td className="px-3 py-2.5 tabular-nums">{num(result!.newResults)}</td>
-                <td className="px-3 py-2.5 text-right tabular-nums">{cpa(result!.newCostPerResult)}</td>
-                <td className="px-3 py-2.5 text-right tabular-nums">{num(result!.newPurchases)}</td>
+                <td className="px-3 py-2.5 text-right tabular-nums">{cpa(result!.newCost, intl)}</td>
+                <td className="px-3 py-2.5 tabular-nums">{num(result!.newResults, undefined, intl)}</td>
+                <td className="px-3 py-2.5 text-right tabular-nums">{cpa(result!.newCostPerResult, intl)}</td>
+                <td className="px-3 py-2.5 text-right tabular-nums">{num(result!.newPurchases, undefined, intl)}</td>
               </tr>
               <tr>
                 <td className="px-4 py-2.5 font-semibold text-slate-800">{t("overview.step7.cmp.old")}</td>
-                <td className="px-3 py-2.5 text-right tabular-nums">{cpa(result!.oldCost)}</td>
-                <td className="px-3 py-2.5 tabular-nums">{num(result!.oldResults)}</td>
-                <td className="px-3 py-2.5 text-right tabular-nums">{cpa(result!.oldCostPerResult)}</td>
-                <td className="px-3 py-2.5 text-right tabular-nums">{num(result!.oldPurchases)}</td>
+                <td className="px-3 py-2.5 text-right tabular-nums">{cpa(result!.oldCost, intl)}</td>
+                <td className="px-3 py-2.5 tabular-nums">{num(result!.oldResults, undefined, intl)}</td>
+                <td className="px-3 py-2.5 text-right tabular-nums">{cpa(result!.oldCostPerResult, intl)}</td>
+                <td className="px-3 py-2.5 text-right tabular-nums">{num(result!.oldPurchases, undefined, intl)}</td>
               </tr>
             </tbody>
           </table>
@@ -237,6 +240,7 @@ function AdsetComparisonCard({ label, r }: { label: string; r: CampaignCase["rem
 }
 
 function AdsetVerdictLine({ result, label }: { result: Record<string, number | null>; label: string }) {
+  const intl = useIntlLocale();
   const t = useT();
   const n = result.newCostPerResult, o = result.oldCostPerResult;
   if (n === null || n === undefined || o === null || o === undefined || !o) return null;
@@ -244,7 +248,7 @@ function AdsetVerdictLine({ result, label }: { result: Record<string, number | n
   const cheaper = pctChange <= 0;
   return (
     <div className={`border-t border-slate-100 px-4 py-2.5 text-sm ${cheaper ? "text-emerald-700" : "text-red-700"}`}>
-      <b>{cheaper ? t("overview.step7.verdict.cheaper", { pct: Math.abs(pctChange) }) : t("overview.step7.verdict.pricier", { pct: pctChange })}</b> — {t("overview.step7.verdict.tail", { old: vnd(o), new: vnd(n), label })}
+      <b>{cheaper ? t("overview.step7.verdict.cheaper", { pct: Math.abs(pctChange) }) : t("overview.step7.verdict.pricier", { pct: pctChange })}</b> — {t("overview.step7.verdict.tail", { old: vnd(o, intl), new: vnd(n, intl), label })}
     </div>
   );
 }

@@ -22,6 +22,9 @@ import { serviceAccountToken } from "@/lib/measure/gtm-api"
 import { analyzeExperiment, designCandidates, fullWeeks, weekMonday, type DesignCandidate, type ExperimentResult, type KpiKind, type WeeklySeries } from "./geo-design"
 import { customerIdOf, PMAX_CONFIRM_TEXT, PmaxControlError } from "./controls"
 
+import type { TFunction } from "@/lib/i18n/translate"
+import { viT } from "@/lib/google-i18n"
+
 type Row = Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
 const FILE = path.join(process.cwd(), "data", "pmax-experiments.json")
 const CSV_DIR = path.join(process.cwd(), "data", "pmax-geo-kpi")
@@ -142,7 +145,7 @@ function mapByName(raw: Record<string, Record<string, number>>, provinces: Recor
 export interface KpiChoice { source?: "auto" | "ga4" | "csv" | "google"; ga4Event?: string; ga4NewOnly?: boolean }
 
 /** KPI tuần × tỉnh trong [from, to] + đơn/chi PMax theo tỉnh. Ưu tiên GA4 → CSV → Google (ghi rõ lý do lùi). */
-export async function readGeoData(company: Company, from: string, to: string, choice: KpiChoice = {}): Promise<GeoData> {
+export async function readGeoData(company: Company, from: string, to: string, choice: KpiChoice = {}, tr: TFunction = viT): Promise<GeoData> {
   const want = choice.source ?? "auto"
   const event = (choice.ga4Event || "purchase").slice(0, 60)
   const g = await googleGeo(company, from, to)
@@ -153,9 +156,9 @@ export async function readGeoData(company: Company, from: string, to: string, ch
     if ("raw" in r) {
       const m = mapByName(r.raw, await vnProvinces(company))
       const total = Object.values(m.series).reduce((s, x) => s + Object.values(x).reduce((a, b) => a + b, 0), 0)
-      if (total > 0) return { kpiKind: "orders", source: "ga4", sourceNote: `GA4 — sự kiện "${event}"${choice.ga4NewOnly ? " của KHÁCH MỚI" : ""} mọi kênh theo tỉnh`, series: m.series, weeks, pmaxClaim: g.pmaxClaim, pmaxCost: g.pmaxCost, names: await geoNames(company, [...new Set([...Object.keys(m.series), ...Object.keys(g.pmaxClaim)])]), unmatched: m.unmatched }
-      notes.push(`GA4 không có sự kiện "${event}" trong kỳ`)
-    } else notes.push(`Không đọc được GA4 (${r.error})`)
+      if (total > 0) return { kpiKind: "orders", source: "ga4", sourceNote: tr("libgoogle.ge.ga4Src", { event, newOnly: choice.ga4NewOnly ? tr("libgoogle.ge.ga4NewOnly") : "" }), series: m.series, weeks, pmaxClaim: g.pmaxClaim, pmaxCost: g.pmaxCost, names: await geoNames(company, [...new Set([...Object.keys(m.series), ...Object.keys(g.pmaxClaim)])]), unmatched: m.unmatched }
+      notes.push(tr("libgoogle.ge.ga4NoEvent", { event }))
+    } else notes.push(tr("libgoogle.ge.ga4Err", { err: r.error }))
     if (want === "ga4") throw new PmaxControlError(notes.join(" · "))
   }
   if (want === "auto" || want === "csv") {
@@ -164,12 +167,12 @@ export async function readGeoData(company: Company, from: string, to: string, ch
       const raw: Record<string, Record<string, number>> = {}
       for (const r of csv.rows) if (r.date >= from && r.date <= to) { const w = weekMonday(r.date); (raw[r.province] ??= {})[w] = (raw[r.province][w] ?? 0) + r.orders }
       const m = mapByName(raw, await vnProvinces(company))
-      return { kpiKind: "orders", source: "csv", sourceNote: `CSV đơn theo tỉnh (tải lên ${csv.uploadedAt.slice(0, 10)})`, series: m.series, weeks, pmaxClaim: g.pmaxClaim, pmaxCost: g.pmaxCost, names: await geoNames(company, [...new Set([...Object.keys(m.series), ...Object.keys(g.pmaxClaim)])]), unmatched: m.unmatched }
+      return { kpiKind: "orders", source: "csv", sourceNote: tr("libgoogle.ge.csvSrc", { date: csv.uploadedAt.slice(0, 10) }), series: m.series, weeks, pmaxClaim: g.pmaxClaim, pmaxCost: g.pmaxCost, names: await geoNames(company, [...new Set([...Object.keys(m.series), ...Object.keys(g.pmaxClaim)])]), unmatched: m.unmatched }
     }
-    notes.push("chưa tải CSV đơn theo tỉnh")
-    if (want === "csv") throw new PmaxControlError("Chưa tải CSV đơn theo tỉnh")
+    notes.push(tr("libgoogle.ge.csvNone"))
+    if (want === "csv") throw new PmaxControlError(tr("libgoogle.ge.errCsv"))
   }
-  return { kpiKind: "google_non_pmax", source: "google", sourceNote: `Chuyển đổi Google của chiến dịch KHÔNG phải PMax (yếu hơn đơn thật${notes.length ? " — " + notes.join(" · ") : ""})`,
+  return { kpiKind: "google_non_pmax", source: "google", sourceNote: tr("libgoogle.ge.googleSrc", { notes: notes.length ? " — " + notes.join(" · ") : "" }),
     series: g.nonPmax, weeks, pmaxClaim: g.pmaxClaim, pmaxCost: g.pmaxCost, names: await geoNames(company, [...new Set([...Object.keys(g.nonPmax), ...Object.keys(g.pmaxClaim)])]), unmatched: [] }
 }
 
@@ -196,13 +199,13 @@ async function pmaxCampaignLocations(company: Company) {
   return { names, cost, crits }
 }
 
-export async function designExperiment(company: Company, choice: KpiChoice = {}, now = new Date()): Promise<ExperimentDesign> {
+export async function designExperiment(company: Company, choice: KpiChoice = {}, now = new Date(), tr: TFunction = viT): Promise<ExperimentDesign> {
   const to = addDays(vnDate(now), -1)
   const lastMonday = weekMonday(to)
   const preTo = addDays(lastMonday, addDays(lastMonday, 6) <= to ? 6 : -1)
   const preFrom = addDays(weekMonday(preTo), -7 * (PRE_WEEKS - 1))
-  const [d, loc] = await Promise.all([readGeoData(company, preFrom, preTo, choice), pmaxCampaignLocations(company)])
-  const candidates = designCandidates({ kpiKind: d.kpiKind, series: d.series, weeks: d.weeks, pmaxClaim: d.pmaxClaim, pmaxCost: d.pmaxCost })
+  const [d, loc] = await Promise.all([readGeoData(company, preFrom, preTo, choice, tr), pmaxCampaignLocations(company)])
+  const candidates = designCandidates({ kpiKind: d.kpiKind, series: d.series, weeks: d.weeks, pmaxClaim: d.pmaxClaim, pmaxCost: d.pmaxCost, tr })
   const extra = await geoNames(company, candidates.flatMap((x) => x.holdout).filter((g) => !d.names[g]))
   const nm = { ...d.names, ...extra }
   return {
@@ -240,16 +243,16 @@ export const listExperiments = (company: Company) => readLog().filter((e) => e.c
 
 export interface LaunchPlan { ops: ExperimentOp[]; skipped: string[] }
 /** Kế hoạch ghi: loại trừ tỉnh vùng tắt trên từng PMax; gỡ nhắm đích danh nếu có (chỉ khi còn vùng nhắm khác). */
-export function planLaunch(campaigns: ExperimentDesign["campaigns"], holdout: string[]): LaunchPlan {
+export function planLaunch(campaigns: ExperimentDesign["campaigns"], holdout: string[], tr: TFunction = viT): LaunchPlan {
   const ops: ExperimentOp[] = [], skipped: string[] = []
   const H = new Set(holdout)
   for (const cp of campaigns) {
     const pos = cp.locations.positive, neg = new Set(cp.locations.negative)
     const posHold = pos.filter((g) => H.has(g))
     const posOther = pos.filter((g) => !H.has(g))
-    if (posHold.length && !posOther.length) { skipped.push(`${cp.name}: chỉ nhắm đúng vùng tắt — gỡ đi thì chiến dịch nhắm toàn thế giới, bỏ qua`); continue }
+    if (posHold.length && !posOther.length) { skipped.push(tr("libgoogle.ge.skipOnly", { name: cp.name })); continue }
     // Nhắm đích danh vài tỉnh KHÁC (không có vùng tắt, không nhắm cả nước) → vốn đã không chạy ở vùng tắt.
-    if (pos.length && !posHold.length && !pos.includes("2704")) { skipped.push(`${cp.name}: không nhắm vùng tắt sẵn rồi — không cần đổi`); continue }
+    if (pos.length && !posHold.length && !pos.includes("2704")) { skipped.push(tr("libgoogle.ge.skipAlready", { name: cp.name })); continue }
     for (const g of posHold) ops.push({ kind: "positive_removed", campaignId: cp.id, geo: g })
     for (const g of holdout) if (!neg.has(g)) ops.push({ kind: "negative_added", campaignId: cp.id, geo: g })
   }
@@ -261,18 +264,18 @@ export const firstTestMonday = (start: string) => (weekMonday(start) === start ?
 
 const round = (n: number) => Math.round(n * 100) / 100
 
-export async function launchExperiment(input: { company: Company; candidateId: DesignCandidate["id"]; campaignIds: string[]; weeks: number; kpi: KpiChoice; actor: string; validateOnly: boolean; confirmText?: string; now?: Date }): Promise<GeoExperiment> {
+export async function launchExperiment(input: { company: Company; candidateId: DesignCandidate["id"]; campaignIds: string[]; weeks: number; kpi: KpiChoice; actor: string; validateOnly: boolean; confirmText?: string; now?: Date }, tr: TFunction = viT): Promise<GeoExperiment> {
   const { company } = input
-  if (!input.validateOnly && input.confirmText?.trim() !== PMAX_CONFIRM_TEXT) throw new PmaxControlError(`Gõ đúng “${PMAX_CONFIRM_TEXT}” để bật thí nghiệm trên tài khoản thật`)
+  if (!input.validateOnly && input.confirmText?.trim() !== PMAX_CONFIRM_TEXT) throw new PmaxControlError(tr("libgoogle.ge.errConfirm", { text: PMAX_CONFIRM_TEXT }))
   const weeks = Math.round(input.weeks)
-  if (!(weeks >= MIN_TEST_WEEKS && weeks <= MAX_TEST_WEEKS)) throw new PmaxControlError(`Thời gian chạy ${MIN_TEST_WEEKS}–${MAX_TEST_WEEKS} tuần`)
-  if (!input.validateOnly && readLog().some((e) => e.company === company && e.status === "running")) throw new PmaxControlError("Đang có thí nghiệm chạy — kết thúc nó trước", 409)
-  const design = await designExperiment(company, input.kpi, input.now)
+  if (!(weeks >= MIN_TEST_WEEKS && weeks <= MAX_TEST_WEEKS)) throw new PmaxControlError(tr("libgoogle.ge.errWeeks", { min: MIN_TEST_WEEKS, max: MAX_TEST_WEEKS }))
+  if (!input.validateOnly && readLog().some((e) => e.company === company && e.status === "running")) throw new PmaxControlError(tr("libgoogle.ge.errRunning"), 409)
+  const design = await designExperiment(company, input.kpi, input.now, tr)
   const cand = design.candidates.find((x) => x.id === input.candidateId)
-  if (!cand) throw new PmaxControlError("Phương án không còn hợp lệ — tải lại")
+  if (!cand) throw new PmaxControlError(tr("libgoogle.ge.errCand"))
   const camps = design.campaigns.filter((x) => input.campaignIds.includes(x.id))
-  if (!camps.length) throw new PmaxControlError("Chưa chọn chiến dịch PMax nào")
-  const plan = planLaunch(camps, cand.holdout)
+  if (!camps.length) throw new PmaxControlError(tr("libgoogle.ge.errNoCamp"))
+  const plan = planLaunch(camps, cand.holdout, tr)
   const cust = customerIdOf(company)
   const c = getGoogleAdsCustomer(company)
   const today = vnDate(input.now)
@@ -284,7 +287,7 @@ export async function launchExperiment(input: { company: Company; candidateId: D
     campaigns: camps.map((x) => ({ id: x.id, name: x.name })), skipped: plan.skipped, ops: plan.ops,
     pmaxClaimPerWeek: round(cand.pmaxClaimPerWeek), pmaxCostPerWeek: Math.round(cand.pmaxCostPerWeek), expectedEffect: cand.expectedEffect, errors: [],
   }
-  if (!plan.ops.length) { exp.errors.push("Không có thay đổi nào cần ghi (các chiến dịch đã chọn không chạy ở vùng tắt)"); return exp }
+  if (!plan.ops.length) { exp.errors.push(tr("libgoogle.ge.errNoOps")); return exp }
   const loc = await pmaxCampaignLocations(company)
   const camp = (id: string) => `customers/${cust}/campaigns/${id}`
   const removes = plan.ops.filter((o) => o.kind === "positive_removed").map((o) => ({ o, crit: loc.crits.find((x) => x.campaignId === o.campaignId && x.geo === o.geo && !x.negative)! }))
@@ -296,7 +299,7 @@ export async function launchExperiment(input: { company: Company; candidateId: D
     ...removes.map((r) => ({ entity: "campaign_criterion", operation: "remove", resource: r.crit.resourceName })),
     ...adds.map((o) => ({ entity: "campaign_criterion", operation: "create", resource: { campaign: camp(o.campaignId), negative: true, location: { geo_target_constant: `geoTargetConstants/${o.geo}` } } })),
   ]
-  try { await c.mutateResources(mutateOps as never, { validate_only: true } as never) } catch (e) { exp.errors.push(`Google từ chối khi kiểm — CHƯA ghi gì: ${googleAdsErrorMessage(e)}`) }
+  try { await c.mutateResources(mutateOps as never, { validate_only: true } as never) } catch (e) { exp.errors.push(tr("libgoogle.pa.errValidate", { msg: googleAdsErrorMessage(e) })) }
   if (input.validateOnly || exp.errors.length) { exp.status = exp.errors.length ? "failed" : "running"; return exp }
   return withFileLock(FILE, async () => {
     for (const r of removes) r.o.bidModifier = r.crit.bidModifier || undefined
@@ -304,15 +307,15 @@ export async function launchExperiment(input: { company: Company; candidateId: D
       await c.mutateResources(mutateOps as never)
       // Mã tiêu chí vị trí = mã vùng → tên tài nguyên xác định được, không phụ thuộc thứ tự kết quả trả về.
       for (const o of adds) o.resourceName = `customers/${cust}/campaignCriteria/${o.campaignId}~${o.geo}`
-    } catch (e) { exp.errors.push(`Lỗi khi ghi — Google không ghi gì: ${googleAdsErrorMessage(e)}`) }
+    } catch (e) { exp.errors.push(tr("libgoogle.pa.errWrite", { msg: googleAdsErrorMessage(e) })) }
     // Đọc lại: loại trừ phải có; nhắm đích danh vùng tắt phải hết.
     try {
       const after = await pmaxCampaignLocations(company)
       for (const o of plan.ops) {
         const has = after.crits.some((x) => x.campaignId === o.campaignId && x.geo === o.geo && x.negative === (o.kind === "negative_added"))
-        if (o.kind === "negative_added" ? !has : has) exp.errors.push(`Đọc lại không khớp: ${o.kind === "negative_added" ? "chưa thấy loại trừ" : "vẫn còn nhắm"} vùng ${o.geo} ở chiến dịch ${o.campaignId}`)
+        if (o.kind === "negative_added" ? !has : has) exp.errors.push(tr("libgoogle.ge.errMismatch", { kind: o.kind === "negative_added" ? tr("libgoogle.ge.kindNoExcl") : tr("libgoogle.ge.kindStill"), geo: o.geo, cid: o.campaignId }))
       }
-    } catch (e) { exp.errors.push(`Đã ghi nhưng không đọc lại được: ${googleAdsErrorMessage(e)}`) }
+    } catch (e) { exp.errors.push(tr("libgoogle.sc.errReadback", { msg: googleAdsErrorMessage(e) })) }
     // Ghi được phần nào cũng lưu RUNNING để kết thúc/hoàn tác được phần đó.
     exp.status = adds.some((o) => o.resourceName) || (!adds.length && !exp.errors.length) ? "running" : "failed"
     writeLog([...readLog(), exp])
@@ -321,13 +324,13 @@ export async function launchExperiment(input: { company: Company; candidateId: D
 }
 
 /** Kết thúc: gỡ loại trừ tool đã thêm, trả nhắm đích danh cũ (kèm hệ số giá). Chỉ đụng đúng thứ tool đã làm. */
-export async function endExperiment(company: Company, id: string, actor: string, reason = "Kết thúc tay"): Promise<GeoExperiment> {
+export async function endExperiment(company: Company, id: string, actor: string, reason = "Kết thúc tay", tr: TFunction = viT): Promise<GeoExperiment> {
   return withFileLock(FILE, async () => {
     const log = readLog()
     const exp = log.find((e) => e.id === id && e.company === company)
-    if (!exp) throw new PmaxControlError("Không tìm thấy thí nghiệm", 404)
-    if (exp.status !== "running") throw new PmaxControlError("Thí nghiệm không còn chạy", 409)
-    try { exp.lastResult = await measure(exp) } catch { /* kết thúc vẫn phải làm dù đo hỏng */ }
+    if (!exp) throw new PmaxControlError(tr("libgoogle.ge.errNoExp"), 404)
+    if (exp.status !== "running") throw new PmaxControlError(tr("libgoogle.ge.errNotRunning"), 409)
+    try { exp.lastResult = await measure(exp, new Date(), tr) } catch { /* kết thúc vẫn phải làm dù đo hỏng */ }
     const c = getGoogleAdsCustomer(company)
     const cust = customerIdOf(company)
     const report: string[] = [reason]
@@ -335,7 +338,7 @@ export async function endExperiment(company: Company, id: string, actor: string,
     const pos = exp.ops.filter((o) => o.kind === "positive_removed")
     const loc = await pmaxCampaignLocations(company)
     const stillThere = neg.filter((o) => loc.crits.some((x) => x.resourceName === o.resourceName))
-    if (neg.length - stillThere.length) report.push(`${neg.length - stillThere.length} loại trừ đã bị gỡ trước (bỏ qua)`)
+    if (neg.length - stillThere.length) report.push(tr("libgoogle.ge.rpGone", { n: neg.length - stillThere.length }))
     const toRestore = pos.filter((o) => !loc.crits.some((x) => x.campaignId === o.campaignId && x.geo === o.geo && !x.negative))
     // Gỡ loại trừ + trả nhắm cũ trong MỘT lệnh (cùng mã tiêu chí — tách hai lệnh thì lệnh tạo bị từ chối).
     const ops = [
@@ -345,10 +348,10 @@ export async function endExperiment(company: Company, id: string, actor: string,
     if (ops.length) {
       try { await c.mutateResources(ops as never) } catch (e) {
         // Chưa trả được tài khoản về như cũ → GIỮ trạng thái đang chạy để thử lại, không báo "đã kết thúc".
-        throw new PmaxControlError(`Chưa kết thúc được — Google từ chối khi trả cài đặt cũ (không đổi gì): ${googleAdsErrorMessage(e)}`, 502)
+        throw new PmaxControlError(tr("libgoogle.ge.errEnd", { msg: googleAdsErrorMessage(e) }), 502)
       }
-      if (stillThere.length) report.push(`Gỡ ${stillThere.length} loại trừ vùng`)
-      if (toRestore.length) report.push(`Trả lại ${toRestore.length} vùng nhắm cũ`)
+      if (stillThere.length) report.push(tr("libgoogle.ge.rpRemoved", { n: stillThere.length }))
+      if (toRestore.length) report.push(tr("libgoogle.ge.rpRestored", { n: toRestore.length }))
     }
     exp.status = "ended"; exp.endedAt = new Date().toISOString(); exp.endedBy = actor; exp.endReport = report
     writeLog(log)
@@ -356,22 +359,22 @@ export async function endExperiment(company: Company, id: string, actor: string,
   })
 }
 
-async function measure(exp: GeoExperiment, now = new Date()): Promise<ExperimentResult & { at: string; leakCost: number }> {
+async function measure(exp: GeoExperiment, now = new Date(), tr: TFunction = viT): Promise<ExperimentResult & { at: string; leakCost: number }> {
   const to = addDays(vnDate(now), -1)
   const end = exp.endedAt ? exp.endedAt.slice(0, 10) : to
-  const d = await readGeoData(exp.company, exp.pre.from, end < to ? end : to, { source: exp.kpi.source, ga4Event: exp.kpi.ga4Event, ga4NewOnly: exp.kpi.ga4NewOnly })
+  const d = await readGeoData(exp.company, exp.pre.from, end < to ? end : to, { source: exp.kpi.source, ga4Event: exp.kpi.ga4Event, ga4NewOnly: exp.kpi.ga4NewOnly }, tr)
   const testWeeks = d.weeks.filter((w) => w >= firstTestMonday(exp.start))
-  const r = analyzeExperiment({ kpiKind: exp.kpi.kind, series: d.series, holdout: exp.holdout, preWeeks: exp.pre.weeks, testWeeks, pmaxClaimPerWeek: exp.pmaxClaimPerWeek })
+  const r = analyzeExperiment({ kpiKind: exp.kpi.kind, series: d.series, holdout: exp.holdout, preWeeks: exp.pre.weeks, testWeeks, pmaxClaimPerWeek: exp.pmaxClaimPerWeek, tr })
   // Rò rỉ: PMax vẫn tiêu ở vùng tắt từ ngày bật (người ở gần ranh giới / đang đi lại).
   const leak = await googleGeo(exp.company, exp.start, to)
   const leakCost = exp.holdout.reduce((s, g) => s + (leak.pmaxCost[g] ?? 0), 0)
   return { ...r, at: new Date().toISOString(), leakCost: Math.round(leakCost) }
 }
 
-export async function experimentStatus(company: Company, id: string): Promise<GeoExperiment> {
+export async function experimentStatus(company: Company, id: string, tr: TFunction = viT): Promise<GeoExperiment> {
   const exp = readLog().find((e) => e.id === id && e.company === company)
-  if (!exp) throw new PmaxControlError("Không tìm thấy thí nghiệm", 404)
-  const result = await measure(exp)
+  if (!exp) throw new PmaxControlError(tr("libgoogle.ge.errNoExp"), 404)
+  const result = await measure(exp, new Date(), tr)
   await withFileLock(FILE, async () => { const log = readLog(); const e = log.find((x) => x.id === id); if (e) { e.lastResult = result; writeLog(log) } })
   return { ...exp, lastResult: result }
 }

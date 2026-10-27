@@ -6,6 +6,7 @@ import { actorOf, fail, requireCompany, requireUser } from "@/lib/case/http"
 import { tagDoctor } from "@/lib/measure/tag-doctor"
 import { GoalFixError, needsNoSignalAck, runGoalFix } from "@/lib/measure/google-goal-fix"
 import { friendlyError } from "@/lib/not-configured";
+import { getT } from "@/lib/i18n/server"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 120
@@ -17,13 +18,14 @@ export async function POST(request: NextRequest) {
   const co = requireCompany(u.value, b.company)
   if (!co.ok) return co.response
   const fixIds = Array.isArray(b.fixIds) ? b.fixIds.filter((x): x is string => typeof x === "string") : []
+  const t = await getT()
   try {
-    const report = await tagDoctor(co.value)
+    const report = await tagDoctor(co.value, {}, t)
     const exec = await runGoalFix({
       company: co.value, report, fixIds, actor: actorOf(u.value), validateOnly: b.validateOnly !== false,
       confirmText: b.confirmText, acknowledgeNoSignal: !!b.acknowledgeNoSignal,
-    })
-    if (exec.mode === "write") await tagDoctor(co.value, { force: true }).catch(() => null) // số mới cho lần mở sau
+    }, t)
+    if (exec.mode === "write") await tagDoctor(co.value, { force: true }, t).catch(() => null) // số mới cho lần mở sau
     return NextResponse.json({ success: true, execution: exec, needsAck: needsNoSignalAck(report, report.fixes.filter((f) => fixIds.includes(f.id))) })
   } catch (err) {
     if (err instanceof GoalFixError) return NextResponse.json({ success: false, error: friendlyError(err.message) }, { status: err.status })

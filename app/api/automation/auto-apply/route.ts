@@ -6,6 +6,7 @@
 // count is literally the set the cron would act on — not a separate
 // estimate that can drift from it.
 // ============================================================
+import { getT } from "@/lib/i18n/server";
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { canAccessCompany, hasPermission } from "@/lib/permissions";
@@ -27,11 +28,12 @@ function parseCompany(value: string | null): Company | null {
 }
 
 export async function GET(request: NextRequest) {
+  const t = await getT();
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const company = parseCompany(request.nextUrl.searchParams.get("company"));
-  if (!company) return NextResponse.json({ error: "Công ty không có ở bản cài này" }, { status: 400 });
+  if (!company) return NextResponse.json({ error: t("libcase.r.aa.1") }, { status: 400 });
   if (!canAccessCompany(user, company)) {
     return NextResponse.json({ error: "Access denied for this company" }, { status: 403 });
   }
@@ -73,10 +75,11 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const t = await getT();
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (!hasPermission(user.role, "can_edit")) {
-    return NextResponse.json({ error: "Không có quyền chạy auto-apply" }, { status: 403 });
+    return NextResponse.json({ error: t("libcase.r.aa.2") }, { status: 403 });
   }
 
   let body: { company?: string; dryRun?: boolean };
@@ -87,7 +90,7 @@ export async function POST(request: NextRequest) {
   }
 
   const company = parseCompany(body.company ?? null);
-  if (!company) return NextResponse.json({ error: "Công ty không có ở bản cài này" }, { status: 400 });
+  if (!company) return NextResponse.json({ error: t("libcase.r.aa.1") }, { status: 400 });
   if (!canAccessCompany(user, company)) {
     return NextResponse.json({ error: "Access denied for this company" }, { status: 403 });
   }

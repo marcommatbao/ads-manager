@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { actorOf, fail, requireCompany, requireUser } from "@/lib/case/http"
 import { GoalFixError, undoGoalFix } from "@/lib/measure/google-goal-fix"
 import { friendlyError } from "@/lib/not-configured";
+import { getT } from "@/lib/i18n/server"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
@@ -15,7 +16,7 @@ export async function POST(request: NextRequest) {
   if (!co.ok) return co.response
   if (!b.id || !/^gfix_[a-z0-9]+$/.test(b.id)) return NextResponse.json({ success: false, error: "Thiếu mã lần ghi" }, { status: 400 })
   try {
-    return NextResponse.json({ success: true, report: await undoGoalFix(co.value, b.id, actorOf(u.value)) })
+    return NextResponse.json({ success: true, report: await undoGoalFix(co.value, b.id, actorOf(u.value), await getT()) })
   } catch (err) {
     if (err instanceof GoalFixError) return NextResponse.json({ success: false, error: friendlyError(err.message) }, { status: err.status })
     return fail(err)

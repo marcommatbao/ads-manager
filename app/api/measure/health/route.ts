@@ -5,6 +5,7 @@ import { MAX_RANGE_DAYS, parseRange } from "@/lib/case/dates"
 import { fail, requireCompany, requireUser } from "@/lib/case/http"
 import { metaHealth } from "@/lib/measure/meta-health"
 import { googleHealth } from "@/lib/measure/google-health"
+import { getT } from "@/lib/i18n/server"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 120
@@ -28,7 +29,7 @@ export async function GET(request: NextRequest) {
     range = pr.range
   }
   try {
-    const data = platform === "facebook" ? await metaHealth(co.value, { force, range }) : await googleHealth(co.value, { force, range })
+    const data = platform === "facebook" ? await metaHealth(co.value, { force, range }, await getT()) : await googleHealth(co.value, { force, range })
     return NextResponse.json({ success: true, platform, ...data })
   } catch (err) {
     return fail(err)

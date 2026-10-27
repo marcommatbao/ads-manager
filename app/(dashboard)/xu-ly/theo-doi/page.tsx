@@ -26,7 +26,7 @@ import { isSuperAdmin } from "@/lib/permissions";
 import type { BoardRow, BoardState } from "@/lib/case/board";
 import type { Company } from "@/lib/case/types";
 import type { CaseStep } from "@/lib/case/store";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import type { MessageKey } from "@/lib/i18n/messages";
 
 type BoardResponse = { success: true; companies: Company[]; rows: BoardRow[]; reminders: { enabled: boolean; overdueDays: number } };
@@ -238,15 +238,16 @@ export default function TheoDoiPage() {
 }
 
 function RemeasureCell({ r }: { r: BoardRow["remeasure"][number] }) {
+  const intl = useIntlLocale();
   const t = useT();
   if (!r) return <span className="text-slate-300">—</span>;
-  if (!r.done) return <span className="text-xs text-slate-500">{t("overview.xuly.follow.notDue", { date: ddmmyyyy(r.due) })}</span>;
+  if (!r.done) return <span className="text-xs text-slate-500">{t("overview.xuly.follow.notDue", { date: ddmmyyyy(r.due, intl) })}</span>;
   // Đợt 23: có kết quả chấm theo mục tiêu (lib/case/judge.ts) → hiện đạt / chưa rõ / xấu hơn; phiên chấm ROAS hiện ROAS.
   if (typeof r.verdict === "number") {
     const roas = r.roasAfter !== null && r.roasAfter !== undefined;
     return (
       <span className="tabular-nums text-xs text-slate-700">
-        {roas ? <>ROAS {r.roasBefore ?? "—"} → {r.roasAfter}</> : <>{r.cpaBefore !== null ? vnd(r.cpaBefore) : "—"} → {r.cpaAfter !== null ? vnd(r.cpaAfter) : t("overview.xuly.follow.zeroOrders")}</>}{" "}
+        {roas ? <>ROAS {r.roasBefore ?? "—"} → {r.roasAfter}</> : <>{r.cpaBefore !== null ? vnd(r.cpaBefore, intl) : "—"} → {r.cpaAfter !== null ? vnd(r.cpaAfter, intl) : t("overview.xuly.follow.zeroOrders")}</>}{" "}
         {r.verdict === 1 && <span className="font-semibold text-emerald-600">{t("overview.xuly.follow.verdictGood")}</span>}
         {r.verdict === 0 && <span className="font-semibold text-amber-600" title={t("overview.xuly.follow.unclearTip")}>{t("overview.xuly.follow.verdictUnclear")}</span>}
         {r.verdict === -1 && <span className="font-semibold text-red-600">{t("overview.xuly.follow.verdictWorse")}</span>}
@@ -257,7 +258,7 @@ function RemeasureCell({ r }: { r: BoardRow["remeasure"][number] }) {
   if (r.cpaBefore === null || r.cpaAfter === null) return <span className="text-slate-300">—</span>;
   return (
     <span className="tabular-nums text-xs text-slate-700">
-      {vnd(r.cpaBefore)} → {vnd(r.cpaAfter)}{" "}
+      {vnd(r.cpaBefore, intl)} → {vnd(r.cpaAfter, intl)}{" "}
       {r.better === true && <span className="font-semibold text-emerald-600">{t("overview.xuly.follow.better")}</span>}
       {r.better === false && <span className="font-semibold text-red-600">{t("overview.xuly.follow.verdictWorse")}</span>}
       {r.better === null && <span className="text-slate-400">—</span>}

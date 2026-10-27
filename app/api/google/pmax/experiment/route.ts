@@ -2,6 +2,8 @@
 // POST /api/google/pmax/experiment {company, candidateId, campaignIds[], weeks, source?, ga4Event?, validateOnly, confirmText?}
 // Phương án TÍNH LẠI ở máy chủ từ số tươi; ghi thật cần "XAC NHAN" + quyền can_edit.
 import { NextRequest, NextResponse } from "next/server"
+import { getT } from "@/lib/i18n/server"
+import type { TFunction } from "@/lib/i18n/translate"
 import { actorOf, fail, requireCompany, requireUser } from "@/lib/case/http"
 import { hasPermission } from "@/lib/permissions"
 import { designExperiment, launchExperiment, listExperiments, MAX_TEST_WEEKS, MIN_TEST_WEEKS, readCsvKpi, type KpiChoice } from "@/lib/pmax/geo-experiment"
@@ -19,13 +21,14 @@ const choiceOf = (source: unknown, ga4Event: unknown, ga4NewOnly?: unknown): Kpi
 })
 
 export async function GET(request: NextRequest) {
-  const u = await requireUser()
+  const t = await getT()
+  const u = await requireUser(undefined, t)
   if (!u.ok) return u.response
   const sp = request.nextUrl.searchParams
-  const co = requireCompany(u.value, sp.get("company"))
+  const co = requireCompany(u.value, sp.get("company"), t)
   if (!co.ok) return co.response
   try {
-    const design = await designExperiment(co.value, choiceOf(sp.get("source"), sp.get("ga4Event"), sp.get("ga4NewOnly")))
+    const design = await designExperiment(co.value, choiceOf(sp.get("source"), sp.get("ga4Event"), sp.get("ga4NewOnly")), new Date(), t)
     const csv = readCsvKpi(co.value)
     return NextResponse.json({
       success: true, design, experiments: listExperiments(co.value).slice(0, 20),
@@ -35,23 +38,24 @@ export async function GET(request: NextRequest) {
     })
   } catch (err) {
     if (err instanceof PmaxControlError) return NextResponse.json({ success: false, error: friendlyError(err.message) }, { status: err.status })
-    return fail(err)
+    return fail(err, t)
   }
 }
 
 export async function POST(request: NextRequest) {
-  const u = await requireUser("can_edit")
+  const t = await getT()
+  const u = await requireUser("can_edit", t)
   if (!u.ok) return u.response
   const b = (await request.json().catch(() => ({}))) as { company?: string; candidateId?: string; campaignIds?: unknown; weeks?: number; source?: string; ga4Event?: string; ga4NewOnly?: boolean; validateOnly?: boolean; confirmText?: string }
-  const co = requireCompany(u.value, b.company)
+  const co = requireCompany(u.value, b.company, t)
   if (!co.ok) return co.response
-  if (!["hn", "hcm", "tinh"].includes(String(b.candidateId))) return NextResponse.json({ success: false, error: "Phương án không hợp lệ" }, { status: 400 })
+  if (!["hn", "hcm", "tinh"].includes(String(b.candidateId))) return NextResponse.json({ success: false, error: t("libgoogle.rt.badCandidate") }, { status: 400 })
   const campaignIds = Array.isArray(b.campaignIds) ? b.campaignIds.filter((x): x is string => typeof x === "string" && /^\d+$/.test(x)).slice(0, 50) : []
   try {
-    const experiment = await launchExperiment({ company: co.value, candidateId: b.candidateId as "hn" | "hcm" | "tinh", campaignIds, weeks: Number(b.weeks) || 4, kpi: choiceOf(b.source, b.ga4Event, b.ga4NewOnly), actor: actorOf(u.value), validateOnly: b.validateOnly !== false, confirmText: b.confirmText })
+    const experiment = await launchExperiment({ company: co.value, candidateId: b.candidateId as "hn" | "hcm" | "tinh", campaignIds, weeks: Number(b.weeks) || 4, kpi: choiceOf(b.source, b.ga4Event, b.ga4NewOnly), actor: actorOf(u.value), validateOnly: b.validateOnly !== false, confirmText: b.confirmText }, t)
     return NextResponse.json({ success: true, validated: b.validateOnly !== false, experiment })
   } catch (err) {
     if (err instanceof PmaxControlError) return NextResponse.json({ success: false, error: friendlyError(err.message) }, { status: err.status })
-    return fail(err)
+    return fail(err, t)
   }
 }

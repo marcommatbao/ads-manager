@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
+import { getT } from "@/lib/i18n/server"
+import { numT } from "@/lib/google-i18n"
 import { safeDateRange, safeNumericId, InvalidGaqlInput } from "@/lib/google-ads-guards"
 import { getGoogleAdsCustomer }      from "@/lib/google-ads-client"
 import { getCurrentUser }            from "@/lib/auth"
@@ -25,6 +27,7 @@ interface CampaignAgg {
 }
 
 export async function GET(req: NextRequest) {
+  const t = await getT()
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
@@ -42,7 +45,7 @@ export async function GET(req: NextRequest) {
     const phrase     = (searchParams.get("phrase") || "").toLowerCase().trim().replace(/\s+/g, " ")
 
     if (!phrase) {
-      return NextResponse.json({ error: "Thiếu cụm từ khóa cần tìm" }, { status: 400 })
+      return NextResponse.json({ error: t("libgoogle.ng.noPhrase") }, { status: 400 })
     }
     if (!canAccessCompany(user, company)) {
       return NextResponse.json({ error: "Access denied for this company" }, { status: 403 })
@@ -181,22 +184,22 @@ export async function GET(req: NextRequest) {
 
       if (alreadyNegative) {
         recommendation = "EXISTS_NEGATIVE"
-        reason = "Đã bị phủ định trong campaign này"
+        reason = t("libgoogle.ng.exNeg")
       } else if (alreadyKeyword) {
         recommendation = "EXISTS_KEYWORD"
-        reason = "Đã có sẵn làm từ khóa trong campaign này"
+        reason = t("libgoogle.ng.exKw")
       } else if (cpa !== null && avgCPA > 0 && cpa <= avgCPA * 0.8) {
         recommendation = "ADD_KEYWORD"
-        reason = `CPA thấp hơn TB ${Math.abs(vsAvgPct ?? 0)}%, ${agg.conversions} conversion — nên thêm làm từ khóa riêng để kiểm soát bid tốt hơn`
+        reason = t("libgoogle.ng.addKw", { pct: Math.abs(vsAvgPct ?? 0), n: agg.conversions })
       } else if (agg.conversions === 0 && agg.clicks >= 5) {
         recommendation = "ADD_NEGATIVE"
-        reason = `${agg.clicks} click, 0 conversion, tốn ${Math.round(agg.cost).toLocaleString("vi-VN")}đ — nên phủ định`
+        reason = t("libgoogle.ng.negZero", { clicks: agg.clicks, cost: numT(t, Math.round(agg.cost)) })
       } else if (cpa !== null && avgCPA > 0 && cpa >= avgCPA * 1.5) {
         recommendation = "ADD_NEGATIVE"
-        reason = `CPA cao hơn TB ${vsAvgPct}% — nên phủ định để tiết kiệm ngân sách`
+        reason = t("libgoogle.ng.negCpa", { pct: vsAvgPct ?? 0 })
       } else {
         recommendation = "MONITOR"
-        reason = "Chưa đủ dữ liệu hoặc hiệu suất trung bình — theo dõi thêm"
+        reason = t("libgoogle.ng.monitor")
       }
 
       return {

@@ -6,6 +6,7 @@
 // gắn cảnh báo cho người đọc. Meta KHÔNG cho biết sở thích nào ra đơn → cấm AI khẳng định điều đó.
 import type { CompareGroup, RankedAdset } from "./audience-compare"
 import { targetingSummary } from "./winning-audiences-text"
+import { makeT, type TFunction } from "@/lib/i18n/translate"
 
 export interface AiPoint { text: string; evidence: string[] }
 export interface AiAssessment { conclusion: string; why: AiPoint[]; actions: AiPoint[]; caveats: string[] }
@@ -25,7 +26,7 @@ function rowFacts(r: RankedAdset) {
   }
 }
 
-export function buildAssessPrompt(groups: CompareGroup[], range: { from: string; to: string }): string {
+export function buildAssessPrompt(groups: CompareGroup[], range: { from: string; to: string }, t: TFunction = makeT("vi")): string {
   const VERDICT_VI: Record<string, string> = { winner: "winner (có tệp thắng)", leaning: "đang nghiêng về (chưa chắc)", undecided: "chưa phân thắng thua", not_enough: "chưa phân thắng thua (chưa đủ số)" }
   const data = groups.map((g) => ({ "Loại kết quả": g.goalKind === "leads" ? "lead" : "lượt mua", "Kết luận của tool": VERDICT_VI[g.verdict] ?? g.verdict, "Tóm tắt của tool": g.summary, "Các nhóm": g.rows.map(rowFacts) }))
   return `Bạn là chuyên gia quảng cáo Meta đọc một BẢNG SO SÁNH NHÓM QUẢNG CÁO do công cụ đo (khoảng ${range.from} → ${range.to}).
@@ -39,7 +40,7 @@ LUẬT BẮT BUỘC:
 5b. Chỉ đề xuất DỪNG / GIẢM nhóm có cờ "Kém rõ rệt" hoặc cờ "mà 0 …". Nhóm chỉ có cờ "chưa xếp hạng" thì đề xuất "chạy thêm rồi so lại", không dừng.
 6. Đọc chỉ số để giải thích: CTR thấp = thông điệp/mẫu chưa hợp tệp; click→kết quả thấp = tệp hoặc trang đích chưa hợp; tần suất > 3,5 = tệp bắt đầu cạn.
 7. "actions": việc cụ thể (giữ / tăng ngân sách / giảm / dừng / lưu làm tệp thắng / chạy thêm N ngày rồi so lại), mỗi việc gắn tên nhóm. Tối đa 5 việc.
-8. Viết tiếng Việt, ngắn gọn, cho người làm marketing (không thuật ngữ thống kê).
+${t("libmeta.ai.langRule")}
 
 DỮ LIỆU:
 ${JSON.stringify(data, null, 1)}

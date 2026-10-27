@@ -13,6 +13,7 @@ import { withFileLock } from "@/lib/file-lock"
 import { writeFileAtomicSync } from "@/lib/fs-atomic"
 import { PMAX_CONFIRM_TEXT, PmaxControlError } from "@/lib/pmax/controls"
 import type { Company } from "@/lib/case/types"
+import { makeT, type TFunction } from "@/lib/i18n/translate"
 import { coverage, toGoogleInput, type Coverage, type RealOrder } from "@/lib/conversions/real-orders"
 import { orderSourceOf, orderSourceReason, readOrders } from "@/lib/orders/sources"
 import { enqueue, metaQueueStats, sendQueue, type SendResult } from "@/lib/conversions/meta-capi"
@@ -32,11 +33,11 @@ export const realOrderSettings = (co: Company): RealOrderSettings => readAll()[c
 export interface SetInput { platform: "google" | "meta"; enabled: boolean; confirmText?: string; testEventCode?: string | null; actor: string }
 
 /** Bật cần XAC NHAN; tắt thì không. Mã thử Meta chỉ chữ-số (Meta cấp dạng TEST12345). */
-export async function setRealOrderToggle(co: Company, x: SetInput, now = new Date()): Promise<RealOrderSettings> {
+export async function setRealOrderToggle(co: Company, x: SetInput, now = new Date(), t: TFunction = makeT("vi")): Promise<RealOrderSettings> {
   const why = orderSourceReason(co)
   if (why && x.enabled) throw new PmaxControlError(why, 400)
-  if (x.enabled && x.confirmText !== PMAX_CONFIRM_TEXT) throw new PmaxControlError(`Gõ "${PMAX_CONFIRM_TEXT}" để bật gửi đơn thật`, 428)
-  if (x.testEventCode != null && x.testEventCode !== "" && !/^[A-Za-z0-9]{4,40}$/.test(x.testEventCode)) throw new PmaxControlError("Mã thử Meta không hợp lệ (vd TEST12345)", 400)
+  if (x.enabled && x.confirmText !== PMAX_CONFIRM_TEXT) throw new PmaxControlError(t("libmeta.cv.s.typeConfirm", { text: PMAX_CONFIRM_TEXT }), 428)
+  if (x.testEventCode != null && x.testEventCode !== "" && !/^[A-Za-z0-9]{4,40}$/.test(x.testEventCode)) throw new PmaxControlError(t("libmeta.cv.s.badTestCode"), 400)
   return withFileLock(SETTINGS, async () => {
     const all = readAll()
     const s = all[co] ?? {}
@@ -69,7 +70,7 @@ export interface SyncResult {
 export interface SyncDeps { read?: (co: Company, since: Date, until: Date) => Promise<RealOrder[]>; ingest?: typeof import("@/lib/leads/quality").ingestEvents; send?: typeof sendQueue }
 
 /** Một lượt: đọc đơn đã thu tiền 30 ngày → Google (nếu bật) + Meta 7 ngày (nếu bật). preview = chỉ đọc. */
-export async function runRealOrderSync(co: Company, opts: { preview?: boolean; now?: Date; deps?: SyncDeps } = {}): Promise<SyncResult> {
+export async function runRealOrderSync(co: Company, opts: { preview?: boolean; now?: Date; deps?: SyncDeps } = {}, t: TFunction = makeT("vi")): Promise<SyncResult> {
   const now = opts.now ?? new Date()
   const preview = !!opts.preview
   const s = realOrderSettings(co)
@@ -95,7 +96,7 @@ export async function runRealOrderSync(co: Company, opts: { preview?: boolean; n
     try {
       const pixelId = await pixelFor(co, s)
       res.meta.pixelId = pixelId
-      if (!pixelId) res.meta.error = "Chưa biết pixel của công ty (NEXT_PUBLIC_META_PIXEL_ID_" + co + ")"
+      if (!pixelId) res.meta.error = t("libmeta.cv.s.noPixel", { co })
       else {
         const q = await enqueue(co, recent, now)
         res.meta.added = q.added; res.meta.noContact = q.noContact

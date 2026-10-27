@@ -26,6 +26,8 @@ import {
   parsePixelStats,
 } from "@/lib/meta-pixel-events";
 import { META_GRAPH_BASE } from "@/lib/meta/graph-version";
+import { getT } from "@/lib/i18n/server";
+import { labelForStandardEvent } from "@/lib/meta-pixel-events";
 
 const BASE_URL = META_GRAPH_BASE;
 
@@ -45,6 +47,7 @@ export async function GET(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const t = await getT();
   const pixelId = req.nextUrl.searchParams.get("pixelId")?.trim() ?? "";
   const days = Math.min(Math.max(Number(req.nextUrl.searchParams.get("days") ?? 28) || 28, 1), 90);
 
@@ -58,7 +61,7 @@ export async function GET(req: NextRequest) {
   let anyLiveCall = false;
 
   if (!token || !adAccountId) {
-    warnings.push("Chưa cấu hình META_ACCESS_TOKEN / META_AD_ACCOUNT_ID — chỉ hiển thị danh mục sự kiện tiêu chuẩn, không biết sự kiện nào đang hoạt động.");
+    warnings.push(t("libmeta.pixel.noConfig"));
   } else {
     const endTime = Math.floor(Date.now() / 1000);
     const startTime = endTime - days * 86400;
@@ -67,16 +70,16 @@ export async function GET(req: NextRequest) {
       ? fetch(`${BASE_URL}/${pixelId}/stats?aggregation=event&start_time=${startTime}&end_time=${endTime}&access_token=${token}`)
           .then(async (r) => {
             const json = await r.json();
-            if (json?.error) throw new Error(json.error.message ?? "Lỗi không rõ");
+            if (json?.error) throw new Error(json.error.message ?? t("libmeta.pixel.unknownError"));
             return json;
           })
-      : Promise.reject(new Error("Chưa chọn Pixel"));
+      : Promise.reject(new Error(t("libmeta.pixel.noPixel")));
 
     const ccPromise = fetch(
       `${BASE_URL}/act_${adAccountId}/customconversions?fields=id,name,custom_event_type,is_archived,pixel{id}&limit=200&access_token=${token}`
     ).then(async (r) => {
       const json = await r.json();
-      if (json?.error) throw new Error(json.error.message ?? "Lỗi không rõ");
+      if (json?.error) throw new Error(json.error.message ?? t("libmeta.pixel.unknownError"));
       return json;
     });
 
@@ -88,7 +91,7 @@ export async function GET(req: NextRequest) {
       activityKnown = true;
       anyLiveCall = true;
     } else {
-      warnings.push(`Không đọc được hoạt động của Pixel (${statsRes.reason instanceof Error ? statsRes.reason.message : String(statsRes.reason)}) — danh sách vẫn đầy đủ nhưng không biết sự kiện nào còn sống.`);
+      warnings.push(t("libmeta.pixel.statsFail", { msg: statsRes.reason instanceof Error ? statsRes.reason.message : String(statsRes.reason) }));
     }
 
     if (ccRes.status === "fulfilled") {
@@ -101,7 +104,7 @@ export async function GET(req: NextRequest) {
       );
       anyLiveCall = true;
     } else {
-      warnings.push(`Không lấy được danh sách chuyển đổi tuỳ chỉnh (${ccRes.reason instanceof Error ? ccRes.reason.message : String(ccRes.reason)}).`);
+      warnings.push(t("libmeta.pixel.ccFail", { msg: ccRes.reason instanceof Error ? ccRes.reason.message : String(ccRes.reason) }));
     }
   }
 
@@ -116,7 +119,7 @@ export async function GET(req: NextRequest) {
     options.push({
       key: `standard:${ev.enumValue}`,
       kind: "standard",
-      label: ev.labelVi,
+      label: labelForStandardEvent(ev.enumValue, t),
       sublabel: ev.pixelName,
       enumValue: ev.enumValue,
       pixelEventName: ev.pixelName,
@@ -134,7 +137,7 @@ export async function GET(req: NextRequest) {
       key: `custom_event:${name}`,
       kind: "custom_event",
       label: name,
-      sublabel: "Sự kiện tuỳ chỉnh trên Pixel",
+      sublabel: t("libmeta.pixel.customEventSub"),
       pixelEventName: name,
       count,
       active: count > 0,
@@ -146,8 +149,8 @@ export async function GET(req: NextRequest) {
     options.push({
       key: `custom_conversion:${cc.id}`,
       kind: "custom_conversion",
-      label: cc.name?.trim() || `Chuyển đổi ${cc.id}`,
-      sublabel: "Chuyển đổi tùy chỉnh",
+      label: cc.name?.trim() || t("libmeta.pixel.ccName", { id: cc.id }),
+      sublabel: t("libmeta.pixel.ccSub"),
       customConversionId: cc.id,
       enumValue: cc.custom_event_type,
     });

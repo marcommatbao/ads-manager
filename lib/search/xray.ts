@@ -10,7 +10,9 @@
 import { enums } from "google-ads-api"
 import { getGoogleAdsCustomer } from "@/lib/google-ads-client"
 import { googleAdsErrorMessage } from "@/lib/google-ads-error"
-import { intentOf, INTENT_LABEL, type Intent, type IntentLexicon } from "@/lib/case/intent"
+import { intentOf, type Intent, type IntentLexicon } from "@/lib/case/intent"
+import type { TFunction } from "@/lib/i18n/translate"
+import { viT, vndT, nfOf, tk } from "@/lib/google-i18n"
 import { lexiconFor } from "@/lib/case/targets"
 import type { Company } from "@/lib/case/types"
 
@@ -53,23 +55,23 @@ export interface SearchXray {
 }
 
 const cpaOf = (cost: number, n: number) => (n > 0 ? cost / n : null)
-const vnd = (n: number) => `₫${Math.round(n).toLocaleString("vi-VN")}`
 
 /** Gom lượt tìm theo ý định — HÀM THUẦN. */
-export function intentCells(terms: TermRow[], lex: IntentLexicon): IntentCell[] {
+export function intentCells(terms: TermRow[], lex: IntentLexicon, t: TFunction = viT): IntentCell[] {
   const m = new Map<Intent, IntentCell>()
-  for (const t of terms) {
-    const it = intentOf(t.term, lex)
-    const c = m.get(it) ?? { intent: it, label: INTENT_LABEL[it], cost: 0, clicks: 0, conversions: 0, purchases: 0, terms: 0, cpa: null }
-    c.cost += t.cost; c.clicks += t.clicks; c.conversions += t.conversions; c.purchases += t.purchases; c.terms++
+  for (const r of terms) {
+    const it = intentOf(r.term, lex)
+    const c = m.get(it) ?? { intent: it, label: tk(t, `libgoogle.intent.${it}`), cost: 0, clicks: 0, conversions: 0, purchases: 0, terms: 0, cpa: null }
+    c.cost += r.cost; c.clicks += r.clicks; c.conversions += r.conversions; c.purchases += r.purchases; c.terms++
     m.set(it, c)
   }
   return [...m.values()].map((c) => ({ ...c, cpa: cpaOf(c.cost, c.purchases) })).sort((a, b) => b.cost - a.cost)
 }
 
 /** Cảnh báo cấp chiến dịch — HÀM THUẦN. */
-export function campaignWarnings(c: Omit<SearchCampaign, "warnings" | "brandShareOfCost">): { brandShareOfCost: number; warnings: SearchWarning[] } {
+export function campaignWarnings(c: Omit<SearchCampaign, "warnings" | "brandShareOfCost">, t: TFunction = viT): { brandShareOfCost: number; warnings: SearchWarning[] } {
   const w: SearchWarning[] = []
+  const vnd = (n: number) => vndT(t, n)
   const brand = c.intents.filter((i) => BRAND_INTENTS.includes(i.intent))
   const other = c.intents.filter((i) => !BRAND_INTENTS.includes(i.intent))
   const sum = (xs: IntentCell[], f: "cost" | "purchases") => xs.reduce((s, x) => s + x[f], 0)
@@ -81,11 +83,11 @@ export function campaignWarnings(c: Omit<SearchCampaign, "warnings" | "brandShar
   // Chỉ khi phần thương hiệu ĐÁNG KỂ (≥ 20% tiền, ≥ 10 đơn) — đo 29/09: Vibe Hosting có ₫354k thương hiệu cũng bị báo, quá tay.
   if (bCost > 0 && brandShareOfCost >= 0.2 && sum(brand, "purchases") >= 10 && (c.lostBudget ?? 0) >= STARVED_LOST_BUDGET && oCost > bCost * 0.5 && bCpa != null && (oCpa == null || oCpa >= STARVED_CPA_X * bCpa)) {
     w.push({ level: "bad", id: "brand_starved", campaignId: c.id, money: oCost,
-      text: `${c.name}: mất ${Math.round((c.lostBudget ?? 0) * 100)}% hiển thị vì ngân sách, trong khi ${Math.round((1 - brandShareOfCost) * 100)}% tiền (${vnd(oCost)}) đi vào lượt tìm chung/mua với CPA ${oCpa ? vnd(oCpa) : "không có đơn"} — gấp ${oCpa ? (oCpa / bCpa).toFixed(1) : "∞"} lần lượt tìm thương hiệu (${vnd(bCpa)}). Lượt tìm thương hiệu rẻ đang bị hụt tiền.` })
+      text: t("libgoogle.sx.brandStarved", { name: c.name, lost: Math.round((c.lostBudget ?? 0) * 100), other: Math.round((1 - brandShareOfCost) * 100), money: vnd(oCost), cpa: oCpa ? vnd(oCpa) : t("libgoogle.sx.noOrders"), ratio: oCpa ? (oCpa / bCpa).toFixed(1) : "∞", bcpa: vnd(bCpa) }) })
   }
   const comp = c.intents.find((i) => i.intent === "competitor")
-  if (comp && termCost > 0 && comp.cost / termCost >= 0.2 && comp.purchases === 0) w.push({ level: "bad", id: "competitor_spend", campaignId: c.id, money: comp.cost, text: `${c.name}: ${Math.round((comp.cost / termCost) * 100)}% tiền lượt tìm (${vnd(comp.cost)}) vào tên đối thủ, 0 đơn.` })
-  if ((c.lostRank ?? 0) >= 0.5 && c.cost > 0) w.push({ level: "warn", id: "lost_rank", campaignId: c.id, text: `${c.name}: mất ${Math.round((c.lostRank ?? 0) * 100)}% hiển thị vì HẠNG (giá thầu/chất lượng quảng cáo) — tăng ngân sách không giúp.` })
+  if (comp && termCost > 0 && comp.cost / termCost >= 0.2 && comp.purchases === 0) w.push({ level: "bad", id: "competitor_spend", campaignId: c.id, money: comp.cost, text: t("libgoogle.sx.competitorSpend", { name: c.name, pct: Math.round((comp.cost / termCost) * 100), money: vnd(comp.cost) }) })
+  if ((c.lostRank ?? 0) >= 0.5 && c.cost > 0) w.push({ level: "warn", id: "lost_rank", campaignId: c.id, text: t("libgoogle.sx.lostRank", { name: c.name, pct: Math.round((c.lostRank ?? 0) * 100) }) })
   return { brandShareOfCost, warnings: w }
 }
 
@@ -105,9 +107,25 @@ export function mergeTermRows(rows: TermRow[]): TermRow[] {
   return [...m.values()].map((g) => g.row)
 }
 
+// Bộ nhớ đệm giữ bản TIẾNG VIỆT (số liệu thô); chữ theo ngôn ngữ được dựng lại mỗi yêu cầu (renderXray) → EN không đầu độc VI.
 const memo = new Map<string, { at: number; value: SearchXray }>()
 
-export async function searchXray(company: Company, range: { from: string; to: string }, opts: { force?: boolean } = {}): Promise<SearchXray> {
+/** Dựng lại phần chữ (nhãn ý định, cảnh báo, ghi chú) theo ngôn ngữ của t — không đụng số liệu. */
+export function renderXray(v: SearchXray, t: TFunction): SearchXray {
+  if (nfOf(t) === nfOf(viT)) return v
+  const lab = (cells: IntentCell[]) => cells.map((c) => ({ ...c, label: tk(t, `libgoogle.intent.${c.intent}`) }))
+  const campaigns = v.campaigns.map((c) => { const base = { ...c, intents: lab(c.intents) }; return { ...base, ...campaignWarnings(base, t) } })
+  return { ...v, campaigns, account: { ...v.account, intents: lab(v.account.intents) },
+    warnings: campaigns.flatMap((x) => x.warnings).sort((a, b) => (a.level === b.level ? (b.money ?? 0) - (a.money ?? 0) : a.level === "bad" ? -1 : 1)),
+    notes: [t("libgoogle.sx.noteAuction")] }
+}
+
+/** `t` chỉ quyết định ngôn ngữ chữ trả về; số liệu cache chung. */
+export async function searchXray(company: Company, range: { from: string; to: string }, opts: { force?: boolean } = {}, t: TFunction = viT): Promise<SearchXray> {
+  return renderXray(await searchXrayVi(company, range, opts), t)
+}
+
+async function searchXrayVi(company: Company, range: { from: string; to: string }, opts: { force?: boolean } = {}): Promise<SearchXray> {
   const key = `${company}|${range.from}|${range.to}`
   const hit = memo.get(key)
   if (!opts.force && hit && Date.now() - hit.at < 30 * 60_000) return hit.value

@@ -8,7 +8,7 @@
 import { useMemo, useState } from "react";
 import { ChevronDown, ChevronUp, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import { vnd, num, pct } from "@/components/case/format";
 import type { MetaCampaignXray } from "@/lib/meta/xray";
 
@@ -62,6 +62,7 @@ function Th({ col, label, align = "left", sortKey, sortDir, onSort }: {
 }
 
 function CampaignRow({ c, open, onToggle }: { c: MetaCampaignXray; open: boolean; onToggle: () => void }) {
+  const intl = useIntlLocale();
   const t = useT();
   const wrongOpt = !!c.optEvent && c.optEvent !== "PURCHASE" && c.optEvent !== "LEAD";
   return (
@@ -73,28 +74,28 @@ function CampaignRow({ c, open, onToggle }: { c: MetaCampaignXray; open: boolean
             <span className="max-w-[220px] truncate font-medium text-slate-800" title={c.name}>{c.name}</span>
           </div>
         </td>
-        <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">{vnd(c.spend)}</td>
-        <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">{num(c.purchases, { maximumFractionDigits: 1 })}</td>
+        <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">{vnd(c.spend, intl)}</td>
+        <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">{num(c.purchases, { maximumFractionDigits: 1 }, intl)}</td>
         <td className="px-3 py-2.5">
           <div className="flex items-center gap-2">
             <ClickViewBar click={c.click} view={c.view} />
             <span className="whitespace-nowrap tabular-nums text-slate-600">{t("meta.xray.tbl.clicksViews", { click: c.click ?? "—", view: c.view ?? "—" })}</span>
           </div>
-          {c.viewShare !== null && <span className="text-[10px] text-slate-400">{t("meta.xray.tbl.viewShare", { pct: pct(c.viewShare, 0) })}</span>}
+          {c.viewShare !== null && <span className="text-[10px] text-slate-400">{t("meta.xray.tbl.viewShare", { pct: pct(c.viewShare, 0, intl) })}</span>}
         </td>
         <td className="px-3 py-2.5 text-right">
-          <div className="tabular-nums font-semibold text-slate-800">{vnd(c.cpaClick)}</div>
-          <div className="tabular-nums text-[10px] text-slate-400">{t("meta.xray.tbl.metaReports", { value: vnd(c.cpaMeta) })}</div>
+          <div className="tabular-nums font-semibold text-slate-800">{vnd(c.cpaClick, intl)}</div>
+          <div className="tabular-nums text-[10px] text-slate-400">{t("meta.xray.tbl.metaReports", { value: vnd(c.cpaMeta, intl) })}</div>
         </td>
         <td className="px-3 py-2.5">
           <span className={cn(wrongOpt && "font-semibold text-amber-700")}>{c.optEventLabel ?? c.optEvent ?? "—"}</span>
         </td>
         <td className="px-3 py-2.5 text-slate-500">{c.attribution}</td>
-        <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">{c.frequency !== null ? num(c.frequency, { maximumFractionDigits: 1 }) : "—"}</td>
+        <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">{c.frequency !== null ? num(c.frequency, { maximumFractionDigits: 1 }, intl) : "—"}</td>
         <td className="px-3 py-2.5">
           {c.utm.length ? <span className="text-slate-600">{c.utm.join(", ")}</span> : <span className="text-slate-300">—</span>}
           {c.utmShared && <span className="ml-1 rounded-full border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] text-slate-500">{t("meta.xray.tbl.shared")}</span>}
-          <div className="text-[10px] text-slate-400">GA4: {c.ga4Purchases !== null ? num(c.ga4Purchases, { maximumFractionDigits: 1 }) : "—"}</div>
+          <div className="text-[10px] text-slate-400">GA4: {c.ga4Purchases !== null ? num(c.ga4Purchases, { maximumFractionDigits: 1 }, intl) : "—"}</div>
         </td>
         <td className="px-3 py-2.5">
           <div className="flex flex-wrap gap-1">{c.flags.map((f, i) => <FlagChip key={i} text={f} />)}</div>

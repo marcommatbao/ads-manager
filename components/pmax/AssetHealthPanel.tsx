@@ -19,7 +19,7 @@ import {
   AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Loader2, RefreshCw, Sparkles, Star, Undo2, XCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import type { MessageKey } from "@/lib/i18n/messages";
 import { getJson, postJson, ApiError } from "@/components/case/api";
 import { vnd, num, pct, datetimeVN } from "@/components/case/format";
@@ -183,17 +183,18 @@ function ReplacementItemCard({
 // ── Một dòng trong bảng asset chỉ đọc ──
 
 function AssetTableRow({ a }: { a: AssetRow }) {
+  const intl = useIntlLocale();
   return (
     <tr className="border-b border-slate-50 last:border-0">
       <td className="max-w-[220px] truncate px-2 py-1 text-slate-700" title={a.label}>
         {a.inTop && <Star className="mr-1 inline h-3 w-3 fill-amber-400 text-amber-400" aria-hidden="true" />}
         {a.label}
       </td>
-      <td className="px-2 py-1 text-right text-slate-500">{num(a.impressions)}</td>
-      <td className="px-2 py-1 text-right text-slate-500">{num(a.clicks)}</td>
-      <td className="px-2 py-1 text-right text-slate-500">{a.ctr === null ? "—" : pct(a.ctr, 2)}</td>
-      <td className="px-2 py-1 text-right text-slate-500">{vnd(a.cost)}</td>
-      <td className="px-2 py-1 text-right text-slate-500">{num(a.conversions, { maximumFractionDigits: 1 })}</td>
+      <td className="px-2 py-1 text-right text-slate-500">{num(a.impressions, undefined, intl)}</td>
+      <td className="px-2 py-1 text-right text-slate-500">{num(a.clicks, undefined, intl)}</td>
+      <td className="px-2 py-1 text-right text-slate-500">{a.ctr === null ? "—" : pct(a.ctr, 2, intl)}</td>
+      <td className="px-2 py-1 text-right text-slate-500">{vnd(a.cost, intl)}</td>
+      <td className="px-2 py-1 text-right text-slate-500">{num(a.conversions, { maximumFractionDigits: 1 }, intl)}</td>
     </tr>
   );
 }
@@ -463,6 +464,7 @@ function AssetGroupCard({
 // ── Lịch sử thay asset ──
 
 function SwapHistoryRow({ h, onUndo }: { h: SwapExecution; onUndo: (id: string) => void }) {
+  const intl = useIntlLocale();
   const t = useT();
   const ok = h.status === "done";
   return (
@@ -472,7 +474,7 @@ function SwapHistoryRow({ h, onUndo }: { h: SwapExecution; onUndo: (id: string) 
           {ok ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> : <XCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
           {h.mode === "validate" ? t("google.pmaxAssetHealth.histValidate") : t("google.pmaxAssetHealth.histWritten")}
         </span>
-        <span className="text-slate-400">{datetimeVN(h.at)}</span>
+        <span className="text-slate-400">{datetimeVN(h.at, intl)}</span>
         <span className="text-slate-500">{h.by}</span>
       </div>
       {h.items.length > 0 && (
@@ -486,7 +488,7 @@ function SwapHistoryRow({ h, onUndo }: { h: SwapExecution; onUndo: (id: string) 
       {h.mode === "write" && (
         h.undoneAt ? (
           <div className="mt-2 rounded-md border border-slate-200 bg-white p-2 text-slate-600">
-            <p className="font-semibold">{t("google.pmaxAssetHealth.undoneAt", { time: datetimeVN(h.undoneAt) })}</p>
+            <p className="font-semibold">{t("google.pmaxAssetHealth.undoneAt", { time: datetimeVN(h.undoneAt, intl) })}</p>
             {h.undoReport && h.undoReport.length > 0 && <ul className="mt-1 list-disc space-y-0.5 pl-4">{h.undoReport.map((l, i) => <li key={i}>{l}</li>)}</ul>}
           </div>
         ) : ok ? (

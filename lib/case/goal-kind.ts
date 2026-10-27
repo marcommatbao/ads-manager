@@ -5,6 +5,7 @@
 // Google: theo hạng mục chuyển đổi chiến dịch ĐANG ĐẶT GIÁ — không có Mua hàng mà có hạng mục lead → thu lead.
 // Suy từ bằng chứng đã lưu nên phiên cũ (bán hàng) không cần di chuyển dữ liệu.
 import type { CaseEvidence } from "./types"
+import { makeT, type TFunction } from "@/lib/i18n/translate"
 
 export type GoalKind = "sales" | "leads"
 
@@ -40,3 +41,6 @@ export function isInstantForm(a: { optimizationGoal: string }): boolean {
 }
 /** Từ gọi một kết quả trong câu ("0 đơn", "₫X/lead"). */
 export const RESULT_WORD: Record<GoalKind, string> = { sales: "đơn", leads: "lead" }
+
+/** Từ chỉ kết quả theo ngôn ngữ (RESULT_WORD giữ bản tiếng Việt). */
+export const resultWord = (kind: GoalKind, t: TFunction = makeT("vi")): string => t(`libcase.c.result.${kind}` as never)

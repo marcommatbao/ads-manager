@@ -8,7 +8,7 @@ import { Loader2 } from "lucide-react";
 import { useToast } from "@/components/Toast";
 import { formatCurrency } from "@/lib/utils";
 import { useAdsStore } from "@/store/useAdsStore";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import type { Campaign } from "@/types/ads.types";
 
 interface EditBudgetModalProps {
@@ -26,6 +26,7 @@ export function EditBudgetModal({
   onClose,
   onSuccess,
 }: EditBudgetModalProps) {
+  const intl = useIntlLocale();
   const { toast } = useToast();
   const t = useT();
   const { updateCampaignBudget } = useAdsStore();
@@ -104,7 +105,7 @@ export function EditBudgetModal({
 
         <div className="py-2 space-y-4">
           <p className="text-sm font-medium text-slate-700">
-            {t("panels.budget.current", { amount: formatCurrency(currentBudget, currency) })}
+            {t("panels.budget.current", { amount: formatCurrency(currentBudget, currency, true, intl) })}
           </p>
 
           <div className="space-y-2">
@@ -143,7 +144,7 @@ export function EditBudgetModal({
           {newBudget > 0 && newBudget !== currentBudget && (
             <div className={`mt-2 text-sm font-medium ${difference > 0 ? "text-emerald-600" : "text-amber-600"}`}>
               {difference > 0 ? t("panels.budget.increase") : t("panels.budget.decrease")}{" "}
-              {t("panels.budget.perDay", { amount: formatCurrency(Math.abs(difference), currency) })} ({difference > 0 ? "+" : ""}{percentChange.toFixed(0)}%)
+              {t("panels.budget.perDay", { amount: formatCurrency(Math.abs(difference), currency, true, intl) })} ({difference > 0 ? "+" : ""}{percentChange.toFixed(0)}%)
             </div>
           )}
         </div>

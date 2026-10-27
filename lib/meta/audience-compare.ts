@@ -6,6 +6,8 @@
 // (khác sự kiện tối ưu / khác mẫu quảng cáo / tệp gần trùng / đang học) — "thắng" lúc đó có thể do thứ khác chứ không phải tệp.
 import { computeTargetingSimilarity } from "@/lib/audience-overlap"
 import type { GoalKind } from "@/lib/case/goal-kind"
+import { makeT, type TFunction } from "@/lib/i18n/translate"
+import type { MessageKey } from "@/lib/i18n/messages"
 
 /** "Kết quả" chỉ-xem chiếm từ tỉ lệ này (và ≥ 10 lượt) → gắn cờ: Meta báo cao hơn nhiều so với số người bấm rồi mua. */
 export const VIEW_HEAVY_SHARE = 0.6
@@ -13,11 +15,11 @@ const GOAL_VI: Record<string, string> = {
   OFFSITE_CONVERSIONS: "chuyển đổi trên web", VALUE: "giá trị đơn (ROAS)", LINK_CLICKS: "click liên kết", LANDING_PAGE_VIEWS: "xem trang đích",
   LEAD_GENERATION: "form trên Meta", QUALITY_LEAD: "lead chất lượng", REACH: "tiếp cận", IMPRESSIONS: "hiển thị", CONVERSATIONS: "tin nhắn", THRUPLAY: "xem video",
 }
-const goalText = (g?: string) => (g ? GOAL_VI[g] ?? g : "không rõ")
+const goalText = (g?: string, t?: TFunction) => (g ? (t && g in GOAL_VI ? t(`libmeta.ac.goal.${g}` as MessageKey) : GOAL_VI[g] ?? g) : t ? t("libmeta.ac.goalUnknown") : "không rõ")
 /** Câu nói rõ hai nhóm khác sự kiện tối ưu Ở ĐÂU (cùng nhãn sự kiện thì là khác cách tối ưu). */
-export function optEventDiff(r: Pick<CompareAdset, "optEventLabel" | "optimizationGoal">, best: Pick<CompareAdset, "optEventLabel" | "optimizationGoal">): string {
-  if (r.optEventLabel === best.optEventLabel) return `Cùng sự kiện “${r.optEventLabel}” nhưng khác cách tối ưu (${goalText(r.optimizationGoal)} so với ${goalText(best.optimizationGoal)}) — không so thẳng được`
-  return `Khác sự kiện tối ưu (${r.optEventLabel} so với ${best.optEventLabel}) — không so thẳng được`
+export function optEventDiff(r: Pick<CompareAdset, "optEventLabel" | "optimizationGoal">, best: Pick<CompareAdset, "optEventLabel" | "optimizationGoal">, t: TFunction = makeT("vi")): string {
+  if (r.optEventLabel === best.optEventLabel) return t("libmeta.ac.diffSameEvent", { label: r.optEventLabel, a: goalText(r.optimizationGoal, t), b: goalText(best.optimizationGoal, t) })
+  return t("libmeta.ac.diffEvent", { a: r.optEventLabel, b: best.optEventLabel })
 }
 
 /** Dưới ngần này kết quả: chưa đủ để xếp hạng (vài lượt lẻ là may rủi). */
@@ -108,7 +110,7 @@ const jaccard = (a: string[], b: string[]) => {
   const inter = a.filter((x) => B.has(x)).length
   return inter / new Set([...a, ...b]).size
 }
-const vnd = (n: number) => `₫${Math.round(n).toLocaleString("vi-VN")}`
+const vnd = (n: number, t: TFunction) => `₫${Math.round(n).toLocaleString(t("libmeta.numLocale"))}`
 
 export function rankAdsets(rows: CompareAdset[]): RankedAdset[] {
   return rows.map((r) => {
@@ -129,26 +131,28 @@ export function rankAdsets(rows: CompareAdset[]): RankedAdset[] {
 }
 
 /** So các nhóm CÙNG loại kết quả (mua với mua, lead với lead) — HÀM THUẦN. */
-export function compareGroup(goalKind: GoalKind, input: CompareAdset[]): CompareGroup {
-  const word = goalKind === "leads" ? "lead" : "lượt mua"
+export function compareGroup(goalKind: GoalKind, input: CompareAdset[], t: TFunction = makeT("vi")): CompareGroup {
+  const word = goalKind === "leads" ? t("libmeta.ac.wordLead") : t("libmeta.ac.wordBuy")
+  // Nhóm không so thẳng được (khác sự kiện / khác mẫu) — theo dõi bằng tập, KHÔNG dò chữ trong cờ (chữ đổi theo ngôn ngữ).
+  const incomparable = new Set<RankedAdset>()
   const rows = rankAdsets(input.filter((r) => r.spend > 0))
   const eligible = rows.filter((r) => r.enough && r.costPerResult !== null).sort((a, b) => a.costPerResult! - b.costPerResult!)
   eligible.forEach((r, i) => { r.rank = i + 1 })
   for (const r of rows) {
-    if (r.learning === "LEARNING") r.flags.push("Đang học — số còn dao động, chưa xếp hạng")
-    else if (r.results < MIN_RESULTS_TO_RANK) r.flags.push(`Mới ${r.results} ${word} (cần ≥ ${MIN_RESULTS_TO_RANK}) — chưa xếp hạng`)
-    if (r.learning === "FAIL") r.flags.push("Meta báo học thất bại")
+    if (r.learning === "LEARNING") r.flags.push(t("libmeta.ac.flagLearning"))
+    else if (r.results < MIN_RESULTS_TO_RANK) r.flags.push(t("libmeta.ac.flagFew", { n: r.results, word, min: MIN_RESULTS_TO_RANK }))
+    if (r.learning === "FAIL") r.flags.push(t("libmeta.ac.flagLearnFail"))
     const all = r.resultsAll ?? r.results, view = r.resultsView ?? 0
-    if (all >= MIN_RESULTS_TO_RANK && view / all >= VIEW_HEAVY_SHARE) r.flags.push(`${Math.round((view / all) * 100)}% ${word} Meta báo (${all}) là người CHỈ XEM quảng cáo, không bấm — bảng chấm theo ${r.results} ${word} từ lượt bấm`)
+    if (all >= MIN_RESULTS_TO_RANK && view / all >= VIEW_HEAVY_SHARE) r.flags.push(t("libmeta.ac.flagViewOnly", { pct: Math.round((view / all) * 100), word, all, n: r.results }))
   }
   const best = eligible[0]
   if (best) {
     for (const r of rows) {
       if (r === best) continue
-      if (r.optEventKey !== best.optEventKey) r.flags.push(optEventDiff(r, best))
-      if (jaccard(r.creativeIds, best.creativeIds) < MIN_SHARED_CREATIVES) r.flags.push("Khác mẫu quảng cáo với nhóm dẫn đầu — chênh lệch có thể do quảng cáo, không phải do tệp")
+      if (r.optEventKey !== best.optEventKey) { r.flags.push(optEventDiff(r, best, t)); incomparable.add(r) }
+      if (jaccard(r.creativeIds, best.creativeIds) < MIN_SHARED_CREATIVES) { r.flags.push(t("libmeta.ac.flagCreative")); incomparable.add(r) }
       const sim = computeTargetingSimilarity({ targeting: r.targeting } as never, { targeting: best.targeting } as never).overall * 100
-      if (sim >= NEAR_DUPLICATE_PCT) r.flags.push(`Tệp gần trùng nhóm dẫn đầu (${Math.round(sim)}%) — hai nhóm đang tranh cùng người trong đấu giá`)
+      if (sim >= NEAR_DUPLICATE_PCT) r.flags.push(t("libmeta.ac.flagNearDup", { pct: Math.round(sim) }))
     }
   }
   const zeroBurn = rows.filter((r) => r.results === 0 && best?.costPerResult && r.spend >= 2 * best.costPerResult)
@@ -157,7 +161,7 @@ export function compareGroup(goalKind: GoalKind, input: CompareAdset[]): Compare
     // 26d: 0 kết quả mà chi đủ lớn để, kể cả nhóm dẫn đầu chỉ tốt ở mức thấp nhất, xác suất 0 lượt < 2,5% → kém rõ rệt.
     const worse = !!refZ && poissonCdf(0, r.spend / refZ) < CLEARLY_WORSE_P
     if (worse) r.clearlyWorse = true
-    r.flags.push(`Chi ${vnd(r.spend)} (≥ 2 lần chi phí/${word} của nhóm dẫn đầu) mà 0 ${word}${worse ? " — kém rõ rệt, không phải may rủi" : ""}`)
+    r.flags.push(t("libmeta.ac.flagZeroBurn", { spend: vnd(r.spend, t), word, worse: worse ? t("libmeta.ac.flagZeroWorse") : "" }))
   }
   // Ít số vẫn kết luận được KÉM: chi đủ để nhóm dẫn đầu ra ≥ 3 kết quả mà thực tế ra quá ít (Poisson) — dùng 06/10: chi ₫1,72tr,
   // theo mức nhóm dẫn đầu lẽ ra ~21 lượt mua, thực tế 2. Không gắn khi đã có cờ "0 kết quả" (trùng ý).
@@ -170,31 +174,31 @@ export function compareGroup(goalKind: GoalKind, input: CompareAdset[]): Compare
       const expected = r.spend / ref
       if (expected >= 3 && r.results < expected && poissonCdf(r.results, expected) < CLEARLY_WORSE_P) {
         r.clearlyWorse = true
-        r.flags.push(`Kém rõ rệt: chi ${vnd(r.spend)} — kể cả khi nhóm dẫn đầu chỉ tốt ở mức thấp nhất (${vnd(ref)}/${word}) thì nhóm này lẽ ra ~${Math.round(expected)} ${word}, thực tế ${r.results} — chênh quá lớn để là may rủi`)
+        r.flags.push(t("libmeta.ac.flagClearlyWorse", { spend: vnd(r.spend, t), ref: vnd(ref, t), word, expected: Math.round(expected), n: r.results }))
       }
     }
   }
 
-  if (eligible.length === 0) return { goalKind, verdict: "not_enough", winnerId: null, rows, summary: `Chưa nhóm nào đủ ${MIN_RESULTS_TO_RANK} ${word} (và ra khỏi giai đoạn học) để xếp hạng — chạy thêm rồi so lại.` }
+  if (eligible.length === 0) return { goalKind, verdict: "not_enough", winnerId: null, rows, summary: t("libmeta.ac.sumNone", { min: MIN_RESULTS_TO_RANK, word }) }
   if (eligible.length === 1) {
     // Soát 07/10: "chi gấp đôi mà 0" chưa đủ để tuyên thắng (nếu tốt ngang nhau, 0 kết quả khi chi gấp đôi vẫn có ~13,5% khả năng).
     // Thắng chỉ khi nhóm kia KÉM RÕ RỆT so với đầu XẤU khoảng tin cậy của nhóm dẫn đầu (cùng tiêu chí cờ "Kém rõ rệt"), và so được.
     const ref = best.cprHigh ?? best.costPerResult!
     const losers = rows.filter((r) => r !== best && r.results === 0 && poissonCdf(0, r.spend / ref) < CLEARLY_WORSE_P
-      && !r.flags.some((f) => f.startsWith("Khác sự kiện") || f.startsWith("Cùng sự kiện") || f.startsWith("Khác mẫu")))
+      && !incomparable.has(r))
     return {
       goalKind, verdict: losers.length ? "winner" : "not_enough", winnerId: losers.length ? best.id : null, rows,
       summary: losers.length
-        ? `“${best.name}” là nhóm duy nhất đủ số (${vnd(best.costPerResult!)}/${word}); ${losers.length} nhóm khác (cùng sự kiện, cùng mẫu quảng cáo) chi đủ lớn mà 0 ${word} — kém rõ rệt.`
-        : `Chỉ “${best.name}” đủ số (${vnd(best.costPerResult!)}/${word}) — các nhóm khác chưa đủ để so.`,
+        ? t("libmeta.ac.sumOneWin", { name: best.name, cpr: vnd(best.costPerResult!, t), word, n: losers.length })
+        : t("libmeta.ac.sumOneOnly", { name: best.name, cpr: vnd(best.costPerResult!, t), word }),
     }
   }
   const second = eligible[1]
   const clean = best.cprHigh !== null && eligible.slice(1).every((r) => r.cprLow !== null && best.cprHigh! < r.cprLow!)
   // Soát 07/10: MỌI nhóm còn lại phải so được (trước chỉ soi nhóm thứ 2 → nhóm thứ 3 khác mẫu vẫn ra "thắng").
-  const comparable = eligible.slice(1).every((r) => !r.flags.some((f) => f.startsWith("Khác sự kiện") || f.startsWith("Cùng sự kiện") || f.startsWith("Khác mẫu")))
+  const comparable = eligible.slice(1).every((r) => !incomparable.has(r))
   const gap = Math.round((second.costPerResult! / best.costPerResult! - 1) * 100)
-  if (clean && comparable) return { goalKind, verdict: "winner", winnerId: best.id, rows, summary: `“${best.name}” thắng: ${vnd(best.costPerResult!)}/${word}, rẻ hơn nhóm kế tiếp ${gap}% — khoảng tin cậy 95% không chồng nhau.` }
-  if (clean) return { goalKind, verdict: "leaning", winnerId: best.id, rows, summary: `“${best.name}” rẻ nhất (${vnd(best.costPerResult!)}/${word}, hơn ${gap}%) và tách biệt về số — nhưng nhóm kế tiếp khác sự kiện hoặc mẫu quảng cáo nên chưa chắc là do tệp.` }
-  return { goalKind, verdict: "leaning", winnerId: best.id, rows, summary: `“${best.name}” đang rẻ nhất (${vnd(best.costPerResult!)}/${word}, hơn ${gap}%) nhưng khoảng tin cậy còn chồng nhau — chưa đủ để chắc là tệp tốt hơn. Chạy thêm để so lại.` }
+  if (clean && comparable) return { goalKind, verdict: "winner", winnerId: best.id, rows, summary: t("libmeta.ac.sumWinner", { name: best.name, cpr: vnd(best.costPerResult!, t), word, gap }) }
+  if (clean) return { goalKind, verdict: "leaning", winnerId: best.id, rows, summary: t("libmeta.ac.sumLeanClean", { name: best.name, cpr: vnd(best.costPerResult!, t), word, gap }) }
+  return { goalKind, verdict: "leaning", winnerId: best.id, rows, summary: t("libmeta.ac.sumLean", { name: best.name, cpr: vnd(best.costPerResult!, t), word, gap }) }
 }

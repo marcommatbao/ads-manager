@@ -14,7 +14,7 @@ import { getJson, ApiError } from "@/components/case/api";
 import { vnd, num, pct, datetimeVN } from "@/components/case/format";
 import { Kpi } from "@/components/measure/Kpi";
 import { Button } from "@/components/ui/button";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import { MetaRecommendations } from "./MetaRecommendations";
 import { MetaCampaignTable } from "./MetaCampaignTable";
 import { MetaDetailSection } from "./MetaDetailSection";
@@ -77,6 +77,7 @@ function XraySkeleton() {
 // ── Root ──
 
 export function MetaXrayView({ company, range }: { company: Company; range: Range }) {
+  const intl = useIntlLocale();
   const t = useT();
   const [data, setData] = useState<XrayResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -146,18 +147,18 @@ export function MetaXrayView({ company, range }: { company: Company; range: Rang
           {/* ── 1. Chỉ số lớn ── */}
           <section className="space-y-2">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-              <Kpi label={t("meta.xray.kpi.spend")} value={vnd(data.totals.spend)} />
-              <Kpi label={t("meta.xray.kpi.metaPurchases")} value={num(data.totals.purchases, { maximumFractionDigits: 1 })} />
-              <Kpi label={t("meta.xray.kpi.click")} value={num(data.totals.click, { maximumFractionDigits: 1 })} />
+              <Kpi label={t("meta.xray.kpi.spend")} value={vnd(data.totals.spend, intl)} />
+              <Kpi label={t("meta.xray.kpi.metaPurchases")} value={num(data.totals.purchases, { maximumFractionDigits: 1 }, intl)} />
+              <Kpi label={t("meta.xray.kpi.click")} value={num(data.totals.click, { maximumFractionDigits: 1 }, intl)} />
               <Kpi
                 label={t("meta.xray.kpi.view")}
-                value={num(data.totals.view, { maximumFractionDigits: 1 })}
-                sub={data.totals.purchases > 0 ? t("meta.xray.kpi.viewSub", { pct: pct(data.totals.view / data.totals.purchases, 0) }) : undefined}
+                value={num(data.totals.view, { maximumFractionDigits: 1 }, intl)}
+                sub={data.totals.purchases > 0 ? t("meta.xray.kpi.viewSub", { pct: pct(data.totals.view / data.totals.purchases, 0, intl) }) : undefined}
                 bad={data.warnings.some((w) => w.id === "view_heavy_account")}
               />
               <Kpi
                 label={t("meta.xray.kpi.ga4")}
-                value={data.totals.ga4Facebook !== null ? num(data.totals.ga4Facebook, { maximumFractionDigits: 1 }) : t("meta.xray.kpi.notReconciled")}
+                value={data.totals.ga4Facebook !== null ? num(data.totals.ga4Facebook, { maximumFractionDigits: 1 }, intl) : t("meta.xray.kpi.notReconciled")}
               />
             </div>
             <p className="text-[11px] italic text-slate-400">
@@ -189,7 +190,7 @@ export function MetaXrayView({ company, range }: { company: Company; range: Rang
             {data.notes.map((n, i) => <p key={i}>{n}</p>)}
             <p>{t("meta.xray.view.calls", { n: data.calls })}</p>
           </div>
-          <p className="text-right text-[10px] text-slate-300">{t("meta.xray.view.updatedAt", { time: datetimeVN(data.collectedAt) })}</p>
+          <p className="text-right text-[10px] text-slate-300">{t("meta.xray.view.updatedAt", { time: datetimeVN(data.collectedAt, intl) })}</p>
         </>
       )}
     </div>

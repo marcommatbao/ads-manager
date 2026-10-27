@@ -25,6 +25,9 @@
 // và báo được bằng tiếng Việt kèm mã lỗi thật.
 // ============================================================
 
+import type { TFunction } from "@/lib/i18n/translate";
+import { viT } from "@/lib/google-i18n";
+
 export interface FinalUrlCheck {
   url: string;
   ok: boolean;
@@ -42,20 +45,20 @@ export interface FinalUrlCheck {
  * chiến dịch. Không kiểm được thì trả `ok: true` kèm ghi chú — thà để lọt một
  * ca còn hơn chặn oan một ca hợp lệ vì mạng của máy chủ chập chờn.
  */
-export async function checkFinalUrl(url: string, timeoutMs = 12_000): Promise<FinalUrlCheck> {
+export async function checkFinalUrl(url: string, timeoutMs = 12_000, t: TFunction = viT): Promise<FinalUrlCheck> {
   const clean = (url ?? "").trim();
   if (!clean) {
     return { url: clean, ok: false, status: null,
-      problem: "Sản phẩm này chưa có trang đích. Google bắt buộc mỗi quảng cáo phải trỏ tới một trang mở được — không có URL thì không tạo được chiến dịch." };
+      problem: t("libgoogle.fu.noUrl") };
   }
   let parsed: URL;
   try {
     parsed = new URL(clean);
   } catch {
-    return { url: clean, ok: false, status: null, problem: `"${clean}" không phải một địa chỉ web hợp lệ.` };
+    return { url: clean, ok: false, status: null, problem: t("libgoogle.fu.badUrl", { url: clean }) };
   }
   if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
-    return { url: clean, ok: false, status: null, problem: `"${clean}" phải bắt đầu bằng http:// hoặc https://.` };
+    return { url: clean, ok: false, status: null, problem: t("libgoogle.fu.badProto", { url: clean }) };
   }
 
   const ctrl = new AbortController();
@@ -79,8 +82,8 @@ export async function checkFinalUrl(url: string, timeoutMs = 12_000): Promise<Fi
       status: res.status,
       finalUrl,
       problem: res.status === 404
-        ? `Trang đích trả lỗi 404 — không tồn tại${finalUrl !== clean ? ` (sau chuyển hướng tới ${finalUrl})` : ""}. Google sẽ từ chối quảng cáo với lý do DESTINATION_NOT_WORKING.`
-        : `Trang đích trả mã ${res.status}${finalUrl !== clean ? ` (sau chuyển hướng tới ${finalUrl})` : ""}. Google cần mở được trang này thì mới duyệt quảng cáo.`,
+        ? t("libgoogle.fu.p404", { redir: finalUrl !== clean ? t("libgoogle.fu.redirect", { to: finalUrl }) : "" })
+        : t("libgoogle.fu.pCode", { code: res.status, redir: finalUrl !== clean ? t("libgoogle.fu.redirect", { to: finalUrl }) : "" }),
     };
     } catch (e) {
       const aborted = e instanceof Error && e.name === "AbortError";
@@ -107,18 +110,15 @@ export async function checkFinalUrl(url: string, timeoutMs = 12_000): Promise<Fi
       if (destinationBroken) {
         const why =
           code.includes("SSL") || code.includes("TLS") || code === "EPROTO"
-            ? "chứng chỉ HTTPS không dùng được (máy chủ từ chối bắt tay TLS)"
-            : code === "ENOTFOUND" ? "tên miền không phân giải được"
-            : code === "ECONNREFUSED" ? "máy chủ từ chối kết nối"
-            : "lỗi kết nối " + code;
+            ? t("libgoogle.fu.whyTls")
+            : code === "ENOTFOUND" ? t("libgoogle.fu.whyDns")
+            : code === "ECONNREFUSED" ? t("libgoogle.fu.whyRefused")
+            : t("libgoogle.fu.whyConn", { code });
         return {
           url: clean,
           ok: false,
           status: null,
-          problem: "Trang đích KHÔNG mở được — " + why +
-            ". Google sẽ từ chối quảng cáo với lý do DESTINATION_NOT_WORKING. " +
-            "Kiểm tra tên miền: bản có www. và bản không có www. là HAI tên miền khác nhau, " +
-            "chứng chỉ có thể chỉ cấp cho một trong hai.",
+          problem: t("libgoogle.fu.pBroken", { why }),
         };
       }
 
@@ -127,8 +127,8 @@ export async function checkFinalUrl(url: string, timeoutMs = 12_000): Promise<Fi
         ok: true, // KHÔNG chặn vì lỗi phía mình — xem chú thích ở đầu hàm.
         status: null,
         problem: aborted
-          ? `Không mở được trang đích trong ${Math.round(timeoutMs / 1000)} giây từ máy chủ — có thể do mạng phía tool, chưa chắc trang hỏng. Tự mở thử trước khi tạo.`
-          : `Không kết nối được tới trang đích từ máy chủ (${e instanceof Error ? e.message : "lỗi không rõ"}) — chưa chắc trang hỏng. Tự mở thử trước khi tạo.`,
+          ? t("libgoogle.fu.pTimeout", { sec: Math.round(timeoutMs / 1000) })
+          : t("libgoogle.fu.pNoConn", { msg: e instanceof Error ? e.message : t("libgoogle.fu.unknownErr") }),
       };
   }
 }

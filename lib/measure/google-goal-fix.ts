@@ -20,6 +20,7 @@ import { withFileLock } from "@/lib/file-lock"
 import { writeFileAtomicSync } from "@/lib/fs-atomic"
 import type { Company } from "@/lib/case/types"
 import type { GoogleFixProposal, TagDoctorReport } from "./tag-doctor"
+import { makeT, type TFunction } from "@/lib/i18n/translate"
 
 export const CONFIRM_TEXT = "XAC NHAN"
 const FILE = path.join(process.cwd(), "data", "google-goal-fixes.json")
@@ -80,7 +81,7 @@ async function apply(customer: Customer, changes: GoalFixChange[], validateOnly:
   if (goals.length) await customer.customerConversionGoals.update(goals.map((c) => ({ resource_name: c.resourceName, biddable: c.after })), opt)
 }
 
-const yesNo = (c: { kind: GoogleFixProposal["kind"] }, v: boolean) => (c.kind === "goal_biddable" ? (v ? "Đặt giá" : "Không đặt giá") : v ? "Chính" : "Phụ")
+const yesNo = (c: { kind: GoogleFixProposal["kind"] }, v: boolean, t: TFunction) => (c.kind === "goal_biddable" ? (v ? t("libmeta.gg.yesBid") : t("libmeta.gg.noBid")) : v ? t("libmeta.gg.primary") : t("libmeta.gg.secondary"))
 
 function readLog(): GoalFixExecution[] {
   try { return fs.existsSync(FILE) ? (JSON.parse(fs.readFileSync(FILE, "utf-8")) as GoalFixExecution[]) : [] } catch { return [] }
@@ -98,12 +99,12 @@ export class GoalFixError extends Error { constructor(message: string, public st
 export async function runGoalFix(input: {
   company: Company; report: TagDoctorReport; fixIds: string[]; actor: string
   validateOnly: boolean; confirmText?: string; acknowledgeNoSignal?: boolean
-}): Promise<GoalFixExecution> {
+}, t: TFunction = makeT("vi")): Promise<GoalFixExecution> {
   const selected = input.report.fixes.filter((f) => input.fixIds.includes(f.id))
-  if (!selected.length) throw new GoalFixError("Chưa chọn việc nào")
-  if (!input.validateOnly && input.confirmText?.trim() !== CONFIRM_TEXT) throw new GoalFixError(`Gõ đúng “${CONFIRM_TEXT}” để ghi lên tài khoản thật`)
+  if (!selected.length) throw new GoalFixError(t("libmeta.gf.noneSelected"))
+  if (!input.validateOnly && input.confirmText?.trim() !== CONFIRM_TEXT) throw new GoalFixError(t("libmeta.gg.typeConfirm", { text: CONFIRM_TEXT }))
   if (!input.validateOnly && needsNoSignalAck(input.report, selected) && !input.acknowledgeNoSignal) {
-    throw new GoalFixError("Sau thay đổi, không hành động Mua hàng CHÍNH nào có lượt trong 7 ngày — Google sẽ mất tín hiệu đặt giá. Tick ô xác nhận nếu vẫn muốn ghi.")
+    throw new GoalFixError(t("libmeta.gg.noSignalAck"))
   }
   const customer = getGoogleAdsCustomer(input.company)
   const exec: GoalFixExecution = {
@@ -111,44 +112,44 @@ export async function runGoalFix(input: {
     mode: input.validateOnly ? "validate" : "write", status: "failed", changes: [], skipped: [], errors: [], readback: [],
   }
   let before: Map<string, boolean>
-  try { before = await readState(customer, selected) } catch (e) { exec.errors.push(`Không đọc được trạng thái hiện tại: ${googleAdsErrorMessage(e)}`); return exec }
+  try { before = await readState(customer, selected) } catch (e) { exec.errors.push(t("libmeta.gg.readFail", { msg: googleAdsErrorMessage(e) })); return exec }
   for (const f of selected) {
     const cur = before.get(f.resourceName)
-    if (cur === undefined) { exec.skipped.push(`${f.label}: không còn trên tài khoản — bỏ qua.`); continue }
-    if (cur === f.after) { exec.skipped.push(`${f.label}: đã đúng sẵn — bỏ qua.`); continue }
-    if (cur !== f.before) { exec.skipped.push(`${f.label}: trạng thái đã đổi từ lúc chẩn đoán — bỏ qua, kéo lại để tính lại.`); continue }
+    if (cur === undefined) { exec.skipped.push(t("libmeta.gg.noneLeft", { label: f.label })); continue }
+    if (cur === f.after) { exec.skipped.push(t("libmeta.gf.already", { label: f.label })); continue }
+    if (cur !== f.before) { exec.skipped.push(t("libmeta.gg.changed", { label: f.label })); continue }
     exec.changes.push({ kind: f.kind, resourceName: f.resourceName, label: f.label, before: f.before, after: f.after })
   }
   if (!exec.changes.length) { exec.status = "done"; return exec }
-  try { await apply(customer, exec.changes, true) } catch (e) { exec.errors.push(`Google từ chối khi kiểm — CHƯA ghi gì: ${googleAdsErrorMessage(e)}`); exec.changes = []; return exec }
+  try { await apply(customer, exec.changes, true) } catch (e) { exec.errors.push(t("libmeta.gg.rejected", { msg: googleAdsErrorMessage(e) })); exec.changes = []; return exec }
   if (input.validateOnly) {
     exec.status = "done"
-    exec.readback = exec.changes.map((c) => ({ label: c.label, before: yesNo(c, c.before), after: "chưa ghi", expected: yesNo(c, c.after), ok: true }))
+    exec.readback = exec.changes.map((c) => ({ label: c.label, before: yesNo(c, c.before, t), after: t("libmeta.gg.notWritten"), expected: yesNo(c, c.after, t), ok: true }))
     return exec
   }
-  try { await apply(customer, exec.changes, false) } catch (e) { exec.errors.push(`Lỗi khi ghi: ${googleAdsErrorMessage(e)}`) }
+  try { await apply(customer, exec.changes, false) } catch (e) { exec.errors.push(t("libmeta.gg.writeErr", { msg: googleAdsErrorMessage(e) })) }
   try {
     const after = await readState(customer, selected)
-    exec.readback = exec.changes.map((c) => { const v = after.get(c.resourceName); return { label: c.label, before: yesNo(c, c.before), after: v === undefined ? "?" : yesNo(c, v), expected: yesNo(c, c.after), ok: v === c.after } })
-  } catch (e) { exec.errors.push(`Đã ghi nhưng không đọc lại được: ${googleAdsErrorMessage(e)}`) }
+    exec.readback = exec.changes.map((c) => { const v = after.get(c.resourceName); return { label: c.label, before: yesNo(c, c.before, t), after: v === undefined ? "?" : yesNo(c, v, t), expected: yesNo(c, c.after, t), ok: v === c.after } })
+  } catch (e) { exec.errors.push(t("libmeta.gg.readbackFail", { msg: googleAdsErrorMessage(e) })) }
   exec.status = !exec.errors.length && exec.readback.every((r) => r.ok) ? "done" : "failed"
   await withFileLock(FILE, async () => writeLog([...readLog(), exec]))
   return exec
 }
 
-export async function undoGoalFix(company: Company, execId: string, actor: string): Promise<string[]> {
+export async function undoGoalFix(company: Company, execId: string, actor: string, t: TFunction = makeT("vi")): Promise<string[]> {
   return withFileLock(FILE, async () => {
     const log = readLog()
     const ex = log.find((e) => e.id === execId && e.company === company)
-    if (!ex || ex.mode !== "write") throw new GoalFixError("Không tìm thấy lần ghi", 404)
-    if (ex.undoneAt) throw new GoalFixError("Lần ghi này đã được hoàn tác", 409)
+    if (!ex || ex.mode !== "write") throw new GoalFixError(t("libmeta.gg.undoNotFound"), 404)
+    if (ex.undoneAt) throw new GoalFixError(t("libmeta.gg.undoDone"), 409)
     const customer = getGoogleAdsCustomer(company)
     const fake = ex.changes.map((c) => ({ id: c.resourceName, kind: c.kind, resourceName: c.resourceName, before: c.before, after: c.after, label: c.label, category: "", origin: "", name: "" })) as GoogleFixProposal[]
     const now = await readState(customer, fake)
     const report: string[] = []
     const revert: GoalFixChange[] = []
     for (const c of ex.changes) {
-      if (now.get(c.resourceName) !== c.after) { report.push(`${c.label}: đã có người đổi sau đó — giữ nguyên.`); continue }
+      if (now.get(c.resourceName) !== c.after) { report.push(t("libmeta.gg.undoChangedBy", { label: c.label })); continue }
       revert.push({ ...c, before: c.after, after: c.before })
     }
     if (revert.length) {
@@ -157,10 +158,10 @@ export async function undoGoalFix(company: Company, execId: string, actor: strin
       if (goals.length) await customer.customerConversionGoals.update(goals.map((c) => ({ resource_name: c.resourceName, biddable: c.after })))
       if (acts.length) await customer.conversionActions.update(acts.map((c) => ({ resource_name: c.resourceName, primary_for_goal: c.after })))
       const after = await readState(customer, fake)
-      for (const c of revert) report.push(`${c.label}: ${after.get(c.resourceName) === c.after ? "đã trả về" : "CHƯA về"} “${yesNo(c, c.after)}”.`)
+      for (const c of revert) report.push(t("libmeta.gg.undoBack", { label: c.label, state: after.get(c.resourceName) === c.after ? t("libmeta.gg.undoBackYes") : t("libmeta.gg.undoBackNo"), value: yesNo(c, c.after, t) }))
     }
     ex.undoneAt = new Date().toISOString()
-    ex.undoReport = [`Hoàn tác bởi ${actor}`, ...report]
+    ex.undoReport = [t("libmeta.gg.undoBy", { actor }), ...report]
     writeLog(log)
     return report
   })

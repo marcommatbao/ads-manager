@@ -11,6 +11,7 @@ import { stripDiacritics, tokens } from "./text"
 import { blocks } from "./simulate-negatives"
 import type { Cause, CheckedOk, Diagnosis, SearchEvidence } from "./types"
 import { ZERO_RESULT_SPEND_MULT } from "./verdict"
+import { makeT, type TFunction } from "@/lib/i18n/translate"
 
 const SMART_BIDDING = new Set(["MAXIMIZE_CONVERSIONS", "TARGET_CPA", "MAXIMIZE_CONVERSION_VALUE", "TARGET_ROAS"])
 /** Từ khoá "rộng" bị nêu tên khi ăn ≥ 5% chi phí chiến dịch với điểm chất lượng ≤ 4. */
@@ -27,20 +28,18 @@ export interface DiagnoseOptions {
   goalKind?: "sales" | "leads"
 }
 
-const NETWORK_VI: Record<string, string> = {
-  SEARCH: "Tìm kiếm", SEARCH_PARTNERS: "Đối tác tìm kiếm", CONTENT: "Hiển thị", YOUTUBE: "YouTube",
-  GMAIL: "Gmail", DISCOVER: "Khám phá", MAPS: "Maps", MIXED: "Nhiều kênh", GOOGLE_TV: "Google TV",
-}
-
-const vnd = (n: number) => `₫${Math.round(n).toLocaleString("vi-VN")}`
-const pct1 = (x: number) => (x * 100).toLocaleString("vi-VN", { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+const NETWORK_KEYS = new Set(["SEARCH", "SEARCH_PARTNERS", "CONTENT", "YOUTUBE", "GMAIL", "DISCOVER", "MAPS", "MIXED", "GOOGLE_TV"])
 
 /** Chiến dịch thương hiệu — suy từ tên ("Brand", "Thương hiệu"). */
 export function isBrandCampaign(name: string): boolean {
   return /\bbrand\b|thuong hieu/.test(stripDiacritics(name ?? ""))
 }
 
-export function diagnoseSearch(ev: SearchEvidence, opts: DiagnoseOptions): Diagnosis {
+export function diagnoseSearch(ev: SearchEvidence, opts: DiagnoseOptions, t: TFunction = makeT("vi")): Diagnosis {
+  const NL = t("libcase.c.numLocale")
+  const vnd = (n: number) => `₫${Math.round(n).toLocaleString(NL)}`
+  const pct1 = (x: number) => (x * 100).toLocaleString(NL, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+  const netName = (n: string) => (NETWORK_KEYS.has(n) ? t(`libcase.c.cs.net.${n}` as never) : n)
   const c = ev.campaign
   const causes: Cause[] = []
   const notCauses: CheckedOk[] = []
@@ -56,21 +55,21 @@ export function diagnoseSearch(ev: SearchEvidence, opts: DiagnoseOptions): Diagn
 
   // ── Đo lường ────────────────────────────────────────────────
   if (opts.goalKind === "leads") {
-    notCauses.push({ id: "measurement-ok", text: `Chiến dịch thu lead — đang đặt giá theo: ${ev.biddableCategories.join(", ")}. Chấm theo chi phí mỗi lead.` })
+    notCauses.push({ id: "measurement-ok", text: t("libcase.c.cs.leadOk", { cats: ev.biddableCategories.join(", ") }) })
   } else if (!ev.biddableCategories.includes("PURCHASE")) {
     causes.push({
       id: "goal-not-purchase",
-      title: "Chiến dịch không đặt giá theo “Mua hàng”",
-      detail: `Đang tối ưu theo: ${ev.biddableCategories.join(", ") || "không rõ"}. Google đang học sai mục tiêu.`,
+      title: t("libcase.c.cs.goalNotPurchase.title"),
+      detail: t("libcase.c.cs.goalNotPurchase.detail", { cats: ev.biddableCategories.join(", ") || t("libcase.c.cs.unknown") }),
       money: c.cost, share: 1, shareOf: "campaign_cost", evidence: [],
     })
   } else if (ev.purchasesElsewhere > 0) {
-    notCauses.push({ id: "measurement-ok", text: `Đo lường: chiến dịch đặt giá theo “Mua hàng”; tag mua hàng vẫn ghi ${ev.purchasesElsewhere.toLocaleString("vi-VN")} đơn ở chiến dịch khác.` })
+    notCauses.push({ id: "measurement-ok", text: t("libcase.c.cs.measOk", { n: ev.purchasesElsewhere.toLocaleString(NL) }) })
   } else {
     causes.push({
       id: "measurement-unverified",
-      title: "Không chứng minh được tag “Mua hàng” đang chạy",
-      detail: "Cả tài khoản không ghi đơn mua nào trong kỳ — kiểm tag trên trang cảm ơn trước khi sửa gì khác.",
+      title: t("libcase.c.cs.measUnv.title"),
+      detail: t("libcase.c.cs.measUnv.detail"),
       money: null, share: null, shareOf: null, evidence: [],
     })
   }
@@ -80,11 +79,11 @@ export function diagnoseSearch(ev: SearchEvidence, opts: DiagnoseOptions): Diagn
       && (opts.ceilingCpa === null || searchSlice.cost >= opts.ceilingCpa * ZERO_RESULT_SPEND_MULT)) {
     causes.push({
       id: "pmax-search-no-orders",
-      title: "Phần chạy trên kênh Tìm kiếm tốn tiền mà 0 đơn",
-      detail: `Đơn của chiến dịch đến từ kênh khác. Kênh Tìm kiếm: ${searchSlice.clicks.toLocaleString("vi-VN")} click, 0 đơn.`,
+      title: t("libcase.c.cs.pmaxSearch.title"),
+      detail: t("libcase.c.cs.pmaxSearch.detail", { clicks: searchSlice.clicks.toLocaleString(NL) }),
       money: searchSlice.cost, share: c.cost > 0 ? searchSlice.cost / c.cost : null, shareOf: "campaign_cost",
       evidence: (ev.network ?? []).filter((n) => n.cost > 0).map((n) => ({
-        label: `${NETWORK_VI[n.network] ?? n.network} · ${n.conversions.toLocaleString("vi-VN", { maximumFractionDigits: 1 })} đơn`, cost: n.cost, clicks: n.clicks,
+        label: t("libcase.c.cs.pmaxSearch.ev", { net: netName(n.network), n: n.conversions.toLocaleString(NL, { maximumFractionDigits: 1 }) }), cost: n.cost, clicks: n.clicks,
       })),
     })
   }
@@ -100,13 +99,13 @@ export function diagnoseSearch(ev: SearchEvidence, opts: DiagnoseOptions): Diagn
     const ctrBad = lowQs.some((k) => k.expectedCtr === "BELOW_AVERAGE")
     causes.push({
       id: "broad-lowqs",
-      title: `${lowQs.length} từ khoá rộng, điểm chất lượng ≤ ${LOWQS_MAX}/10`,
+      title: t("libcase.c.cs.lowqs.title", { n: lowQs.length, max: LOWQS_MAX }),
       detail: [
-        lpBad && "trải nghiệm trang đích dưới trung bình",
-        ctrBad && "CTR dự kiến dưới trung bình",
-      ].filter(Boolean).join(" · ") || "điểm chất lượng thấp",
+        lpBad && t("libcase.c.cs.lowqs.lp"),
+        ctrBad && t("libcase.c.cs.lowqs.ctr"),
+      ].filter(Boolean).join(" · ") || t("libcase.c.cs.lowqs.low"),
       money, share: money / c.cost, shareOf: "campaign_cost",
-      evidence: lowQs.map((k) => ({ label: `“${k.text}” (${k.match}) · QS ${k.qualityScore}/10`, cost: k.cost, clicks: k.clicks })),
+      evidence: lowQs.map((k) => ({ label: t("libcase.c.cs.lowqs.ev", { text: k.text, match: k.match, qs: k.qualityScore ?? "" }), cost: k.cost, clicks: k.clicks })),
     })
   }
 
@@ -120,31 +119,31 @@ export function diagnoseSearch(ev: SearchEvidence, opts: DiagnoseOptions): Diagn
     const conv = bs.reduce((s, b) => s + b.conversions, 0)
     causes.push({
       id, title,
-      detail: `${terms.toLocaleString("vi-VN")} cụm từ · ${clicks.toLocaleString("vi-VN")} click · ${conv.toLocaleString("vi-VN")} đơn. ${detail}`,
+      detail: t("libcase.c.cs.intent.detail", { terms: terms.toLocaleString(NL), clicks: clicks.toLocaleString(NL), conv: conv.toLocaleString(NL), detail }),
       money, share: money / visible, shareOf: "visible_terms",
       evidence: bs.flatMap((b) => b.examples).sort((a, z) => z.cost - a.cost).slice(0, 8)
         .map((e) => ({ label: e.term, cost: e.cost, clicks: e.clicks })),
     })
   }
-  intentCause("competitor-spend", ["competitor"], "Tiền rơi vào người tìm tên đối thủ", "Phần lớn là khách của họ đi tra cứu hoặc tìm tổng đài.")
-  intentCause("info-howto", ["info"], "Người tìm cách làm", "Hỏi kiến thức, chưa có ý định mua.")
+  intentCause("competitor-spend", ["competitor"], t("libcase.c.cs.competitor.title"), t("libcase.c.cs.competitor.detail"))
+  intentCause("info-howto", ["info"], t("libcase.c.cs.info.title"), t("libcase.c.cs.info.detail"))
   // 19/10: chiến dịch THƯƠNG HIỆU sinh ra để nhận lượt tìm thương hiệu — đó không phải nguyên nhân tốn tiền.
-  if (!isBrandCampaign(c.name)) intentCause("existing-customer", ["own_brand"], "Khách cũ tìm thương hiệu để tra cứu/đăng nhập", "Không phải khách mới cho sản phẩm này.")
+  if (!isBrandCampaign(c.name)) intentCause("existing-customer", ["own_brand"], t("libcase.c.cs.existing.title"), t("libcase.c.cs.existing.detail"))
   const sibling = opts.lexicon.catalog?.sibling.site
-  intentCause("other-product", ["own_other"], `Tìm sản phẩm không bán ở chiến dịch này${sibling ? ` (thuộc ${sibling})` : ""}`, "Người tìm sản phẩm của công ty khác cùng thương hiệu.")
-  intentCause("lookup", ["lookup"], "Người tra cứu / gõ địa chỉ trang", "Điều hướng, không phải mua.")
+  intentCause("other-product", ["own_other"], sibling ? t("libcase.c.cs.other.titleSib", { site: sibling }) : t("libcase.c.cs.other.title"), t("libcase.c.cs.other.detail"))
+  intentCause("lookup", ["lookup"], t("libcase.c.cs.lookup.title"), t("libcase.c.cs.lookup.detail"))
 
   // ── Giá thầu tự động không có đơn để học ─────────────────────
   const judged = opts.ceilingCpa === null || c.cost >= opts.ceilingCpa * ZERO_RESULT_SPEND_MULT
   if (SMART_BIDDING.has(c.biddingType) && c.orders === 0 && judged) {
     const single = ev.searchTerms.filter((t) => t.clicks === 1).sort((a, b) => b.cost - a.cost).slice(0, 4)
-    const target = c.targetCpa ? ` · CPA mục tiêu ${vnd(c.targetCpa)}` : c.targetRoas ? ` · ROAS mục tiêu ${c.targetRoas}` : ""
+    const target = c.targetCpa ? t("libcase.c.cs.blind.cpa", { v: vnd(c.targetCpa) }) : c.targetRoas ? t("libcase.c.cs.blind.roas", { v: c.targetRoas }) : ""
     causes.push({
       id: "blind-bidding",
-      title: "Giá thầu tự động “mù”: không có đơn nào để học",
-      detail: `${c.biddingType}${target}. Không có đơn làm mẫu thì Google đặt giá cao để “thử” — khuếch đại các nguyên nhân khác.`,
+      title: t("libcase.c.cs.blind.title"),
+      detail: t("libcase.c.cs.blind.detail", { type: c.biddingType, target }),
       money: null, share: null, shareOf: null,
-      evidence: single.map((t) => ({ label: `${t.term} (1 click)`, cost: t.cost })),
+      evidence: single.map((x) => ({ label: t("libcase.c.cs.blind.ev", { term: x.term }), cost: x.cost })),
     })
   }
 
@@ -160,13 +159,13 @@ export function diagnoseSearch(ev: SearchEvidence, opts: DiagnoseOptions): Diagn
   const compKwCost = compKws.reduce((s, k) => s + k.cost, 0)
   const competitorMoney = bucket("competitor")?.cost ?? 0
   if ((compNegs === 0 && competitorMoney > 0) || accentGaps.length > 0 || compKws.length > 0) {
-    const parts = [`${ev.negatives.length} phủ định, ${compNegs} tên đối thủ.`]
-    if (accentGaps.length) parts.push(`Có phủ định có dấu nhưng lượt tìm không dấu vẫn lọt: ${accentGaps.map((a) => `“${a}”`).join(", ")}.`)
-    if (compKws.length) parts.push(`Chiến dịch vẫn bật ${compKws.length} từ khoá chứa tên đối thủ (${compKwImpr.toLocaleString("vi-VN")} lượt hiển thị, ${vnd(compKwCost)} trong kỳ).`)
+    const parts = [t("libcase.c.cs.neg.head", { n: ev.negatives.length, c: compNegs })]
+    if (accentGaps.length) parts.push(t("libcase.c.cs.neg.accent", { list: accentGaps.map((a) => `“${a}”`).join(", ") }))
+    if (compKws.length) parts.push(t("libcase.c.cs.neg.kws", { n: compKws.length, impr: compKwImpr.toLocaleString(NL), cost: vnd(compKwCost) }))
     causes.push({
-      id: "thin-negatives", title: "Phủ định mỏng và bỏ sót dạng không dấu",
+      id: "thin-negatives", title: t("libcase.c.cs.neg.title"),
       detail: parts.join(" "), money: null, share: null, shareOf: null,
-      evidence: compKws.slice(0, 8).map((k) => ({ label: `từ khoá đang bật: “${k.text}” (${k.match})`, cost: k.cost })),
+      evidence: compKws.slice(0, 8).map((k) => ({ label: t("libcase.c.cs.neg.ev", { text: k.text, match: k.match }), cost: k.cost })),
     })
   }
 
@@ -175,25 +174,25 @@ export function diagnoseSearch(ev: SearchEvidence, opts: DiagnoseOptions): Diagn
   if (mainLp) {
     const acc = ev.landingConversionsAccount.find((l) => l.url === mainLp.url)
     if (acc && acc.conversions > 0) {
-      notCauses.push({ id: "landing-alive", text: `Trang đích ${mainLp.url} vẫn ra ${acc.conversions.toLocaleString("vi-VN", { maximumFractionDigits: 1 })} đơn ở chiến dịch khác → trang không hỏng.` })
+      notCauses.push({ id: "landing-alive", text: t("libcase.c.cs.lpAlive", { url: mainLp.url, n: acc.conversions.toLocaleString(NL, { maximumFractionDigits: 1 }) }) })
     }
   }
   if (ev.ads.length && ev.ads.every((a) => a.approval === "APPROVED")) {
-    notCauses.push({ id: "ads-approved", text: `Quảng cáo đã được duyệt (${ev.ads.length}).` })
+    notCauses.push({ id: "ads-approved", text: t("libcase.c.cs.adsOk", { n: ev.ads.length }) })
   } else if (ev.ads.some((a) => a.approval === "DISAPPROVED")) {
-    causes.push({ id: "ads-disapproved", title: "Có quảng cáo bị từ chối", detail: "Xem mục Chính sách quảng cáo.", money: null, share: null, shareOf: null, evidence: [] })
+    causes.push({ id: "ads-disapproved", title: t("libcase.c.cs.adsBad.title"), detail: t("libcase.c.cs.adsBad.detail"), money: null, share: null, shareOf: null, evidence: [] })
   }
 
   if (c.lostIsBudget !== null && c.lostIsBudget > 0.3) {
-    context.push(`Mất ${pct1(c.lostIsBudget)}% lượt hiển thị vì ngân sách — tăng ngân sách lúc này chỉ mua thêm lượt tìm lạc đề.`)
+    context.push(t("libcase.c.cs.ctx.budget", { p: pct1(c.lostIsBudget) }))
   }
   if (ev.kind === "google_pmax" && ev.network?.length) {
     const top = ev.network.filter((n) => n.cost > 0).slice(0, 4)
-      .map((n) => `${NETWORK_VI[n.network] ?? n.network} ${vnd(n.cost)} (${n.conversions.toLocaleString("vi-VN", { maximumFractionDigits: 1 })} đơn)`)
-    context.push(`Chi phí theo kênh: ${top.join(" · ")}.`)
+      .map((n) => t("libcase.c.cs.ctx.netItem", { net: netName(n.network), cost: vnd(n.cost), n: n.conversions.toLocaleString(NL, { maximumFractionDigits: 1 }) }))
+    context.push(t("libcase.c.cs.ctx.network", { list: top.join(" · ") }))
   }
   if (visibleTermShare < 0.95) {
-    context.push(`Google ẩn ${pct1(1 - visibleTermShare)}% chi phí từ khoá khách tìm${searchSlice ? " (của kênh Tìm kiếm)" : ""}; các nhóm ý định chỉ tính trên phần thấy được.`)
+    context.push(t("libcase.c.cs.ctx.hidden", { p: pct1(1 - visibleTermShare), slice: searchSlice ? t("libcase.c.cs.ctx.hiddenSlice") : "" }))
   }
 
   const withMoney = causes.filter((x) => x.money !== null).sort((a, b) => b.money! - a.money!)

@@ -29,7 +29,7 @@ import { useSession } from "@/components/SessionProvider";
 import { ExecutionCard, TagDoctorFixPanel } from "@/components/measure/TagDoctorFixPanel";
 import { GtmFixPanel, type GtmMeta } from "@/components/measure/GtmFixPanel";
 import { rangeDays } from "@/lib/case/dates";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import type { TFunction } from "@/lib/i18n/translate";
 import type { MessageKey } from "@/lib/i18n/messages";
 import type { DateRangeValue } from "@/components/DateRangeControl";
@@ -83,6 +83,7 @@ function gtmBadge(inGtm: boolean | null, t: TFunction): { tone: PillTone; text: 
 }
 
 export function TagDoctorView({ company, range }: { company: Company; range: DateRangeValue }) {
+  const intl = useIntlLocale();
   const t = useT();
   const { user } = useSession();
   const canEdit = !!user && hasPermission(user.role, "can_edit");
@@ -231,8 +232,8 @@ export function TagDoctorView({ company, range }: { company: Company; range: Dat
                     {data.dualSource.map((d, i) => (
                       <tr key={i} className="border-b border-slate-50 last:border-0">
                         <td className="px-4 py-2.5 font-medium text-slate-800"><code className="text-xs">{d.event}</code></td>
-                        <td className="px-3 py-2.5 text-right tabular-nums">{num(d.browser)}</td>
-                        <td className="px-3 py-2.5 text-right tabular-nums">{num(d.server)}</td>
+                        <td className="px-3 py-2.5 text-right tabular-nums">{num(d.browser, undefined, intl)}</td>
+                        <td className="px-3 py-2.5 text-right tabular-nums">{num(d.server, undefined, intl)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -318,6 +319,7 @@ function RoadmapStepCard({ index, step }: { index: number; step: RoadmapStep }) 
 }
 
 function CanonicalTable({ rows, company, days }: { rows: CanonicalRow[]; company: Company; days: number }) {
+  const intl = useIntlLocale();
   const t = useT();
   return (
     <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
@@ -334,7 +336,7 @@ function CanonicalTable({ rows, company, days }: { rows: CanonicalRow[]; company
         <tbody>
           {rows.map((row) => {
             const v = VERDICT_STYLE[row.verdict.tone];
-            const odooText = row.key !== "purchase" ? "—" : row.odooOrders !== null ? t("meta.measure.td.ct.orders", { n: num(row.odooOrders) }) : company === "MBC" ? t("meta.measure.td.ct.noFilter") : "—";
+            const odooText = row.key !== "purchase" ? "—" : row.odooOrders !== null ? t("meta.measure.td.ct.orders", { n: num(row.odooOrders, undefined, intl) }) : company === "MBC" ? t("meta.measure.td.ct.noFilter") : "—";
             return (
               <tr key={row.key} className="border-b border-slate-50 last:border-0 align-top">
                 <td className="px-4 py-2.5 font-semibold whitespace-nowrap text-slate-800">{row.label}</td>
@@ -347,7 +349,7 @@ function CanonicalTable({ rows, company, days }: { rows: CanonicalRow[]; company
                         <div key={m.name}>
                           <code className="text-xs">{m.name}</code>{" "}
                           <Pill tone={m.standard ? "grey" : "amber"} className="ml-1">{m.standard ? t("meta.measure.td.ct.standard") : t("meta.measure.td.ct.custom")}</Pill>
-                          <div className="mt-0.5 text-xs text-slate-400 tabular-nums">{t("meta.measure.td.ct.days", { days, total: num(m.total), last7: num(m.last7) })}</div>
+                          <div className="mt-0.5 text-xs text-slate-400 tabular-nums">{t("meta.measure.td.ct.days", { days, total: num(m.total, undefined, intl), last7: num(m.last7, undefined, intl) })}</div>
                         </div>
                       ))}
                     </div>
@@ -365,7 +367,7 @@ function CanonicalTable({ rows, company, days }: { rows: CanonicalRow[]; company
                             <code className="text-xs">{g.name}</code>{" "}
                             <span className={cn("ml-1 text-xs font-semibold", g.primary ? "text-slate-800" : "text-slate-500 font-normal")}>{g.primary ? t("meta.measure.td.ct.primary") : t("meta.measure.td.ct.secondary")}</span>
                             <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-slate-400 tabular-nums">
-                              <span>{t("meta.measure.td.ct.perDays", { total: num(g.total, { maximumFractionDigits: 1 }), days, last7: num(g.last7, { maximumFractionDigits: 1 }) })}</span>
+                              <span>{t("meta.measure.td.ct.perDays", { total: num(g.total, { maximumFractionDigits: 1 }, intl), days, last7: num(g.last7, { maximumFractionDigits: 1 }, intl) })}</span>
                               <Pill tone={badge.tone}>{t("meta.measure.td.ct.gtm", { value: badge.text })}</Pill>
                             </div>
                           </div>
@@ -478,6 +480,7 @@ function CopyWebTeamStepsButton({ issue }: { issue: TagIssue }) {
 // Lịch sử dùng chung khối hiển thị readback với TagDoctorFixPanel (component
 // con export cả ExecutionCard) — xem import gộp ở đầu file.
 function TagDoctorHistory({ history, company, canEdit, onChanged }: { history: GoalFixExecution[]; company: Company; canEdit: boolean; onChanged: (force?: boolean) => void }) {
+  const intl = useIntlLocale();
   const t = useT();
   const [undoTarget, setUndoTarget] = useState<GoalFixExecution | null>(null);
   const [undoing, setUndoing] = useState(false);
@@ -515,7 +518,7 @@ function TagDoctorHistory({ history, company, canEdit, onChanged }: { history: G
           )}
           {ex.undoneAt ? (
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-xs text-slate-600">
-              <div className="font-semibold">{t("meta.measure.td.hist.undoneAt", { time: datetimeVN(ex.undoneAt) })}</div>
+              <div className="font-semibold">{t("meta.measure.td.hist.undoneAt", { time: datetimeVN(ex.undoneAt, intl) })}</div>
               {ex.undoReport && ex.undoReport.length > 0 && (
                 <ul className="mt-1 list-disc pl-4">{ex.undoReport.map((line, i) => <li key={i}>{line}</li>)}</ul>
               )}

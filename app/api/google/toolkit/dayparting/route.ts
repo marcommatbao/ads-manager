@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
+import { getT } from "@/lib/i18n/server"
+import type { TFunction } from "@/lib/i18n/translate"
+import { viT } from "@/lib/google-i18n"
 import { createdNames, guardedMutate, WriteGuardError } from "@/lib/write-guard"
 import { enums } from "google-ads-api"
 import { getGoogleAdsCustomer }      from "@/lib/google-ads-client"
@@ -15,6 +18,7 @@ import { friendlyError } from "@/lib/not-configured";
 // Mỗi ô có: spend, conv, cpl, clicks
 
 export async function GET(req: NextRequest) {
+  const t = await getT()
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
@@ -175,7 +179,7 @@ export async function GET(req: NextRequest) {
 
   // ── Gợi ý schedule: giờ nào nên chạy ──
   // Group giờ tốt: grade S hoặc A, liên tiếp
-  const recommendation = buildScheduleRecommendation(result, avgCPL)
+  const recommendation = buildScheduleRecommendation(result, avgCPL, t)
 
   // ── Pull campaign list ──
   const campaigns = [...new Map(
@@ -233,13 +237,8 @@ export async function GET(req: NextRequest) {
     note: reliable
       ? null
       : Number.isFinite(minClicksForGrade)
-        ? `Tài khoản này chưa đủ chuyển đổi để chia nhỏ theo giờ. Tỷ lệ chuyển đổi ${(convRate * 100).toFixed(2)}% ` +
-          `nghĩa là mỗi khung giờ cần khoảng ${minClicksForGrade} click mới đủ căn cứ, ` +
-          `trong khi khung giờ nhiều nhất chỉ có ${maxClicks} click. ` +
-          (dayLevelUsable >= 5
-            ? `Nhưng gộp theo THỨ thì đủ dữ liệu (${dayLevelUsable}/7 ngày) — xem bảng theo thứ bên dưới.`
-            : `Hãy kéo dài khoảng thời gian.`)
-        : "Chưa có chuyển đổi nào trong khoảng thời gian này — không có căn cứ để chấm khung giờ.",
+        ? t("libgoogle.dp.note", { rate: (convRate * 100).toFixed(2), min: minClicksForGrade, max: maxClicks, tail: dayLevelUsable >= 5 ? t("libgoogle.dp.tailDay", { n: dayLevelUsable }) : t("libgoogle.dp.tailLong") })
+        : t("libgoogle.dp.noConv"),
   }
 
   return NextResponse.json({
@@ -258,14 +257,14 @@ export async function GET(req: NextRequest) {
   })
 }
 
-function buildScheduleRecommendation(grid: any[], avgCPL: number) {
+function buildScheduleRecommendation(grid: any[], avgCPL: number, t: TFunction = viT) {
   // Kiểm tra xem có đủ data không (cần ít nhất có clicks)
   const totalClicks = grid.flatMap(d => d.hours).reduce((s: number, h: any) => s + h.clicks, 0)
   if (totalClicks === 0) {
     return {
       pauseHours: [],
       reduceBid:  [],
-      summary: "Chưa có đủ dữ liệu clicks trong 30 ngày qua để đưa ra gợi ý lịch chạy",
+      summary: t("libgoogle.dp.sumNoData"),
     }
   }
 
@@ -299,13 +298,14 @@ function buildScheduleRecommendation(grid: any[], avgCPL: number) {
     pauseHours: badHours,
     reduceBid:  badDays,
     summary: badHours.length > 0
-      ? `Nên tắt quảng cáo lúc ${badHours.map(h => `${h}:00`).join(", ")} — tiết kiệm mà không mất conversion`
-      : "Không có khung giờ nào quá kém để tắt hoàn toàn",
+      ? t("libgoogle.dp.sumPause", { hours: badHours.map(h => `${h}:00`).join(", ") })
+      : t("libgoogle.dp.sumNone"),
   }
 }
 
 // ── Apply Ad Schedule ──
 export async function POST(req: NextRequest) {
+  const t = await getT()
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
@@ -326,10 +326,10 @@ export async function POST(req: NextRequest) {
   // could rewrite the other company's schedules. (The GET handler above
   // has always had the tenant check; POST never did.)
   if (!hasPermission(user.role, "can_edit")) {
-    return NextResponse.json({ error: "Không có quyền thay đổi lịch chạy quảng cáo" }, { status: 403 })
+    return NextResponse.json({ error: t("libgoogle.dp.noEdit") }, { status: 403 })
   }
   if (!isCompany(company)) {
-    return NextResponse.json({ error: "Công ty không có ở bản cài này" }, { status: 400 })
+    return NextResponse.json({ error: t("libgoogle.dp.noCompany") }, { status: 400 })
   }
   if (!canAccessCompany(user, company)) {
     return NextResponse.json({ error: "Access denied for this company" }, { status: 403 })
@@ -394,8 +394,7 @@ export async function POST(req: NextRequest) {
   // đúng là tạm dừng campaign.
   if (schedules.length === 0) {
     return NextResponse.json({
-      error: "Bạn đang tạm dừng cả 24 giờ — lịch chạy quảng cáo không diễn đạt được điều đó. "
-           + "Xoá hết lịch sẽ khiến campaign chạy 24/7 thay vì ngừng hẳn. Muốn ngừng thì tạm dừng campaign.",
+      error: t("libgoogle.dp.all24"),
     }, { status: 400 })
   }
 
@@ -406,14 +405,14 @@ export async function POST(req: NextRequest) {
   const pct = Number(reduceBidPct ?? 20)
   if (!Number.isFinite(pct) || pct < 0 || pct > 90) {
     return NextResponse.json({
-      error: "Mức giảm bid phải từ 0 đến 90%.",
+      error: t("libgoogle.dp.bidRange"),
     }, { status: 400 })
   }
   // Chặn thêm ở tầng số: Google chỉ nhận hệ số 0,1–10.
   for (const sc of schedules) {
     if (!Number.isFinite(sc.bid_modifier) || sc.bid_modifier < 0.1 || sc.bid_modifier > 10) {
       return NextResponse.json({
-        error: `Hệ số bid tính ra ${sc.bid_modifier} — ngoài khoảng Google cho phép (0,1–10).`,
+        error: t("libgoogle.dp.modRange", { v: sc.bid_modifier }),
       }, { status: 400 })
     }
   }

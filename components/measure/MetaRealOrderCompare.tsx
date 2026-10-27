@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { num, vnd } from "@/components/case/format";
 import { getJson, postJson, ApiError } from "@/components/case/api";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import type { MessageKey } from "@/lib/i18n/messages";
 import type { Company } from "@/lib/case/types";
 import type { MetaCampaignCompare, MetaReadiness } from "@/lib/conversions/meta-compare";
@@ -30,6 +30,7 @@ const VERDICT: Record<MetaCampaignCompare["verdict"], { label: MessageKey; cls: 
 };
 
 export function MetaRealOrderCompare({ company, canEdit, confirmText }: { company: Company; canEdit: boolean; confirmText: string }) {
+  const intl = useIntlLocale();
   const t = useT();
   const { data, error, isLoading, mutate } = useSWR<Resp>(`/api/conversions/real-orders?company=${company}&view=meta`, getJson);
   const [open, setOpen] = useState(false);
@@ -63,7 +64,7 @@ export function MetaRealOrderCompare({ company, canEdit, confirmText }: { compan
         <p className="mb-1.5 font-semibold text-slate-700">{t("meta.measure.ready")}</p>
         <ul className="space-y-1">
           <Check ok={!!r.pixelId} label={t("meta.measure.mc.pixel", { value: r.pixelId ?? t("meta.measure.mc.none") })} />
-          <Check ok={r.sending && !r.test} label={t("meta.measure.mc.capi", { state: r.sending ? (r.test ? t("meta.measure.mc.capiTest") : t("meta.measure.mc.capiOn", { n: num(r.sent) })) : t("meta.measure.mc.capiOff") })} />
+          <Check ok={r.sending && !r.test} label={t("meta.measure.mc.capi", { state: r.sending ? (r.test ? t("meta.measure.mc.capiTest") : t("meta.measure.mc.capiOn", { n: num(r.sent, undefined, intl) })) : t("meta.measure.mc.capiOff") })} />
           <Check ok={r.error ? null : !!r.conversion} label={t("meta.measure.mc.cc", { state: r.conversion ? `"${r.conversion.name}"` : t("meta.measure.mc.none"), err: r.error ? t("meta.measure.mc.ccErr", { error: r.error }) : "" })} />
         </ul>
         {r.todo.length > 0 && <ol className="mt-2 list-decimal space-y-0.5 pl-4 text-amber-800">{r.todo.map((todo, i) => <li key={i}>{todo}</li>)}</ol>}
@@ -78,19 +79,19 @@ export function MetaRealOrderCompare({ company, canEdit, confirmText }: { compan
       {data.compareError && <p className="text-xs text-red-600">{t("meta.measure.mc.compareErr", { error: data.compareError })}</p>}
       {data.campaigns.length > 0 && (
         <div className="overflow-x-auto">
-          <p className="mb-1 text-xs text-slate-500">{bold(t("meta.measure.mc.summary", { from: data.range.from, to: data.range.to, m: num(Math.round(tot.m)), real: r.conversion ? num(Math.round(tot.real)) : "—", value: r.conversion ? ` (${vnd(tot.v)})` : "" }))}</p>
+          <p className="mb-1 text-xs text-slate-500">{bold(t("meta.measure.mc.summary", { from: data.range.from, to: data.range.to, m: num(Math.round(tot.m), undefined, intl), real: r.conversion ? num(Math.round(tot.real), undefined, intl) : "—", value: r.conversion ? ` (${vnd(tot.v, intl)})` : "" }))}</p>
           <table className="w-full min-w-[680px] text-left text-xs">
             <thead className="text-slate-400"><tr><th className="py-1">{t("meta.measure.gc.th.campaign")}</th><th className="text-right">{t("meta.measure.gc.th.spend")}</th><th className="text-right">{t("meta.measure.mc.th.meta")}</th><th className="text-right">{t("meta.measure.mc.th.viewShare")}</th><th className="text-right">{t("meta.measure.mc.th.cpaMeta")}</th><th className="text-right">{t("meta.measure.gc.th.real")}</th><th className="text-right">{t("meta.measure.gc.th.cpaReal")}</th><th className="pl-3">{t("meta.measure.gc.th.verdict")}</th></tr></thead>
             <tbody>
               {data.campaigns.slice(0, 40).map((c) => (
                 <tr key={c.id} className="border-t border-slate-100 align-top">
                   <td className="max-w-[240px] py-1.5 pr-2 text-slate-700">{c.name}</td>
-                  <td className="text-right tabular-nums">{vnd(c.spend)}</td>
-                  <td className="text-right tabular-nums">{num(Math.round(c.metaPurchases))}</td>
+                  <td className="text-right tabular-nums">{vnd(c.spend, intl)}</td>
+                  <td className="text-right tabular-nums">{num(Math.round(c.metaPurchases), undefined, intl)}</td>
                   <td className="text-right tabular-nums">{c.viewShare != null ? `${Math.round(c.viewShare * 100)}%` : "—"}</td>
-                  <td className="text-right tabular-nums">{c.cpaMeta != null ? vnd(c.cpaMeta) : "—"}</td>
-                  <td className="text-right font-semibold tabular-nums">{r.conversion ? num(Math.round(c.realOrders)) : "—"}</td>
-                  <td className="text-right font-semibold tabular-nums">{c.cpaReal != null ? vnd(c.cpaReal) : "—"}</td>
+                  <td className="text-right tabular-nums">{c.cpaMeta != null ? vnd(c.cpaMeta, intl) : "—"}</td>
+                  <td className="text-right font-semibold tabular-nums">{r.conversion ? num(Math.round(c.realOrders), undefined, intl) : "—"}</td>
+                  <td className="text-right font-semibold tabular-nums">{c.cpaReal != null ? vnd(c.cpaReal, intl) : "—"}</td>
                   <td className="pl-3"><span className={`rounded-full px-2 py-0.5 font-semibold ${VERDICT[c.verdict].cls}`} title={c.note}>{t(VERDICT[c.verdict].label)}</span></td>
                 </tr>
               ))}

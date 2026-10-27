@@ -2,6 +2,7 @@
 // Đọc giá trị HIỆN TẠI trên nền tảng; khác giá trị đã áp → 409 (không đè thay đổi mới). Ghi lại bằng chính route cũ.
 import { NextRequest, NextResponse } from "next/server"
 import { getCurrentUser } from "@/lib/auth"
+import { getT } from "@/lib/i18n/server"
 import { hasPermission, canAccessCompany } from "@/lib/permissions"
 import { getById, updateEntry } from "@/lib/decision-memory/store"
 import { planUndo, undoableReason, googleStatusName } from "@/lib/writes/undo"
@@ -37,23 +38,24 @@ async function readCurrent(platform: "meta" | "google_ads", field: string, id: s
 const inFlight = new Set<string>()
 
 export async function POST(request: NextRequest) {
+  const t = await getT()
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  if (!hasPermission(user.role, "can_edit")) return NextResponse.json({ success: false, error: "Không có quyền chỉnh sửa campaign" }, { status: 403 })
+  if (!hasPermission(user.role, "can_edit")) return NextResponse.json({ success: false, error: t("libcase.w.undo.noPerm") }, { status: 403 })
   const { id } = (await request.json().catch(() => ({}))) as { id?: string }
   const m = /^dm:(.+)$/.exec(String(id ?? ""))
-  if (!m) return NextResponse.json({ success: false, error: "Thay đổi này không hoàn tác được ở đây" }, { status: 400 })
+  if (!m) return NextResponse.json({ success: false, error: t("libcase.w.undo.notHere") }, { status: 400 })
   const entry = getById(m[1])
-  if (!entry) return NextResponse.json({ success: false, error: "Không tìm thấy thay đổi" }, { status: 404 })
-  if (!canAccessCompany(user, entry.target.company)) return NextResponse.json({ success: false, error: "Không có quyền truy cập công ty này" }, { status: 403 })
-  const why = undoableReason(entry)
+  if (!entry) return NextResponse.json({ success: false, error: t("libcase.w.undo.notFound") }, { status: 404 })
+  if (!canAccessCompany(user, entry.target.company)) return NextResponse.json({ success: false, error: t("libcase.w.undo.noCompany") }, { status: 403 })
+  const why = undoableReason(entry, t)
   if (why) return NextResponse.json({ success: false, error: why }, { status: 409 })
 
   const platform = entry.target.platform as "meta" | "google_ads"
-  if (inFlight.has(entry.id)) return NextResponse.json({ success: false, error: "Đang hoàn tác thay đổi này — chờ một chút" }, { status: 409 })
+  if (inFlight.has(entry.id)) return NextResponse.json({ success: false, error: t("libcase.w.undo.busy") }, { status: 409 })
   inFlight.add(entry.id)
   try {
-    const plan = planUndo(entry, await readCurrent(platform, String(entry.action.field), entry.target.entityId, entry.target.company))
+    const plan = planUndo(entry, await readCurrent(platform, String(entry.action.field), entry.target.entityId, entry.target.company), t)
     if (!plan.ok) return NextResponse.json({ success: false, error: plan.reason }, { status: 409 })
 
     // Gọi thẳng route cũ (cùng cookie phiên) → cùng chốt quyền, cùng ghi nhật ký + đo lại.
@@ -71,7 +73,7 @@ export async function POST(request: NextRequest) {
         : await googleBudget(req("PATCH", { dailyBudget: plan.restore, company: plan.company }), ctx)
     }
     const out = (await res.json().catch(() => ({}))) as { success?: boolean; error?: string }
-    if (!res.ok || !out.success) return NextResponse.json({ success: false, error: out.error ?? "Hoàn tác thất bại" }, { status: res.status >= 400 ? res.status : 500 })
+    if (!res.ok || !out.success) return NextResponse.json({ success: false, error: out.error ?? t("libcase.w.undo.failed") }, { status: res.status >= 400 ? res.status : 500 })
 
     await updateEntry(entry.id, { undoneAt: new Date().toISOString(), undoneBy: user.email || user.name || user.id })
     return NextResponse.json({ success: true, restored: plan.restore })

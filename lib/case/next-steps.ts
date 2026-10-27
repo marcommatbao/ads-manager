@@ -12,11 +12,12 @@
 import type { CampaignCase, RemeasureDiag, RemeasureEntry } from "./store"
 import { judgeRemeasure, VERDICT_CODE } from "./judge"
 import { metaGoalKind, metaResults } from "./goal-kind"
+import { makeT, type TFunction } from "@/lib/i18n/translate"
 
 export type NextVerdict = "improved" | "same" | "worse" | "insufficient"
 const CODE: Record<number, NextVerdict> = { 1: "improved", 0: "same", [-1]: "worse", 2: "insufficient" }
 
-export interface WhyRow { label: string; before: string; after: string; change: string | null; tone: "bad" | "good" | "neutral" }
+export interface WhyRow { id?: string; label: string; before: string; after: string; change: string | null; tone: "bad" | "good" | "neutral" }
 export interface TodoItem { kind: "reopen" | "undo" | "wait" | "check" | "settings" | "info"; text: string; href?: string }
 export interface NextStepsView {
   source: { kind: "remeasure" | "check"; at: string; from: string | null; to: string | null } | null
@@ -35,8 +36,10 @@ export interface NextStepsView {
   missingDiag: boolean
 }
 
-const vnd = (n: number) => `${Math.round(n).toLocaleString("vi-VN")}đ`
-const pct1 = (x: number) => `${(Math.round(x * 1000) / 10).toLocaleString("vi-VN")}%`
+const K = (k: string): never => `libcase.s.ns.${k}` as never
+const numLocale = (t: TFunction) => t("libcase.s.numLocale")
+const vndT = (t: TFunction) => (n: number) => t("libcase.s.ns.vnd", { n: Math.round(n).toLocaleString(numLocale(t)) })
+const pct1T = (t: TFunction) => (x: number) => `${(Math.round(x * 1000) / 10).toLocaleString(numLocale(t))}%`
 const rel = (a: number | null, b: number | null) => (a !== null && b !== null && b > 0 ? a / b - 1 : null)
 const div = (a: number | null | undefined, b: number | null | undefined) => (a != null && b != null && b > 0 ? a / b : null)
 const signed = (x: number) => `${x >= 0 ? "+" : ""}${Math.round(x * 100)}%`
@@ -76,50 +79,52 @@ export function rejudge(c: CampaignCase, r: Pick<RemeasureEntry, "due" | "result
   return VERDICT_CODE[judgeRemeasure(goal, before, after).verdict]
 }
 
-function executionSummary(e: CampaignCase["executions"][number]): string {
+function executionSummary(e: CampaignCase["executions"][number], t: TFunction): string {
   const parts: string[] = []
-  if (e.created.length) parts.push(`thêm ${e.created.length} mục`)
-  if (e.removed.length) parts.push(`gỡ ${e.removed.length} mục`)
-  if (e.paused.length) parts.push(`tạm dừng ${e.paused.length} chiến dịch`)
-  if (e.sharedCreated?.length) parts.push(`tạo ${e.sharedCreated.length} danh sách phủ định`)
-  if (e.attached?.length) parts.push(`gắn ${e.attached.length} danh sách`)
-  if (e.metaChanges?.length) parts.push(`${e.metaChanges.length} thay đổi trên Meta`)
-  return parts.join(", ") || "thay đổi đã thực hiện"
+  if (e.created.length) parts.push(t(K("exCreated"), { n: e.created.length }))
+  if (e.removed.length) parts.push(t(K("exRemoved"), { n: e.removed.length }))
+  if (e.paused.length) parts.push(t(K("exPaused"), { n: e.paused.length }))
+  if (e.sharedCreated?.length) parts.push(t(K("exShared"), { n: e.sharedCreated.length }))
+  if (e.attached?.length) parts.push(t(K("exAttached"), { n: e.attached.length }))
+  if (e.metaChanges?.length) parts.push(t(K("exMeta"), { n: e.metaChanges.length }))
+  return parts.join(", ") || t(K("exNone"))
 }
 
 /** Bảng "vì sao": tỉ lệ lúc mở phiên → kỳ đo. Chỉ nêu dòng đổi đủ lớn. */
-export function whyRows(c: CampaignCase, m: Measured): WhyRow[] {
+export function whyRows(c: CampaignCase, m: Measured, t: TFunction = makeT("vi")): WhyRow[] {
+  const vnd = vndT(t), pct1 = pct1T(t)
   const ev = c.evidence
   const f = m.diag?.facts
   if (!ev || !f) return []
   const out: WhyRow[] = []
-  const push = (label: string, b: number | null, a: number | null, fmt: (x: number) => string, badWhenUp: boolean, mode: "rel" | "pt" = "rel") => {
+  const push = (id: string, b: number | null, a: number | null, fmt: (x: number) => string, badWhenUp: boolean, mode: "rel" | "pt" = "rel") => {
     if (b === null || a === null) return
     const change = mode === "rel" ? rel(a, b) : a - b
     if (change === null || Math.abs(change) < (mode === "rel" ? WHY_REL : WHY_PT)) return
     const bad = badWhenUp ? change > 0 : change < 0
-    out.push({ label, before: fmt(b), after: fmt(a), change: mode === "rel" ? signed(change) : `${change > 0 ? "+" : ""}${Math.round(change * 100)} điểm`, tone: bad ? "bad" : "good" })
+    out.push({ id, label: t(K("why." + id)), before: fmt(b), after: fmt(a), change: mode === "rel" ? signed(change) : t(K("pts"), { v: `${change > 0 ? "+" : ""}${Math.round(change * 100)}` }), tone: bad ? "bad" : "good" })
   }
   const cost = m.result.cost ?? f.cost ?? null
   if (ev.kind === "meta") {
     const b = ev.campaign
-    push("Chi phí mỗi 1.000 lượt hiển thị", div(b.cost * 1000, b.impressions), div((cost ?? 0) * 1000, f.impressions), vnd, true)
-    push("Tỉ lệ bấm vào liên kết", div(b.linkClicks || b.clicks, b.impressions), div(f.linkClicks || f.clicks, f.impressions), pct1, false)
-    push("Tỉ lệ vào được trang sau khi bấm", div(b.landingViews, b.linkClicks), div(f.landingViews, f.linkClicks), pct1, false)
-    push("Tần suất (lần thấy / người)", b.frequency, f.frequency ?? null, (x) => x.toFixed(1), true)
+    push("cpm1000", div(b.cost * 1000, b.impressions), div((cost ?? 0) * 1000, f.impressions), vnd, true)
+    push("linkCtr", div(b.linkClicks || b.clicks, b.impressions), div(f.linkClicks || f.clicks, f.impressions), pct1, false)
+    push("landing", div(b.landingViews, b.linkClicks), div(f.landingViews, f.linkClicks), pct1, false)
+    push("freq", b.frequency, f.frequency ?? null, (x) => x.toFixed(1), true)
     return out
   }
   const b = ev.campaign
-  push("Giá mỗi lượt bấm (CPC)", div(b.cost, b.clicks), div(cost, f.clicks), vnd, true)
-  push("Tỉ lệ bấm (CTR)", div(b.clicks, b.impressions), div(f.clicks, f.impressions), pct1, false)
-  push("Tỉ lệ chuyển đổi (đơn / lượt bấm)", div(b.orders, b.clicks), div(m.result.orders ?? f.orders, f.clicks), pct1, false)
-  push("Tỉ lệ hiển thị giành được", b.impressionShare, f.impressionShare ?? null, pct1, false, "pt")
-  push("Mất hiển thị do THỨ HẠNG", b.lostIsRank, f.lostIsRank ?? null, pct1, true, "pt")
-  push("Mất hiển thị do NGÂN SÁCH", b.lostIsBudget, f.lostIsBudget ?? null, pct1, true, "pt")
+  push("cpc", div(b.cost, b.clicks), div(cost, f.clicks), vnd, true)
+  push("ctr", div(b.clicks, b.impressions), div(f.clicks, f.impressions), pct1, false)
+  push("cvr", div(b.orders, b.clicks), div(m.result.orders ?? f.orders, f.clicks), pct1, false)
+  push("isShare", b.impressionShare, f.impressionShare ?? null, pct1, false, "pt")
+  push("lostRank", b.lostIsRank, f.lostIsRank ?? null, pct1, true, "pt")
+  push("lostBudget", b.lostIsBudget, f.lostIsBudget ?? null, pct1, true, "pt")
   return out
 }
 
-export function nextSteps(c: CampaignCase): NextStepsView {
+export function nextSteps(c: CampaignCase, t: TFunction = makeT("vi")): NextStepsView {
+  const vnd = vndT(t)
   const basis = c.goal?.basis ?? "cpa"
   const m = latestMeasure(c)
   const liveExec = c.executions.filter((e) => e.status === "done" && !e.undoneAt && e.mode !== "validate")
@@ -127,14 +132,14 @@ export function nextSteps(c: CampaignCase): NextStepsView {
     source: null, verdict: null, basis, orders: { before: null, after: null }, headline: "", why: [], newCauses: [], persistingCauses: [],
     todo: [], undoable: [], canReopen: false, canCheck: liveExec.length > 0, missingDiag: false,
   }
-  if (!m) return { ...base, headline: liveExec.length ? "Chưa tới mốc đo lại." : "Phiên chưa thực hiện thay đổi nào." }
+  if (!m) return { ...base, headline: liveExec.length ? t(K("noMeasureYet")) : t(K("noChanges")) }
 
   const verdict = m.verdict !== null ? CODE[m.verdict] ?? null : null
   const ev = c.evidence
   const ordersBefore = ev ? (ev.kind === "meta" ? (ev.campaign.leads && basis === "cpl" ? ev.campaign.leads : ev.campaign.purchases) : ev.campaign.orders) : null
   const ordersAfter = m.result.orders ?? null
-  const unit = basis === "cpl" ? "lead" : "đơn"
-  const why = whyRows(c, m)
+  const unit = basis === "cpl" ? t("libcase.s.word.lead") : t("libcase.s.word.order")
+  const why = whyRows(c, m, t)
   const known = new Set((c.diagnosis?.causes ?? []).map((x) => x.id))
   const causes = m.diag?.causes ?? []
   const view: NextStepsView = {
@@ -148,60 +153,60 @@ export function nextSteps(c: CampaignCase): NextStepsView {
   const todo: TodoItem[] = []
 
   if (verdict === "improved") {
-    view.headline = "Đang tốt lên so với lúc mở phiên — giữ nguyên các thay đổi, chờ mốc đo tiếp."
+    view.headline = t(K("improved"))
     view.todo = todo
     return view
   }
   if (verdict === "insufficient") {
     const extensionsLeft = c.remeasure.some((r) => r.status === "pending")
-    view.headline = `Chưa đủ dữ liệu để kết luận: kỳ đo chỉ có ${ordersAfter ?? 0} ${unit}. Thêm hoặc bớt 1 ${unit} là chi phí/${unit} đã đổi rất nhiều.`
+    view.headline = t(K("insufficient"), { n: ordersAfter ?? 0, unit })
     todo.push({ kind: "wait", text: extensionsLeft
-      ? `Chưa nên hoàn tác hay làm lại phiên. Tool tự đo thêm ở mốc kế tiếp để có đủ ${unit}.`
-      : `Đã đo thêm mà chiến dịch vẫn quá ít ${unit} để đo theo chi phí/${unit}. Cân nhắc gộp với chiến dịch cùng sản phẩm, hoặc theo dõi theo lượt bấm / tỉ lệ chuyển đổi bên dưới.` })
-    for (const w of why.filter((x) => x.tone === "bad")) todo.push({ kind: "info", text: `Đáng để ý: ${w.label.toLowerCase()} ${w.before} → ${w.after} (${w.change}).` })
+      ? t(K("waitMore"), { unit })
+      : t(K("waitNoMore"), { unit }) })
+    for (const w of why.filter((x) => x.tone === "bad")) todo.push({ kind: "info", text: t(K("notice"), { label: w.label.toLowerCase(), before: w.before, after: w.after, change: w.change ?? "" }) })
     view.todo = todo
     return view
   }
 
   // worse / same (hoặc lần đo cũ không có kết luận)
   view.headline = verdict === "worse"
-    ? `Kết quả XẤU HƠN lúc mở phiên (${ordersBefore ?? "?"} → ${ordersAfter ?? "?"} ${unit} trong hai kỳ).`
+    ? t(K("worse"), { before: ordersBefore ?? "?", after: ordersAfter ?? "?", unit })
     : verdict === "same"
-      ? "Chưa thấy cải thiện rõ (thay đổi dưới 10% và chưa về mục tiêu)."
-      : "Lần đo này chưa có kết luận."
+      ? t(K("same"))
+      : t(K("noVerdict"))
   if (!m.diag) {
-    todo.push({ kind: "check", text: "Lần đo này làm trước khi tool lưu chẩn đoán — bấm “Kiểm tra ngay” để biết vì sao và nên sửa gì." })
+    todo.push({ kind: "check", text: t(K("noDiag")) })
   }
-  const byLabel = (s: string) => why.find((w) => w.label.startsWith(s) && w.tone === "bad")
+  const byLabel = (id: string) => why.find((w) => w.id === id && w.tone === "bad")
   if (ev?.kind !== "meta") {
-    const cvr = byLabel("Tỉ lệ chuyển đổi"), cpc = byLabel("Giá mỗi lượt bấm"), ctr = byLabel("Tỉ lệ bấm"), rank = byLabel("Mất hiển thị do THỨ HẠNG"), budget = byLabel("Mất hiển thị do NGÂN SÁCH")
-    if (cvr) todo.push({ kind: "info", text: `Tỉ lệ chuyển đổi giảm (${cvr.before} → ${cvr.after}): kiểm trang đích (tốc độ tải, form, giá hiển thị), kiểm thẻ đo chuyển đổi còn ghi nhận đơn, và xem từ khoá tìm kiếm mới phát sinh khi mở lại phiên.` })
+    const cvr = byLabel("cvr"), cpc = byLabel("cpc"), ctr = byLabel("ctr"), rank = byLabel("lostRank"), budget = byLabel("lostBudget")
+    if (cvr) todo.push({ kind: "info", text: t(K("gCvr"), { before: cvr.before, after: cvr.after }) })
     if (cpc) {
       const bid = ev?.kind === "google_search" || ev?.kind === "google_pmax" ? ev.campaign : null
-      const bidNote = bid?.biddingType === "TARGET_CPA" && bid.targetCpa ? ` Chiến dịch đang đặt giá theo CPA mục tiêu ${vnd(bid.targetCpa)} — nếu cao hơn trần ${c.goal ? vnd(c.goal.ceiling) : ""}, hạ về sát trần.` : ""
-      todo.push({ kind: "info", text: `Giá mỗi lượt bấm tăng (${cpc.before} → ${cpc.after}): cạnh tranh tăng hoặc giá thầu bị đẩy lên.${bidNote}` })
+      const bidNote = bid?.biddingType === "TARGET_CPA" && bid.targetCpa ? t(K("gBidNote"), { cpa: vnd(bid.targetCpa), ceil: c.goal ? vnd(c.goal.ceiling) : "" }) : ""
+      todo.push({ kind: "info", text: t(K("gCpc"), { before: cpc.before, after: cpc.after }) + bidNote })
     }
-    if (rank) todo.push({ kind: "info", text: `Mất hiển thị do thứ hạng tăng (${rank.before} → ${rank.after}): cải thiện độ khớp từ khoá – quảng cáo – trang đích (điểm chất lượng); tăng ngân sách KHÔNG giải quyết được.` })
-    if (ctr) todo.push({ kind: "info", text: `Tỉ lệ bấm giảm (${ctr.before} → ${ctr.after}): làm mới tiêu đề / mô tả quảng cáo cho sát ý định tìm kiếm.` })
-    if (budget) todo.push({ kind: "info", text: `Bị giới hạn ngân sách nhiều hơn (${budget.before} → ${budget.after}), nhưng chi phí/${unit} đang xấu đi — chưa nên tăng ngân sách, cắt từ khoá kém trước.` })
+    if (rank) todo.push({ kind: "info", text: t(K("gRank"), { before: rank.before, after: rank.after }) })
+    if (ctr) todo.push({ kind: "info", text: t(K("gCtr"), { before: ctr.before, after: ctr.after }) })
+    if (budget) todo.push({ kind: "info", text: t(K("gBudget"), { before: budget.before, after: budget.after, unit }) })
   } else {
-    const freq = byLabel("Tần suất"), land = byLabel("Tỉ lệ vào được trang"), cpm = byLabel("Chi phí mỗi 1.000"), ctr = byLabel("Tỉ lệ bấm")
-    if (freq) todo.push({ kind: "info", text: `Tần suất tăng (${freq.before} → ${freq.after}): một nhóm người đang thấy quảng cáo quá nhiều lần — làm mới mẫu quảng cáo hoặc mở rộng tệp.` })
-    if (ctr) todo.push({ kind: "info", text: `Tỉ lệ bấm giảm (${ctr.before} → ${ctr.after}): mẫu quảng cáo đang nhàm — thay hình / video / câu mở đầu.` })
-    if (land) todo.push({ kind: "info", text: `Ít người vào được trang sau khi bấm (${land.before} → ${land.after}): trang tải chậm hoặc liên kết lỗi — kiểm trên điện thoại.` })
-    if (cpm) todo.push({ kind: "info", text: `Chi phí hiển thị tăng (${cpm.before} → ${cpm.after}): cạnh tranh / mùa vụ — so với các chiến dịch khác cùng kỳ trước khi kết luận do thay đổi của phiên.` })
+    const freq = byLabel("freq"), land = byLabel("landing"), cpm = byLabel("cpm1000"), ctr = byLabel("linkCtr")
+    if (freq) todo.push({ kind: "info", text: t(K("mFreq"), { before: freq.before, after: freq.after }) })
+    if (ctr) todo.push({ kind: "info", text: t(K("mCtr"), { before: ctr.before, after: ctr.after }) })
+    if (land) todo.push({ kind: "info", text: t(K("mLand"), { before: land.before, after: land.after }) })
+    if (cpm) todo.push({ kind: "info", text: t(K("mCpm"), { before: cpm.before, after: cpm.after }) })
   }
-  for (const x of view.newCauses.slice(0, 4)) todo.push({ kind: "info", text: `Phát sinh mới: ${x.title}${x.money ? ` (~${vnd(x.money)})` : ""}.` })
+  for (const x of view.newCauses.slice(0, 4)) todo.push({ kind: "info", text: t(K("newCause"), { title: x.title, money: x.money ? ` (~${vnd(x.money)})` : "" }) })
   if (!why.some((w) => w.tone === "bad") && !view.newCauses.length && m.diag) {
-    todo.push({ kind: "info", text: "Các tỉ lệ chính không đổi đáng kể — chênh lệch chủ yếu do số đơn ít hoặc mùa vụ. So với các chiến dịch khác cùng kỳ trước khi đổi tiếp." })
+    todo.push({ kind: "info", text: t(K("flat")) })
   }
-  todo.push({ kind: "reopen", text: "Mở lại phiên ở bước 4: tool thu số 30 ngày gần nhất, tính lại nguyên nhân và đề xuất việc cụ thể (phủ định nào, tạm dừng gì…) — chưa ghi gì lên tài khoản cho tới khi bạn duyệt." })
+  todo.push({ kind: "reopen", text: t(K("reopen")) })
   view.canReopen = !!c.goal && c.status !== "reopened"
   if (verdict === "worse") {
-    view.undoable = liveExec.map((e) => ({ executionId: e.id, at: e.at.slice(0, 10), summary: executionSummary(e) }))
-    if (view.undoable.length) todo.push({ kind: "undo", text: "Nếu chắc thay đổi của phiên làm xấu đi: hoàn tác để trả tài khoản về như trước (từng lần thực hiện)." })
+    view.undoable = liveExec.map((e) => ({ executionId: e.id, at: e.at.slice(0, 10), summary: executionSummary(e, t) }))
+    if (view.undoable.length) todo.push({ kind: "undo", text: t(K("undo")) })
   }
-  if (c.goal && verdict === "same") todo.push({ kind: "settings", text: "Nếu mục tiêu quá chặt so với thị trường, xem lại trần chi phí ở trang Mục tiêu.", href: "/xu-ly/muc-tieu" })
+  if (c.goal && verdict === "same") todo.push({ kind: "settings", text: t(K("settings")), href: "/xu-ly/muc-tieu" })
   view.todo = todo
   return view
 }

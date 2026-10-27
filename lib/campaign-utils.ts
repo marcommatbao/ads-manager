@@ -3,6 +3,7 @@
 // ============================================================
 
 import type { Campaign } from "@/types/ads.types";
+import { makeT, type TFunction } from "@/lib/i18n/translate";
 
 // ─────────────────────────────────────────────
 // Learning Phase Detection
@@ -89,7 +90,7 @@ export function getCompany(campaignName: string): string | null {
 }
 
 // Frequency color coding and labels
-export function getFrequencyStatus(freq: number): {
+export function getFrequencyStatus(freq: number, t: TFunction = makeT("vi")): {
   color: string
   label: string
   badge: string
@@ -99,25 +100,25 @@ export function getFrequencyStatus(freq: number): {
     color: 'text-green-600',
     label: `${freq.toFixed(1)}x`,
     badge: '✅',
-    tooltip: 'Tốt — Audience chưa bão hoà',
+    tooltip: t('libcase.freq.good'),
   }
   if (freq < 3.5) return {
     color: 'text-gray-700',
     label: `${freq.toFixed(1)}x`,
     badge: '',
-    tooltip: 'Bình thường — Theo dõi tiếp',
+    tooltip: t('libcase.freq.normal'),
   }
   if (freq < 5.0) return {
     color: 'text-orange-500 font-semibold',
     label: `${freq.toFixed(1)}x`,
     badge: '⚠️',
-    tooltip: '⚠️ Cảnh báo — Cân nhắc refresh creative',
+    tooltip: t('libcase.freq.warn'),
   }
   return {
     color: 'text-red-600 font-bold',
     label: `${freq.toFixed(1)}x`,
     badge: '🔴',
-    tooltip: '🔴 Bão hoà — Cần hành động ngay',
+    tooltip: t('libcase.freq.sat'),
   }
 }
 
@@ -151,10 +152,10 @@ export interface CampaignDuration {
   detail: string;
 }
 
-export function getCampaignDuration(startDate: string | null | undefined, endDate: string | null | undefined): CampaignDuration {
+export function getCampaignDuration(startDate: string | null | undefined, endDate: string | null | undefined, t: TFunction = makeT("vi")): CampaignDuration {
   const start = startDate ? new Date(startDate) : null;
   if (!start || isNaN(start.getTime())) {
-    return { daysRun: null, totalDays: null, daysLeft: null, hasEnded: false, label: "—", detail: "Chưa có ngày bắt đầu" };
+    return { daysRun: null, totalDays: null, daysLeft: null, hasEnded: false, label: "—", detail: t("libcase.dur.none") };
   }
 
   const now = new Date();
@@ -164,13 +165,13 @@ export function getCampaignDuration(startDate: string | null | undefined, endDat
   const effectiveEnd = hasEnded ? validEnd! : now;
 
   const daysRun = Math.max(0, Math.floor((effectiveEnd.getTime() - start.getTime()) / 86_400_000)) + 1;
-  const fmtDate = (d: Date) => d.toLocaleDateString("vi-VN");
+  const fmtDate = (d: Date) => d.toLocaleDateString(t("libcase.dur.dateLocale"));
 
   if (!validEnd) {
     return {
       daysRun, totalDays: null, daysLeft: null, hasEnded: false,
-      label: `${daysRun} ngày`,
-      detail: `Bắt đầu ${fmtDate(start)} · Không giới hạn ngày kết thúc`,
+      label: t("libcase.dur.days", { n: daysRun }),
+      detail: t("libcase.dur.open", { start: fmtDate(start) }),
     };
   }
 
@@ -179,15 +180,15 @@ export function getCampaignDuration(startDate: string | null | undefined, endDat
   if (hasEnded) {
     return {
       daysRun: totalDays, totalDays, daysLeft: 0, hasEnded: true,
-      label: `${totalDays} ngày`,
-      detail: `Bắt đầu ${fmtDate(start)} · Đã kết thúc ${fmtDate(validEnd)}`,
+      label: t("libcase.dur.days", { n: totalDays }),
+      detail: t("libcase.dur.ended", { start: fmtDate(start), end: fmtDate(validEnd) }),
     };
   }
 
   const daysLeft = Math.ceil((validEnd.getTime() - now.getTime()) / 86_400_000);
   return {
     daysRun, totalDays, daysLeft, hasEnded: false,
-    label: `${daysRun}/${totalDays} ngày`,
-    detail: `Bắt đầu ${fmtDate(start)} · Còn ${daysLeft} ngày (kết thúc ${fmtDate(validEnd)})`,
+    label: t("libcase.dur.ofDays", { n: daysRun, total: totalDays }),
+    detail: t("libcase.dur.left", { start: fmtDate(start), left: daysLeft, end: fmtDate(validEnd) }),
   };
 }

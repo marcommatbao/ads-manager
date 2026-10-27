@@ -4,6 +4,7 @@
 // và lần hoàn tác cũng được ghi + đo 7/14 ngày như một thay đổi mới.
 import { enums } from "google-ads-api"
 import type { DecisionMemoryEntry } from "@/lib/decision-memory/types"
+import { makeT, type TFunction } from "@/lib/i18n/translate"
 
 const GOOGLE_STATUS: Record<number, string> = Object.fromEntries(
   Object.entries(enums.CampaignStatus as unknown as Record<string, unknown>).filter(([, v]) => typeof v === "number").map(([k, v]) => [v as number, k]),
@@ -22,36 +23,36 @@ export type UndoPlan =
 const STATUS_OK = { meta: ["ACTIVE", "PAUSED"], google_ads: ["ENABLED", "PAUSED"] } as const
 
 /** HÀM THUẦN — bản ghi này có hoàn tác được không (chưa xét giá trị hiện tại). */
-export function undoableReason(d: DecisionMemoryEntry): string | null {
-  if (d.undoneAt) return "Đã hoàn tác rồi"
+export function undoableReason(d: DecisionMemoryEntry, t: TFunction = makeT("vi")): string | null {
+  if (d.undoneAt) return t("libcase.w.undo.already")
   const plat = d.target.platform
-  if (plat !== "meta" && plat !== "google_ads") return "Nền tảng không hỗ trợ hoàn tác"
+  if (plat !== "meta" && plat !== "google_ads") return t("libcase.w.undo.platform")
   const { field, valueBefore: b, valueAfter: a } = d.action
   if (field === "status") {
     const ok = STATUS_OK[plat] as readonly string[]
-    if (typeof b !== "string" || typeof a !== "string" || !ok.includes(b) || !ok.includes(a)) return "Không có trạng thái trước đó để trả về"
-    if (a === b) return "Trạng thái không đổi — không có gì để hoàn tác"
+    if (typeof b !== "string" || typeof a !== "string" || !ok.includes(b) || !ok.includes(a)) return t("libcase.w.undo.noPrevStatus")
+    if (a === b) return t("libcase.w.undo.sameStatus")
     return null
   }
   if (field === "daily_budget") {
-    if (typeof b !== "number" || typeof a !== "number" || b < 10_000 || a <= 0) return "Không có ngân sách trước đó để trả về"
-    if (a === b) return "Ngân sách không đổi — không có gì để hoàn tác"
+    if (typeof b !== "number" || typeof a !== "number" || b < 10_000 || a <= 0) return t("libcase.w.undo.noPrevBudget")
+    if (a === b) return t("libcase.w.undo.sameBudget")
     return null
   }
-  return "Thay đổi này không lưu giá trị trước đó"
+  return t("libcase.w.undo.noPrevValue")
 }
 
 /** HÀM THUẦN — ghép bản ghi + giá trị đọc được trên nền tảng thành kế hoạch hoàn tác (hoặc lý do từ chối). */
-export function planUndo(d: DecisionMemoryEntry, current: string | number | null): UndoPlan {
-  const why = undoableReason(d)
+export function planUndo(d: DecisionMemoryEntry, current: string | number | null, t: TFunction = makeT("vi")): UndoPlan {
+  const why = undoableReason(d, t)
   if (why) return { ok: false, reason: why }
-  if (current == null) return { ok: false, reason: "Không đọc được giá trị hiện tại trên nền tảng" }
+  if (current == null) return { ok: false, reason: t("libcase.w.undo.noCurrent") }
   const base = { platform: d.target.platform as "meta" | "google_ads", entityId: d.target.entityId, company: d.target.company }
   if (d.action.field === "status") {
-    if (current !== d.action.valueAfter) return { ok: false, reason: `Trạng thái đã bị sửa sau đó (hiện là ${current}) — không hoàn tác để khỏi đè lên thay đổi mới` }
+    if (current !== d.action.valueAfter) return { ok: false, reason: t("libcase.w.undo.statusEdited", { cur: current }) }
     return { ok: true, field: "status", ...base, current: String(current), restore: String(d.action.valueBefore) }
   }
   const cur = Number(current)
-  if (Math.round(cur) !== Math.round(Number(d.action.valueAfter))) return { ok: false, reason: `Ngân sách đã bị sửa sau đó (hiện ₫${Math.round(cur).toLocaleString("vi-VN")}/ngày) — không hoàn tác để khỏi đè lên thay đổi mới` }
+  if (Math.round(cur) !== Math.round(Number(d.action.valueAfter))) return { ok: false, reason: t("libcase.w.undo.budgetEdited", { cur: Math.round(cur).toLocaleString(t("libcase.w.numLocale")) }) }
   return { ok: true, field: "daily_budget", ...base, current: cur, restore: Number(d.action.valueBefore) }
 }

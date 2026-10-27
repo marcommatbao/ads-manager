@@ -7,6 +7,8 @@
 // Types
 // ─────────────────────────────────────────────
 
+import { makeT, type TFunction } from "@/lib/i18n/translate";
+
 export interface DailyMetrics {
   spend: number;
   impressions: number;
@@ -109,105 +111,105 @@ const ANOMALY_CHECKS: AnomalyCheck[] = [
 // Possible causes lookup
 // ─────────────────────────────────────────────
 
-function getPossibleCauses(metric: string, direction: string): string[] {
+function getPossibleCauses(metric: string, direction: string, t: TFunction = makeT("vi")): string[] {
   const causes: Record<string, Record<string, string[]>> = {
     cpc: {
       increase: [
-        "Audience saturation — frequency quá cao",
-        "Đối thủ tăng bid, đẩy auction price lên",
-        "Creative đã cũ, CTR giảm → CPC tăng",
-        "Targeting quá hẹp, ít inventory",
+        t("libcase.r.anom.1"),
+        t("libcase.r.anom.2"),
+        t("libcase.r.anom.3"),
+        t("libcase.r.anom.4"),
       ],
       decrease: [
-        "Creative mới hoạt động tốt",
-        "Thị trường cạnh tranh giảm",
+        t("libcase.r.anom.5"),
+        t("libcase.r.anom.6"),
       ],
     },
     impressions: {
       decrease: [
-        "Budget đã hết hoặc gần hết",
-        "Campaign bị reject hoặc review",
-        "Audience quá hẹp sau khi exclude",
-        "Bid cap quá thấp so với auction",
-        "Lỗi kỹ thuật — kiểm tra campaign status",
+        t("libcase.r.anom.7"),
+        t("libcase.r.anom.8"),
+        t("libcase.r.anom.9"),
+        t("libcase.r.anom.10"),
+        t("libcase.r.anom.11"),
       ],
       increase: [
-        "Budget tăng hoặc bid adjustment",
-        "Seasonal spike trong ngành",
+        t("libcase.r.anom.12"),
+        t("libcase.r.anom.13"),
       ],
     },
     ctr: {
       decrease: [
-        "Creative fatigue — audience đã xem quá nhiều lần",
-        "Targeting sai đối tượng",
-        "Ad copy/visual không phù hợp mùa",
-        "Landing page mismatch với ad promise",
+        t("libcase.r.anom.14"),
+        t("libcase.r.anom.15"),
+        t("libcase.r.anom.16"),
+        t("libcase.r.anom.17"),
       ],
       increase: [
-        "Creative mới hấp dẫn hơn",
-        "Targeting chính xác hơn",
+        t("libcase.r.anom.18"),
+        t("libcase.r.anom.19"),
       ],
     },
     spend: {
       increase: [
-        "Auto-bidding tăng spend để meet target",
-        "Campaign vừa được scale budget",
-        "Nhiều campaigns active hơn bình thường",
+        t("libcase.r.anom.20"),
+        t("libcase.r.anom.21"),
+        t("libcase.r.anom.22"),
       ],
       decrease: [
-        "Budget cap reached sớm trong ngày",
+        t("libcase.r.anom.23"),
         "Fewer auction wins do to competitor pressure",
       ],
     },
     roas: {
       decrease: [
-        "Conversion rate landing page giảm",
-        "Sản phẩm hết hàng hoặc giá tăng",
-        "Audience quality giảm (broad quá)",
-        "Attribution window thay đổi",
+        t("libcase.r.anom.24"),
+        t("libcase.r.anom.25"),
+        t("libcase.r.anom.26"),
+        t("libcase.r.anom.27"),
       ],
       increase: [
-        "Campaign scale tốt, tìm đúng audience",
-        "Seasonal demand tăng",
+        t("libcase.r.anom.28"),
+        t("libcase.r.anom.29"),
       ],
     },
     frequency: {
       increase: [
-        "Audience quá nhỏ cho budget hiện tại",
-        "Campaign chạy quá lâu không refresh creative",
-        "Cần mở rộng targeting hoặc lookalike",
+        t("libcase.r.anom.30"),
+        t("libcase.r.anom.31"),
+        t("libcase.r.anom.32"),
       ],
       decrease: [
-        "Đã mở rộng audience thành công",
+        t("libcase.r.anom.33"),
       ],
     },
     cpm: {
       increase: [
-        "Cạnh tranh auction tăng (cuối tháng/quý)",
-        "Inventory premium placements đắt hơn",
-        "Audience overlap cao giữa các campaigns",
+        t("libcase.r.anom.34"),
+        t("libcase.r.anom.35"),
+        t("libcase.r.anom.36"),
       ],
       decrease: [
-        "Thị trường bớt cạnh tranh",
-        "Chuyển sang placement rẻ hơn",
+        t("libcase.r.anom.37"),
+        t("libcase.r.anom.38"),
       ],
     },
     cpl: {
       increase: [
-        "CPC tăng kéo theo CPL (kiểm tra anomaly CPC cùng kỳ)",
-        "Conversion rate giảm — landing page hoặc offer không còn hấp dẫn",
-        "Audience/creative fatigue — chuyển đổi khó hơn dù traffic vẫn vào",
-        "Budget bị giới hạn (search_budget_lost_impression_share cao) — thiếu impression chất lượng",
-        "Tracking/pixel lỗi, đếm thiếu conversion thật",
+        t("libcase.r.anom.39"),
+        t("libcase.r.anom.40"),
+        t("libcase.r.anom.41"),
+        t("libcase.r.anom.42"),
+        t("libcase.r.anom.43"),
       ],
       decrease: [
-        "Tối ưu targeting/creative gần đây phát huy hiệu quả",
-        "Offer hoặc mùa vụ thuận lợi hơn",
+        t("libcase.r.anom.44"),
+        t("libcase.r.anom.45"),
       ],
     },
   };
 
-  return causes[metric]?.[direction] ?? ["Chưa xác định — cần kiểm tra thêm"];
+  return causes[metric]?.[direction] ?? [t("libcase.r.anom.46")];
 }
 
 // ─────────────────────────────────────────────
@@ -242,7 +244,8 @@ export function calculateBaseline(historicalDays: DailyMetrics[]): DailyMetrics 
 
 export function detectAnomalies(
   todayMetrics: DailyMetrics,
-  historicalMetrics: DailyMetrics[]
+  historicalMetrics: DailyMetrics[],
+  t: TFunction = makeT("vi")
 ): Anomaly[] {
   const anomalies: Anomaly[] = [];
 
@@ -265,19 +268,20 @@ export function detectAnomalies(
         : changePct < -check.threshold;
 
     if (isAnomaly) {
-      const arrow = check.direction === "increase" ? "tăng" : "giảm";
+      const label = check.metric === "impressions" ? t("libcase.r.anom.impr") : check.metric === "spend" ? t("libcase.r.anom.spend") : check.label;
+      const arrow = check.direction === "increase" ? t("libcase.r.anom.47") : t("libcase.r.anom.48");
       const absPct = Math.abs(Math.round(changePct * 100));
 
       anomalies.push({
         metric: check.metric,
-        label: check.label,
+        label,
         todayValue: todayVal,
         baselineValue: baselineVal,
         changePct: Math.round(changePct * 100),
         severity: check.severity,
         direction: changePct > 0 ? "increase" : "decrease",
-        description: `${check.label} ${arrow} ${absPct}% so với TB 7 ngày`,
-        possibleCauses: getPossibleCauses(check.metric, check.direction),
+        description: t("libcase.r.anom.49", { v1: label, v2: arrow, v3: absPct }),
+        possibleCauses: getPossibleCauses(check.metric, check.direction, t),
       });
     }
   }
@@ -298,3 +302,6 @@ export const SEVERITY_CONFIG: Record<AnomalySeverity, { icon: string; color: str
   warning:  { icon: "🟡", color: "text-amber-700", bg: "bg-amber-50", border: "border-amber-200", label: "Cảnh báo" },
   info:     { icon: "🔵", color: "text-blue-700", bg: "bg-blue-50", border: "border-blue-200", label: "Thông tin" },
 };
+
+/** Nhãn mức độ theo ngôn ngữ (SEVERITY_CONFIG giữ tiếng Việt). */
+export const severityLabel = (s: AnomalySeverity, t: TFunction = makeT("vi")): string => t(`libcase.r.sev.${s}` as never);

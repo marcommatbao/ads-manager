@@ -24,7 +24,7 @@ import { DEFAULT_VIEW_DAYS, MAX_RANGE_DAYS, MIN_CASE_DAYS, isYmd, lastDays, rang
 import type { Company } from "@/lib/case/types";
 import type { OverviewRow, Platform } from "@/lib/case/service";
 import { orderedCompanyIds, companyLabel } from "@/lib/companies/registry";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 
 /** Đọc `?from=&to=` từ URL ở LẦN RENDER ĐẦU (reload/back) — không hợp lệ thì về mặc định 30 ngày. */
 function initialRange(sp: ReturnType<typeof useSearchParams>): DateRangeValue {
@@ -50,6 +50,7 @@ function rich(s: string): React.ReactNode[] {
 }
 
 function XuLyOverviewPageInner() {
+  const intl = useIntlLocale();
   const t = useT();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -194,14 +195,14 @@ function XuLyOverviewPageInner() {
       {allowedCompanies.length > 0 && !isLoading && !error && data && (
         <>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Kpi label={t("overview.xuly.list.kpiSpend")} value={vnd(data.totals.cost)} sub={t("overview.xuly.list.kpiSpendSub", { n: rows.length })} />
-            <Kpi label={t("overview.xuly.list.kpiPurchases")} value={num(data.totals.orders)} sub={data.totals.leads ? t("overview.xuly.list.kpiPurchasesSubLeads", { leads: num(data.totals.leads) }) : t("overview.xuly.list.kpiPurchasesSub")} />
+            <Kpi label={t("overview.xuly.list.kpiSpend")} value={vnd(data.totals.cost, intl)} sub={t("overview.xuly.list.kpiSpendSub", { n: rows.length })} />
+            <Kpi label={t("overview.xuly.list.kpiPurchases")} value={num(data.totals.orders, undefined, intl)} sub={data.totals.leads ? t("overview.xuly.list.kpiPurchasesSubLeads", { leads: num(data.totals.leads, undefined, intl) }) : t("overview.xuly.list.kpiPurchasesSub")} />
             {showRoas ? (
-              <Kpi label={t("overview.xuly.list.kpiRoas")} value={data.totals.cost > 0 ? fmtRoas(data.totals.orderValue / data.totals.cost) : "—"} sub={t("overview.xuly.list.kpiRoasSub", { value: vnd(data.totals.orderValue) })} />
+              <Kpi label={t("overview.xuly.list.kpiRoas")} value={data.totals.cost > 0 ? fmtRoas(data.totals.orderValue / data.totals.cost, intl) : "—"} sub={t("overview.xuly.list.kpiRoasSub", { value: vnd(data.totals.orderValue, intl) })} />
             ) : (
-              <Kpi label={t("overview.xuly.list.kpiCpo")} value={data.totals.orders > 0 ? vnd(data.totals.cost / data.totals.orders) : "—"} bad={data.totals.orders === 0 && data.totals.cost > 0} />
+              <Kpi label={t("overview.xuly.list.kpiCpo")} value={data.totals.orders > 0 ? vnd(data.totals.cost / data.totals.orders, intl) : "—"} bad={data.totals.orders === 0 && data.totals.cost > 0} />
             )}
-            <Kpi label={t("overview.xuly.list.kpiOver")} value={vnd(data.totals.overCeiling)} sub={t("overview.xuly.list.kpiOverSub", { n: data.totals.redCount })} bad={data.totals.overCeiling > 0} />
+            <Kpi label={t("overview.xuly.list.kpiOver")} value={vnd(data.totals.overCeiling, intl)} sub={t("overview.xuly.list.kpiOverSub", { n: data.totals.redCount })} bad={data.totals.overCeiling > 0} />
           </div>
 
           {channel === "facebook" && (
@@ -233,20 +234,20 @@ function XuLyOverviewPageInner() {
                     <tr key={r.campaignId} className="border-b border-slate-50 last:border-0 align-top">
                       <td className="px-4 py-2.5">
                         <div className="font-semibold text-slate-800">{r.name}</div>
-                        <div className="text-xs text-slate-400">{channel === "facebook" ? metaObjectiveLabel(r.channel) : r.channel} · {r.groupLabel}{r.status === "PAUSED" && <span className="font-semibold text-slate-600"> · {t("overview.xuly.list.paused")}</span>}</div>
+                        <div className="text-xs text-slate-400">{channel === "facebook" ? metaObjectiveLabel(r.channel, t) : r.channel} · {r.groupLabel}{r.status === "PAUSED" && <span className="font-semibold text-slate-600"> · {t("overview.xuly.list.paused")}</span>}</div>
                       </td>
-                      <td className="px-3 py-2.5 text-right tabular-nums">{vnd(r.perf.cost)}</td>
-                      <td className="px-3 py-2.5 text-right tabular-nums">{num(r.perf.clicks)}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums">{vnd(r.perf.cost, intl)}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums">{num(r.perf.clicks, undefined, intl)}</td>
                       {/* Đợt 23 (3d): chiến dịch thu lead (Google + Meta) — cột này là số LEAD, chấm theo chi phí mỗi lead; không có ROAS. */}
-                      <td className="px-3 py-2.5 text-right tabular-nums">{num(r.perf.orders)}{r.goalKind === "leads" && <span className="ml-1 text-xs font-normal text-slate-400">{t("overview.xuly.list.lead")}</span>}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums">{num(r.perf.orders, undefined, intl)}{r.goalKind === "leads" && <span className="ml-1 text-xs font-normal text-slate-400">{t("overview.xuly.list.lead")}</span>}</td>
                       <td className={cn("px-3 py-2.5 text-right tabular-nums", r.verdict.status === "red" && "font-semibold text-red-600")}>
-                        {r.verdict.cpa !== null ? vnd(r.verdict.cpa) : "—"}
+                        {r.verdict.cpa !== null ? vnd(r.verdict.cpa, intl) : "—"}
                       </td>
                       <td className={cn("px-3 py-2.5 text-right tabular-nums", r.verdict.status === "red" && "font-semibold text-red-600")}>
-                        {r.verdict.roas !== null && r.goalKind !== "leads" ? fmtRoas(r.verdict.roas) : "—"}
+                        {r.verdict.roas !== null && r.goalKind !== "leads" ? fmtRoas(r.verdict.roas, intl) : "—"}
                       </td>
                       <td className="px-3 py-2.5 text-right tabular-nums font-semibold text-red-600">
-                        {r.verdict.overCeiling !== null ? vnd(r.verdict.overCeiling) : "—"}
+                        {r.verdict.overCeiling !== null ? vnd(r.verdict.overCeiling, intl) : "—"}
                       </td>
                       <td className="px-3 py-2.5">
                         <StatusPill status={r.verdict.status} label={r.verdict.label} />

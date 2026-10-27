@@ -1,5 +1,6 @@
 // GET  /api/automation/rules — list all rules
 // POST /api/automation/rules — create | toggle | delete | run
+import { getT } from "@/lib/i18n/server";
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { hasPermission, canAccessCompany, getCompaniesForRole } from "@/lib/permissions";
@@ -39,10 +40,11 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const t = await getT();
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (!hasPermission(user.role, "can_edit")) {
-    return NextResponse.json({ success: false, error: "Không có quyền chỉnh sửa automation rule" }, { status: 403 });
+    return NextResponse.json({ success: false, error: t("libcase.r.ar.1") }, { status: 403 });
   }
 
   // Thân request ở đây là { action, rule } chứ không phải rule trần — đọc đúng
@@ -61,14 +63,14 @@ export async function POST(request: NextRequest) {
   if (draft?.action === "create" && !canTouchRuleScope(user, defaultRuleCompany(user, draft?.rule?.company))) {
     return NextResponse.json({
       success: false,
-      error: `Không có quyền tạo rule cho công ty ${String(draft?.rule?.company ?? "cả hai công ty")}`,
+      error: t("libcase.r.ar.2", { v1: String(draft?.rule?.company ?? "cả hai công ty") }),
     }, { status: 403 });
   }
 
   if (ruleTouchesBudget(draft?.rule?.actions) && !hasPermission(user.role, "can_manage_budget")) {
     return NextResponse.json({
       success: false,
-      error: "Rule có hành động đổi ngân sách — cần quyền quản lý ngân sách",
+      error: t("libcase.r.ar.3"),
     }, { status: 403 });
   }
 
@@ -93,10 +95,10 @@ export async function POST(request: NextRequest) {
       case "toggle": {
         const cur = getRuleById(body.id as string);
         if (cur && !canTouchRuleScope(user, cur.company)) {
-          return NextResponse.json({ success: false, error: "Không có quyền với rule của công ty khác" }, { status: 403 });
+          return NextResponse.json({ success: false, error: t("libcase.r.ar.4") }, { status: 403 });
         }
         if (cur && !cur.isActive && ruleTouchesBudget(cur.actions) && !hasPermission(user.role, "can_manage_budget")) {
-          return NextResponse.json({ success: false, error: "Rule có hành động đổi ngân sách — cần quyền quản lý ngân sách" }, { status: 403 });
+          return NextResponse.json({ success: false, error: t("libcase.r.ar.3") }, { status: 403 });
         }
         const toggled = toggleRule(body.id as string);
         if (!toggled) {
@@ -108,7 +110,7 @@ export async function POST(request: NextRequest) {
       case "delete": {
         const cur = getRuleById(body.id as string);
         if (cur && !canTouchRuleScope(user, cur.company)) {
-          return NextResponse.json({ success: false, error: "Không có quyền với rule của công ty khác" }, { status: 403 });
+          return NextResponse.json({ success: false, error: t("libcase.r.ar.4") }, { status: 403 });
         }
         const deleted = deleteRule(body.id as string);
         if (!deleted) {
@@ -120,7 +122,7 @@ export async function POST(request: NextRequest) {
       case "run": {
         // Chạy ngay = chạy MỌI rule đang bật của CẢ HAI công ty → chỉ người có cả hai công ty.
         if (getCompaniesForRole(user).length !== 2) {
-          return NextResponse.json({ success: false, error: "Chỉ người quản lý cả hai công ty được chạy ngay toàn bộ rule" }, { status: 403 });
+          return NextResponse.json({ success: false, error: t("libcase.r.ar.5") }, { status: 403 });
         }
         const results = await runAutomationEngine();
         return NextResponse.json({ success: true, data: results });

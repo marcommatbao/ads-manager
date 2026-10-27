@@ -28,14 +28,18 @@ import type { CaseEvidence, Company, MetaEvidence, SearchEvidence } from "./type
 import { compareVerdicts, verdictOf, type CampaignPerf, type CaseBasis, type CaseTarget, type Verdict } from "./verdict"
 import { evidenceGoalKind, googleGoalKind, META_LEAD_OBJECTIVES, META_LEAD_TYPES, META_SALES_OBJECTIVES, metaGoalKind, metaResults, type GoalKind } from "./goal-kind"
 import { leadCaseTarget } from "@/lib/targets/resolve"
+import { makeT, type TFunction } from "@/lib/i18n/translate"
+import { CaseError } from "./errors"
+import type { MessageKey } from "@/lib/i18n/messages"
 
 type Row = Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
 const micros = (v: unknown) => (Number(v) || 0) / 1_000_000
 const en = (e: Record<string | number, string | number>, v: unknown) => (typeof v === "number" ? String(e[v] ?? v) : String(v ?? ""))
 
-export class CaseError extends Error {
-  constructor(message: string, public status = 400) { super(message) }
-}
+export { CaseError }
+const svc = (k: string): MessageKey => `libcase.s.svc.${k}` as MessageKey
+/** Tên nhóm sản phẩm theo ngôn ngữ (bản tiếng Việt = PRODUCT_LABEL). */
+const groupLabelT = (g: keyof typeof PRODUCT_LABEL, t: TFunction): string => t(svc(`group.${g}`))
 
 export interface OverviewRow {
   campaignId: string
@@ -64,7 +68,7 @@ const metaCanOpen = (objective: string) => META_SALES_OBJECTIVES.has(objective) 
  * Odoo đối chiếu ở từng phiên vì cần liên kết quảng cáo của từng chiến dịch.
  * 2 lượt gọi Meta, cả hai có đệm (10–15 phút).
  */
-export async function metaOverview(company: Company, range: { from: string; to: string }) {
+export async function metaOverview(company: Company, range: { from: string; to: string }, t: TFunction = makeT("vi")) {
   const [ins, camps] = await Promise.all([accountCampaignInsights(range), metaClient.getCampaigns()])
   const meta = new Map(camps.map((c) => [String(c.id), c]))
   const cases = listCases({ company })
@@ -84,8 +88,8 @@ export async function metaOverview(company: Company, range: { from: string; to: 
       const target: CaseTarget | null = leads ? leadCaseTarget(company, name) : targetFor(company, group)
       const latest = cases.find((x) => x.campaignId === id)
       return {
-        campaignId: id, name, status: String(c?.status ?? "—"), channel: objective || "—", group, groupLabel: PRODUCT_LABEL[group],
-        perf, target, verdict: verdictOf(perf, target), canOpenCase: metaCanOpen(objective), goalKind: leads ? "leads" : "sales",
+        campaignId: id, name, status: String(c?.status ?? "—"), channel: objective || "—", group, groupLabel: groupLabelT(group, t),
+        perf, target, verdict: verdictOf(perf, target, t), canOpenCase: metaCanOpen(objective), goalKind: leads ? "leads" : "sales",
         latestCase: latest ? { id: latest.id, step: latest.step, status: latest.status } : null,
       }
     })
@@ -113,7 +117,7 @@ export async function googleBiddableCategories(customer: { query: (q: string) =>
   return cats
 }
 
-export async function googleOverview(company: Company, range: { from: string; to: string }) {
+export async function googleOverview(company: Company, range: { from: string; to: string }, t: TFunction = makeT("vi")) {
   const customer = getGoogleAdsCustomer(company)
   const rows = (await customer.query(`SELECT campaign.id, campaign.name, campaign.status, campaign.advertising_channel_type,
       metrics.cost_micros, metrics.clicks, metrics.conversions, metrics.conversions_value
@@ -141,7 +145,7 @@ export async function googleOverview(company: Company, range: { from: string; to
     const latest = cases.find((c) => c.campaignId === String(r.campaign.id))
     return {
       campaignId: String(r.campaign.id), name, status: en(enums.CampaignStatus, r.campaign.status),
-      channel, group, groupLabel: PRODUCT_LABEL[group], perf, target, verdict: verdictOf(perf, target),
+      channel, group, groupLabel: groupLabelT(group, t), perf, target, verdict: verdictOf(perf, target, t),
       canOpenCase: channel === "SEARCH" || channel === "PERFORMANCE_MAX",
       latestCase: latest ? { id: latest.id, step: latest.step, status: latest.status } : null,
       goalKind: leads ? "leads" : "sales",
@@ -163,7 +167,7 @@ export async function openCase(input: { company: Company; campaignId: string; ra
   if (open) return open
   if (input.platform === "facebook") {
     const evidence = await collectMetaEvidence(input.company, input.campaignId, input.range)
-    if (!metaCanOpen(evidence.campaign.objective)) throw new CaseError(`Chưa hỗ trợ chiến dịch Facebook mục tiêu ${evidence.campaign.objective} — phiên chấm theo lượt mua (bán hàng) hoặc lead (thu khách tiềm năng)`)
+    if (!metaCanOpen(evidence.campaign.objective)) throw new CaseError(`Chưa hỗ trợ chiến dịch Facebook mục tiêu ${evidence.campaign.objective} — phiên chấm theo lượt mua (bán hàng) hoặc lead (thu khách tiềm năng)`, 400, { key: svc("err.fbObjective"), vars: { objective: evidence.campaign.objective } })
     return createCase({
       platform: "facebook", company: input.company, campaignId: input.campaignId, campaignName: evidence.campaign.name,
       range: input.range, step: 1, status: "open", goal: null, evidence, diagnosis: null, actions: [], manualTasks: [],
@@ -171,12 +175,12 @@ export async function openCase(input: { company: Company; campaignId: string; ra
     })
   }
   const customer = getGoogleAdsCustomer(input.company)
-  if (!/^\d+$/.test(input.campaignId)) throw new CaseError("campaignId không hợp lệ")
+  if (!/^\d+$/.test(input.campaignId)) throw new CaseError("campaignId không hợp lệ", 400, { key: svc("err.campaignId") })
   const ch = (await customer.query(`SELECT campaign.advertising_channel_type FROM campaign
     WHERE campaign.id = ${input.campaignId} AND campaign.status != 'REMOVED'`)) as Row[]
-  if (!ch.length) throw new CaseError("Không tìm thấy chiến dịch trong tài khoản này", 404)
+  if (!ch.length) throw new CaseError("Không tìm thấy chiến dịch trong tài khoản này", 404, { key: svc("err.campaignNotFound") })
   const channel = en(enums.AdvertisingChannelType, ch[0].campaign.advertising_channel_type)
-  if (channel !== "SEARCH" && channel !== "PERFORMANCE_MAX") throw new CaseError(`Chưa hỗ trợ loại chiến dịch ${channel}`)
+  if (channel !== "SEARCH" && channel !== "PERFORMANCE_MAX") throw new CaseError(`Chưa hỗ trợ loại chiến dịch ${channel}`, 400, { key: svc("err.channel"), vars: { channel } })
   const evidence = await collectSearchEvidence(customer, input.company, input.campaignId, input.range, channel === "PERFORMANCE_MAX" ? "google_pmax" : "google_search")
   return createCase({
     platform: "google", company: input.company, campaignId: input.campaignId, campaignName: evidence.campaign.name,
@@ -208,9 +212,9 @@ export function setStep(id: string, step: CampaignCase["step"]) {
 }
 
 /** Bước 3 → 4 → 5: chốt mục tiêu, tính nguyên nhân, dựng hướng xử lý (kèm mô phỏng). */
-export async function confirmGoal(id: string, goal: { basis: CaseBasis; target: number; ceiling: number; where: string }, actor: string) {
+export async function confirmGoal(id: string, goal: { basis: CaseBasis; target: number; ceiling: number; where: string }, actor: string, t: TFunction = makeT("vi")) {
   return updateCase(id, async (c) => {
-    const next = planCase(c, goal, actor)
+    const next = planCase(c, goal, actor, t)
     return { next, result: next }
   })
 }
@@ -222,68 +226,68 @@ export function splitRouteFor(company: Company, campaignId: string): SplitRoute 
 }
 
 /** Tính nguyên nhân + hướng xử lý từ bằng chứng hiện có của phiên (dùng chung cho bước 3 và "Mở lại ở bước 4"). */
-function planCase(c: CampaignCase, goal: { basis: CaseBasis; target: number; ceiling: number; where: string }, actor: string): CampaignCase {
-  if (!c.evidence) throw new CaseError("Phiên chưa có bằng chứng — thu thập lại trước")
+function planCase(c: CampaignCase, goal: { basis: CaseBasis; target: number; ceiling: number; where: string }, actor: string, t: TFunction = makeT("vi")): CampaignCase {
+  if (!c.evidence) throw new CaseError("Phiên chưa có bằng chứng — thu thập lại trước", 400, { key: svc("err.noEvidence") })
   // Đợt 23 (3d): phiên thu lead chỉ chấm theo CPL; phiên bán hàng chỉ CPA / ROAS.
   const kind = evidenceGoalKind(c.evidence)
-  if ((kind === "leads") !== (goal.basis === "cpl")) throw new CaseError(kind === "leads" ? "Chiến dịch thu lead chấm theo chi phí mỗi lead (CPL)" : "Chiến dịch bán hàng chấm theo CPA hoặc ROAS")
+  if ((kind === "leads") !== (goal.basis === "cpl")) throw new CaseError(kind === "leads" ? "Chiến dịch thu lead chấm theo chi phí mỗi lead (CPL)" : "Chiến dịch bán hàng chấm theo CPA hoặc ROAS", 400, { key: svc(kind === "leads" ? "err.leadBasis" : "err.salesBasis") })
   const now = new Date().toISOString()
   const tasks = (list: Omit<CampaignCase["manualTasks"][number], "id" | "createdAt">[]) =>
     list.map((t, i) => ({ ...t, id: `task_${Date.now().toString(36)}_${i}`, createdAt: now })) as CampaignCase["manualTasks"]
   if (c.evidence.kind === "meta") {
     const ev = c.evidence
-    const diagnosis = diagnoseMeta(ev)
-    const verdict = metaVerdict(ev, goal)
-    const { actions, manualTasks } = proposeMetaActions({ evidence: ev, diagnosis, verdict, goal })
+    const diagnosis = diagnoseMeta(ev, t)
+    const verdict = metaVerdict(ev, goal, t)
+    const { actions, manualTasks } = proposeMetaActions({ evidence: ev, diagnosis, verdict, goal }, t)
     return { ...c, step: 4, diagnosis, actions, goal: { ...goal, confirmedBy: actor, confirmedAt: now }, manualTasks: tasks(manualTasks) }
   }
   const lexicon = lexiconFor(c.company)
-  const diagnosis = diagnoseSearch(c.evidence, { lexicon, ceilingCpa: goal.basis === "roas" ? null : goal.ceiling, goalKind: kind })
+  const diagnosis = diagnoseSearch(c.evidence, { lexicon, ceilingCpa: goal.basis === "roas" ? null : goal.ceiling, goalKind: kind }, t)
   const ev = c.evidence.campaign
-  const verdict = verdictOf({ cost: ev.cost, clicks: ev.clicks, orders: ev.orders, orderValue: ev.orderValue }, goal)
+  const verdict = verdictOf({ cost: ev.cost, clicks: ev.clicks, orders: ev.orders, orderValue: ev.orderValue }, goal, t)
   const { actions, manualTasks } = c.evidence.kind === "google_pmax"
-    ? proposePmaxActions({ evidence: c.evidence, diagnosis, lexicon })
-    : proposeSearchActions({ evidence: c.evidence, diagnosis, verdict, lexicon, split: splitRouteFor(c.company, c.evidence.campaign.id) })
+    ? proposePmaxActions({ evidence: c.evidence, diagnosis, lexicon }, t)
+    : proposeSearchActions({ evidence: c.evidence, diagnosis, verdict, lexicon, split: splitRouteFor(c.company, c.evidence.campaign.id) }, t)
   return { ...c, step: 4, diagnosis, actions, goal: { ...goal, confirmedBy: actor, confirmedAt: now }, manualTasks: tasks(manualTasks) }
 }
 
 /** Tuỳ chọn của việc Đợt 5: đổi sự kiện (chỉ trong danh sách đề xuất) / tạm dừng nhóm cũ khi bật nhóm mới. */
 export type ActionOptions = Record<string, { event?: string; pauseSource?: boolean; lowSignalAck?: boolean }>
 
-export function applyActionOptions(a: CampaignCase["actions"][number], o: ActionOptions[string] | undefined): CampaignCase["actions"][number] {
+export function applyActionOptions(a: CampaignCase["actions"][number], o: ActionOptions[string] | undefined, t: TFunction = makeT("vi")): CampaignCase["actions"][number] {
   if (!o) return a
   if (a.type === "CREATE_ADSET_WITH_EVENT" && o.event && o.event !== a.event) {
     const alt = a.alternatives.find((x) => x.event === o.event)
-    if (!alt) throw new CaseError("Sự kiện không có trong danh sách đề xuất")
+    if (!alt) throw new CaseError("Sự kiện không có trong danh sách đề xuất", 400, { key: svc("err.eventNotListed") })
     return { ...a, event: alt.event, eventLabel: alt.label, perWeek: alt.perWeek, lowSignalAck: false,
-      lowSignal: alt.perWeek < 50, label: `Tạo nhóm mới tối ưu theo “${alt.label}” (chuẩn) — sao từ “${a.sourceAdsetName}”` }
+      lowSignal: alt.perWeek < 50, label: t(svc("act.newAdset"), { event: alt.label, source: a.sourceAdsetName }) }
   }
   if (a.type === "CREATE_ADSET_WITH_EVENT" && typeof o.lowSignalAck === "boolean") return { ...a, lowSignalAck: o.lowSignalAck }
   if (a.type === "ACTIVATE_NEW_ADSET" && typeof o.pauseSource === "boolean") return { ...a, pauseSource: o.pauseSource }
   return a
 }
 
-export async function selectActions(id: string, selected: Record<string, boolean>, options: ActionOptions = {}) {
+export async function selectActions(id: string, selected: Record<string, boolean>, options: ActionOptions = {}, t: TFunction = makeT("vi")) {
   return updateCase(id, async (c) => {
-    const next = { ...c, step: Math.max(c.step, 5) as CampaignCase["step"], actions: c.actions.map((a) => applyActionOptions(a.id in selected ? { ...a, selected: !!selected[a.id] } : a, options[a.id])) }
+    const next = { ...c, step: Math.max(c.step, 5) as CampaignCase["step"], actions: c.actions.map((a) => applyActionOptions(a.id in selected ? { ...a, selected: !!selected[a.id] } : a, options[a.id], t)) }
     return { next, result: next }
   })
 }
 
 /** Bước 6. Cùng idempotencyKey gửi 2 lần → trả lần đầu, không ghi 2 lần. */
-export async function executeCase(id: string, input: { actor: string; idempotencyKey: string; validateOnly: boolean }): Promise<{ case: CampaignCase; execution: Execution }> {
+export async function executeCase(id: string, input: { actor: string; idempotencyKey: string; validateOnly: boolean }, t: TFunction = makeT("vi")): Promise<{ case: CampaignCase; execution: Execution }> {
   return updateCase(id, async (c) => {
     const dup = c.executions.find((e) => e.idempotencyKey === input.idempotencyKey)
     if (dup) return { next: null, result: { case: c, execution: dup } }
-    if (!c.actions.some((a) => a.selected)) throw new CaseError("Chưa chọn việc nào để thực hiện")
+    if (!c.actions.some((a) => a.selected)) throw new CaseError("Chưa chọn việc nào để thực hiện", 400, { key: svc("err.noneSelected") })
     const execution = c.evidence?.kind === "meta"
       ? await executeMetaActions({
         company: c.company, evidence: c.evidence, actions: c.actions,
-        actor: input.actor, idempotencyKey: input.idempotencyKey, validateOnly: input.validateOnly,
+        actor: input.actor, idempotencyKey: input.idempotencyKey, validateOnly: input.validateOnly, t,
       })
       : await executeGoogleActions({
         customer: getGoogleAdsCustomer(c.company), company: c.company, actions: c.actions,
-        actor: input.actor, idempotencyKey: input.idempotencyKey, validateOnly: input.validateOnly,
+        actor: input.actor, idempotencyKey: input.idempotencyKey, validateOnly: input.validateOnly, t,
       })
     if (input.validateOnly) return { next: null, result: { case: c, execution } }
     const today = vnDate()
@@ -294,7 +298,7 @@ export async function executeCase(id: string, input: { actor: string; idempotenc
     const activations: CampaignCase["actions"] = created.map((m, i) => ({
       id: `activate_${Date.now().toString(36)}_${i}`, type: "ACTIVATE_NEW_ADSET", selected: false,
       newAdsetId: m.id, newAdIds: m.adIds, sourceAdsetId: m.sourceAdsetId, pauseSource: false,
-      label: `Bật chạy nhóm mới “${m.name}” (${m.adIds.length} quảng cáo)`,
+      label: t(svc("act.activate"), { name: m.name, n: m.adIds.length }),
     }))
     const next: CampaignCase = {
       ...c, step: 6, executions: [...c.executions, execution],
@@ -309,14 +313,14 @@ export async function executeCase(id: string, input: { actor: string; idempotenc
   })
 }
 
-export async function undoExecution(id: string, execId: string, actor: string) {
+export async function undoExecution(id: string, execId: string, actor: string, t: TFunction = makeT("vi")) {
   return updateCase(id, async (c) => {
     const ex = c.executions.find((e) => e.id === execId)
-    if (!ex) throw new CaseError("Không tìm thấy lần thực hiện", 404)
-    if (ex.undoneAt) throw new CaseError("Lần thực hiện này đã được hoàn tác", 409)
+    if (!ex) throw new CaseError("Không tìm thấy lần thực hiện", 404, { key: svc("err.execNotFound") })
+    if (ex.undoneAt) throw new CaseError("Lần thực hiện này đã được hoàn tác", 409, { key: svc("err.alreadyUndone") })
     const report = c.evidence?.kind === "meta"
-      ? await undoMetaExecution({ company: c.company, evidence: c.evidence, exec: ex, actor })
-      : await undoGoogleExecution({ customer: getGoogleAdsCustomer(c.company), company: c.company, exec: ex, actor })
+      ? await undoMetaExecution({ company: c.company, evidence: c.evidence, exec: ex, actor, t })
+      : await undoGoogleExecution({ customer: getGoogleAdsCustomer(c.company), company: c.company, exec: ex, actor, t })
     const next: CampaignCase = {
       ...c, executions: c.executions.map((e) => (e.id === execId ? { ...e, undoneAt: new Date().toISOString(), undoReport: report } : e)),
     }
@@ -333,7 +337,7 @@ export async function closeCase(id: string) {
 
 export async function updateManualTask(id: string, taskId: string, patch: { status?: "open" | "done"; assignee?: string | null }) {
   return updateCase(id, async (c) => {
-    if (!c.manualTasks.some((t) => t.id === taskId)) throw new CaseError("Không tìm thấy việc", 404)
+    if (!c.manualTasks.some((t) => t.id === taskId)) throw new CaseError("Không tìm thấy việc", 404, { key: svc("err.taskNotFound") })
     const next: CampaignCase = {
       ...c, manualTasks: c.manualTasks.map((t) => (t.id === taskId ? {
         ...t, ...(patch.assignee !== undefined ? { assignee: patch.assignee } : {}),
@@ -426,9 +430,9 @@ export const CHECK_COOLDOWN_MS = 10 * 60_000
 export async function checkNow(id: string, now: Date = new Date()) {
   return updateCase(id, async (c) => {
     const start = firstExecutionDay(c)
-    if (!start) throw new CaseError("Phiên chưa thực hiện thay đổi nào nên chưa có gì để đo")
+    if (!start) throw new CaseError("Phiên chưa thực hiện thay đổi nào nên chưa có gì để đo", 400, { key: svc("err.nothingToMeasure") })
     if (c.latestCheck && now.getTime() - Date.parse(c.latestCheck.at) < CHECK_COOLDOWN_MS) {
-      throw new CaseError("Vừa kiểm tra xong — đợi khoảng 10 phút rồi kiểm lại (mỗi lần kiểm gọi Google/Meta thật)", 429)
+      throw new CaseError("Vừa kiểm tra xong — đợi khoảng 10 phút rồi kiểm lại (mỗi lần kiểm gọi Google/Meta thật)", 429, { key: svc("err.cooldown") })
     }
     const range = { from: start, to: vnDate(now) }
     const fresh = await collectFor(c, range)
@@ -440,13 +444,13 @@ export async function checkNow(id: string, now: Date = new Date()) {
 
 /** 14/10: "Mở lại phiên ở bước 4 ngay" — không chờ mốc đo cuối. Thu lại bằng chứng 30 ngày gần nhất, tính lại nguyên nhân +
  *  hướng xử lý theo mục tiêu đã chốt. Việc giao người cũ được giữ; lần thực hiện cũ giữ nguyên (vẫn hoàn tác được). */
-export async function reopenNow(id: string, actor: string, now: Date = new Date()) {
+export async function reopenNow(id: string, actor: string, now: Date = new Date(), t: TFunction = makeT("vi")) {
   return updateCase(id, async (c) => {
-    if (!c.goal) throw new CaseError("Phiên chưa chốt mục tiêu — làm tiếp từ bước 3")
+    if (!c.goal) throw new CaseError("Phiên chưa chốt mục tiêu — làm tiếp từ bước 3", 400, { key: svc("err.noGoal") })
     const today = vnDate(now)
     const range = { from: addDays(today, -29), to: today }
     const evidence = await collectFor(c, range)
-    const planned = planCase({ ...c, evidence, range }, { basis: c.goal.basis, target: c.goal.target, ceiling: c.goal.ceiling, where: c.goal.where }, actor)
+    const planned = planCase({ ...c, evidence, range }, { basis: c.goal.basis, target: c.goal.target, ceiling: c.goal.ceiling, where: c.goal.where }, actor, t)
     const next: CampaignCase = {
       ...planned,
       manualTasks: [...c.manualTasks, ...planned.manualTasks],
@@ -460,15 +464,15 @@ export async function reopenNow(id: string, actor: string, now: Date = new Date(
 }
 
 /** Chấm phiên Facebook theo số Meta; lệch Odoo lớn → thêm cờ (phương án c). */
-export function metaVerdict(ev: MetaEvidence, goal: CaseTarget): Verdict {
+export function metaVerdict(ev: MetaEvidence, goal: CaseTarget, t: TFunction = makeT("vi")): Verdict {
   const c = ev.campaign
   // Đợt 23 (3d): thu lead → chấm theo số lead Meta ghi; không có đơn để đối chiếu Odoo.
-  if (metaGoalKind(c.objective) === "leads") return verdictOf({ cost: c.cost, clicks: c.linkClicks || c.clicks, orders: c.leads ?? 0, orderValue: 0 }, goal)
-  const v = verdictOf({ cost: c.cost, clicks: c.linkClicks || c.clicks, orders: c.purchases, orderValue: c.purchaseValue }, goal)
+  if (metaGoalKind(c.objective) === "leads") return verdictOf({ cost: c.cost, clicks: c.linkClicks || c.clicks, orders: c.leads ?? 0, orderValue: 0 }, goal, t)
+  const v = verdictOf({ cost: c.cost, clicks: c.linkClicks || c.clicks, orders: c.purchases, orderValue: c.purchaseValue }, goal, t)
   if (ev.odoo.checked && c.purchases >= ODOO_MIN_META_PURCHASES && ev.odoo.orders < c.purchases * ODOO_GAP_RATIO) {
-    v.flags.push(`Chấm theo số Meta (${c.purchases} lượt mua) — Odoo chỉ ghi ${ev.odoo.orders} đơn mang thẻ của chiến dịch`)
+    v.flags.push(t(svc("flag.odooGap"), { purchases: c.purchases, orders: ev.odoo.orders }))
   } else if (!ev.odoo.checked) {
-    v.flags.push("Chấm theo số Meta — chưa đối chiếu được với Odoo")
+    v.flags.push(t(svc("flag.odooNone")))
   }
   return v
 }

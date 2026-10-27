@@ -11,6 +11,7 @@ import path from "path"
 import { writeFileAtomicSync } from "@/lib/fs-atomic"
 import type { InboxItem, InboxSource } from "./build"
 import type { Company } from "@/lib/case/types"
+import { makeT, type TFunction } from "@/lib/i18n/translate"
 
 export type InboxStatus = "new" | "seen" | "snoozed" | "done" | "dismissed"
 // Nhãn chuyển sang ./labels.ts (file thuần, không phụ thuộc "fs") — re-export ở đây để không đổi chỗ import cũ.
@@ -38,38 +39,38 @@ export const saveSnapshot = (s: InboxSnapshot) => writeJson(SNAP, s)
 export const readStates = (): Record<string, ItemState> => readJson<Record<string, ItemState>>(STATE, {})
 
 /** Trạng thái hiệu lực của một việc lúc `now` — HÀM THUẦN. */
-export function effective(item: Pick<InboxItem, "money">, st: ItemState | null | undefined, now: number): { status: InboxStatus; resurfaced: string | null } {
+export function effective(item: Pick<InboxItem, "money">, st: ItemState | null | undefined, now: number, t: TFunction = makeT("vi")): { status: InboxStatus; resurfaced: string | null } {
   if (!st) return { status: "new", resurfaced: null }
   const d = st.at.slice(0, 10).split("-").reverse().join("/")
-  if (st.status === "snoozed") return st.until && Date.parse(st.until) <= now ? { status: "new", resurfaced: `Đã hoãn tới ${st.until.slice(0, 10).split("-").reverse().join("/")} — hết hạn hoãn` } : { status: "snoozed", resurfaced: null }
+  if (st.status === "snoozed") return st.until && Date.parse(st.until) <= now ? { status: "new", resurfaced: t("libcase.w.resurf.snooze", { d: st.until.slice(0, 10).split("-").reverse().join("/") }) } : { status: "snoozed", resurfaced: null }
   if (st.status === "dismissed") {
     if (st.moneyAt && item.money != null && item.money > st.moneyAt * RESURFACE_MONEY)
-      return { status: "new", resurfaced: `Đã bỏ qua ${d} — hiện lại vì tiền tăng ${Math.round((item.money / st.moneyAt - 1) * 100)}%` }
+      return { status: "new", resurfaced: t("libcase.w.resurf.dismiss", { d, p: Math.round((item.money / st.moneyAt - 1) * 100) }) }
     return { status: "dismissed", resurfaced: null }
   }
-  if (st.status === "done" && now - Date.parse(st.at) > DONE_RECHECK_DAYS * DAY) return { status: "new", resurfaced: `Đã đánh dấu làm ${d} — sau ${DONE_RECHECK_DAYS} ngày vẫn còn` }
+  if (st.status === "done" && now - Date.parse(st.at) > DONE_RECHECK_DAYS * DAY) return { status: "new", resurfaced: t("libcase.w.resurf.done", { d, n: DONE_RECHECK_DAYS }) }
   return { status: st.status, resurfaced: null }
 }
 
-export function viewItems(items: InboxItem[], states: Record<string, ItemState>, now: number = Date.now()): InboxView[] {
-  return items.map((it) => { const st = states[it.key] ?? null; return { ...it, ...effective(it, st, now), state: st } })
+export function viewItems(items: InboxItem[], states: Record<string, ItemState>, now: number = Date.now(), t: TFunction = makeT("vi")): InboxView[] {
+  return items.map((it) => { const st = states[it.key] ?? null; return { ...it, ...effective(it, st, now, t), state: st } })
 }
 
 /** Việc đang cần làm (vào top 5 / đếm "còn tồn"): Mới hoặc Đã xem. */
 export const isOpen = (v: Pick<InboxView, "status">) => v.status === "new" || v.status === "seen"
 
-export function validateStatusInput(x: unknown): { key: string; status: InboxStatus; until?: string; reason?: string } | string {
+export function validateStatusInput(x: unknown, t: TFunction = makeT("vi")): { key: string; status: InboxStatus; until?: string; reason?: string } | string {
   const b = (x ?? {}) as Record<string, unknown>
-  if (typeof b.key !== "string" || !b.key) return "Thiếu key"
-  if (!["new", "seen", "snoozed", "done", "dismissed"].includes(String(b.status))) return "Trạng thái không hợp lệ"
+  if (typeof b.key !== "string" || !b.key) return t("libcase.w.err.missingKey")
+  if (!["new", "seen", "snoozed", "done", "dismissed"].includes(String(b.status))) return t("libcase.w.err.badStatus")
   const status = b.status as InboxStatus
   if (status === "snoozed") {
-    if (typeof b.until !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(b.until)) return "Hoãn cần ngày (YYYY-MM-DD)"
+    if (typeof b.until !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(b.until)) return t("libcase.w.err.snoozeDate")
     return { key: b.key, status, until: `${b.until}T00:00:00+07:00` }
   }
   if (status === "dismissed") {
     const reason = typeof b.reason === "string" ? b.reason.trim() : ""
-    if (reason.length < 3) return "Bỏ qua cần ghi lý do"
+    if (reason.length < 3) return t("libcase.w.err.dismissReason")
     return { key: b.key, status, reason: reason.slice(0, 500) }
   }
   return { key: b.key, status }

@@ -16,6 +16,7 @@ import { ga4Ids } from "@/lib/meta-accounts"
 import { serviceAccountToken } from "@/lib/measure/gtm-api"
 import { metaHealth } from "@/lib/measure/meta-health"
 import type { Company } from "@/lib/case/types"
+import { makeT, type TFunction } from "@/lib/i18n/translate"
 
 type Row = Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
 export const VIEW_HEAVY = 0.6
@@ -40,26 +41,26 @@ export interface MetaXray {
 }
 export interface Slice { key: string; spend: number; click: number | null; view: number | null }
 
-const vnd = (n: number) => `₫${Math.round(n).toLocaleString("vi-VN")}`
-const attrLabel = (spec: Row[] | undefined) => !spec?.length ? "mặc định" : spec.map((s) => `${s.event_type === "VIEW_THROUGH" ? "xem" : s.event_type === "ENGAGED_VIDEO_VIEW" ? "xem video" : "bấm"} ${s.window_days} ngày`).join(" + ")
+const vnd = (n: number, t: TFunction = makeT("vi")) => `₫${Math.round(n).toLocaleString(t("libmeta.numLocale"))}`
+const attrLabel = (spec: Row[] | undefined, t: TFunction) => !spec?.length ? t("libmeta.xray.attrDefault") : spec.map((s) => t("libmeta.xray.attrWin", { kind: t(s.event_type === "VIEW_THROUGH" ? "libmeta.xray.attrView" : s.event_type === "ENGAGED_VIDEO_VIEW" ? "libmeta.xray.attrVideo" : "libmeta.xray.attrClick"), days: s.window_days })).join(" + ")
 
 /** Cờ + cảnh báo cho MỘT chiến dịch — HÀM THUẦN. */
-export function campaignFlags(c: Omit<MetaCampaignXray, "flags">): string[] {
+export function campaignFlags(c: Omit<MetaCampaignXray, "flags">, t: TFunction = makeT("vi")): string[] {
   const f: string[] = []
-  if (c.viewShare != null && c.purchases >= 10 && c.viewShare >= VIEW_HEAVY) f.push(`${Math.round(c.viewShare * 100)}% "mua hàng" là CHỈ XEM — CPA thật (từ lượt bấm) ${c.cpaClick ? vnd(c.cpaClick) : "không có đơn"} thay vì ${c.cpaMeta ? vnd(c.cpaMeta) : "—"}`)
-  if (c.optEvent && c.optEvent !== "PURCHASE" && c.optEvent !== "LEAD") f.push(`Tối ưu theo "${c.optEventLabel}", không phải Mua hàng`)
-  if (c.frequency != null && c.frequency >= HIGH_FREQ) f.push(`Tần suất ${c.frequency.toFixed(1)} — cùng người thấy lặp lại nhiều`)
-  if (!c.utm.length) f.push("Không đọc được utm_campaign của quảng cáo — GA4 không đối chiếu được")
-  else if (c.ga4Purchases != null && c.click != null && c.purchases >= 20 && c.ga4Purchases < c.purchases * 0.2) f.push(`GA4 (utm ${c.utm.join(", ")}) chỉ ${c.ga4Purchases} đơn so với ${c.purchases} Meta báo${c.utmShared ? " (utm dùng chung với chiến dịch khác)" : ""}`)
+  if (c.viewShare != null && c.purchases >= 10 && c.viewShare >= VIEW_HEAVY) f.push(t("libmeta.xray.flagViewHeavy", { pct: Math.round(c.viewShare * 100), cpaClick: c.cpaClick ? vnd(c.cpaClick, t) : t("libmeta.xray.noOrders"), cpaMeta: c.cpaMeta ? vnd(c.cpaMeta, t) : "—" }))
+  if (c.optEvent && c.optEvent !== "PURCHASE" && c.optEvent !== "LEAD") f.push(t("libmeta.xray.flagOptEvent", { label: c.optEventLabel ?? "" }))
+  if (c.frequency != null && c.frequency >= HIGH_FREQ) f.push(t("libmeta.xray.flagFreq", { freq: c.frequency.toFixed(1) }))
+  if (!c.utm.length) f.push(t("libmeta.xray.flagNoUtm"))
+  else if (c.ga4Purchases != null && c.click != null && c.purchases >= 20 && c.ga4Purchases < c.purchases * 0.2) f.push(t("libmeta.xray.flagGa4Low", { utm: c.utm.join(", "), ga4: c.ga4Purchases, meta: c.purchases, shared: c.utmShared ? t("libmeta.xray.flagUtmShared") : "" }))
   return f
 }
 
 /** Tách tên utm_campaign từ link đích quảng cáo. */
 export function utmOf(url: string): string | null { try { return new URL(url).searchParams.get("utm_campaign") } catch { return null } }
 
-async function ga4FacebookByCampaign(company: Company, range: { from: string; to: string }): Promise<{ byCampaign: Map<string, number>; sources: { source: string; purchases: number }[]; total: number } | { error: string }> {
+async function ga4FacebookByCampaign(company: Company, range: { from: string; to: string }, t: TFunction): Promise<{ byCampaign: Map<string, number>; sources: { source: string; purchases: number }[]; total: number } | { error: string }> {
   const prop = ga4Ids(company).propertyId
-  if (!prop) return { error: "chưa khai báo GA4 property" }
+  if (!prop) return { error: t("libmeta.xray.ga4NoProperty") }
   let token: string
   try { token = await serviceAccountToken("https://www.googleapis.com/auth/analytics.readonly") } catch (e) { return { error: e instanceof Error ? e.message : String(e) } }
   const res = await fetch(`https://analyticsdata.googleapis.com/v1beta/${prop}:runReport`, {
@@ -68,7 +69,7 @@ async function ga4FacebookByCampaign(company: Company, range: { from: string; to
       dimensionFilter: { orGroup: { expressions: ["face", "fb", "instagram", "ig"].map((v) => ({ filter: { fieldName: "sessionSource", stringFilter: { matchType: "CONTAINS", value: v, caseSensitive: false } } })) } }, limit: 5000 }),
   })
   const j = (await res.json().catch(() => ({}))) as Row
-  if (!res.ok) return { error: res.status === 403 ? "service account chưa có quyền Viewer GA4" : `GA4 ${res.status}` }
+  if (!res.ok) return { error: res.status === 403 ? t("libmeta.xray.ga4NoViewer") : `GA4 ${res.status}` }
   const byCampaign = new Map<string, number>(), bySource = new Map<string, number>()
   let total = 0
   for (const r of (j.rows ?? []) as Row[]) {
@@ -80,8 +81,9 @@ async function ga4FacebookByCampaign(company: Company, range: { from: string; to
 
 const memo = new Map<string, { at: number; value: MetaXray }>()
 
-export async function metaXray(company: Company, range: { from: string; to: string }, opts: { detail?: boolean; force?: boolean } = {}): Promise<MetaXray> {
-  const key = `${company}|${range.from}|${range.to}|${opts.detail ? 1 : 0}`
+export async function metaXray(company: Company, range: { from: string; to: string }, opts: { detail?: boolean; force?: boolean } = {}, t: TFunction = makeT("vi")): Promise<MetaXray> {
+  // Văn bản sinh theo ngôn ngữ → khoá nhớ có kèm ngôn ngữ (bản EN không làm hỏng bản VI).
+  const key = `${t("libmeta.localeTag")}|${company}|${range.from}|${range.to}|${opts.detail ? 1 : 0}`
   const hit = memo.get(key)
   if (!opts.force && hit && Date.now() - hit.at < 60 * 60_000) return hit.value
   const act = `act_${adAccountId()}`
@@ -92,9 +94,9 @@ export async function metaXray(company: Company, range: { from: string; to: stri
   const ins = await metaGetAll<Row>(`${act}/insights`, { level: "campaign", time_range: tr, fields: "campaign_id,campaign_name,spend,frequency,actions", action_attribution_windows: windows, limit: "200" }, 3); calls++
   const mine = ins.filter((r) => detectCompany(String(r.campaign_name)) === company && Number(r.spend) > 0)
   let adsets: Row[] = []
-  try { adsets = await metaGetAll<Row>(`${act}/adsets`, { fields: "campaign_id,optimization_goal,promoted_object,attribution_spec,targeting{targeting_automation}", effective_status: JSON.stringify(["ACTIVE"]), limit: "200" }, 3); calls++ } catch (e) { errors.push(`Nhóm quảng cáo: ${e instanceof Error ? e.message : String(e)}`) }
-  const [ga4, health] = await Promise.all([ga4FacebookByCampaign(company, range), metaHealth(company, { range }).catch((e) => { errors.push(`Link quảng cáo: ${e instanceof Error ? e.message : String(e)}`); return null })])
-  if ("error" in ga4) notes.push(`Không đối chiếu được GA4: ${ga4.error}`)
+  try { adsets = await metaGetAll<Row>(`${act}/adsets`, { fields: "campaign_id,optimization_goal,promoted_object,attribution_spec,targeting{targeting_automation}", effective_status: JSON.stringify(["ACTIVE"]), limit: "200" }, 3); calls++ } catch (e) { errors.push(t("libmeta.xray.errAdsets", { msg: e instanceof Error ? e.message : String(e) })) }
+  const [ga4, health] = await Promise.all([ga4FacebookByCampaign(company, range, t), metaHealth(company, { range }, t).catch((e) => { errors.push(t("libmeta.xray.errLinks", { msg: e instanceof Error ? e.message : String(e) })); return null })])
+  if ("error" in ga4) notes.push(t("libmeta.xray.noteGa4", { msg: ga4.error }))
   // utm theo chiến dịch (từ link đích quảng cáo đang chạy — Đợt 9 observedLinks).
   const utmBy = new Map<string, Set<string>>()
   for (const l of health?.links.observedLinks ?? []) { const u = utmOf(l.url); if (u) (utmBy.get(l.campaignName) ?? utmBy.set(l.campaignName, new Set()).get(l.campaignName)!).add(u.toLowerCase()) }
@@ -112,21 +114,21 @@ export async function metaXray(company: Company, range: { from: string; to: stri
     const ga4Purchases = "error" in ga4 || !utm.length ? null : utm.reduce((s, u) => s + (ga4.byCampaign.get(u) ?? 0), 0)
     const base = { id, name: String(r.campaign_name), spend, frequency: r.frequency != null ? Number(r.frequency) : null, purchases, click, view,
       viewShare: purchases > 0 && view != null ? view / purchases : null, cpaMeta: purchases > 0 ? spend / purchases : null, cpaClick: click ? spend / click : null,
-      optEvent: ev, optEventLabel: ev ? labelForStandardEvent(ev) : null, attribution: as.length ? [...new Set(as.map((a) => attrLabel(a.attribution_spec)))].join(" · ") : "—",
+      optEvent: ev, optEventLabel: ev ? labelForStandardEvent(ev, t) : null, attribution: as.length ? [...new Set(as.map((a) => attrLabel(a.attribution_spec, t)))].join(" · ") : "—",
       includesView: as.some((a) => (a.attribution_spec ?? []).some((s: Row) => s.event_type === "VIEW_THROUGH")),
       advantageAudience: first ? Number(first.targeting?.targeting_automation?.advantage_audience) === 1 : null, activeAdsets: as.length,
       utm, ga4Purchases, utmShared: utm.some((u) => (utmCount.get(u) ?? 0) > 1) }
-    return { ...base, flags: campaignFlags(base) }
+    return { ...base, flags: campaignFlags(base, t) }
   }).sort((a, b) => b.spend - a.spend)
   const sum = (f: (c: MetaCampaignXray) => number | null) => campaigns.reduce((s, c) => s + (f(c) ?? 0), 0)
   const totals = { spend: sum((c) => c.spend), purchases: sum((c) => c.purchases), click: sum((c) => c.click), view: sum((c) => c.view), ga4Facebook: "error" in ga4 ? null : ga4.total, ga4Sources: "error" in ga4 ? [] : ga4.sources }
   const warnings: MetaXray["warnings"] = []
   if (totals.purchases >= 20 && totals.view / totals.purchases >= VIEW_HEAVY)
-    warnings.push({ level: "bad", id: "view_heavy_account", text: `${Math.round((totals.view / totals.purchases) * 100)}% "mua hàng" Meta báo (${Math.round(totals.view)}/${Math.round(totals.purchases)}) là người CHỈ XEM quảng cáo rồi mua trong 1 ngày. Tính theo lượt bấm: ${Math.round(totals.click)} đơn — CPA ${totals.click ? vnd(totals.spend / totals.click) : "—"} thay vì ${vnd(totals.spend / Math.max(totals.purchases, 1))}.${totals.ga4Facebook != null ? ` GA4 ghi ${totals.ga4Facebook} đơn từ nguồn Facebook.` : ""}` })
+    warnings.push({ level: "bad", id: "view_heavy_account", text: t("libmeta.xray.warnViewHeavy", { pct: Math.round((totals.view / totals.purchases) * 100), view: Math.round(totals.view), total: Math.round(totals.purchases), click: Math.round(totals.click), cpaClick: totals.click ? vnd(totals.spend / totals.click, t) : "—", cpaAll: vnd(totals.spend / Math.max(totals.purchases, 1), t), ga4: totals.ga4Facebook != null ? t("libmeta.xray.warnViewHeavyGa4", { n: totals.ga4Facebook }) : "" }) })
   const srcNames = totals.ga4Sources.filter((s) => s.purchases > 0).map((s) => s.source)
-  if (srcNames.length >= 3) warnings.push({ level: "warn", id: "utm_source_chaos", text: `GA4 thấy ${srcNames.length} cách ghi nguồn Facebook (${srcNames.slice(0, 5).join(", ")}) — chuẩn hoá bằng bảng link chuẩn (Đo lường → Gắn thẻ) để đối chiếu từng chiến dịch.` })
+  if (srcNames.length >= 3) warnings.push({ level: "warn", id: "utm_source_chaos", text: t("libmeta.xray.warnUtmChaos", { n: srcNames.length, list: srcNames.slice(0, 5).join(", ") }) })
   const optWrong = campaigns.filter((c) => c.optEvent && c.optEvent !== "PURCHASE" && c.optEvent !== "LEAD")
-  if (optWrong.length) warnings.push({ level: "warn", id: "opt_not_purchase", text: `${optWrong.length} chiến dịch tối ưu theo sự kiện khác Mua hàng (${[...new Set(optWrong.map((c) => c.optEventLabel))].join(", ")}) — ${vnd(optWrong.reduce((s, c) => s + c.spend, 0))} trong kỳ.` })
+  if (optWrong.length) warnings.push({ level: "warn", id: "opt_not_purchase", text: t("libmeta.xray.warnOptNotPurchase", { n: optWrong.length, list: [...new Set(optWrong.map((c) => c.optEventLabel))].join(", "), spend: vnd(optWrong.reduce((s, c) => s + c.spend, 0), t) }) })
 
   let detail: MetaXray["detail"] = null
   if (opts.detail) {
@@ -145,12 +147,12 @@ export async function metaXray(company: Company, range: { from: string; to: stri
       detail = {
         placements: await bd("publisher_platform,platform_position", (r) => `${r.publisher_platform} · ${r.platform_position}`),
         devices: await bd("impression_device", (r) => String(r.impression_device)),
-        ageGender: await bd("age,gender", (r) => `${r.age} · ${r.gender === "male" ? "nam" : r.gender === "female" ? "nữ" : "?"}`),
+        ageGender: await bd("age,gender", (r) => `${r.age} · ${r.gender === "male" ? t("libmeta.xray.male") : r.gender === "female" ? t("libmeta.xray.female") : "?"}`),
         hours: (await bd("hourly_stats_aggregated_by_advertiser_time_zone", (r) => String(r.hourly_stats_aggregated_by_advertiser_time_zone ?? "").slice(0, 2))).sort((a, b) => a.key.localeCompare(b.key)),
       }
-    } catch (e) { errors.push(`Phân tích chi tiết: ${e instanceof Error ? e.message : String(e)}`) }
+    } catch (e) { errors.push(t("libmeta.xray.errDetail", { msg: e instanceof Error ? e.message : String(e) })) }
   }
-  notes.push("Meta không cho sửa cài đặt ghi nhận của nhóm quảng cáo đã tạo — muốn chỉ tính lượt bấm phải tạo nhóm mới (Mở phiên xử lý).")
+  notes.push(t("libmeta.xray.noteMetaLocked"))
   const value: MetaXray = { company, range, collectedAt: new Date().toISOString(), campaigns, totals, warnings, detail, calls, errors, notes }
   memo.set(key, { at: Date.now(), value })
   return value

@@ -16,6 +16,7 @@
 import { graphFetch, throwIfMetaError } from "@/lib/meta-client";
 import { resolveConversionActionTypes, sumConversionActions } from "@/lib/meta-conversion-goal";
 import { labelForStandardEvent, normalizeStandardEvent } from "@/lib/meta-pixel-events";
+import { makeT, type TFunction } from "@/lib/i18n/translate";
 import { META_GRAPH_BASE } from "@/lib/meta/graph-version";
 
 const BASE_URL = META_GRAPH_BASE;
@@ -105,6 +106,8 @@ export interface ComparabilityCheck {
   label: string;
   level: ComparabilityLevel;
   detail: string;
+  /** Mã máy đọc (chữ `detail` đổi theo ngôn ngữ nên logic KHÔNG được dò chữ). */
+  code?: "same_content";
 }
 
 export interface MetricVerdict {
@@ -255,17 +258,17 @@ function daysBetween(from: string, to: string): number {
   return Math.max(1, Math.round(ms / 86_400_000) + 1);
 }
 
-function describeGenders(genders?: number[]): string {
-  if (!genders || genders.length === 0 || genders.length === 2) return "Tất cả";
-  if (genders[0] === 1) return "Nam";
-  if (genders[0] === 2) return "Nữ";
-  return "Tất cả";
+function describeGenders(genders: number[] | undefined, t: TFunction): string {
+  if (!genders || genders.length === 0 || genders.length === 2) return t("libmeta.cc.gAll");
+  if (genders[0] === 1) return t("libmeta.cc.gMale");
+  if (genders[0] === 2) return t("libmeta.cc.gFemale");
+  return t("libmeta.cc.gAll");
 }
 
-function buildSide(raw: RawAd): CompareSide {
+function buildSide(raw: RawAd, tr: TFunction): CompareSide {
   const notes: string[] = [];
   const insight = raw.insights?.data?.[0];
-  if (!insight) notes.push("Meta không trả về số liệu nào cho ad này (có thể chưa từng phân phối).");
+  if (!insight) notes.push(tr("libmeta.cc.noInsightAd"));
 
   const goal = {
     optimization_goal: raw.adset?.optimization_goal,
@@ -320,9 +323,9 @@ function buildSide(raw: RawAd): CompareSide {
     adSetName: raw.adset?.name ?? null,
     optimizationGoal: raw.adset?.optimization_goal ?? null,
     conversionEventLabel: eventEnum
-      ? labelForStandardEvent(eventEnum)
+      ? labelForStandardEvent(eventEnum, tr)
       : raw.adset?.promoted_object?.custom_conversion_id
-        ? "Chuyển đổi tùy chỉnh"
+        ? tr("libmeta.cc.customConv")
         : null,
     thumbnailUrl: raw.creative?.thumbnail_url ?? raw.creative?.object_story_spec?.link_data?.picture ?? null,
     isVideo,
@@ -334,7 +337,7 @@ function buildSide(raw: RawAd): CompareSide {
     targeting: {
       ageMin: t?.age_min ?? null,
       ageMax: t?.age_max ?? null,
-      genders: describeGenders(t?.genders),
+      genders: describeGenders(t?.genders, tr),
       locations,
       interestCount: interestNames.length,
       interestNames,
@@ -371,9 +374,9 @@ function buildSide(raw: RawAd): CompareSide {
 /** Lấy dữ liệu 2 ad trong MỘT lượt gọi Graph API (`?ids=`).
  *  Tài khoản đang ở bậc development access (~60 lượt/giờ) nên gộp lại thay vì
  *  gọi 4 lượt riêng lẻ là khác biệt thật, không phải tối ưu cho vui. */
-export async function fetchAdCompareSnapshots(adIds: [string, string]): Promise<CompareSide[]> {
+export async function fetchAdCompareSnapshots(adIds: [string, string], t: TFunction = makeT("vi")): Promise<CompareSide[]> {
   const token = process.env.META_ACCESS_TOKEN;
-  if (!token) throw new Error("META_ACCESS_TOKEN chưa cấu hình");
+  if (!token) throw new Error(t("libmeta.cc.noToken"));
 
   const url = new URL(BASE_URL + "/");
   url.searchParams.set("ids", adIds.join(","));
@@ -387,9 +390,9 @@ export async function fetchAdCompareSnapshots(adIds: [string, string]): Promise<
   return adIds.map((id) => {
     const raw = json[id];
     if (!raw || raw.error) {
-      throw new Error(`Không đọc được ad ${id}: ${raw?.error?.message ?? "Meta không trả về dữ liệu"}`);
+      throw new Error(t("libmeta.cc.adReadFail", { id, msg: raw?.error?.message ?? t("libmeta.cc.metaNoData") }));
     }
-    return buildSide({ ...raw, id });
+    return buildSide({ ...raw, id }, t);
   });
 }
 
@@ -419,10 +422,10 @@ const CAMPAIGN_FIELDS = [
   "insights.date_preset(maximum){impressions,reach,frequency,clicks,spend,ctr,cpc,cpm,actions,action_values,video_p25_watched_actions,video_p50_watched_actions,video_p75_watched_actions,video_p100_watched_actions,video_thruplay_watched_actions,video_avg_time_watched_actions,date_start,date_stop}",
 ].join(",");
 
-function buildCampaignSide(raw: RawCampaign): CompareSide {
+function buildCampaignSide(raw: RawCampaign, tr: TFunction): CompareSide {
   const notes: string[] = [];
   const insight = raw.insights?.data?.[0];
-  if (!insight) notes.push(`Chiến dịch "${raw.name ?? raw.id}" chưa có số liệu phân phối nào.`);
+  if (!insight) notes.push(tr("libmeta.cc.noInsightCampaign", { name: String(raw.name ?? raw.id) }));
 
   // Mục tiêu chuyển đổi lấy từ ad set ĐẦU TIÊN, cùng quy ước với
   // buildGoalByCampaignMap() ở lib/meta-conversion-goal.ts (Meta cũng coi một
@@ -479,12 +482,12 @@ function buildCampaignSide(raw: RawCampaign): CompareSide {
     campaignName: raw.name ?? raw.id,
     campaignObjective: raw.objective ?? null,
     adSetId: null,
-    adSetName: adSetCount > 0 ? `${adSetCount} nhóm quảng cáo` : null,
+    adSetName: adSetCount > 0 ? tr("libmeta.cc.adSetCount", { n: adSetCount }) : null,
     optimizationGoal: firstAdSet?.optimization_goal ?? null,
     conversionEventLabel: eventEnum
-      ? labelForStandardEvent(eventEnum)
+      ? labelForStandardEvent(eventEnum, tr)
       : firstAdSet?.promoted_object?.custom_conversion_id
-        ? "Chuyển đổi tùy chỉnh"
+        ? tr("libmeta.cc.customConv")
         : null,
     thumbnailUrl: ads[0]?.creative?.thumbnail_url ?? null,
     isVideo,
@@ -500,7 +503,7 @@ function buildCampaignSide(raw: RawCampaign): CompareSide {
     targeting: {
       ageMin: t?.age_min ?? null,
       ageMax: t?.age_max ?? null,
-      genders: describeGenders(t?.genders),
+      genders: describeGenders(t?.genders, tr),
       locations,
       interestCount: interestNames.length,
       interestNames,
@@ -532,9 +535,9 @@ function buildCampaignSide(raw: RawCampaign): CompareSide {
   };
 }
 
-export async function fetchCampaignCompareSnapshots(campaignIds: [string, string]): Promise<CompareSide[]> {
+export async function fetchCampaignCompareSnapshots(campaignIds: [string, string], t: TFunction = makeT("vi")): Promise<CompareSide[]> {
   const token = process.env.META_ACCESS_TOKEN;
-  if (!token) throw new Error("META_ACCESS_TOKEN chưa cấu hình");
+  if (!token) throw new Error(t("libmeta.cc.noToken"));
 
   const url = new URL(BASE_URL + "/");
   url.searchParams.set("ids", campaignIds.join(","));
@@ -548,9 +551,9 @@ export async function fetchCampaignCompareSnapshots(campaignIds: [string, string
   return campaignIds.map((id) => {
     const raw = json[id];
     if (!raw || raw.error) {
-      throw new Error(`Không đọc được chiến dịch ${id}: ${raw?.error?.message ?? "Meta không trả về dữ liệu"}`);
+      throw new Error(t("libmeta.cc.campReadFail", { id, msg: raw?.error?.message ?? t("libmeta.cc.metaNoData") }));
     }
-    return buildCampaignSide({ ...raw, id });
+    return buildCampaignSide({ ...raw, id }, t);
   });
 }
 
@@ -575,23 +578,23 @@ function jaccard(a: string[], b: string[]): number | null {
   return union === 0 ? null : inter / union;
 }
 
-export function assessComparability(a: CompareSide, b: CompareSide): ComparabilityCheck[] {
+export function assessComparability(a: CompareSide, b: CompareSide, t: TFunction = makeT("vi")): ComparabilityCheck[] {
   const checks: ComparabilityCheck[] = [];
 
   // 1. Mục tiêu chiến dịch — khác mục tiêu thì Meta phân phối theo hai logic
   //    khác hẳn nhau, so CPA gần như vô nghĩa.
   checks.push(
     a.campaignObjective === b.campaignObjective
-      ? { key: "objective", label: "Mục tiêu chiến dịch", level: "ok", detail: `Cùng ${a.campaignObjective ?? "không rõ"}` }
-      : { key: "objective", label: "Mục tiêu chiến dịch", level: "blocked", detail: `Khác nhau: ${a.campaignObjective ?? "?"} vs ${b.campaignObjective ?? "?"} — Meta tối ưu theo hai hướng khác nhau, đừng so chi phí/kết quả giữa hai bên.` }
+      ? { key: "objective", label: t("libmeta.cc.lblObjective"), level: "ok", detail: t("libmeta.cc.objSame", { v: a.campaignObjective ?? t("libmeta.cc.unknown") }) }
+      : { key: "objective", label: t("libmeta.cc.lblObjective"), level: "blocked", detail: t("libmeta.cc.objDiff", { a: a.campaignObjective ?? "?", b: b.campaignObjective ?? "?" }) }
   );
 
   // 2. Sự kiện chuyển đổi — nếu khác, "kết quả" của hai bên đếm hai thứ khác nhau.
   const evA = a.conversionEventLabel, evB = b.conversionEventLabel;
   checks.push(
     evA === evB
-      ? { key: "event", label: "Sự kiện chuyển đổi", level: "ok", detail: evA ? `Cùng đếm "${evA}"` : "Cả hai đều không tối ưu theo sự kiện chuyển đổi" }
-      : { key: "event", label: "Sự kiện chuyển đổi", level: "blocked", detail: `Khác nhau: "${evA ?? "không có"}" vs "${evB ?? "không có"}" — cột chuyển đổi/CPA của hai bên đang đếm hai loại hành động khác nhau, không cộng trừ được với nhau.` }
+      ? { key: "event", label: t("libmeta.cc.lblEvent"), level: "ok", detail: evA ? t("libmeta.cc.evSame", { ev: evA }) : t("libmeta.cc.evNone") }
+      : { key: "event", label: t("libmeta.cc.lblEvent"), level: "blocked", detail: t("libmeta.cc.evDiff", { a: evA ?? t("libmeta.cc.evNoneWord"), b: evB ?? t("libmeta.cc.evNoneWord") }) }
   );
 
   // 3. Tệp đối tượng
@@ -599,27 +602,27 @@ export function assessComparability(a: CompareSide, b: CompareSide): Comparabili
   const sameAge = a.targeting.ageMin === b.targeting.ageMin && a.targeting.ageMax === b.targeting.ageMax;
   const sameGender = a.targeting.genders === b.targeting.genders;
   if (a.adSetId && a.adSetId === b.adSetId) {
-    checks.push({ key: "audience", label: "Tệp đối tượng", level: "ok", detail: "Cùng một ad set — đây là phép so sạch nhất: cùng tệp, cùng ngân sách, cùng lịch chạy." });
+    checks.push({ key: "audience", label: t("libmeta.cc.lblAudience"), level: "ok", detail: t("libmeta.cc.audSameSet") });
   } else if (sim !== null && sim >= 0.6 && sameAge && sameGender) {
-    checks.push({ key: "audience", label: "Tệp đối tượng", level: "ok", detail: `Gần giống nhau (trùng ${Math.round(sim * 100)}% sở thích, cùng ${a.targeting.ageMin}-${a.targeting.ageMax} tuổi, ${a.targeting.genders}).` });
+    checks.push({ key: "audience", label: t("libmeta.cc.lblAudience"), level: "ok", detail: t("libmeta.cc.audSimilar", { pct: Math.round(sim * 100), min: a.targeting.ageMin ?? "", max: a.targeting.ageMax ?? "", genders: a.targeting.genders }) });
   } else {
     const bits: string[] = [];
-    if (!sameAge) bits.push(`tuổi ${a.targeting.ageMin}-${a.targeting.ageMax} vs ${b.targeting.ageMin}-${b.targeting.ageMax}`);
-    if (!sameGender) bits.push(`giới tính ${a.targeting.genders} vs ${b.targeting.genders}`);
-    if (sim !== null && sim < 0.6) bits.push(`sở thích chỉ trùng ${Math.round(sim * 100)}%`);
-    if (a.targeting.usesAdvantage !== b.targeting.usesAdvantage) bits.push("một bên dùng Advantage+ còn bên kia thì không");
-    checks.push({ key: "audience", label: "Tệp đối tượng", level: "warn", detail: bits.length ? `Khác nhau: ${bits.join("; ")} — chênh lệch có thể do tệp chứ không phải do video.` : "Hai ad set khác nhau, không đối chiếu được chi tiết tệp." });
+    if (!sameAge) bits.push(t("libmeta.cc.audBitAge", { a: `${a.targeting.ageMin}-${a.targeting.ageMax}`, b: `${b.targeting.ageMin}-${b.targeting.ageMax}` }));
+    if (!sameGender) bits.push(t("libmeta.cc.audBitGender", { a: a.targeting.genders, b: b.targeting.genders }));
+    if (sim !== null && sim < 0.6) bits.push(t("libmeta.cc.audBitInterest", { pct: Math.round(sim * 100) }));
+    if (a.targeting.usesAdvantage !== b.targeting.usesAdvantage) bits.push(t("libmeta.cc.audBitAdv"));
+    checks.push({ key: "audience", label: t("libmeta.cc.lblAudience"), level: "warn", detail: bits.length ? t("libmeta.cc.audDiff", { bits: bits.join("; ") }) : t("libmeta.cc.audDiffNoDetail") });
   }
 
   // 4. Thời điểm chạy — hai video đổi nhau theo thời gian thì gần như chắc
   //    chắn không chồng lấn; đây là hạn chế cố hữu chứ không phải lỗi.
   const ov = overlapDays(a, b);
   if (ov === null) {
-    checks.push({ key: "time", label: "Thời điểm chạy", level: "warn", detail: "Thiếu khung ngày của ít nhất một bên." });
+    checks.push({ key: "time", label: t("libmeta.cc.lblTime"), level: "warn", detail: t("libmeta.cc.timeMissing") });
   } else if (ov > 0) {
-    checks.push({ key: "time", label: "Thời điểm chạy", level: "ok", detail: `Chồng lấn ${ov} ngày — cùng chịu một bối cảnh thị trường.` });
+    checks.push({ key: "time", label: t("libmeta.cc.lblTime"), level: "ok", detail: t("libmeta.cc.timeOverlap", { n: ov }) });
   } else {
-    checks.push({ key: "time", label: "Thời điểm chạy", level: "warn", detail: `Không chồng lấn ngày nào (${a.window?.from}→${a.window?.to} vs ${b.window?.from}→${b.window?.to}) — chênh lệch có thể đến từ mùa vụ, giá đấu hoặc cạnh tranh thay đổi, không hẳn do nội dung video.` });
+    checks.push({ key: "time", label: t("libmeta.cc.lblTime"), level: "warn", detail: t("libmeta.cc.timeNoOverlap", { a1: a.window?.from ?? "", a2: a.window?.to ?? "", b1: b.window?.from ?? "", b2: b.window?.to ?? "" }) });
   }
 
   // 5. Quy mô chi tiêu — chênh quá lớn thì bên tiêu ít có thể còn trong giai
@@ -627,11 +630,11 @@ export function assessComparability(a: CompareSide, b: CompareSide): Comparabili
   const [lo, hi] = [a.metrics.spend, b.metrics.spend].sort((x, y) => x - y);
   const ratio = lo > 0 ? hi / lo : Infinity;
   if (!Number.isFinite(ratio)) {
-    checks.push({ key: "spend", label: "Quy mô chi tiêu", level: "warn", detail: "Một bên chưa tiêu đồng nào." });
+    checks.push({ key: "spend", label: t("libmeta.cc.lblSpend"), level: "warn", detail: t("libmeta.cc.spendZero") });
   } else if (ratio <= 2) {
-    checks.push({ key: "spend", label: "Quy mô chi tiêu", level: "ok", detail: `Lệch ${ratio.toFixed(1)} lần — chấp nhận được.` });
+    checks.push({ key: "spend", label: t("libmeta.cc.lblSpend"), level: "ok", detail: t("libmeta.cc.spendOk", { r: ratio.toFixed(1) }) });
   } else {
-    checks.push({ key: "spend", label: "Quy mô chi tiêu", level: "warn", detail: `Lệch tới ${ratio.toFixed(1)} lần — bên tiêu ít hơn có thể chưa qua giai đoạn học máy nên số chưa ổn định.` });
+    checks.push({ key: "spend", label: t("libmeta.cc.lblSpend"), level: "warn", detail: t("libmeta.cc.spendWarn", { r: ratio.toFixed(1) }) });
   }
 
   // 6. Nội dung — điều đầu tiên phải biết mà bảng này từng KHÔNG nói.
@@ -645,25 +648,25 @@ export function assessComparability(a: CompareSide, b: CompareSide): Comparabili
     // Ở cấp chiến dịch, gộp nhiều video vào một con số thì con số đó nói về
     // CHIẾN DỊCH, không nói về video nào cả. Phải chặn cách đọc sai này ngay.
     checks.push({
-      key: "creative", label: "Nội dung quảng cáo", level: "warn",
-      detail: `${mixedSides.map((s) => `"${s.adName}" chứa ${s.videoCount} video khác nhau`).join("; ")} — số liệu gộp lại trả lời "chiến dịch nào hiệu quả hơn", KHÔNG trả lời "video nào hay hơn". Muốn so video thì chuyển sang so ở cấp creative.`,
+      key: "creative", label: t("libmeta.cc.lblCreative"), level: "warn",
+      detail: t("libmeta.cc.crMixedDetail", { list: mixedSides.map((s) => t("libmeta.cc.crMixed", { name: s.adName, n: s.videoCount ?? 0 })).join("; ") }),
     });
   } else if (sameVideo || sameCreative) {
     checks.push({
-      key: "creative", label: "Nội dung quảng cáo", level: "warn",
-      detail: `Hai bên dùng CÙNG một ${sameVideo ? "video" : "nội dung"} — vậy đây là phép so TỆP ĐỐI TƯỢNG / cách phân phối, KHÔNG phải so nội dung. Đừng dùng bảng này để kết luận video nào hay hơn.`,
+      key: "creative", label: t("libmeta.cc.lblCreative"), level: "warn", code: "same_content",
+      detail: t("libmeta.cc.crSame", { what: sameVideo ? t("libmeta.cc.crSameVideo") : t("libmeta.cc.crSameContent") }),
     });
   } else if (a.videoId && b.videoId) {
-    checks.push({ key: "creative", label: "Nội dung quảng cáo", level: "ok", detail: "Hai video khác nhau — so nội dung được." });
+    checks.push({ key: "creative", label: t("libmeta.cc.lblCreative"), level: "ok", detail: t("libmeta.cc.crDifferent") });
   } else {
-    checks.push({ key: "creative", label: "Nội dung quảng cáo", level: "warn", detail: "Không đọc được mã video của ít nhất một bên, nên không khẳng định được hai bên khác nội dung hay dùng chung một nội dung." });
+    checks.push({ key: "creative", label: t("libmeta.cc.lblCreative"), level: "warn", detail: t("libmeta.cc.crUnreadable") });
   }
 
   // 7. Định dạng — hook/hold chỉ có nghĩa khi cả hai đều là video.
   if (a.isVideo && b.isVideo) {
-    checks.push({ key: "format", label: "Định dạng", level: "ok", detail: "Cả hai đều là video — so được tỷ lệ giữ chân người xem." });
+    checks.push({ key: "format", label: t("libmeta.cc.lblFormat"), level: "ok", detail: t("libmeta.cc.fmtBothVideo") });
   } else {
-    checks.push({ key: "format", label: "Định dạng", level: "warn", detail: `${a.isVideo ? "Chỉ bên A" : b.isVideo ? "Chỉ bên B" : "Không bên nào"} là video — các chỉ số giữ chân người xem sẽ bị bỏ qua.` });
+    checks.push({ key: "format", label: t("libmeta.cc.lblFormat"), level: "warn", detail: t("libmeta.cc.fmtNotVideo", { who: a.isVideo ? t("libmeta.cc.fmtOnlyA") : b.isVideo ? t("libmeta.cc.fmtOnlyB") : t("libmeta.cc.fmtNone") }) });
   }
 
   return checks;
@@ -701,6 +704,7 @@ function makeVerdict(
   unit: MetricVerdict["unit"], lowerIsBetter: boolean,
   test?: { confidence: number; significant: boolean; enoughData: boolean },
   insufficientReason?: string,
+  t: TFunction = makeT("vi"),
 ): MetricVerdict {
   const base: MetricVerdict = {
     key, label, meaning, aValue, bValue, unit, lowerIsBetter,
@@ -710,10 +714,10 @@ function makeVerdict(
   };
 
   if (aValue === null || bValue === null) {
-    return { ...base, insufficientReason: insufficientReason ?? "Thiếu số liệu ở ít nhất một bên." };
+    return { ...base, insufficientReason: insufficientReason ?? t("libmeta.cc.vMissing") };
   }
   if (test && !test.enoughData) {
-    return { ...base, insufficientReason: insufficientReason ?? "Mẫu quá nhỏ để kết luận." };
+    return { ...base, insufficientReason: insufficientReason ?? t("libmeta.cc.vSmall") };
   }
   if (aValue === bValue) return { ...base, winner: "tie", deltaPercent: 0 };
 
@@ -729,7 +733,7 @@ function makeVerdict(
       ...base,
       winner: "tie",
       deltaPercent: Math.abs(delta),
-      insufficientReason: `Chỉ chênh ${Math.abs(delta).toFixed(0)}% và chỉ số này không kiểm định thống kê được — chưa đủ để coi là hơn kém.`,
+      insufficientReason: t("libmeta.cc.vNoTest", { d: Math.abs(delta).toFixed(0) }),
     };
   }
 
@@ -738,79 +742,81 @@ function makeVerdict(
       ...base,
       winner: "unknown",
       deltaPercent: delta === null ? null : Math.abs(delta),
-      insufficientReason: `Chênh lệch ${delta === null ? "" : Math.abs(delta).toFixed(0) + "% "}chưa đạt mức tin cậy 90% — vẫn có thể là ngẫu nhiên.`,
+      insufficientReason: t("libmeta.cc.vNotSig", { d: delta === null ? "" : Math.abs(delta).toFixed(0) + "% " }),
     };
   }
 
   return { ...base, winner: aBetter ? "a" : "b", deltaPercent: delta === null ? null : Math.abs(delta) };
 }
 
-export function buildVerdicts(a: CompareSide, b: CompareSide): MetricVerdict[] {
+export function buildVerdicts(a: CompareSide, b: CompareSide, t: TFunction = makeT("vi")): MetricVerdict[] {
   const verdicts: MetricVerdict[] = [];
+  const nl = t("libmeta.numLocale");
+  const mk = (key: string, label: string, meaning: string, aV: number | null, bV: number | null, unit: MetricVerdict["unit"], lower: boolean, test?: { confidence: number; significant: boolean; enoughData: boolean }, reason?: string) => makeVerdict(key, label, meaning, aV, bV, unit, lower, test, reason, t);
   const ma = a.metrics, mb = b.metrics;
 
   if (a.isVideo && b.isVideo && a.video && b.video) {
-    verdicts.push(makeVerdict(
-      "hookRate", "Tỷ lệ giữ chân 3 giây đầu",
-      "Bao nhiêu người nhìn thấy quảng cáo thì dừng lướt lại xem. Đo sức hút của mấy giây mở đầu.",
+    verdicts.push(mk(
+      "hookRate", t("libmeta.cc.vm.hookRate"),
+      t("libmeta.cc.vm.hookRate.m"),
       a.video.hookRate, b.video.hookRate, "percent", false,
       twoProportionZTest(a.video.p25, ma.impressions, b.video.p25, mb.impressions, MIN_IMPRESSIONS),
-      `Cần tối thiểu ${MIN_IMPRESSIONS.toLocaleString("vi-VN")} lượt hiển thị mỗi bên.`
+      t("libmeta.cc.vm.min.impr", { n: MIN_IMPRESSIONS.toLocaleString(nl) })
     ));
-    verdicts.push(makeVerdict(
-      "holdRate", "Tỷ lệ xem hết (ThruPlay)",
-      "Trong số người đã dừng lại xem, bao nhiêu người xem tới 15 giây hoặc hết video. Đo sức giữ của nội dung.",
+    verdicts.push(mk(
+      "holdRate", t("libmeta.cc.vm.holdRate"),
+      t("libmeta.cc.vm.holdRate.m"),
       a.video.holdRate, b.video.holdRate, "percent", false,
       twoProportionZTest(a.video.thruplay, a.video.p25, b.video.thruplay, b.video.p25, MIN_P25),
-      `Cần tối thiểu ${MIN_P25} lượt xem 25% mỗi bên.`
+      t("libmeta.cc.vm.min.p25", { n: MIN_P25 })
     ));
-    verdicts.push(makeVerdict(
-      "completionRate", "Tỷ lệ xem trọn video",
-      "Trong số người đã dừng lại xem, bao nhiêu người xem đến giây cuối.",
+    verdicts.push(mk(
+      "completionRate", t("libmeta.cc.vm.completionRate"),
+      t("libmeta.cc.vm.completionRate.m"),
       a.video.completionRate, b.video.completionRate, "percent", false,
       twoProportionZTest(a.video.p100, a.video.p25, b.video.p100, b.video.p25, MIN_P25),
-      `Cần tối thiểu ${MIN_P25} lượt xem 25% mỗi bên.`
+      t("libmeta.cc.vm.min.p25", { n: MIN_P25 })
     ));
   }
 
-  verdicts.push(makeVerdict(
-    "ctr", "Tỷ lệ nhấp (CTR)",
-    "Bao nhiêu người nhìn thấy thì bấm vào. Đo mức độ video thuyết phục người ta hành động.",
+  verdicts.push(mk(
+    "ctr", t("libmeta.cc.vm.ctr"),
+    t("libmeta.cc.vm.ctr.m"),
     ma.ctr || null, mb.ctr || null, "percent", false,
     twoProportionZTest(ma.clicks, ma.impressions, mb.clicks, mb.impressions, MIN_IMPRESSIONS),
-    `Cần tối thiểu ${MIN_IMPRESSIONS.toLocaleString("vi-VN")} lượt hiển thị mỗi bên.`
+    t("libmeta.cc.vm.min.impr", { n: MIN_IMPRESSIONS.toLocaleString(nl) })
   ));
 
-  verdicts.push(makeVerdict(
-    "cvr", "Tỷ lệ chuyển đổi trên click",
-    "Trong số người đã bấm vào, bao nhiêu người thực hiện hành động mục tiêu.",
+  verdicts.push(mk(
+    "cvr", t("libmeta.cc.vm.cvr"),
+    t("libmeta.cc.vm.cvr.m"),
     ma.cvr, mb.cvr, "percent", false,
     twoProportionZTest(ma.conversions, ma.clicks, mb.conversions, mb.clicks, MIN_CLICKS),
-    `Cần tối thiểu ${MIN_CLICKS} lượt click mỗi bên.`
+    t("libmeta.cc.vm.min.clicks", { n: MIN_CLICKS })
   ));
 
   const enoughConv = ma.conversions >= MIN_CONVERSIONS_FOR_CPA && mb.conversions >= MIN_CONVERSIONS_FOR_CPA;
-  verdicts.push(makeVerdict(
-    "cpa", "Chi phí mỗi kết quả",
-    "Trung bình tốn bao nhiêu tiền để có một kết quả. Đây là chỉ số quyết định về mặt tiền bạc.",
+  verdicts.push(mk(
+    "cpa", t("libmeta.cc.vm.cpa"),
+    t("libmeta.cc.vm.cpa.m"),
     ma.cpa, mb.cpa, "currency", true,
     enoughConv ? undefined : { confidence: 0, significant: false, enoughData: false },
-    `Cần tối thiểu ${MIN_CONVERSIONS_FOR_CPA} kết quả mỗi bên (hiện có ${ma.conversions} và ${mb.conversions}).`
+    t("libmeta.cc.vm.min.conv", { n: MIN_CONVERSIONS_FOR_CPA, a: ma.conversions, b: mb.conversions })
   ));
 
-  verdicts.push(makeVerdict(
-    "cpm", "Chi phí mỗi 1.000 lượt hiển thị",
-    "Giá mua sự chú ý. Chênh lệch lớn thường do đấu giá/thời điểm chứ không do nội dung.",
+  verdicts.push(mk(
+    "cpm", t("libmeta.cc.vm.cpm"),
+    t("libmeta.cc.vm.cpm.m"),
     ma.cpm || null, mb.cpm || null, "currency", true
   ));
 
   if (ma.roas !== null || mb.roas !== null) {
-    verdicts.push(makeVerdict(
-      "roas", "Doanh thu trên chi phí (ROAS)",
-      "Một đồng quảng cáo mang về mấy đồng doanh thu.",
+    verdicts.push(mk(
+      "roas", t("libmeta.cc.vm.roas"),
+      t("libmeta.cc.vm.roas.m"),
       ma.roas, mb.roas, "ratio", false,
       enoughConv ? undefined : { confidence: 0, significant: false, enoughData: false },
-      `Cần tối thiểu ${MIN_CONVERSIONS_FOR_CPA} kết quả có giá trị tiền ở mỗi bên.`
+      t("libmeta.cc.vm.min.convValue", { n: MIN_CONVERSIONS_FOR_CPA })
     ));
   }
 
@@ -823,13 +829,13 @@ export function buildVerdicts(a: CompareSide, b: CompareSide): MetricVerdict[] {
 
 const LEVEL_RANK: Record<ComparabilityLevel, number> = { ok: 0, warn: 1, blocked: 2 };
 
-export function buildComparison(a: CompareSide, b: CompareSide): CompareResult {
-  const comparability = assessComparability(a, b);
+export function buildComparison(a: CompareSide, b: CompareSide, t: TFunction = makeT("vi")): CompareResult {
+  const comparability = assessComparability(a, b, t);
   const comparabilityLevel = comparability.reduce<ComparabilityLevel>(
     (worst, c) => (LEVEL_RANK[c.level] > LEVEL_RANK[worst] ? c.level : worst),
     "ok"
   );
-  const verdicts = buildVerdicts(a, b);
+  const verdicts = buildVerdicts(a, b, t);
   const warnings = [...a.notes, ...b.notes];
 
   const nameOf = (side: "a" | "b") => (side === "a" ? a.adName : b.adName);
@@ -845,14 +851,14 @@ export function buildComparison(a: CompareSide, b: CompareSide): CompareResult {
   let summary: string;
   if (comparability.some((c) => c.level === "blocked")) {
     const blocked = comparability.filter((c) => c.level === "blocked").map((c) => c.label.toLowerCase());
-    summary = `Chưa nên kết luận: hai bên khác nhau ở ${blocked.join(" và ")}, nên các con số không đặt cạnh nhau được. Muốn so cho ra ngô ra khoai, hãy chạy lại hai video trong cùng một ad set (cùng tệp, cùng mục tiêu, cùng thời gian).`;
+    summary = t("libmeta.cc.sumBlocked", { list: blocked.join(t("libmeta.cc.listAnd")) });
   } else if (!decisive) {
     const closest = verdicts.find((v) => v.deltaPercent !== null && v.winner === "unknown");
-    summary = `Chưa đủ căn cứ để chọn video nào. ${closest?.insufficientReason ?? "Các chênh lệch hiện có đều nằm trong khoảng có thể do ngẫu nhiên."} Cần chạy thêm để tích đủ dữ liệu, hoặc cho hai video chạy song song trong cùng một ad set.`;
+    summary = t("libmeta.cc.sumNoDecisive", { reason: closest?.insufficientReason ?? t("libmeta.cc.sumRandom") });
   } else {
     const winnerName = nameOf(decisive.winner as "a" | "b");
-    const delta = decisive.deltaPercent !== null ? ` (${decisive.deltaPercent.toFixed(0)}% ${decisive.lowerIsBetter ? "rẻ hơn" : "cao hơn"})` : "";
-    const conf = decisive.confidence !== null ? `, độ tin cậy ${decisive.confidence}%` : "";
+    const delta = decisive.deltaPercent !== null ? t("libmeta.cc.sumDelta", { d: decisive.deltaPercent.toFixed(0), dir: decisive.lowerIsBetter ? t("libmeta.cc.sumCheaper") : t("libmeta.cc.sumHigher") }) : "";
+    const conf = decisive.confidence !== null ? t("libmeta.cc.sumConf", { c: decisive.confidence }) : "";
 
     // Hai thước đo tiền có thể chỉ về hai hướng NGƯỢC NHAU: rẻ hơn mỗi kết quả
     // (CPA) không có nghĩa là mang về nhiều tiền hơn mỗi đồng bỏ ra (ROAS) —
@@ -868,21 +874,19 @@ export function buildComparison(a: CompareSide, b: CompareSide): CompareResult {
       (roasV.winner === "a" || roasV.winner === "b") &&
       cpaV.winner !== roasV.winner
     ) {
-      conflict =
-        ` ⚠️ Nhưng hai thước đo tiền đang nói ngược nhau: “${nameOf(cpaV.winner as "a" | "b")}” rẻ hơn mỗi kết quả, còn “${nameOf(roasV.winner as "a" | "b")}” lại mang về nhiều doanh thu hơn trên mỗi đồng chi (ROAS ${roasV.aValue?.toFixed(1)}x vs ${roasV.bValue?.toFixed(1)}x).` +
-        ` Nếu bạn tính theo doanh thu thì chọn theo ROAS, còn nếu tính theo số đơn/số khách thì chọn theo chi phí mỗi kết quả — bảng này không tự quyết thay bạn được.`;
+      conflict = t("libmeta.cc.sumConflict", { cpaWin: nameOf(cpaV.winner as "a" | "b"), roasWin: nameOf(roasV.winner as "a" | "b"), ra: roasV.aValue?.toFixed(1) ?? "", rb: roasV.bValue?.toFixed(1) ?? "" });
     }
 
     const caveat = comparabilityLevel === "warn"
-      ? " Lưu ý phần “Mức độ so sánh được” bên dưới — vẫn còn khác biệt về bối cảnh có thể góp phần vào chênh lệch này."
+      ? t("libmeta.cc.sumCaveat")
       : "";
-    summary = `“${winnerName}” đang nhỉnh hơn, xét theo ${decisive.label.toLowerCase()}${delta}${conf}.${conflict}${caveat}`;
+    summary = t("libmeta.cc.sumWinner", { name: winnerName, metric: decisive.label.toLowerCase(), delta, conf, conflict, caveat });
   }
 
   return {
     a, b, comparability, comparabilityLevel, verdicts, summary,
     decidedBy: decisive?.key ?? null,
-    recommendations: buildRecommendations(a, b, verdicts, comparability),
+    recommendations: buildRecommendations(a, b, verdicts, comparability, t),
     warnings,
   };
 }
@@ -931,17 +935,20 @@ export function requiredSamplePerSide(p1: number, p2: number): number | null {
   return Math.ceil(n);
 }
 
-const fmtInt = (n: number) => Math.round(n).toLocaleString("vi-VN");
+const fmtIntL = (n: number, t: TFunction) => Math.round(n).toLocaleString(t("libmeta.numLocale"));
 const fmtPct = (n: number | null) => (n === null ? "—" : `${n.toFixed(2)}%`);
-const fmtVnd = (n: number | null) => (n === null ? "—" : `₫${Math.round(n).toLocaleString("vi-VN")}`);
+const fmtVndL = (n: number | null, t: TFunction) => (n === null ? "—" : `₫${Math.round(n).toLocaleString(t("libmeta.numLocale"))}`);
 
 export function buildRecommendations(
   a: CompareSide,
   b: CompareSide,
   verdicts: MetricVerdict[],
   comparability: ComparabilityCheck[],
+  t: TFunction = makeT("vi"),
 ): CompareRecommendation[] {
   const recs: CompareRecommendation[] = [];
+  const fmtInt = (n: number) => fmtIntL(n, t);
+  const fmtVnd = (n: number | null) => fmtVndL(n, t);
   const v = (k: string) => verdicts.find((x) => x.key === k);
   const nameOf = (s: "a" | "b") => (s === "a" ? a.adName : b.adName);
 
@@ -950,18 +957,18 @@ export function buildRecommendations(
   if (blocked.length > 0) {
     recs.push({
       key: "run-clean-test", priority: 1,
-      title: "Chạy lại một phép so sạch trước khi tin bất kỳ con số nào",
-      evidence: `Hai bên đang khác nhau ở ${blocked.map((c) => c.label.toLowerCase()).join(" và ")}.`,
-      action: "Đưa hai video vào CÙNG một ad set (cùng tệp, cùng mục tiêu, cùng ngân sách, cùng khoảng thời gian), để Meta tự chia lượt hiển thị. Đó là cách duy nhất tách được ảnh hưởng của nội dung khỏi ảnh hưởng của tệp.",
+      title: t("libmeta.cc.r.clean.title"),
+      evidence: t("libmeta.cc.r.clean.ev", { list: blocked.map((c) => c.label.toLowerCase()).join(t("libmeta.cc.listAnd")) }),
+      action: t("libmeta.cc.r.clean.act"),
     });
   }
-  const sameCreative = comparability.find((c) => c.key === "creative" && c.level === "warn" && c.detail.includes("CÙNG"));
+  const sameCreative = comparability.find((c) => c.key === "creative" && c.level === "warn" && c.code === "same_content");
   if (sameCreative) {
     recs.push({
       key: "same-creative", priority: 1,
-      title: "Bảng này đang KHÔNG so nội dung",
-      evidence: "Hai bên dùng chung một video, chỉ khác tệp đối tượng.",
-      action: "Muốn biết video nào ăn hơn thì phải có hai video KHÁC nhau. Còn muốn biết tệp nào ăn hơn thì bảng này đang trả lời đúng — chỉ cần đọc nó theo nghĩa đó.",
+      title: t("libmeta.cc.r.same.title"),
+      evidence: t("libmeta.cc.r.same.ev"),
+      action: t("libmeta.cc.r.same.act"),
     });
   }
 
@@ -976,16 +983,16 @@ export function buildRecommendations(
     if (need && need > have) {
       recs.push({
         key: "need-more-data", priority: 2,
-        title: "Cần chạy thêm mới kết luận được về tỷ lệ nhấp",
-        evidence: `CTR hiện ${fmtPct(a.metrics.ctr)} vs ${fmtPct(b.metrics.ctr)}. Với khoảng cách nhỏ như vậy, cần khoảng ${fmtInt(need)} lượt hiển thị mỗi bên mới phân biệt được thật hay ngẫu nhiên; bên ít hơn mới có ${fmtInt(have)}.`,
-        action: `Chạy tiếp tới khi mỗi bên đạt ~${fmtInt(need)} lượt hiển thị, hoặc chấp nhận rằng hai video ngang nhau ở chỉ số này và chọn theo tiêu chí khác.`,
+        title: t("libmeta.cc.r.more.title"),
+        evidence: t("libmeta.cc.r.more.ev", { a: fmtPct(a.metrics.ctr), b: fmtPct(b.metrics.ctr), need: fmtInt(need), have: fmtInt(have) }),
+        action: t("libmeta.cc.r.more.act", { need: fmtInt(need) }),
       });
     } else if (need) {
       recs.push({
         key: "ctr-equal", priority: 4,
-        title: "Hai video ngang nhau về tỷ lệ nhấp",
-        evidence: `CTR ${fmtPct(a.metrics.ctr)} vs ${fmtPct(b.metrics.ctr)}, đã đủ mẫu nhưng chênh lệch không đạt mức tin cậy 90%.`,
-        action: "Đừng chọn video dựa trên CTR ở đây. Chọn theo chi phí mỗi kết quả hoặc ROAS.",
+        title: t("libmeta.cc.r.ctrEq.title"),
+        evidence: t("libmeta.cc.r.ctrEq.ev", { a: fmtPct(a.metrics.ctr), b: fmtPct(b.metrics.ctr) }),
+        action: t("libmeta.cc.r.ctrEq.act"),
       });
     }
   }
@@ -998,33 +1005,33 @@ export function buildRecommendations(
     if (hook !== null && hook < REF_HOOK_RATE_WEAK) {
       recs.push({
         key: `hook-${side}`, priority: 2,
-        title: `“${s.adName}”: mất người xem ngay 3 giây đầu`,
-        evidence: `Chỉ ${fmtPct(hook)} người nhìn thấy quảng cáo dừng lại xem (mốc tham chiếu ~${REF_HOOK_RATE_WEAK}%).`,
-        action: "Sửa 3 giây mở đầu: đưa vấn đề/lợi ích lên ngay khung hình đầu, bỏ intro thương hiệu, thêm chữ lớn trên hình vì phần lớn người xem tắt tiếng.",
+        title: t("libmeta.cc.r.hook.title", { name: s.adName }),
+        evidence: t("libmeta.cc.r.hook.ev", { pct: fmtPct(hook), ref: REF_HOOK_RATE_WEAK }),
+        action: t("libmeta.cc.r.hook.act"),
       });
     } else if (hook !== null && hold !== null && hold < REF_HOLD_RATE_WEAK) {
       recs.push({
         key: `hold-${side}`, priority: 3,
-        title: `“${s.adName}”: vào đề tốt nhưng thân video rớt người xem`,
-        evidence: `Giữ chân 3 giây đầu đạt ${fmtPct(hook)} nhưng chỉ ${fmtPct(hold)} trong số đó xem tới ThruPlay.`,
-        action: "Cắt ngắn đoạn giữa, dồn thông tin quan trọng lên sớm hơn, hoặc cắt hẳn thành phiên bản ngắn dưới 15 giây.",
+        title: t("libmeta.cc.r.hold.title", { name: s.adName }),
+        evidence: t("libmeta.cc.r.hold.ev", { hook: fmtPct(hook), hold: fmtPct(hold) }),
+        action: t("libmeta.cc.r.hold.act"),
       });
     }
     if (s.metrics.frequency >= REF_FREQUENCY_HIGH) {
       recs.push({
         key: `freq-${side}`, priority: 2,
-        title: `“${s.adName}”: một người đang thấy quảng cáo quá nhiều lần`,
-        evidence: `Tần suất ${s.metrics.frequency.toFixed(1)} lần/người (mốc tham chiếu ${REF_FREQUENCY_HIGH}).`,
-        action: "Đổi nội dung mới hoặc mở rộng tệp. Chạy tiếp cùng một video trên cùng một tệp chỉ làm chi phí tăng dần.",
+        title: t("libmeta.cc.r.freq.title", { name: s.adName }),
+        evidence: t("libmeta.cc.r.freq.ev", { f: s.metrics.frequency.toFixed(1), ref: REF_FREQUENCY_HIGH }),
+        action: t("libmeta.cc.r.freq.act"),
       });
     }
     // CTR tốt mà chuyển đổi kém ⇒ nút thắt nằm SAU cú nhấp, không phải ở video.
     if (s.metrics.ctr >= REF_CTR_DECENT && s.metrics.cvr !== null && s.metrics.cvr < 5 && s.metrics.clicks >= MIN_CLICKS) {
       recs.push({
         key: `landing-${side}`, priority: 2,
-        title: `“${s.adName}”: video kéo được người bấm, nhưng rơi ở trang đích`,
-        evidence: `CTR ${fmtPct(s.metrics.ctr)} là ổn, nhưng chỉ ${fmtPct(s.metrics.cvr)} người đã bấm thực hiện hành động mục tiêu (${fmtInt(s.metrics.clicks)} lượt bấm → ${fmtInt(s.metrics.conversions)} kết quả).`,
-        action: "Vấn đề nằm ở trang đích/chào giá chứ không phải video: kiểm tốc độ tải trên điện thoại, xem lời hứa trong quảng cáo có khớp trang đích không, rút gọn biểu mẫu.",
+        title: t("libmeta.cc.r.landing.title", { name: s.adName }),
+        evidence: t("libmeta.cc.r.landing.ev", { ctr: fmtPct(s.metrics.ctr), cvr: fmtPct(s.metrics.cvr), clicks: fmtInt(s.metrics.clicks), conv: fmtInt(s.metrics.conversions) }),
+        action: t("libmeta.cc.r.landing.act"),
       });
     }
   }
@@ -1036,18 +1043,18 @@ export function buildRecommendations(
   if (conflict && cpa && roas) {
     recs.push({
       key: "money-conflict", priority: 1,
-      title: "Hai thước đo tiền đang chỉ về hai hướng — phải chọn thước đo trước",
-      evidence: `“${nameOf(cpa.winner as "a" | "b")}” rẻ hơn mỗi kết quả (${fmtVnd(cpa.aValue)} vs ${fmtVnd(cpa.bValue)}), nhưng “${nameOf(roas.winner as "a" | "b")}” mang về nhiều doanh thu hơn trên mỗi đồng chi (${roas.aValue?.toFixed(1)}x vs ${roas.bValue?.toFixed(1)}x).`,
-      action: "Nếu mục tiêu là doanh thu/lợi nhuận thì theo ROAS. Nếu mục tiêu là số khách hàng mới hoặc đang muốn phủ thị trường thì theo chi phí mỗi kết quả. Chốt thước đo trước, rồi mới chọn video.",
+      title: t("libmeta.cc.r.conflict.title"),
+      evidence: t("libmeta.cc.r.conflict.ev", { cpaWin: nameOf(cpa.winner as "a" | "b"), ca: fmtVnd(cpa.aValue), cb: fmtVnd(cpa.bValue), roasWin: nameOf(roas.winner as "a" | "b"), ra: roas.aValue?.toFixed(1) ?? "", rb: roas.bValue?.toFixed(1) ?? "" }),
+      action: t("libmeta.cc.r.conflict.act"),
     });
   } else if (moneyWinner) {
     const w = moneyWinner.winner as "a" | "b";
     const l = w === "a" ? "b" : "a";
     recs.push({
       key: "scale-winner", priority: 1,
-      title: `Dồn ngân sách cho “${nameOf(w)}”`,
-      evidence: `${moneyWinner.label} ${moneyWinner.deltaPercent !== null ? `tốt hơn ${moneyWinner.deltaPercent.toFixed(0)}%` : "tốt hơn"}${moneyWinner.confidence !== null ? `, độ tin cậy ${moneyWinner.confidence}%` : ""}.`,
-      action: `Tăng ngân sách bên thắng từng bước ~20-30% mỗi lần, chờ 3-4 ngày giữa các lần để Meta học lại. Giảm dần hoặc tắt “${nameOf(l)}”, đừng tắt đột ngột cả cụm nếu nó đang là nguồn kết quả đáng kể.`,
+      title: t("libmeta.cc.r.scale.title", { name: nameOf(w) }),
+      evidence: t("libmeta.cc.r.scale.ev", { label: moneyWinner.label, better: moneyWinner.deltaPercent !== null ? t("libmeta.cc.r.scale.betterPct", { d: moneyWinner.deltaPercent.toFixed(0) }) : t("libmeta.cc.r.scale.better"), conf: moneyWinner.confidence !== null ? t("libmeta.cc.sumConf", { c: moneyWinner.confidence }) : "" }),
+      action: t("libmeta.cc.r.scale.act", { loser: nameOf(l) }),
     });
   }
 
@@ -1055,9 +1062,9 @@ export function buildRecommendations(
   if (recs.length === 0) {
     recs.push({
       key: "nothing-actionable", priority: 5,
-      title: "Chưa có việc gì đáng làm gấp từ bảng này",
-      evidence: "Không chỉ số nào chênh đủ để kết luận, và không chỉ số nào rơi dưới mốc tham chiếu.",
-      action: "Giữ nguyên cả hai và chạy thêm, hoặc thử một biến thể khác hẳn (góc tiếp cận mới, độ dài khác) thay vì tinh chỉnh quanh hai video hiện có.",
+      title: t("libmeta.cc.r.none.title"),
+      evidence: t("libmeta.cc.r.none.ev"),
+      action: t("libmeta.cc.r.none.act"),
     });
   }
 

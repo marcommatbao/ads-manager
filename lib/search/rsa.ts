@@ -18,6 +18,8 @@ import { PmaxControlError } from "@/lib/pmax/controls"
 import { geminiRewrite, vetOption, WEAK_CTR_X, WEAK_MIN_IMPR, WEAK_MIN_SHARE, type TextType } from "@/lib/pmax/assets"
 import type { PolicyFinding } from "@/lib/google-ads-policy"
 import { SEARCH_CONFIRM_TEXT } from "./controls"
+import type { TFunction } from "@/lib/i18n/translate"
+import { viT, nfOf } from "@/lib/google-i18n"
 
 type Row = Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
 const inv = (e: unknown) => Object.fromEntries(Object.entries(e as Record<string, unknown>).filter(([, v]) => typeof v === "number").map(([k, v]) => [v as number, k])) as Record<number, string>
@@ -30,7 +32,7 @@ export interface RsaAd {
 }
 
 /** Dòng yếu trong MỘT quảng cáo — HÀM THUẦN (cùng ngưỡng với asset PMax). */
-export function weakLines(lines: RsaLine[]): (RsaLine & { why: string })[] {
+export function weakLines(lines: RsaLine[], t: TFunction = viT): (RsaLine & { why: string })[] {
   const out: (RsaLine & { why: string })[] = []
   for (const f of ["HEADLINE", "DESCRIPTION"] as const) {
     const xs = lines.filter((l) => l.field === f && l.impressions > 0)
@@ -42,13 +44,13 @@ export function weakLines(lines: RsaLine[]): (RsaLine & { why: string })[] {
     for (const l of rated) {
       const ctr = l.clicks / l.impressions
       if (ctr >= WEAK_CTR_X * med || l.impressions < WEAK_MIN_SHARE * total) continue
-      out.push({ ...l, why: `${f === "HEADLINE" ? "Tiêu đề" : "Mô tả"} hiển thị ${l.impressions.toLocaleString("vi-VN")} lần, tỉ lệ bấm ${(ctr * 100).toFixed(2)}% < ${Math.round(WEAK_CTR_X * 100)}% mức giữa (${(med * 100).toFixed(2)}%)` })
+      out.push({ ...l, why: t("libgoogle.rsa.weakWhy", { kind: f === "HEADLINE" ? t("libgoogle.rsa.kindHeadline") : t("libgoogle.rsa.kindDesc"), impr: l.impressions.toLocaleString(nfOf(t)), ctr: (ctr * 100).toFixed(2), x: Math.round(WEAK_CTR_X * 100), med: (med * 100).toFixed(2) }) })
     }
   }
   return out.sort((a, b) => b.impressions - a.impressions)
 }
 
-export async function readRsa(company: Company, range: { from: string; to: string }): Promise<{ ads: RsaAd[]; errors: string[] }> {
+export async function readRsa(company: Company, range: { from: string; to: string }, t: TFunction = viT): Promise<{ ads: RsaAd[]; errors: string[] }> {
   const c = getGoogleAdsCustomer(company)
   const errors: string[] = []
   const q = async (label: string, g: string): Promise<Row[]> => { try { return (await c.query(g)) as Row[] } catch (e) { errors.push(`${label}: ${googleAdsErrorMessage(e)}`); return [] } }
@@ -72,17 +74,17 @@ export async function readRsa(company: Company, range: { from: string; to: strin
     const ls = [...mk("HEADLINE", rsa.headlines), ...mk("DESCRIPTION", rsa.descriptions)]
     return { ad: String(r.ad_group_ad.ad.resource_name), adGroupAd: aga, campaignId: String(r.campaign.id), campaignName: String(r.campaign.name), adGroup: String(r.ad_group.name),
       adStrength: AS[r.ad_group_ad.ad_strength] ?? String(r.ad_group_ad.ad_strength), approval: APPROVAL[r.ad_group_ad.policy_summary?.approval_status] ?? "", finalUrl: String(r.ad_group_ad.ad.final_urls?.[0] ?? ""),
-      cost: (Number(r.metrics.cost_micros) || 0) / 1e6, impressions: Number(r.metrics.impressions) || 0, lines: ls, weak: weakLines(ls) }
+      cost: (Number(r.metrics.cost_micros) || 0) / 1e6, impressions: Number(r.metrics.impressions) || 0, lines: ls, weak: weakLines(ls, t) }
   }).sort((a, b) => b.cost - a.cost)
   return { ads: out, errors }
 }
 
-export async function draftRsa(company: Company, ad: string, texts: { field: "HEADLINE" | "DESCRIPTION"; text: string }[], range: { from: string; to: string }): Promise<{ items: { field: TextType; oldText: string; options: { text: string; findings: PolicyFinding[] }[]; rejected: string[] }[] }> {
-  const { ads } = await readRsa(company, range)
+export async function draftRsa(company: Company, ad: string, texts: { field: "HEADLINE" | "DESCRIPTION"; text: string }[], range: { from: string; to: string }, t: TFunction = viT): Promise<{ items: { field: TextType; oldText: string; options: { text: string; findings: PolicyFinding[] }[]; rejected: string[] }[] }> {
+  const { ads } = await readRsa(company, range, t)
   const a = ads.find((x) => x.ad === ad)
-  if (!a) throw new PmaxControlError("Không thấy quảng cáo", 404)
-  const targets = texts.filter((t) => a.lines.some((l) => l.field === t.field && l.text === t.text)).slice(0, 10)
-  if (!targets.length) throw new PmaxControlError("Chưa chọn dòng nào")
+  if (!a) throw new PmaxControlError(t("libgoogle.rsa.errNoAd"), 404)
+  const targets = texts.filter((x) => a.lines.some((l) => l.field === x.field && l.text === x.text)).slice(0, 10)
+  if (!targets.length) throw new PmaxControlError(t("libgoogle.rsa.errNoLine"))
   const strong = (f: "HEADLINE" | "DESCRIPTION") => a.lines.filter((l) => l.field === f && l.ctr != null && l.impressions >= WEAK_MIN_IMPR).sort((x, y) => (y.ctr ?? 0) - (x.ctr ?? 0)).slice(0, 5).map((l) => l.text)
   const r = await geminiRewrite({ company, kind: "Search (quảng cáo tìm kiếm thích ứng)", context: `Nhóm quảng cáo "${a.adGroup}" (chiến dịch "${a.campaignName}") — trang đích: ${a.finalUrl || "(không rõ)"}`,
     strong: { HEADLINE: strong("HEADLINE"), DESCRIPTION: strong("DESCRIPTION") }, targets: targets.map((t) => ({ field: t.field, text: t.text })), existing: a.lines.map((l) => l.text) })
@@ -97,58 +99,58 @@ function readLog(): RsaEdit[] { try { return JSON.parse(fs.readFileSync(FILE, "u
 function writeLog(l: RsaEdit[]) { fs.mkdirSync(path.dirname(FILE), { recursive: true }); writeFileAtomicSync(FILE, JSON.stringify(l.slice(-300), null, 1)) }
 export const listRsaEdits = (co: Company) => readLog().filter((e) => e.company === co).reverse().slice(0, 30)
 
-async function readAd(company: Company, ad: string) {
+async function readAd(company: Company, ad: string, tr: TFunction = viT) {
   const [r] = (await getGoogleAdsCustomer(company).query(`SELECT ad_group.name, ad_group_ad.ad.resource_name, ad_group_ad.ad.responsive_search_ad.headlines, ad_group_ad.ad.responsive_search_ad.descriptions FROM ad_group_ad WHERE ad_group_ad.ad.resource_name = '${ad.replace(/'/g, "")}' AND campaign.advertising_channel_type = 'SEARCH'`)) as Row[]
-  if (!r) throw new PmaxControlError("Không thấy quảng cáo Search", 404)
+  if (!r) throw new PmaxControlError(tr("libgoogle.rsa.errNoAdSearch"), 404)
   const t = (xs: Row[] = []): TextAsset[] => xs.map((h) => ({ text: String(h.text), ...(h.pinned_field ? { pinned_field: Number(h.pinned_field) } : {}) }))
   return { name: String(r.ad_group.name), headlines: t(r.ad_group_ad.ad.responsive_search_ad?.headlines), descriptions: t(r.ad_group_ad.ad.responsive_search_ad?.descriptions) }
 }
 
 /** Thay đúng dòng, GIỮ ghim — HÀM THUẦN. Dòng cũ không còn (người khác đã sửa) → lỗi, không đoán. */
-export function applyChanges(cur: { headlines: TextAsset[]; descriptions: TextAsset[] }, changes: { field: string; oldText: string; newText: string }[]): { headlines: TextAsset[]; descriptions: TextAsset[]; errors: string[] } {
+export function applyChanges(cur: { headlines: TextAsset[]; descriptions: TextAsset[] }, changes: { field: string; oldText: string; newText: string }[], t: TFunction = viT): { headlines: TextAsset[]; descriptions: TextAsset[]; errors: string[] } {
   const h = cur.headlines.map((x) => ({ ...x })), d = cur.descriptions.map((x) => ({ ...x })), errors: string[] = []
   for (const ch of changes) {
     const arr = ch.field === "HEADLINE" ? h : d
     const i = arr.findIndex((x) => x.text === ch.oldText)
-    if (i < 0) { errors.push(`Không còn dòng "${ch.oldText}" trong quảng cáo — có thể đã bị sửa, tải lại`); continue }
-    const v = vetOption(ch.newText, ch.field as TextType, arr.filter((_, j) => j !== i).map((x) => x.text))
+    if (i < 0) { errors.push(t("libgoogle.rsa.errLineGone", { text: ch.oldText })); continue }
+    const v = vetOption(ch.newText, ch.field as TextType, arr.filter((_, j) => j !== i).map((x) => x.text), t)
     if (!v.ok) { errors.push(`"${ch.newText}": ${v.reason}`); continue }
     arr[i] = { ...arr[i], text: ch.newText.trim().replace(/\s+/g, " ") }
   }
   return { headlines: h, descriptions: d, errors }
 }
 
-export async function editRsa(input: { company: Company; ad: string; changes: { field: string; oldText: string; newText: string }[]; actor: string; validateOnly: boolean; confirmText?: string }): Promise<RsaEdit> {
-  if (!input.validateOnly && input.confirmText?.trim() !== SEARCH_CONFIRM_TEXT) throw new PmaxControlError(`Gõ đúng “${SEARCH_CONFIRM_TEXT}” để ghi lên tài khoản thật`)
-  if (!input.changes.length || input.changes.length > 10) throw new PmaxControlError("Sửa 1–10 dòng một lần")
+export async function editRsa(input: { company: Company; ad: string; changes: { field: string; oldText: string; newText: string }[]; actor: string; validateOnly: boolean; confirmText?: string }, t: TFunction = viT): Promise<RsaEdit> {
+  if (!input.validateOnly && input.confirmText?.trim() !== SEARCH_CONFIRM_TEXT) throw new PmaxControlError(t("libgoogle.sc.errConfirm", { text: SEARCH_CONFIRM_TEXT }))
+  if (!input.changes.length || input.changes.length > 10) throw new PmaxControlError(t("libgoogle.rsa.errRange"))
   const c = getGoogleAdsCustomer(input.company)
-  const cur = await readAd(input.company, input.ad)
-  const next = applyChanges(cur, input.changes)
+  const cur = await readAd(input.company, input.ad, t)
+  const next = applyChanges(cur, input.changes, t)
   const rec: RsaEdit = { id: `rsa_${Date.now().toString(36)}`, company: input.company, at: new Date().toISOString(), by: input.actor, ad: input.ad, label: cur.name, changes: input.changes, before: { headlines: cur.headlines, descriptions: cur.descriptions }, status: "failed", errors: next.errors }
   if (rec.errors.length) return rec
   const op = [{ resource_name: input.ad, responsive_search_ad: { headlines: next.headlines, descriptions: next.descriptions } }]
-  try { await c.ads.update(op as never, { validate_only: true } as never) } catch (e) { rec.errors.push(`Google từ chối khi kiểm — CHƯA sửa gì: ${googleAdsErrorMessage(e)}`); return rec }
+  try { await c.ads.update(op as never, { validate_only: true } as never) } catch (e) { rec.errors.push(t("libgoogle.rsa.errValidate", { msg: googleAdsErrorMessage(e) })); return rec }
   if (input.validateOnly) { rec.status = "done"; return rec }
   return withFileLock(FILE, async () => {
     try {
       await c.ads.update(op as never)
-      const after = await readAd(input.company, input.ad)
+      const after = await readAd(input.company, input.ad, t)
       const miss = input.changes.filter((ch) => !(ch.field === "HEADLINE" ? after.headlines : after.descriptions).some((x) => x.text === ch.newText.trim().replace(/\s+/g, " ")))
-      if (miss.length) rec.errors.push(`Đọc lại chưa thấy: ${miss.map((m) => m.newText).join(", ")}`)
-    } catch (e) { rec.errors.push(`Lỗi khi sửa — Google không đổi gì: ${googleAdsErrorMessage(e)}`) }
+      if (miss.length) rec.errors.push(t("libgoogle.rsa.errReadback", { list: miss.map((m) => m.newText).join(", ") }))
+    } catch (e) { rec.errors.push(t("libgoogle.rsa.errEdit", { msg: googleAdsErrorMessage(e) })) }
     rec.status = rec.errors.length ? "failed" : "done"
     writeLog([...readLog(), rec])
     return rec
   })
 }
 
-export async function undoRsa(company: Company, id: string): Promise<RsaEdit> {
+export async function undoRsa(company: Company, id: string, t: TFunction = viT): Promise<RsaEdit> {
   return withFileLock(FILE, async () => {
     const l = readLog()
     const r = l.find((x) => x.id === id && x.company === company)
-    if (!r || r.status !== "done") throw new PmaxControlError("Không tìm thấy lần sửa", 404)
-    if (r.undoneAt) throw new PmaxControlError("Đã hoàn tác rồi", 409)
-    try { await getGoogleAdsCustomer(company).ads.update([{ resource_name: r.ad, responsive_search_ad: r.before }] as never) } catch (e) { throw new PmaxControlError(`Chưa hoàn tác được: ${googleAdsErrorMessage(e)}`, 502) }
+    if (!r || r.status !== "done") throw new PmaxControlError(t("libgoogle.rsa.errNoEdit"), 404)
+    if (r.undoneAt) throw new PmaxControlError(t("libgoogle.rsa.errUndone"), 409)
+    try { await getGoogleAdsCustomer(company).ads.update([{ resource_name: r.ad, responsive_search_ad: r.before }] as never) } catch (e) { throw new PmaxControlError(t("libgoogle.rsa.errUndoGoogle", { msg: googleAdsErrorMessage(e) }), 502) }
     r.undoneAt = new Date().toISOString()
     writeLog(l)
     return r

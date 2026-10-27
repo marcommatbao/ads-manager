@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { vnd } from "@/components/case/format";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 
 export interface ProposalItem { id: string; label: string; campaignName?: string | null; why: string; warning?: string | null; cost: number | null }
 
@@ -19,6 +19,7 @@ const fold = (t: string) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/
 export function ProposalList({ proposals, checked, onToggle, canEdit }: {
   proposals: ProposalItem[]; checked: Record<string, boolean>; onToggle: (id: string) => void; canEdit: boolean;
 }) {
+  const intl = useIntlLocale();
   const t = useT();
   const [q, setQ] = useState("");
   const [onlyChecked, setOnlyChecked] = useState(false);
@@ -60,7 +61,7 @@ export function ProposalList({ proposals, checked, onToggle, canEdit }: {
               <span className="block text-slate-500">{p.why}</span>
               {p.warning && <span className="flex items-start gap-1 text-amber-700"><AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" /> {p.warning}</span>}
             </span>
-            {p.cost !== null && <span className="shrink-0 tabular-nums text-slate-500">{t("overview.proposal.costInPeriod", { cost: vnd(p.cost) })}</span>}
+            {p.cost !== null && <span className="shrink-0 tabular-nums text-slate-500">{t("overview.proposal.costInPeriod", { cost: vnd(p.cost, intl) })}</span>}
           </label>
         ))}
         {shown.length > limit && (

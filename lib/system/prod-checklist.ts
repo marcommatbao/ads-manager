@@ -1,3 +1,4 @@
+import { makeT, type TFunction } from "@/lib/i18n/translate"
 // ============================================================
 // Đợt 14e — Danh sách bấm thử trên PRODUCTION (user tự bấm: từ workspace không vào được app production — IP chặn)
 // ============================================================
@@ -17,3 +18,8 @@ export const PROD_CHECKLIST: CheckItem[] = [
   { id: "adsbot", area: "AdsBot", href: "/", steps: "Hỏi: \"PMax có tạo đơn thật không, thí nghiệm đang ra sao?\"", expect: "Trả lời có số (không trả rỗng), nhắc thí nghiệm Hà Nội." },
   { id: "mornings", area: "Báo sáng (Teams)", href: "/settings/health", steps: "Sáng hôm sau kiểm kênh Teams IT.", expect: "08:00 thẻ đường lead form ↔ CRM; 08:05 thẻ báo sáng hệ thống. Thiếu thẻ nào = báo lại." },
 ]
+
+/** Danh sách theo ngôn ngữ (PROD_CHECKLIST giữ tiếng Việt). */
+export function prodChecklist(t: TFunction = makeT("vi")): CheckItem[] {
+  return PROD_CHECKLIST.map((c) => ({ ...c, area: t(`libcase.r.pc.${c.id}.area` as never), steps: t(`libcase.r.pc.${c.id}.steps` as never), expect: t(`libcase.r.pc.${c.id}.expect` as never) }))
+}

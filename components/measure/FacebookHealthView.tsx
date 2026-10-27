@@ -12,7 +12,7 @@ import { Sparkline } from "@/components/measure/Sparkline";
 import { SourceTable } from "@/components/measure/SourceTable";
 import { MIN_LANDING_RATE, MIN_CLICKS_FOR_LANDING_RATE } from "@/lib/case/meta-thresholds";
 import { rangeDays } from "@/lib/case/dates";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import type { TFunction } from "@/lib/i18n/translate";
 import type { MetaHealth, OptEventHealth, PixelEventSeries, PixelHealth } from "@/lib/measure/meta-health";
 
@@ -54,6 +54,7 @@ function optEventBadge(opt: OptEventHealth, t: TFunction): { tone: "red" | "ambe
 }
 
 export function FacebookHealthView({ data }: { data: MetaHealth }) {
+  const intl = useIntlLocale();
   const t = useT();
   const allOptEvents = data.products.flatMap((p) => p.optEvents);
   const problemEvents = allOptEvents.filter((e) => e.status === "dead" || e.status === "low" || e.allFail || e.adsLow);
@@ -64,9 +65,9 @@ export function FacebookHealthView({ data }: { data: MetaHealth }) {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Kpi label={t("meta.measure.fh.kpi.problem")} value={num(problemEvents.length)} sub={t("meta.measure.fh.kpi.problemSub", { n: allOptEvents.length })} bad={problemEvents.length > 0} />
-        <Kpi label={t("meta.measure.fh.kpi.noValue")} value={num(data.noValue.length)} sub={t("meta.measure.fh.kpi.noValueSub")} bad={data.noValue.length > 0} />
-        <Kpi label={t("meta.measure.fh.kpi.landing")} value={num(flaggedLanding.length)} sub={t("meta.measure.fh.kpi.landingSub", { pct: pct(MIN_LANDING_RATE, 0), n: num(MIN_CLICKS_FOR_LANDING_RATE) })} bad={flaggedLanding.length > 0} />
+        <Kpi label={t("meta.measure.fh.kpi.problem")} value={num(problemEvents.length, undefined, intl)} sub={t("meta.measure.fh.kpi.problemSub", { n: allOptEvents.length })} bad={problemEvents.length > 0} />
+        <Kpi label={t("meta.measure.fh.kpi.noValue")} value={num(data.noValue.length, undefined, intl)} sub={t("meta.measure.fh.kpi.noValueSub")} bad={data.noValue.length > 0} />
+        <Kpi label={t("meta.measure.fh.kpi.landing")} value={num(flaggedLanding.length, undefined, intl)} sub={t("meta.measure.fh.kpi.landingSub", { pct: pct(MIN_LANDING_RATE, 0, intl), n: num(MIN_CLICKS_FOR_LANDING_RATE, undefined, intl) })} bad={flaggedLanding.length > 0} />
         <Kpi
           label={t("meta.measure.fh.kpi.links")}
           value={linksBadLabel}
@@ -104,8 +105,8 @@ export function FacebookHealthView({ data }: { data: MetaHealth }) {
                           {opt.custom && <Pill tone="grey" className="mt-1">{t("meta.measure.fh.custom")}</Pill>}
                         </td>
                         <td className="px-3 py-2.5"><Sparkline values={series?.perDay ?? []} stroke={TONE_SVG[badge.tone]} /></td>
-                        <td className="px-3 py-2.5 text-right tabular-nums">{opt.perWeek === null ? t("meta.measure.fh.unknownVal") : num(opt.perWeek, { maximumFractionDigits: 1 })}</td>
-                        <td className="px-3 py-2.5 text-slate-600">{t("meta.measure.fh.metaCountsCell")}<span className="tabular-nums font-medium">{num(opt.adsAttributed)}</span></td>
+                        <td className="px-3 py-2.5 text-right tabular-nums">{opt.perWeek === null ? t("meta.measure.fh.unknownVal") : num(opt.perWeek, { maximumFractionDigits: 1 }, intl)}</td>
+                        <td className="px-3 py-2.5 text-slate-600">{t("meta.measure.fh.metaCountsCell")}<span className="tabular-nums font-medium">{num(opt.adsAttributed, undefined, intl)}</span></td>
                         <td className="px-3 py-2.5 text-xs text-slate-500">{learningSummary(opt.adsets, t)}</td>
                         <td className="px-3 py-2.5">
                           <Pill tone={badge.tone}>{badge.text}</Pill>
@@ -148,14 +149,14 @@ export function FacebookHealthView({ data }: { data: MetaHealth }) {
                         <tr key={e.name} className="border-b border-slate-50 last:border-0">
                           <td className="px-4 py-2.5 font-medium text-slate-800"><code className="text-xs">{e.name}</code></td>
                           <td className="px-3 py-2.5"><Sparkline values={e.perDay} /></td>
-                          <td className="px-3 py-2.5 text-right tabular-nums">{num(e.total)}</td>
+                          <td className="px-3 py-2.5 text-right tabular-nums">{num(e.total, undefined, intl)}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                   {pixel.variants.map((v) => (
                     <div key={v.key} className="m-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
-                      {t("meta.measure.fh.pixel.variant", { n: v.names.length, list: v.names.map((n) => `${n.name} (${num(n.total)})`).join(t("meta.measure.fh.pixel.variantAnd")) })}
+                      {t("meta.measure.fh.pixel.variant", { n: v.names.length, list: v.names.map((n) => `${n.name} (${num(n.total, undefined, intl)})`).join(t("meta.measure.fh.pixel.variantAnd")) })}
                     </div>
                   ))}
                 </>
@@ -185,9 +186,9 @@ export function FacebookHealthView({ data }: { data: MetaHealth }) {
                 {data.noValue.map((r) => (
                   <tr key={r.campaignId} className="border-b border-slate-50 last:border-0">
                     <td className="px-4 py-2.5 font-medium text-slate-800">{r.name}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums">{vnd(r.cost)}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums">{num(r.purchases)}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums">{vnd(r.value)}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums">{vnd(r.cost, intl)}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums">{num(r.purchases, undefined, intl)}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums">{vnd(r.value, intl)}</td>
                     <td className="px-3 py-2.5"><Pill tone="red">{t("meta.measure.fh.nv.zero")}</Pill></td>
                     <td className="px-3 py-2.5"><Link href="/xu-ly" className="text-xs text-blue-600 hover:underline">{t("meta.measure.fh.openCase")}</Link></td>
                   </tr>
@@ -201,7 +202,7 @@ export function FacebookHealthView({ data }: { data: MetaHealth }) {
       <section>
         <h2 className="mb-1 text-base font-bold text-slate-900">{t("meta.measure.fh.lp.title")}</h2>
         <p className="mb-3 text-sm text-slate-500">
-          {t("meta.measure.fh.lp.desc", { pct: pct(MIN_LANDING_RATE, 0), n: num(MIN_CLICKS_FOR_LANDING_RATE) })}
+          {t("meta.measure.fh.lp.desc", { pct: pct(MIN_LANDING_RATE, 0, intl), n: num(MIN_CLICKS_FOR_LANDING_RATE, undefined, intl) })}
         </p>
         <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
           <table className="w-full text-sm">
@@ -221,16 +222,16 @@ export function FacebookHealthView({ data }: { data: MetaHealth }) {
               {data.landing.map((r) => (
                 <tr key={r.campaignId} className="border-b border-slate-50 last:border-0">
                   <td className="px-4 py-2.5 font-medium text-slate-800">{r.name}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums">{num(r.linkClicks)}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums">{num(r.landingViews)}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums">{pct(r.rate)}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums">{vnd(r.cost)}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums">{num(r.purchases)}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums">{num(r.linkClicks, undefined, intl)}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums">{num(r.landingViews, undefined, intl)}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums">{pct(r.rate, 1, intl)}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums">{vnd(r.cost, intl)}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums">{num(r.purchases, undefined, intl)}</td>
                   <td className="px-3 py-2.5">
                     {r.flagged ? (
-                      <Pill tone="red">{t("meta.measure.fh.lp.below", { pct: pct(MIN_LANDING_RATE, 0) })}</Pill>
+                      <Pill tone="red">{t("meta.measure.fh.lp.below", { pct: pct(MIN_LANDING_RATE, 0, intl) })}</Pill>
                     ) : r.rate !== null && r.linkClicks >= MIN_CLICKS_FOR_LANDING_RATE ? (
-                      <Pill tone="green">{t("meta.measure.fh.lp.above", { pct: pct(MIN_LANDING_RATE, 0) })}</Pill>
+                      <Pill tone="green">{t("meta.measure.fh.lp.above", { pct: pct(MIN_LANDING_RATE, 0, intl) })}</Pill>
                     ) : (
                       <Pill tone="grey">{t("meta.measure.fh.lp.notEnough")}</Pill>
                     )}
@@ -247,16 +248,16 @@ export function FacebookHealthView({ data }: { data: MetaHealth }) {
         <h2 className="mb-1 text-base font-bold text-slate-900">{t("meta.measure.fh.lk.title")}</h2>
         <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Stat label={t("meta.measure.fh.lk.read")} value={num(data.links.checked)} />
-            <Stat label={t("meta.measure.fh.lk.onPlatform")} value={num(data.links.onPlatform)} sub={t("meta.measure.fh.lk.noCheck")} />
-            <Stat label={t("meta.measure.fh.lk.post")} value={t("meta.measure.fh.lk.postRead", { n: num(data.links.postRead) })} />
-            <Stat label={t("meta.measure.fh.lk.noLink")} value={num(data.links.noLink)} />
+            <Stat label={t("meta.measure.fh.lk.read")} value={num(data.links.checked, undefined, intl)} />
+            <Stat label={t("meta.measure.fh.lk.onPlatform")} value={num(data.links.onPlatform, undefined, intl)} sub={t("meta.measure.fh.lk.noCheck")} />
+            <Stat label={t("meta.measure.fh.lk.post")} value={t("meta.measure.fh.lk.postRead", { n: num(data.links.postRead, undefined, intl) })} />
+            <Stat label={t("meta.measure.fh.lk.noLink")} value={num(data.links.noLink, undefined, intl)} />
           </div>
           {data.links.postUnreadable > 0 && (
             <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
               <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               <span>
-                {t("meta.measure.fh.lk.unreadable", { n: num(data.links.postUnreadable), pages: data.links.postNoToken.map((p) => p.pageId).join(", ") })}{" "}
+                {t("meta.measure.fh.lk.unreadable", { n: num(data.links.postUnreadable, undefined, intl), pages: data.links.postNoToken.map((p) => p.pageId).join(", ") })}{" "}
                 <Link href="/settings#ket-noi" className="font-medium underline underline-offset-2">{t("meta.measure.fh.lk.addToken")}</Link>
               </span>
             </div>
@@ -272,7 +273,7 @@ export function FacebookHealthView({ data }: { data: MetaHealth }) {
           )}
           <div className="mt-3">
             {data.links.tableConfigured ? (
-              <span className="text-slate-600">{t("meta.measure.fh.lk.bad", { n: num(data.links.bad.length) })}</span>
+              <span className="text-slate-600">{t("meta.measure.fh.lk.bad", { n: num(data.links.bad.length, undefined, intl) })}</span>
             ) : (
               <span className="text-slate-500">{t("meta.measure.fh.lk.noTable", { company: data.company })}</span>
             )}
@@ -286,7 +287,7 @@ export function FacebookHealthView({ data }: { data: MetaHealth }) {
         <div className="rounded-xl border border-slate-200 bg-white p-4">
           <div className="mb-1.5 flex items-baseline justify-between">
             <span className="text-sm text-slate-500">{t("meta.measure.fh.odoo.rate")}</span>
-            <b className="tabular-nums text-lg">{data.odoo.totalOrders > 0 ? pct(data.odoo.taggedOrders / data.odoo.totalOrders) : "—"}</b>
+            <b className="tabular-nums text-lg">{data.odoo.totalOrders > 0 ? pct(data.odoo.taggedOrders / data.odoo.totalOrders, 1, intl) : "—"}</b>
           </div>
           <div className="h-2 overflow-hidden rounded-full bg-slate-100">
             <div className="h-full bg-red-500" style={{ width: `${data.odoo.totalOrders > 0 ? Math.round((data.odoo.taggedOrders / data.odoo.totalOrders) * 100) : 0}%` }} />
@@ -306,8 +307,8 @@ export function FacebookHealthView({ data }: { data: MetaHealth }) {
                   <tr key={r.label} className="border-b border-slate-50 last:border-0">
                     <td className="py-2 font-medium text-slate-800">{r.label}</td>
                     <td className="py-2"><code className="text-xs text-slate-600">{r.utmCampaign}</code></td>
-                    <td className="py-2 text-right tabular-nums">{num(r.orders)}</td>
-                    <td className="py-2 text-right tabular-nums">{vnd(r.revenue)}</td>
+                    <td className="py-2 text-right tabular-nums">{num(r.orders, undefined, intl)}</td>
+                    <td className="py-2 text-right tabular-nums">{vnd(r.revenue, intl)}</td>
                   </tr>
                 ))}
               </tbody>

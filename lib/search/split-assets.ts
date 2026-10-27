@@ -12,6 +12,8 @@ import { googleAdsErrorMessage } from "@/lib/google-ads-error"
 import type { Company } from "@/lib/case/types"
 import { MAX_IMAGES_PER_CAMPAIGN } from "@/lib/google-image-asset"
 import { MAX_SITELINKS_PER_CAMPAIGN } from "@/lib/google-sitelink-asset"
+import type { TFunction } from "@/lib/i18n/translate"
+import { viT, tk } from "@/lib/google-i18n"
 
 type Row = Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
 const inv = (e: unknown) => Object.fromEntries(Object.entries(e as Record<string, unknown>).filter(([, v]) => typeof v === "number").map(([k, v]) => [v as number, k])) as Record<number, string>
@@ -24,17 +26,23 @@ export const FIELD_LABEL: Record<string, string> = {
 }
 export const fieldName = (t: number | string) => (typeof t === "string" ? t : FIELD[t] ?? String(t))
 export const fieldLabel = (t: number | string) => FIELD_LABEL[fieldName(t)] ?? fieldName(t).toLowerCase()
+/** Nhãn loại tài sản theo ngôn ngữ của tr (loại lạ → tên thường). */
+export function labelOfType(ft: string, tr: TFunction = viT): string {
+  const k = `libgoogle.fl.${ft}`
+  const v = tk(tr, k)
+  return v === k ? ft.toLowerCase() : v
+}
 
 export interface AssetLink { asset: string; fieldType: number; adGroupId?: string; text?: string }
 export interface AssetCount { fieldType: string; label: string; count: number }
 
 /** Đếm theo loại — HÀM THUẦN. */
-export function countByType(links: Pick<AssetLink, "fieldType">[]): AssetCount[] {
+export function countByType(links: Pick<AssetLink, "fieldType">[], tr: TFunction = viT): AssetCount[] {
   const m = new Map<string, number>()
   for (const l of links) m.set(fieldName(l.fieldType), (m.get(fieldName(l.fieldType)) ?? 0) + 1)
-  return [...m].map(([fieldType, count]) => ({ fieldType, label: FIELD_LABEL[fieldType] ?? fieldType.toLowerCase(), count })).sort((a, b) => b.count - a.count)
+  return [...m].map(([fieldType, count]) => ({ fieldType, label: labelOfType(fieldType, tr), count })).sort((a, b) => b.count - a.count)
 }
-export const describeCounts = (c: AssetCount[]) => c.map((x) => `${x.count} ${x.label}`).join(" · ") || "không có"
+export const describeCounts = (c: AssetCount[], tr: TFunction = viT) => c.map((x) => `${x.count} ${x.label}`).join(" · ") || tr("libgoogle.sas.none")
 
 /**
  * Trần liên kết cấp CHIẾN DỊCH của Google theo loại. Vượt trần → Google từ chối CẢ LÔ (resource_count_limit_exceeded) —
@@ -57,7 +65,7 @@ export interface LinkPlan {
  * Liên kết CÒN THIẾU ở chiến dịch mới — HÀM THUẦN. `adGroupMap`: id nhóm gốc → resource nhóm mới (cùng tên).
  * Khoá trùng = tài sản + loại (+ nhóm). Gọi lại sau khi đã gắn → kế hoạch rỗng (chạy lại an toàn).
  */
-export function planLinks(input: { source: AssetLink[]; existing: AssetLink[]; adGroupMap: Map<string, string>; newAdGroupIdOf: (res: string) => string; caps?: Record<string, number> }): LinkPlan {
+export function planLinks(input: { source: AssetLink[]; existing: AssetLink[]; adGroupMap: Map<string, string>; newAdGroupIdOf: (res: string) => string; caps?: Record<string, number>; t?: TFunction }): LinkPlan {
   const have = new Set(input.existing.map((l) => `${l.adGroupId ?? "-"}|${l.asset}|${l.fieldType}`))
   const plan: LinkPlan = { campaign: [], adGroup: [], alreadyThere: 0, unmappedAdGroups: [], capped: [] }
   const caps = input.caps ?? CAMPAIGN_CAPS
@@ -81,7 +89,7 @@ export function planLinks(input: { source: AssetLink[]; existing: AssetLink[]; a
     if (have.has(k)) { plan.alreadyThere++; continue }
     have.add(k); plan.adGroup.push({ adGroup: target, asset: l.asset, fieldType: l.fieldType })
   }
-  plan.capped = [...skipped].map(([t, count]) => ({ fieldType: t, label: FIELD_LABEL[t] ?? t.toLowerCase(), count, cap: caps[t], have: haveAtStart.get(t) ?? 0 }))
+  plan.capped = [...skipped].map(([t, count]) => ({ fieldType: t, label: labelOfType(t, input.t ?? viT), count, cap: caps[t], have: haveAtStart.get(t) ?? 0 }))
   return plan
 }
 
@@ -93,8 +101,8 @@ export function groupByType<T extends { fieldType: number }>(xs: T[]): Map<strin
 }
 
 /** Lỗi gắn một lô → câu dễ hiểu (Google lặp lại cùng câu cho TỪNG thao tác, bị cắt giữa chừng trên thẻ). */
-export function friendlyLinkError(msg: string): string {
-  if (/resource_count_limit_exceeded/.test(msg)) return "vượt trần số lượng Google cho phép ở một chiến dịch — gỡ bớt ở Google Ads rồi bấm lại."
+export function friendlyLinkError(msg: string, tr: TFunction = viT): string {
+  if (/resource_count_limit_exceeded/.test(msg)) return tr("libgoogle.sas.errLimit")
   const first = msg.split(" · ")[0].replace(/\s*\(trường:.*$/, "").trim()
   const n = (msg.match(/ · /g)?.length ?? 0) + 1
   return `${first.slice(0, 200)}${n > 1 ? ` (×${n})` : ""}`
@@ -127,7 +135,7 @@ export interface AssetReport {
  * Gắn tài sản còn thiếu từ chiến dịch gốc sang chiến dịch mới (bản tách). validateOnly = Kiểm trước (Google kiểm, không ghi).
  * Dùng cho 18b (ngay sau khi tách) và 18c (bổ sung cho bản tách đã tạo). Đọc lại sau khi gắn để báo số thật.
  */
-export async function linkSourceAssets(input: { company: Company; sourceCampaignId: string; newCampaign: string; sourceAdGroups: { sourceId: string; name: string }[]; validateOnly: boolean; actor: string }): Promise<AssetReport> {
+export async function linkSourceAssets(input: { company: Company; sourceCampaignId: string; newCampaign: string; sourceAdGroups: { sourceId: string; name: string }[]; validateOnly: boolean; actor: string }, tr: TFunction = viT): Promise<AssetReport> {
   const c = getGoogleAdsCustomer(input.company)
   const newId = input.newCampaign.split("/").pop()!
   const [source, existing, newGroups] = await Promise.all([
@@ -140,15 +148,15 @@ export async function linkSourceAssets(input: { company: Company; sourceCampaign
   for (const g of input.sourceAdGroups) { const t = byName.get(g.name.slice(0, 250)); if (t) adGroupMap.set(g.sourceId, t) }
   // Tài sản cấp nhóm gốc thuộc nhóm KHÔNG được chuyển (chỉ có từ khoá thương hiệu) → không có nhóm mới tương ứng, bỏ qua đúng.
   const moved = new Set(input.sourceAdGroups.map((g) => g.sourceId))
-  const plan = planLinks({ source: source.filter((l) => !l.adGroupId || moved.has(l.adGroupId)), existing, adGroupMap, newAdGroupIdOf: (res) => res.split("/").pop()! })
+  const plan = planLinks({ source: source.filter((l) => !l.adGroupId || moved.has(l.adGroupId)), existing, adGroupMap, newAdGroupIdOf: (res) => res.split("/").pop()!, t: tr })
   const report: AssetReport = {
     at: new Date().toISOString(), by: input.actor, validateOnly: input.validateOnly,
-    source: countByType(source.filter((l) => !l.adGroupId || moved.has(l.adGroupId))), before: countByType(existing),
-    planned: countByType([...plan.campaign, ...plan.adGroup]), added: [], after: null, alreadyThere: plan.alreadyThere, failed: [], notes: [],
+    source: countByType(source.filter((l) => !l.adGroupId || moved.has(l.adGroupId)), tr), before: countByType(existing, tr),
+    planned: countByType([...plan.campaign, ...plan.adGroup], tr), added: [], after: null, alreadyThere: plan.alreadyThere, failed: [], notes: [],
   }
-  for (const x of plan.capped) report.notes.push(`Bỏ ${x.count} ${x.label}: Google cho tối đa ${x.cap} ${x.label}/chiến dịch, chiến dịch mới đã có ${x.have}${x.cap - x.have > 0 ? ` — gắn thêm ${x.cap - x.have}` : ""}. Muốn đổi ${x.label} khác thì gỡ bớt ở Google Ads.`)
-  if (plan.unmappedAdGroups.length) report.notes.push(`${plan.unmappedAdGroups.length} nhóm gốc có tài sản nhưng không tìm thấy nhóm cùng tên ở chiến dịch mới — tài sản của các nhóm đó chưa gắn.`)
-  if (!plan.campaign.length && !plan.adGroup.length) { report.notes.push(source.length ? "Chiến dịch mới đã có đủ tài sản của chiến dịch gốc." : "Chiến dịch gốc không gắn tài sản nào ở cấp chiến dịch / nhóm — tài sản đang hiện (nếu có) là cấp TÀI KHOẢN, tự áp cho mọi chiến dịch."); return report }
+  for (const x of plan.capped) report.notes.push(tr("libgoogle.sas.noteCapped", { n: x.count, label: x.label, cap: x.cap, have: x.have, more: x.cap - x.have > 0 ? tr("libgoogle.sas.noteCappedMore", { n: x.cap - x.have }) : "" }))
+  if (plan.unmappedAdGroups.length) report.notes.push(tr("libgoogle.sas.noteUnmapped", { n: plan.unmappedAdGroups.length }))
+  if (!plan.campaign.length && !plan.adGroup.length) { report.notes.push(source.length ? tr("libgoogle.sas.noteComplete") : tr("libgoogle.sas.noteNoAssets")); return report }
 
   const added: { fieldType: number }[] = []
   const batches: { type: string; ops: object[]; n: number; fts: number[] }[] = []
@@ -160,12 +168,12 @@ export async function linkSourceAssets(input: { company: Company; sourceCampaign
       await c.mutateResources(b.ops as never, (input.validateOnly ? { validate_only: true } : undefined) as never)
       for (const fieldType of b.fts) added.push({ fieldType })
     } catch (e) {
-      report.failed.push({ fieldType: ft, label: `${FIELD_LABEL[ft] ?? ft}${b.type.endsWith("@adgroup") ? " (cấp nhóm)" : ""}`, count: b.n, error: friendlyLinkError(googleAdsErrorMessage(e)) })
+      report.failed.push({ fieldType: ft, label: `${labelOfType(ft, tr)}${b.type.endsWith("@adgroup") ? tr("libgoogle.sas.adGroupLevel") : ""}`, count: b.n, error: friendlyLinkError(googleAdsErrorMessage(e), tr) })
     }
   }
-  report.added = countByType(added)
+  report.added = countByType(added, tr)
   if (!input.validateOnly) {
-    try { report.after = countByType(await readCampaignAssets(input.company, newId)) } catch (e) { report.notes.push(`Không đọc lại được tài sản chiến dịch mới: ${googleAdsErrorMessage(e).slice(0, 200)}`) }
+    try { report.after = countByType(await readCampaignAssets(input.company, newId), tr) } catch (e) { report.notes.push(tr("libgoogle.sas.noteReadback", { msg: googleAdsErrorMessage(e).slice(0, 200) })) }
   }
   return report
 }

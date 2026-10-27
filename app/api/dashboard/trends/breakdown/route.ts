@@ -7,7 +7,8 @@ import { allowForce } from "@/lib/cost-guard"
 import { hasPermission } from "@/lib/permissions"
 import { friendlyError } from "@/lib/not-configured"
 import { googleBreakdown, metaBreakdown } from "@/lib/trends/breakdown-fetch"
-import type { BTable } from "@/lib/trends/breakdown"
+import { localizeTable, type BTable } from "@/lib/trends/breakdown"
+import { getT } from "@/lib/i18n/server"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
@@ -29,5 +30,6 @@ export async function GET(request: NextRequest) {
     try { tables.push(...(p === "meta" ? await metaBreakdown(co.value, { from, to }, force) : await googleBreakdown(co.value, { from, to }, force))) }
     catch (e) { errors.push({ platform: p, error: friendlyError(e instanceof Error ? e.message : String(e)) }) }
   }
-  return NextResponse.json({ success: true, tables, errors })
+  const t = await getT()
+  return NextResponse.json({ success: true, tables: tables.map((x) => localizeTable(x, t)), errors })
 }

@@ -12,33 +12,33 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Pill } from "@/components/measure/Pill";
 import { vnd, num, datetimeVN } from "@/components/case/format";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import type { MessageKey } from "@/lib/i18n/messages";
 import type { TFunction } from "@/lib/i18n/translate";
 import {
-  METRIC_LABEL,
   PLATFORM_LABEL,
-  KIND_GROUP,
-  STATUS_LABEL,
-  CONFIDENCE_LABEL,
-  VERDICT_LABEL,
+  metricLabel,
+  kindGroup,
+  statusLabel,
+  confidenceLabel,
+  verdictLabel,
 } from "@/components/playbook/labels";
 import type { PlaybookEntry, EntryStatus } from "@/lib/playbook/store";
 
 type Decision = "approved" | "rejected" | "suggested";
 
 /** Các dòng văn bản ngắn giải thích "vì sao" — khác nhau giữa hướng dùng/tránh. */
-function reasonLines(e: PlaybookEntry, t: TFunction): string[] {
+function reasonLines(e: PlaybookEntry, t: TFunction, loc: string): string[] {
   const lines: string[] = [];
   if (e.direction === "avoid") {
-    lines.push(t("overview.playbook.table.avoidLine", { cost: vnd(e.stat.cost), n: num(e.stat.loseUnits) }));
+    lines.push(t("overview.playbook.table.avoidLine", { cost: vnd(e.stat.cost, loc), n: num(e.stat.loseUnits, undefined, loc) }));
   } else {
     if (e.stat.cpr !== null && e.stat.lift !== null) {
-      lines.push(t("overview.playbook.table.cprLift", { cpr: vnd(e.stat.cpr), lift: e.stat.lift }));
+      lines.push(t("overview.playbook.table.cprLift", { cpr: vnd(e.stat.cpr, loc), lift: e.stat.lift }));
     } else if (e.stat.cpr !== null) {
-      lines.push(t("overview.playbook.table.cprOnly", { cpr: vnd(e.stat.cpr) }));
+      lines.push(t("overview.playbook.table.cprOnly", { cpr: vnd(e.stat.cpr, loc) }));
     }
-    lines.push(t("overview.playbook.table.winLine", { win: num(e.stat.winUnits), n: num(e.stat.campaigns) }));
+    lines.push(t("overview.playbook.table.winLine", { win: num(e.stat.winUnits, undefined, loc), n: num(e.stat.campaigns, undefined, loc) }));
   }
   lines.push(e.stat.halvesAgree ? t("overview.playbook.table.halvesYes") : t("overview.playbook.table.halvesNo"));
   return lines;
@@ -76,8 +76,9 @@ function Row({
   acting: boolean;
   onDecide: (decision: Decision) => void;
 }) {
+  const intl = useIntlLocale();
   const t = useT();
-  const statusInfo = STATUS_LABEL[entry.status];
+  const statusInfo = statusLabel(entry.status, t);
   const isIntermediate = entry.metric !== "purchase";
   const actions = canDecide ? actionsFor(entry.status) : [];
 
@@ -86,7 +87,7 @@ function Row({
       <td className="px-4 py-3">
         <div className="font-semibold text-slate-900">{entry.label}</div>
         <div className="mt-0.5 text-xs text-slate-400">
-          {PLATFORM_LABEL[entry.platform]} · {entry.company} · {entry.product} · {KIND_GROUP[entry.kind]}
+          {PLATFORM_LABEL[entry.platform]} · {entry.company} · {entry.product} · {kindGroup(entry.kind, t)}
           <span className="ml-1 text-slate-300">({entry.unitType})</span>
         </div>
         {entry.note && (
@@ -107,8 +108,8 @@ function Row({
       </td>
       <td className="px-3 py-3 text-slate-600">
         <div className="space-y-0.5">
-          {reasonLines(entry, t).map((line, i) => (
-            <div key={i} className={i === reasonLines(entry, t).length - 1 ? "text-xs text-slate-400" : ""}>{line}</div>
+          {reasonLines(entry, t, intl).map((line, i) => (
+            <div key={i} className={i === reasonLines(entry, t, intl).length - 1 ? "text-xs text-slate-400" : ""}>{line}</div>
           ))}
         </div>
         {entry.evidence.length > 0 && (
@@ -118,13 +119,13 @@ function Row({
             </summary>
             <div className="mt-1.5 space-y-1 text-xs text-slate-500">
               {entry.evidence.map((ev, i) => {
-                const v = VERDICT_LABEL[ev.verdict];
+                const v = verdictLabel(ev.verdict, t);
                 return (
                   <div key={i} className="flex flex-wrap items-center gap-1.5">
                     <span className="font-medium text-slate-700">{ev.unitName}</span>
                     <span>· {ev.campaignName}</span>
-                    <span>· {vnd(ev.cost)}</span>
-                    <span>{t("overview.playbook.table.evResults", { n: num(ev.results) })}</span>
+                    <span>· {vnd(ev.cost, intl)}</span>
+                    <span>{t("overview.playbook.table.evResults", { n: num(ev.results, undefined, intl) })}</span>
                     <Pill tone={v.tone}>{v.text}</Pill>
                   </div>
                 );
@@ -134,7 +135,7 @@ function Row({
         )}
       </td>
       <td className="px-3 py-3">
-        <div className="font-medium text-slate-800">{METRIC_LABEL[entry.metric]}</div>
+        <div className="font-medium text-slate-800">{metricLabel(entry.metric, t)}</div>
         {isIntermediate && (
           <div className="mt-1">
             <Pill tone="amber">{t("overview.playbook.table.intermediate")}</Pill>
@@ -142,14 +143,14 @@ function Row({
         )}
       </td>
       <td className="px-3 py-3">
-        <Pill tone={CONFIDENCE_LABEL[entry.confidence].tone}>{CONFIDENCE_LABEL[entry.confidence].text}</Pill>
+        <Pill tone={confidenceLabel(entry.confidence, t).tone}>{confidenceLabel(entry.confidence, t).text}</Pill>
       </td>
       <td className="px-3 py-3">
         <Pill tone={statusInfo.tone}>{statusInfo.text}</Pill>
         {entry.decidedAt && (
           <div className="mt-1 text-[11px] text-slate-400">
             {entry.decidedBy ? `${entry.decidedBy} · ` : ""}
-            {datetimeVN(entry.decidedAt)}
+            {datetimeVN(entry.decidedAt, intl)}
           </div>
         )}
       </td>

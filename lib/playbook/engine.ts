@@ -11,6 +11,7 @@
 //
 // Mọi ngưỡng dưới đây là QUY ƯỚC của tool (ghi trong thiết kế), hiện trên màn hình.
 
+import { makeT, type TFunction } from "@/lib/i18n/translate"
 import type { Company } from "@/lib/case/types"
 
 export type Platform = "facebook" | "google"
@@ -41,6 +42,8 @@ export interface Unit {
 
 export const METRIC_ORDER: Metric[] = ["purchase", "initiate_checkout", "landing_view"]
 export const METRIC_LABEL: Record<Metric, string> = { purchase: "Mua hàng", initiate_checkout: "Bắt đầu thanh toán", landing_view: "Xem trang đích" }
+/** Nhãn chỉ số theo ngôn ngữ (METRIC_LABEL giữ tiếng Việt cho nơi không có t). */
+export const metricLabel = (m: Metric, t: TFunction = makeT("vi")): string => t(`libcase.w.metric.${m}` as never)
 
 /** Chỉ số dùng được khi nhóm có ít nhất ngần này đơn vị đạt ≥ MIN_UNIT_RESULTS kết quả. */
 export const MIN_SCORABLE_UNITS = 4

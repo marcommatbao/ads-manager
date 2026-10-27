@@ -33,7 +33,7 @@ import type { CompareResult } from "@/lib/meta/audience-compare-fetch";
 import type { WinningAudience } from "@/lib/meta/winning-audiences";
 import type { AiAssessment } from "@/lib/meta/audience-compare-ai";
 import { AbCreateForm, AbSection } from "./AbTests";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import type { TFunction } from "@/lib/i18n/translate";
 import type { MessageKey } from "@/lib/i18n/messages";
 
@@ -67,6 +67,7 @@ const OBJ_KEYS: Record<string, MessageKey> = {
 const objectiveLabel = (o: string, t: TFunction): string => (OBJ_KEYS[o] ? t(OBJ_KEYS[o]) : metaObjectiveLabel(o));
 
 export default function SoSanhTepPage() {
+  const intl = useIntlLocale();
   const t = useT();
   const { user } = useSession();
   const allowedCompanies = resolveCompanyScope(user?.companies, user?.role);
@@ -205,7 +206,7 @@ export default function SoSanhTepPage() {
                       <span className="min-w-0">
                         <span className="block break-words font-medium text-slate-800">{c.name}</span>
                         <span className="block text-xs text-slate-500">
-                          {t("meta.cmp.pick.spend", { objective: objectiveLabel(c.channel, t), value: vnd(c.perf.cost) })}
+                          {t("meta.cmp.pick.spend", { objective: objectiveLabel(c.channel, t), value: vnd(c.perf.cost, intl) })}
                         </span>
                       </span>
                     </label>
@@ -253,11 +254,12 @@ export default function SoSanhTepPage() {
 function ResultView({ result, company, canEdit, campaignIds, onSaved, saved }: {
   result: CompareResponse; company: Company; canEdit: boolean; campaignIds: string[]; onSaved: () => void; saved: WinningAudience[];
 }) {
+  const intl = useIntlLocale();
   const t = useT();
   return (
     <section className="space-y-4" aria-label={t("meta.cmp.res.aria")}>
       <div className="text-xs text-slate-400">
-        {t("meta.cmp.res.range", { from: ddmmyyyy(result.range.from), to: ddmmyyyy(result.range.to), time: datetimeVN(result.fetchedAt) })}
+        {t("meta.cmp.res.range", { from: ddmmyyyy(result.range.from, intl), to: ddmmyyyy(result.range.to, intl), time: datetimeVN(result.fetchedAt, intl) })}
       </div>
       {result.mixedKinds && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
@@ -277,6 +279,7 @@ function ResultView({ result, company, canEdit, campaignIds, onSaved, saved }: {
 function GroupView({ group, range, company, canEdit, campaignIds, onSaved, saved }: {
   group: CompareGroup; range: { from: string; to: string }; company: Company; canEdit: boolean; campaignIds: string[]; onSaved: () => void; saved: WinningAudience[];
 }) {
+  const intl = useIntlLocale();
   const t = useT();
   const ui = VERDICT_UI[group.verdict];
   const word = group.goalKind === "leads" ? t("meta.cmp.word.leads") : t("meta.cmp.word.purchases");
@@ -394,22 +397,22 @@ function GroupView({ group, range, company, canEdit, campaignIds, onSaved, saved
                         </div>
                       </div>
                     </td>
-                    <td className="p-3 text-right align-top tabular-nums">{vnd(r.spend)}</td>
+                    <td className="p-3 text-right align-top tabular-nums">{vnd(r.spend, intl)}</td>
                     <td className="p-3 text-right align-top tabular-nums">
-                      {num(r.results)}
+                      {num(r.results, undefined, intl)}
                       {/* Chấm theo lượt BẤM 7 ngày; Meta báo tổng gồm cả người chỉ xem (1 ngày) */}
                       {r.resultsAll !== undefined && r.resultsAll !== r.results && (
-                        <div className="text-[11px] font-normal text-slate-400">{t("meta.cmp.metaReports", { n: num(r.resultsAll) })}</div>
+                        <div className="text-[11px] font-normal text-slate-400">{t("meta.cmp.metaReports", { n: num(r.resultsAll, undefined, intl) })}</div>
                       )}
                     </td>
                     <td className="p-3 text-right align-top tabular-nums">
-                      {r.costPerResult !== null ? vnd(r.costPerResult) : "—"}
+                      {r.costPerResult !== null ? vnd(r.costPerResult, intl) : "—"}
                       {r.cprLow !== null && r.cprHigh !== null && (
-                        <div className="text-xs text-slate-400">≈ {vnd(r.cprLow)}–{vnd(r.cprHigh)}</div>
+                        <div className="text-xs text-slate-400">≈ {vnd(r.cprLow, intl)}–{vnd(r.cprHigh, intl)}</div>
                       )}
                     </td>
-                    <td className="p-3 text-right align-top tabular-nums">{r.ctr !== null ? pct(r.ctr) : "—"}</td>
-                    <td className="p-3 text-right align-top tabular-nums">{r.clickToResult !== null ? pct(r.clickToResult) : "—"}</td>
+                    <td className="p-3 text-right align-top tabular-nums">{r.ctr !== null ? pct(r.ctr, 1, intl) : "—"}</td>
+                    <td className="p-3 text-right align-top tabular-nums">{r.clickToResult !== null ? pct(r.clickToResult, 1, intl) : "—"}</td>
                     <td className="p-3 text-right align-top tabular-nums">{r.frequency !== null ? r.frequency.toFixed(1) : "—"}</td>
                     <td className="p-3 align-top text-xs text-slate-600">{learningLabel(r.learning, t)}</td>
                   </tr>
@@ -489,6 +492,7 @@ function GroupView({ group, range, company, canEdit, campaignIds, onSaved, saved
 function SavedList({ loading, error, rows, canEdit, onChanged }: {
   loading: boolean; error: unknown; rows: WinningAudience[]; canEdit: boolean; onChanged: () => void;
 }) {
+  const intl = useIntlLocale();
   const t = useT();
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -537,15 +541,15 @@ function SavedList({ loading, error, rows, canEdit, onChanged }: {
               <p className="mt-1 text-slate-600">{w.summary}</p>
               {w.note && <p className="mt-1 text-xs italic text-slate-500">{t("meta.cmp.sv.note", { note: w.note })}</p>}
               <p className="mt-2 text-xs text-slate-500">
-                {t("meta.cmp.sv.saved", { time: datetimeVN(w.savedAt), by: w.savedBy, adset: w.source.adsetName, campaign: w.source.campaignName })}
+                {t("meta.cmp.sv.saved", { time: datetimeVN(w.savedAt, intl), by: w.savedBy, adset: w.source.adsetName, campaign: w.source.campaignName })}
               </p>
               <p className="mt-1 text-xs text-slate-600">
-                {t("meta.cmp.sv.evidence", { from: ddmmyyyy(ev.range.from), to: ddmmyyyy(ev.range.to), spend: vnd(ev.spend), n: num(ev.results), word: w.goalKind === "leads" ? t("meta.cmp.word.leads") : t("meta.cmp.word.purchases") })}
-                {ev.costPerResult !== null && <>{t("meta.cmp.sv.cpr", { value: vnd(ev.costPerResult) })}</>}
+                {t("meta.cmp.sv.evidence", { from: ddmmyyyy(ev.range.from, intl), to: ddmmyyyy(ev.range.to, intl), spend: vnd(ev.spend, intl), n: num(ev.results, undefined, intl), word: w.goalKind === "leads" ? t("meta.cmp.word.leads") : t("meta.cmp.word.purchases") })}
+                {ev.costPerResult !== null && <>{t("meta.cmp.sv.cpr", { value: vnd(ev.costPerResult, intl) })}</>}
                 {ev.comparedWith.length > 0 && <>{t("meta.cmp.sv.vs", { n: ev.comparedWith.length })}</>}
               </p>
               <p className="mt-1 text-xs text-slate-500">{ev.groupSummary}</p>
-              <p className="mt-1 text-xs text-slate-400">{t("meta.cmp.sv.recheck", { date: ddmmyyyy(w.reviewBy.slice(0, 10)) })}</p>
+              <p className="mt-1 text-xs text-slate-400">{t("meta.cmp.sv.recheck", { date: ddmmyyyy(w.reviewBy.slice(0, 10), intl) })}</p>
               {overdue && (
                 <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-700">{t("meta.cmp.sv.overdue")}</p>
               )}
@@ -560,6 +564,7 @@ function SavedList({ loading, error, rows, canEdit, onChanged }: {
 
 // Đợt 26b — AI đánh giá: máy chủ dựng lại bảng, chỉ đưa bảng đó cho AI, rồi soát từng con số AI viết ra.
 function AiAssess({ company, ids, range }: { company: Company; ids: string[]; range: { from: string; to: string } }) {
+  const intl = useIntlLocale();
   const t = useT();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -606,7 +611,7 @@ function AiAssess({ company, ids, range }: { company: Company; ids: string[]; ra
           {data.unsupported.length > 0 && (
             <div className="flex items-start gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              {t("meta.cmp.ai.unsupported", { list: data.unsupported.map((n) => num(n)).join(", ") })}
+              {t("meta.cmp.ai.unsupported", { list: data.unsupported.map((n) => num(n, undefined, intl)).join(", ") })}
             </div>
           )}
         </div>

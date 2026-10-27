@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { datetimeVN } from "./format";
 import { postJson, ApiError } from "./api";
 import type { CampaignCase, CaseAction, Execution } from "@/lib/case/store";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import type { TFunction } from "@/lib/i18n/translate";
 
 /** Chiến dịch/nhóm quảng cáo mà một việc sẽ tác động — dùng ở bảng duyệt trước khi ghi. */
@@ -38,6 +38,7 @@ export function Step6Execute({
   onNext: () => void;
   busy?: boolean;
 }) {
+  const intl = useIntlLocale();
   const t = useT();
   const idemKeyRef = useRef<string>(crypto.randomUUID());
   const [validating, setValidating] = useState(false);
@@ -164,7 +165,7 @@ export function Step6Execute({
                 <ExecutionResultCard exec={ex} platformLabel={platformLabel} />
                 {ex.undoneAt ? (
                   <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-xs text-slate-600">
-                    <div className="font-semibold">{t("overview.step6.undoneAt", { time: datetimeVN(ex.undoneAt) })}</div>
+                    <div className="font-semibold">{t("overview.step6.undoneAt", { time: datetimeVN(ex.undoneAt, intl) })}</div>
                     {ex.undoReport && ex.undoReport.length > 0 && (
                       <ul className="mt-1 list-disc pl-4">
                         {ex.undoReport.map((line, i) => <li key={i}>{line}</li>)}
@@ -249,6 +250,7 @@ export function Step6Execute({
 }
 
 function ExecutionResultCard({ exec, platformLabel }: { exec: Execution; platformLabel: string }) {
+  const intl = useIntlLocale();
   const t = useT();
   const ok = exec.status === "done";
   // Lần "Kiểm trước" KHÔNG ghi gì — tiêu đề phải nói rõ, không được giống lần ghi thật.
@@ -261,7 +263,7 @@ function ExecutionResultCard({ exec, platformLabel }: { exec: Execution; platfor
       <div className={`flex items-center gap-1.5 font-semibold ${!ok ? "text-red-700" : validate ? "text-sky-800" : "text-emerald-700"}`}>
         {ok ? <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> : <XCircle className="h-4 w-4" aria-hidden="true" />}
         {title}
-        <span className="ml-auto font-normal text-slate-400">{datetimeVN(exec.at)}</span>
+        <span className="ml-auto font-normal text-slate-400">{datetimeVN(exec.at, intl)}</span>
       </div>
 
       {exec.errors.length > 0 && (

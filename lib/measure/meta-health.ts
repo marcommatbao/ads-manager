@@ -19,6 +19,7 @@ import { productGroupOf, PRODUCT_LABEL, type ProductGroup } from "@/lib/case/pro
 import { addDays, vnDate, rangeDays } from "@/lib/case/dates"
 import { EVENTS_PER_WEEK_TO_LEARN, MIN_CLICKS_FOR_LANDING_RATE, MIN_LANDING_RATE } from "@/lib/case/causes-meta"
 import type { Company, EvidenceSource } from "@/lib/case/types"
+import { makeT, type TFunction } from "@/lib/i18n/translate"
 import { checkFacebookLink, effectiveLink, linksOfCompany, observedUtm, readStandardLinks, type LinkCheck } from "./utm-links"
 
 type Row = Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -199,11 +200,12 @@ const memo = new Map<string, { at: number; value: MetaHealth }>()
 const MEMO_MS = 30 * 60_000
 
 /** Khoảng mặc định (không truyền range) = HEALTH_DAYS ngày tới hôm nay — việc canh tự động hằng đêm dùng cái này. */
-export async function metaHealth(company: Company, opts: { force?: boolean; now?: Date; range?: { from: string; to: string } } = {}): Promise<MetaHealth> {
+export async function metaHealth(company: Company, opts: { force?: boolean; now?: Date; range?: { from: string; to: string } } = {}, t: TFunction = makeT("vi")): Promise<MetaHealth> {
   const to = vnDate(opts.now)
   const range = opts.range ?? { from: addDays(to, -(HEALTH_DAYS - 1)), to }
   const days = rangeDays(range)
-  const key = `${company}|${range.from}|${range.to}`
+  // Văn bản (nhãn nguồn, ghi chú) sinh theo ngôn ngữ → khoá nhớ có ngôn ngữ, bản EN không làm hỏng bản VI.
+  const key = `${t("libmeta.localeTag")}|${company}|${range.from}|${range.to}`
   const hit = memo.get(key)
   if (!opts.force && hit && Date.now() - hit.at < MEMO_MS) return hit.value
   const sources: EvidenceSource[] = []
@@ -214,7 +216,7 @@ export async function metaHealth(company: Company, opts: { force?: boolean; now?
     filtering: active, limit: "200",
     fields: "id,name,optimization_goal,promoted_object,learning_stage_info,campaign{id,name}",
   })).filter((a) => detectCompany(String(a.campaign?.name ?? "")) === company)
-  sources.push({ id: "adsets", label: "Nhóm quảng cáo đang chạy", status: "ok", rows: adsets.length })
+  sources.push({ id: "adsets", label: t("libmeta.mh.srcAdsets"), status: "ok", rows: adsets.length })
 
   // Pixel THẬT SỰ đang dùng (promoted_object), không phải pixel khai trong env.
   const pixelIds = [...new Set(adsets.map((a) => a.promoted_object?.pixel_id).filter(Boolean).map(String))]
@@ -229,7 +231,7 @@ export async function metaHealth(company: Company, opts: { force?: boolean; now?
       pixels.push({ pixelId, known: false, error: e instanceof Error ? e.message : String(e), events: [], variants: [] })
     }
   }
-  sources.push({ id: "pixel", label: "Sự kiện pixel theo ngày", status: pixels.every((p) => p.known) ? "ok" : pixels.some((p) => p.known) ? "partial" : "error", rows: pixels.length, note: pixels.find((p) => p.error)?.error ?? undefined })
+  sources.push({ id: "pixel", label: t("libmeta.mh.srcPixel"), status: pixels.every((p) => p.known) ? "ok" : pixels.some((p) => p.known) ? "partial" : "error", rows: pixels.length, note: pixels.find((p) => p.error)?.error ?? undefined })
 
   const ins = (await accountCampaignInsights(range)).filter((r) => detectCompany(String(r.campaign_name ?? "")) === company && Number(r.spend) > 0)
   const noValue: NoValueRow[] = []
@@ -244,7 +246,7 @@ export async function metaHealth(company: Company, opts: { force?: boolean; now?
       flagged: linkClicks >= MIN_CLICKS_FOR_LANDING_RATE && rate !== null && rate < MIN_LANDING_RATE })
   }
   landing.sort((a, b) => Number(b.flagged) - Number(a.flagged) || b.cost - a.cost)
-  sources.push({ id: "insights", label: "Số liệu chiến dịch 28 ngày", status: "ok", rows: ins.length })
+  sources.push({ id: "insights", label: t("libmeta.mh.srcInsights"), status: "ok", rows: ins.length })
 
   // Liên kết quảng cáo đang chạy + chi phí từng quảng cáo.
   const table = linksOfCompany(readStandardLinks().links, company)
@@ -276,14 +278,14 @@ export async function metaHealth(company: Company, opts: { force?: boolean; now?
   }
   bad.sort((a, b) => b.cost - a.cost)
   const postNote = [
-    postStats?.read ? `${postStats.read} quảng cáo bài viết đọc link bằng token Trang` : "",
-    postStats?.noToken.length ? `${postStats.noToken.reduce((s, x) => s + x.ads, 0)} quảng cáo bài viết của Trang chưa có token (${postStats.noToken.map((x) => x.pageId).join(", ")})` : "",
-    postStats?.tokenErrors.length ? `token Trang hết hiệu lực: ${postStats.tokenErrors.map((x) => x.name ?? x.pageId).join(", ")}` : "",
+    postStats?.read ? t("libmeta.mh.notePostRead", { n: postStats.read }) : "",
+    postStats?.noToken.length ? t("libmeta.mh.noteNoToken", { n: postStats.noToken.reduce((s, x) => s + x.ads, 0), pages: postStats.noToken.map((x) => x.pageId).join(", ") }) : "",
+    postStats?.tokenErrors.length ? t("libmeta.mh.noteTokenErr", { pages: postStats.tokenErrors.map((x) => x.name ?? x.pageId).join(", ") }) : "",
   ].filter(Boolean).join(" · ")
-  sources.push({ id: "ads", label: "Liên kết quảng cáo đang chạy", status: postUnreadable ? "partial" : "ok", rows: ads.length, note: postNote || undefined })
+  sources.push({ id: "ads", label: t("libmeta.mh.srcAds"), status: postUnreadable ? "partial" : "ok", rows: ads.length, note: postNote || undefined })
 
-  const odoo = await odooCoverage(range, table)
-  sources.push({ id: "odoo", label: "Đơn Odoo theo utm_campaign", status: odoo.checked ? "ok" : "error", rows: odoo.totalOrders, note: odoo.checked ? undefined : odoo.note })
+  const odoo = await odooCoverage(range, table, t)
+  sources.push({ id: "odoo", label: t("libmeta.mh.srcOdoo"), status: odoo.checked ? "ok" : "error", rows: odoo.totalOrders, note: odoo.checked ? undefined : odoo.note })
 
   const value: MetaHealth = {
     company, range, collectedAt: new Date().toISOString(), pixels, products: buildProducts(adsets, pixels, company, days),
@@ -299,7 +301,7 @@ export async function metaHealth(company: Company, opts: { force?: boolean; now?
  * — tên của nó chính là giá trị utm_campaign. Không lọc theo công ty: Odoo không
  * có trường nào gắn đơn với công ty quảng cáo một cách chắc chắn → nói "toàn hệ thống".
  */
-async function odooCoverage(range: { from: string; to: string }, table: { label: string; url: string }[]): Promise<MetaHealth["odoo"]> {
+async function odooCoverage(range: { from: string; to: string }, table: { label: string; url: string }[], t: TFunction): Promise<MetaHealth["odoo"]> {
   try {
     // Có cả ngày KẾT THÚC — khoảng trong quá khứ không cộng đơn tới hôm nay (sửa 28/09).
     const base = [["date_order", ">=", `${range.from} 00:00:00`], ["date_order", "<", `${addDays(range.to, 1)} 00:00:00`], ["state", "in", ["sale", "done"]]]
@@ -317,9 +319,9 @@ async function odooCoverage(range: { from: string; to: string }, table: { label:
       checked: true, totalOrders, taggedOrders, byStandardTag,
       // Đo 27/09: source_id của đơn là nguồn KHÁCH ("Đơn hàng MBI online"), không phải utm_source;
       // Pmax Google cũng dùng hoa-don-dien-tu-sitelink… → số theo thẻ gồm cả đơn từ Google.
-      note: `Toàn hệ thống (mọi công ty) ${range.from} → ${range.to}: ${taggedOrders}/${totalOrders} đơn có thẻ chiến dịch. Thẻ utm_campaign dùng chung theo sản phẩm và dùng chung cả với Google; Odoo không lưu utm_source → số đơn theo thẻ gồm mọi nền tảng, không tách được Facebook.`,
+      note: t("libmeta.mh.odooNote", { from: range.from, to: range.to, tagged: taggedOrders, total: totalOrders }),
     }
   } catch (e) {
-    return { checked: false, totalOrders: 0, taggedOrders: 0, byStandardTag: [], note: `Không đọc được Odoo: ${e instanceof Error ? e.message : String(e)}` }
+    return { checked: false, totalOrders: 0, taggedOrders: 0, byStandardTag: [], note: t("libmeta.mh.odooErr", { msg: e instanceof Error ? e.message : String(e) }) }
   }
 }

@@ -8,7 +8,7 @@ import FBAdPreview from "@/components/FBAdPreview";
 import { CreativeTypeBadge } from "./CreativeTypeBadge";
 import { CreativeStatusBadge } from "./CreativeStatusBadge";
 import { formatCurrency, formatNumber, formatPercent } from "@/lib/utils";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import type { CreativeItem } from "@/types/creative-content.types";
 
 function formatFullDate(iso: string): string {
@@ -33,6 +33,7 @@ interface CreativeDetailDrawerProps {
 }
 
 export function CreativeDetailDrawer({ item, currency, onOpenChange }: CreativeDetailDrawerProps) {
+  const intl = useIntlLocale();
   const t = useT();
   return (
     <Sheet open={Boolean(item)} onOpenChange={onOpenChange}>
@@ -99,10 +100,10 @@ export function CreativeDetailDrawer({ item, currency, onOpenChange }: CreativeD
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">{t("creative.adsContent.drawer.metrics")}</p>
                 {item.metrics.metricsAvailable ? (
                   <div className="grid grid-cols-2 gap-2">
-                    <MetricTile label={t("creative.adsContent.drawer.spend")} value={formatCurrency(item.metrics.spend, currency, false)} />
-                    <MetricTile label={t("creative.adsContent.drawer.clicks")} value={formatNumber(item.metrics.clicks)} />
+                    <MetricTile label={t("creative.adsContent.drawer.spend")} value={formatCurrency(item.metrics.spend, currency, false, intl)} />
+                    <MetricTile label={t("creative.adsContent.drawer.clicks")} value={formatNumber(item.metrics.clicks, intl)} />
                     {item.metrics.impressions !== undefined && (
-                      <MetricTile label={t("creative.adsContent.drawer.impressions")} value={formatNumber(item.metrics.impressions)} />
+                      <MetricTile label={t("creative.adsContent.drawer.impressions")} value={formatNumber(item.metrics.impressions, intl)} />
                     )}
                     {item.metrics.ctr !== undefined && (
                       <MetricTile label={t("creative.adsContent.drawer.ctr")} value={formatPercent(item.metrics.ctr)} />
@@ -119,8 +120,8 @@ export function CreativeDetailDrawer({ item, currency, onOpenChange }: CreativeD
                     {t("creative.adsContent.drawer.pmaxNote")}
                     {" "}{t("creative.adsContent.drawer.pmaxNote2")}
                     <div className="mt-2 grid grid-cols-2 gap-2">
-                      <MetricTile label={t("creative.adsContent.drawer.campaignSpend")} value={formatCurrency(item.metrics.spend, currency, false)} />
-                      <MetricTile label={t("creative.adsContent.drawer.campaignClicks")} value={formatNumber(item.metrics.clicks)} />
+                      <MetricTile label={t("creative.adsContent.drawer.campaignSpend")} value={formatCurrency(item.metrics.spend, currency, false, intl)} />
+                      <MetricTile label={t("creative.adsContent.drawer.campaignClicks")} value={formatNumber(item.metrics.clicks, intl)} />
                     </div>
                   </div>
                 )}

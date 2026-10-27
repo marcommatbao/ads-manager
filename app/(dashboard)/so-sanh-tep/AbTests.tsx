@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 import { Pill, type PillTone } from "@/components/measure/Pill";
 import { vnd, num, datetimeVN } from "@/components/case/format";
 import { getJson, postJson, ApiError } from "@/components/case/api";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import type { MessageKey } from "@/lib/i18n/messages";
 import type { CompareGroup, RankedAdset } from "@/lib/meta/audience-compare";
 import type { AbAudienceTest } from "@/lib/meta/ab-audience";
@@ -64,6 +64,7 @@ export function AbCreateForm({ company, source, saved, onClose, onCreated }: {
   onClose: () => void;
   onCreated: (text: string) => void;
 }) {
+  const intl = useIntlLocale();
   const t = useT();
   const options = saved.filter((w) => w.goalKind === source.goalKind);
   const [mode, setMode] = useState<"winning" | "edit">(options.length > 0 ? "winning" : "edit");
@@ -163,9 +164,9 @@ export function AbCreateForm({ company, source, saved, onClose, onCreated }: {
             <div><div className="text-xs font-semibold text-slate-500">{t("meta.ab.form.groupBNew")}</div><div className="text-slate-800">{plan.bName}</div><div className="text-xs text-slate-600">{plan.bSummary}</div></div>
           </div>
           <ul className="space-y-0.5 text-xs text-slate-700">
-            <li>{t("meta.ab.form.overlap", { n: num(plan.overlapPct) })}</li>
-            <li>{t("meta.ab.form.copyAds", { n: num(plan.ads) })}</li>
-            <li>{plan.dailyBudget !== null ? t("meta.ab.form.budget", { value: vnd(plan.dailyBudget) }) : t("meta.ab.form.budgetNone")}</li>
+            <li>{t("meta.ab.form.overlap", { n: num(plan.overlapPct, undefined, intl) })}</li>
+            <li>{t("meta.ab.form.copyAds", { n: num(plan.ads, undefined, intl) })}</li>
+            <li>{plan.dailyBudget !== null ? t("meta.ab.form.budget", { value: vnd(plan.dailyBudget, intl) }) : t("meta.ab.form.budgetNone")}</li>
             {plan.droppedKeys.length > 0 && <li>{t("meta.ab.form.dropped", { list: plan.droppedKeys.join(", ") })}</li>}
           </ul>
           {plan.blockers.length > 0 && (
@@ -248,6 +249,7 @@ export function AbSection({ company, canEdit }: { company: string; canEdit: bool
 }
 
 function TestCard({ entry, canEdit, onChanged }: { entry: Entry; canEdit: boolean; onChanged: () => void }) {
+  const intl = useIntlLocale();
   const tr = useT();
   const { test: t, measure, reading, error } = entry;
   const ui = STATUS_UI[t.status];
@@ -285,10 +287,10 @@ function TestCard({ entry, canEdit, onChanged }: { entry: Entry; canEdit: boolea
         <div><div className="text-xs font-semibold text-slate-500">{tr("meta.ab.card.groupB")}</div><div className="break-words text-slate-800">{t.b.adsetName}</div><div className="text-xs text-slate-600">{t.b.summary}</div></div>
       </div>
       <p className="text-xs text-slate-500">
-        {tr("meta.ab.card.created", { time: datetimeVN(t.createdAt), by: t.createdBy })}
-        {t.startedAt && <>{tr("meta.ab.card.started", { time: datetimeVN(t.startedAt) })}</>}
-        {t.endedAt && <>{tr("meta.ab.card.endedAt", { time: datetimeVN(t.endedAt) })}</>}
-        {t.overlapPct > 0 && <>{tr("meta.ab.card.overlap", { n: num(t.overlapPct) })}</>}
+        {tr("meta.ab.card.created", { time: datetimeVN(t.createdAt, intl), by: t.createdBy })}
+        {t.startedAt && <>{tr("meta.ab.card.started", { time: datetimeVN(t.startedAt, intl) })}</>}
+        {t.endedAt && <>{tr("meta.ab.card.endedAt", { time: datetimeVN(t.endedAt, intl) })}</>}
+        {t.overlapPct > 0 && <>{tr("meta.ab.card.overlap", { n: num(t.overlapPct, undefined, intl) })}</>}
       </p>
       {t.warnings.length > 0 && (
         <details className="text-xs text-amber-800">
@@ -301,7 +303,7 @@ function TestCard({ entry, canEdit, onChanged }: { entry: Entry; canEdit: boolea
         <div className="space-y-2">
           {reading && <div className={cn("rounded-lg border p-2 text-sm", READING_BOX[reading.tone])}>{reading.text}</div>}
           {error && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-2 text-xs text-red-700">{error}</div>}
-          {measure && <p className="text-xs text-slate-500">{tr("meta.ab.card.ranDays", { n: num(measure.days) })}{measure.days < 7 && tr("meta.ab.card.notEnough")}.</p>}
+          {measure && <p className="text-xs text-slate-500">{tr("meta.ab.card.ranDays", { n: num(measure.days, undefined, intl) })}{measure.days < 7 && tr("meta.ab.card.notEnough")}.</p>}
           {measure?.group && measure.group.rows.length > 0 && (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[420px] text-left text-xs">
@@ -322,11 +324,11 @@ function TestCard({ entry, canEdit, onChanged }: { entry: Entry; canEdit: boolea
                           <span className="font-medium text-slate-800">{label && `${label} · `}{r.name}</span>
                           {r.flags.length > 0 && <ul className="text-[11px] text-amber-700">{r.flags.map((f, i) => <li key={i}>{f}</li>)}</ul>}
                         </td>
-                        <td className="py-1.5 pr-2 text-right tabular-nums">{vnd(r.spend)}</td>
-                        <td className="py-1.5 pr-2 text-right tabular-nums">{num(r.results)}</td>
+                        <td className="py-1.5 pr-2 text-right tabular-nums">{vnd(r.spend, intl)}</td>
+                        <td className="py-1.5 pr-2 text-right tabular-nums">{num(r.results, undefined, intl)}</td>
                         <td className="py-1.5 text-right tabular-nums">
-                          {r.costPerResult !== null ? vnd(r.costPerResult) : "—"}
-                          {r.cprLow !== null && r.cprHigh !== null && <div className="text-[11px] text-slate-400">≈ {vnd(r.cprLow)}–{vnd(r.cprHigh)}</div>}
+                          {r.costPerResult !== null ? vnd(r.costPerResult, intl) : "—"}
+                          {r.cprLow !== null && r.cprHigh !== null && <div className="text-[11px] text-slate-400">≈ {vnd(r.cprLow, intl)}–{vnd(r.cprHigh, intl)}</div>}
                         </td>
                       </tr>
                     );
@@ -341,7 +343,7 @@ function TestCard({ entry, canEdit, onChanged }: { entry: Entry; canEdit: boolea
       {t.status === "ended" && t.result && (
         <div className="space-y-1 rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs text-slate-700">
           <p>{t.result.summary}</p>
-          <p>{tr("meta.ab.card.measured", { n: num(t.result.days), what: t.result.paused ? tr("meta.ab.card.pausedWhat", { which: pausedLabel }) : tr("meta.ab.card.keepBoth") })}</p>
+          <p>{tr("meta.ab.card.measured", { n: num(t.result.days, undefined, intl), what: t.result.paused ? tr("meta.ab.card.pausedWhat", { which: pausedLabel }) : tr("meta.ab.card.keepBoth") })}</p>
         </div>
       )}
 
@@ -368,7 +370,7 @@ function TestCard({ entry, canEdit, onChanged }: { entry: Entry; canEdit: boolea
           {panel === "start" && (
             <div className="space-y-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-slate-700">
               <p>
-                {t.dailyBudget !== null ? <>{rich(tr("meta.ab.card.startExtra", { value: vnd(t.dailyBudget) }))}</> : tr("meta.ab.card.startNow")}
+                {t.dailyBudget !== null ? <>{rich(tr("meta.ab.card.startExtra", { value: vnd(t.dailyBudget, intl) }))}</> : tr("meta.ab.card.startNow")}
                 {tr("meta.ab.card.startCheck")}
               </p>
               <div className="flex gap-2">

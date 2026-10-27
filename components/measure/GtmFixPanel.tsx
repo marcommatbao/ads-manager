@@ -26,7 +26,7 @@ import { Pill } from "@/components/measure/Pill";
 import { datetimeVN } from "@/components/case/format";
 import { postJson, ApiError } from "@/components/case/api";
 import { cn } from "@/lib/utils";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import type { MessageKey } from "@/lib/i18n/messages";
 import type { Company } from "@/lib/case/types";
 import type { GtmFixProposal } from "@/lib/measure/tag-doctor";
@@ -318,6 +318,7 @@ function GtmFixHistory({
   canEdit: boolean;
   onChanged: (force?: boolean) => void | Promise<void>;
 }) {
+  const intl = useIntlLocale();
   const t = useT();
   const [undoTarget, setUndoTarget] = useState<GtmFixExecution | null>(null);
   const [undoing, setUndoing] = useState(false);
@@ -361,7 +362,7 @@ function GtmFixHistory({
               )}
               {ex.undoneAt ? (
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-xs text-slate-600">
-                  <div className="font-semibold">{t("meta.measure.gx.hist.undoneAt", { time: datetimeVN(ex.undoneAt) })}</div>
+                  <div className="font-semibold">{t("meta.measure.gx.hist.undoneAt", { time: datetimeVN(ex.undoneAt, intl) })}</div>
                   {ex.undoReport && ex.undoReport.length > 0 && <ul className="mt-1 list-disc pl-4">{ex.undoReport.map((l, i) => <li key={i}>{l}</li>)}</ul>}
                 </div>
               ) : ex.mode === "write" && ex.newVersionId ? (
@@ -408,6 +409,7 @@ function GtmFixHistory({
  *  before/after/expected như Google — chỉ label/ok/note — nên KHÔNG dùng chung
  *  ExecutionCard của TagDoctorFixPanel. */
 function GtmExecutionCard({ exec, title }: { exec: GtmFixExecution; title: string }) {
+  const intl = useIntlLocale();
   const t = useT();
   const ok = exec.status === "done";
   const validate = exec.mode === "validate";
@@ -416,7 +418,7 @@ function GtmExecutionCard({ exec, title }: { exec: GtmFixExecution; title: strin
       <div className={cn("flex flex-wrap items-center gap-1.5 font-semibold", !ok ? "text-red-700" : validate ? "text-sky-800" : "text-emerald-700")}>
         {ok ? <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> : <XCircle className="h-4 w-4" aria-hidden="true" />}
         {title}
-        <span className="ml-auto font-normal text-slate-400">{datetimeVN(exec.at)}</span>
+        <span className="ml-auto font-normal text-slate-400">{datetimeVN(exec.at, intl)}</span>
       </div>
 
       {(exec.prevVersionId || exec.newVersionId) && (

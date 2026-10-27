@@ -26,6 +26,8 @@
 // Wilson, và mẫu mỏng thì hạ mức tự tin xuống chứ không giấu.
 
 import { enums } from "google-ads-api";
+import type { TFunction } from "@/lib/i18n/translate";
+import { viT, nfOf } from "@/lib/google-i18n";
 import { dateClauseForDays } from "@/lib/google-date-range";
 import { getGoogleAdsCustomer } from "@/lib/google-ads-client";
 import { enumName } from "@/lib/google-ads-enums";
@@ -122,6 +124,8 @@ export interface CampaignBidSummary {
   canApply: boolean;
   /** Cảnh báo khi chiến dịch đang chạy đấu thầu tự động */
   gateNote: string | null;
+  /** true = nên DỪNG (ĐỪNG chuyển sang thủ công) — cờ ổn định thay cho việc dò chữ trong gateNote. */
+  gateStop: boolean;
 
   days: number;
   clicks: number;
@@ -175,7 +179,7 @@ interface ComputeInput {
   days: number;
 }
 
-export function computeKeywordBid(i: ComputeInput): Pick<
+export function computeKeywordBid(i: ComputeInput, t: TFunction = viT): Pick<
   KeywordBidRec,
   "cvr" | "cvrLow" | "cvrHigh" | "cvrSource" | "affordableCeiling" | "bidRange"
   | "recommendedBid" | "confidence" | "verdict" | "reason" | "overspendPerMonth"
@@ -201,7 +205,7 @@ export function computeKeywordBid(i: ComputeInput): Pick<
   } else {
     return {
       ...none, confidence: "thieu", verdict: "thieu_du_lieu",
-      reason: `Chưa có lượt chuyển đổi nào (${i.clicks} lượt nhấp) và chiến dịch cũng chưa đủ dữ liệu để mượn tỷ lệ — không suy ra được giá thầu có lãi. Cần chạy thêm, hoặc kiểm tra việc đo chuyển đổi có đang hoạt động không.`,
+      reason: t("libgoogle.mb.noData", { clicks: i.clicks }),
     };
   }
 
@@ -232,14 +236,14 @@ export function computeKeywordBid(i: ComputeInput): Pick<
   // Mâu thuẫn: rẻ đủ để có lãi thì không hiện được
   if (floor !== null && ceiling < floor) {
     const qsNote = i.qualityScore !== null && i.qualityScore <= 4
-      ? ` Điểm chất lượng ${i.qualityScore}/10 đang đẩy giá sàn lên — cải thiện mức độ liên quan của quảng cáo và trang đích sẽ hạ được chính con số này.`
+      ? t("libgoogle.mb.qsNote", { qs: i.qualityScore })
       : "";
     return {
       cvr, cvrLow: low, cvrHigh: high, cvrSource,
       affordableCeiling: ceiling, bidRange: [rangeLow, rangeHigh], recommendedBid: null,
       confidence, verdict: "khong_dat_duoc",
       overspendPerMonth: i.avgCpc > ceiling ? Math.max(0, (i.avgCpc - ceiling) * i.clicks * monthFactor) : 0,
-      reason: `Trần chi trả chỉ ${fmt(ceiling)} (mục tiêu ${fmt(i.targetCpa)} × tỷ lệ chuyển đổi ${(cvr * 100).toFixed(1)}%) nhưng Google báo phải từ ${fmt(floor)} mới lên được trang đầu. Không có giá thầu nào vừa đủ rẻ vừa hiện được.${qsNote} Đừng hạ giá thầu xuống trần — làm vậy chỉ là tắt từ khoá một cách vòng vo.`,
+      reason: t("libgoogle.mb.unreachable", { ceil: fmt(ceiling, t), cpa: fmt(i.targetCpa, t), cvr: (cvr * 100).toFixed(1), floor: fmt(floor, t), qsNote }),
     };
   }
 
@@ -263,20 +267,20 @@ export function computeKeywordBid(i: ComputeInput): Pick<
   const overspend = i.avgCpc > recommended ? (i.avgCpc - recommended) * i.clicks * monthFactor : 0;
 
   const srcNote = cvrSource === "campaign"
-    ? ` Tỷ lệ chuyển đổi mượn của cả chiến dịch (${(cvr * 100).toFixed(1)}%) vì từ khoá này mới có ${i.clicks} lượt nhấp / ${i.conversions} chuyển đổi — khoảng bên dưới đã nới rộng để tính cả khả năng từ khoá này không giống mặt bằng chiến dịch.`
-    : ` Dựa trên ${i.conversions} chuyển đổi / ${i.clicks} lượt nhấp của chính từ khoá này.`;
-  const rangeNote = ` Khoảng hợp lý: ${fmt(rangeLow)}–${fmt(rangeHigh)}.`;
+    ? t("libgoogle.mb.srcCampaign", { cvr: (cvr * 100).toFixed(1), clicks: i.clicks, conv: i.conversions })
+    : t("libgoogle.mb.srcKeyword", { conv: i.conversions, clicks: i.clicks });
+  const rangeNote = t("libgoogle.mb.rangeNote", { lo: fmt(rangeLow, t), hi: fmt(rangeHigh, t) });
   const capNote = i.topOfPageCpc !== null && i.topOfPageCpc < ceiling
-    ? ` Đã hạ xuống mức đầu trang Google ước tính (${fmt(i.topOfPageCpc)}) vì trả hơn cũng không mua thêm được gì.`
+    ? t("libgoogle.mb.capNote", { top: fmt(i.topOfPageCpc, t) })
     : "";
 
   let reason: string;
   if (verdict === "giam") {
-    reason = `Đang đặt ${fmt(i.currentBid)}, cao hơn mức hợp lý ${fmt(recommended)} khoảng ${Math.round((ratio - 1) * 100)}%.${srcNote}${capNote}${rangeNote}`;
+    reason = t("libgoogle.mb.reasonDown", { cur: fmt(i.currentBid, t), rec: fmt(recommended, t), pct: Math.round((ratio - 1) * 100), src: srcNote, cap: capNote, range: rangeNote });
   } else if (verdict === "tang") {
-    reason = `Đang đặt ${fmt(i.currentBid)}, thấp hơn mức có thể chi ${fmt(recommended)} khoảng ${Math.round((1 - ratio) * 100)}% — còn dư địa lấy thêm lượt nhấp mà vẫn trong mục tiêu.${srcNote}${rangeNote}`;
+    reason = t("libgoogle.mb.reasonUp", { cur: fmt(i.currentBid, t), rec: fmt(recommended, t), pct: Math.round((1 - ratio) * 100), src: srcNote, range: rangeNote });
   } else {
-    reason = `Đang đặt ${fmt(i.currentBid)}, nằm trong biên ±15% của mức hợp lý ${fmt(recommended)} — không cần đổi.${srcNote}${rangeNote}`;
+    reason = t("libgoogle.mb.reasonHold", { cur: fmt(i.currentBid, t), rec: fmt(recommended, t), src: srcNote, range: rangeNote });
   }
 
   return {
@@ -287,8 +291,8 @@ export function computeKeywordBid(i: ComputeInput): Pick<
   };
 }
 
-function fmt(v: number): string {
-  return `₫${Math.round(v).toLocaleString("vi-VN")}`;
+function fmt(v: number, t: TFunction = viT): string {
+  return `₫${Math.round(v).toLocaleString(nfOf(t))}`;
 }
 
 // ─────────────────────────────────────────────
@@ -307,6 +311,7 @@ export async function fetchManualBidRecommendations(
   company: string,
   days = 30,
   campaignIdFilter?: string,
+  t: TFunction = viT,
 ): Promise<{ campaigns: CampaignBidSummary[]; warnings: string[] }> {
   const customer = getGoogleAdsCustomer(company);
   const d = safeDays(days);
@@ -422,7 +427,7 @@ export async function fetchManualBidRecommendations(
     });
   }
 
-  if (kws.size === 0) warnings.push(`Không có từ khoá nào đang bật và có lượt hiển thị trong ${d} ngày qua.`);
+  if (kws.size === 0) warnings.push(t("libgoogle.mb.warnNoKw", { d }));
 
   // Dựng kết quả theo chiến dịch
   const byCampaign = new Map<string, KwAgg[]>();
@@ -451,11 +456,13 @@ export async function fetchManualBidRecommendations(
     // thì chuyển sang thủ công thường là bước lùi — reset giai đoạn học, mất
     // tín hiệu theo thời điểm/thiết bị/người dùng mà thủ công không có.
     let gateNote: string | null = null;
+    let gateStop = false;
     if (!isManualCpc) {
       const convPerMonth = campConv * (d > 0 ? 30 / d : 1);
-      gateNote = convPerMonth >= SMART_BIDDING_LEARNS_AT
-        ? `Chiến dịch đang chạy ${strategy} và có khoảng ${convPerMonth.toFixed(0)} chuyển đổi/tháng — đủ để Google tự học. ĐỪNG chuyển sang giá thầu thủ công: chuyển sẽ reset giai đoạn học và mất các tín hiệu theo thời điểm/thiết bị mà đặt tay không thay được. Các con số dưới đây chỉ để tham khảo xem từ khoá nào đang đắt bất thường.`
-        : `Chiến dịch đang chạy ${strategy} nhưng chỉ khoảng ${convPerMonth.toFixed(0)} chuyển đổi/tháng — dưới mức Google cần để học (~${SMART_BIDDING_LEARNS_AT}). Đây là trường hợp giá thầu thủ công CÓ THỂ hợp lý hơn. Muốn áp dụng thì phải đổi chiến lược chiến dịch sang Manual CPC trong Google Ads trước.`;
+      gateStop = convPerMonth >= SMART_BIDDING_LEARNS_AT;
+      gateNote = gateStop
+        ? t("libgoogle.mb.gateStop", { strategy, n: convPerMonth.toFixed(0) })
+        : t("libgoogle.mb.gateInfo", { strategy, n: convPerMonth.toFixed(0), min: SMART_BIDDING_LEARNS_AT });
     }
 
     const recs: KeywordBidRec[] = list.map((kw) => {
@@ -471,7 +478,7 @@ export async function fetchManualBidRecommendations(
         campaignClicks: campClicks,
         campaignConversions: campConv,
         days: d,
-      });
+      }, t);
       return {
         resourceName: kw.resourceName,
         text: kw.text,
@@ -502,6 +509,7 @@ export async function fetchManualBidRecommendations(
       isManualCpc,
       canApply: isManualCpc,
       gateNote,
+      gateStop,
       days: d,
       clicks: campClicks,
       conversions: campConv,

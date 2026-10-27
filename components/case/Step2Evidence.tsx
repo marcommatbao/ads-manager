@@ -9,11 +9,11 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { vnd, num, pct, datetimeVN } from "./format";
 import { postJson, ApiError } from "./api";
-import { META_EVENT_LABEL, META_EVENT_ORDER, META_LEARNING_LABEL } from "./meta-copy";
+import { metaEventLabel, META_EVENT_ORDER, metaLearningLabel } from "./meta-copy";
 import type { CampaignCase } from "@/lib/case/store";
 import type { MetaEvidence, MetaPlacementSlice, SourceStatus } from "@/lib/case/types";
 import { metaGoalKind } from "@/lib/case/goal-kind";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import type { MessageKey } from "@/lib/i18n/messages";
 
 const SOURCE_PILL: Record<SourceStatus, { icon: typeof CheckCircle2; cls: string; text: MessageKey }> = {
@@ -51,6 +51,7 @@ export function Step2Evidence({
   onNext: () => void;
   busy?: boolean;
 }) {
+  const intl = useIntlLocale();
   const t = useT();
   const [collecting, setCollecting] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -90,7 +91,7 @@ export function Step2Evidence({
         <div>
           <h2 className="text-base font-bold text-slate-900">{t("overview.step2.title")}</h2>
           <p className="mt-0.5 text-sm text-slate-500">
-            {t("overview.step2.readOnly", { platform: c.platform === "facebook" ? "Meta" : "Google Ads", time: datetimeVN(c.evidence.collectedAt) })}
+            {t("overview.step2.readOnly", { platform: c.platform === "facebook" ? "Meta" : "Google Ads", time: datetimeVN(c.evidence.collectedAt, intl) })}
           </p>
         </div>
         <Button className="h-10" variant="outline" size="sm" onClick={recollect} disabled={collecting}>
@@ -120,7 +121,7 @@ export function Step2Evidence({
               return (
                 <tr key={s.id} className="border-b border-slate-50 last:border-0">
                   <td className="px-4 py-2.5 text-slate-800">{s.label}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">{num(s.rows)}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">{num(s.rows, undefined, intl)}</td>
                   <td className="px-3 py-2.5 text-slate-500">{s.note ?? "—"}</td>
                   <td className="px-3 py-2.5">
                     <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium ${pill.cls}`}>
@@ -150,6 +151,7 @@ export function Step2Evidence({
 }
 
 function MetaEvidenceBlocks({ ev }: { ev: MetaEvidence }) {
+  const intl = useIntlLocale();
   const t = useT();
   const leads = metaGoalKind(ev.campaign.objective) === "leads"; // Đợt 23 (3d)
   const placementRows = aggregatePlacements(ev.placements, leads);
@@ -177,15 +179,15 @@ function MetaEvidenceBlocks({ ev }: { ev: MetaEvidence }) {
                 <td className="px-3 py-2.5 text-slate-600">{a.status === "ACTIVE" ? t("overview.step2.running") : a.status}</td>
                 <td className="px-3 py-2.5 text-slate-600">{a.optEvent.label}</td>
                 <td className="px-3 py-2.5 text-slate-600">
-                  {a.learning.status ? (META_LEARNING_LABEL[a.learning.status] ?? a.learning.status) : "—"}
-                  {a.learning.conversions !== null && <span className="text-slate-400"> ({t("overview.step2.events", { n: num(a.learning.conversions) })})</span>}
+                  {a.learning.status ? (metaLearningLabel(a.learning.status, t) ?? a.learning.status) : "—"}
+                  {a.learning.conversions !== null && <span className="text-slate-400"> ({t("overview.step2.events", { n: num(a.learning.conversions, undefined, intl) })})</span>}
                 </td>
                 <td className="px-3 py-2.5 text-slate-600">{a.automaticPlacement ? t("overview.step2.auto") : t("overview.step2.manual")}</td>
-                <td className="px-3 py-2.5 text-right tabular-nums">{vnd(a.cost)}</td>
-                <td className="px-3 py-2.5 text-right tabular-nums">{num(leads ? a.leads ?? 0 : a.purchases)}</td>
+                <td className="px-3 py-2.5 text-right tabular-nums">{vnd(a.cost, intl)}</td>
+                <td className="px-3 py-2.5 text-right tabular-nums">{num(leads ? a.leads ?? 0 : a.purchases, undefined, intl)}</td>
                 <td className="px-3 py-2.5 text-right tabular-nums">
                   <span title={a.optResultsApprox ? t("overview.step2.approxHint") : undefined}>
-                    {num(a.optResults)}{a.optResultsApprox ? "≈" : ""}
+                    {num(a.optResults, undefined, intl)}{a.optResultsApprox ? "≈" : ""}
                   </span>
                 </td>
               </tr>
@@ -211,10 +213,10 @@ function MetaEvidenceBlocks({ ev }: { ev: MetaEvidence }) {
               {placementRows.map((r) => (
                 <tr key={r.key} className="border-b border-slate-50 last:border-0">
                   <td className="px-4 py-2.5 text-slate-800">{r.label}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums">{vnd(r.cost)}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums">{pct(r.share)}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums">{num(r.landingViews)}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums">{num(r.purchases)}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums">{vnd(r.cost, intl)}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums">{pct(r.share, 1, intl)}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums">{num(r.landingViews, undefined, intl)}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums">{num(r.purchases, undefined, intl)}</td>
                 </tr>
               ))}
             </tbody>
@@ -228,7 +230,7 @@ function MetaEvidenceBlocks({ ev }: { ev: MetaEvidence }) {
           {ev.odoo.checked && (
             <div className="mb-1.5 space-y-0.5 text-slate-700">
               <div>{t("overview.step2.odoo.tags", { tags: ev.odoo.tags.map((tag) => `“${tag}”`).join(", ") })}</div>
-              <div>{t("overview.step2.odoo.orders")}: <span className="tabular-nums font-semibold">{num(ev.odoo.orders)}</span> · {t("overview.step2.odoo.revenue")}: <span className="tabular-nums font-semibold">{vnd(ev.odoo.revenue)}</span></div>
+              <div>{t("overview.step2.odoo.orders")}: <span className="tabular-nums font-semibold">{num(ev.odoo.orders, undefined, intl)}</span> · {t("overview.step2.odoo.revenue")}: <span className="tabular-nums font-semibold">{vnd(ev.odoo.revenue, intl)}</span></div>
             </div>
           )}
           <p className="text-xs text-slate-500">{ev.odoo.note}</p>
@@ -236,10 +238,10 @@ function MetaEvidenceBlocks({ ev }: { ev: MetaEvidence }) {
 
         <div className="rounded-xl border border-slate-200 bg-white p-3.5 text-sm">
           <div className="mb-1.5 font-semibold text-slate-800">{t("overview.step2.peers.title")}</div>
-          <p className="mb-1.5 text-slate-700">{t("overview.step2.peers.same")}: <b className="tabular-nums">{num(ev.peers.campaigns)}</b> {t("overview.step2.peers.campaigns")} (<span className="tabular-nums">{num(ev.peers.activeCampaigns)}</span> {t("overview.step2.peers.spending")})</p>
+          <p className="mb-1.5 text-slate-700">{t("overview.step2.peers.same")}: <b className="tabular-nums">{num(ev.peers.campaigns, undefined, intl)}</b> {t("overview.step2.peers.campaigns")} (<span className="tabular-nums">{num(ev.peers.activeCampaigns, undefined, intl)}</span> {t("overview.step2.peers.spending")})</p>
           <ul className="space-y-0.5 text-xs text-slate-600">
             {META_EVENT_ORDER.filter((k) => ev.peers.eventsPerWeek[k] !== undefined).map((k) => (
-              <li key={k}>{META_EVENT_LABEL[k]}: <span className="tabular-nums">{num(ev.peers.eventsPerWeek[k])}</span>{t("overview.step2.perWeek")}</li>
+              <li key={k}>{metaEventLabel(k, t)}: <span className="tabular-nums">{num(ev.peers.eventsPerWeek[k], undefined, intl)}</span>{t("overview.step2.perWeek")}</li>
             ))}
           </ul>
         </div>

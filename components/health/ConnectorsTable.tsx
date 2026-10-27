@@ -4,9 +4,10 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@
 import type { HealthConnector } from "./types";
 import { Badge, CONNECTOR_STATUS_META } from "./badges";
 import { absTime } from "./format";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 
 export function ConnectorsTable({ connectors }: { connectors: HealthConnector[] }) {
+  const intl = useIntlLocale();
   const t = useT();
   return (
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-4 space-y-3">
@@ -31,7 +32,7 @@ export function ConnectorsTable({ connectors }: { connectors: HealthConnector[] 
                   <TableCell className="font-mono text-xs text-slate-700">{c.id}</TableCell>
                   <TableCell><Badge cls={meta.cls}>{t(meta.label)}</Badge></TableCell>
                   <TableCell className="whitespace-normal max-w-[280px] text-xs text-slate-500">{c.reason ?? "—"}</TableCell>
-                  <TableCell className="text-xs text-slate-500">{absTime(c.lastChecked)}</TableCell>
+                  <TableCell className="text-xs text-slate-500">{absTime(c.lastChecked, intl)}</TableCell>
                 </TableRow>
               );
             })}

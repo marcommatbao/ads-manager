@@ -16,6 +16,7 @@ import { blocks, simulateNegatives, withAccentVariants, type NegativeKw, type Ne
 import type { CaseAction, ManualTask } from "./store"
 import { tokens } from "./text"
 import type { Diagnosis, SearchEvidence, SharedNegativeList } from "./types"
+import { makeT, type TFunction } from "@/lib/i18n/translate"
 
 /** Thương hiệu mình — chỉ dùng làm phủ định cấp chiến dịch Pmax. */
 export const BRAND_PACK = ["matbao", "mắt bão", "mắt bảo", "mắt bao", "mat bão", "matbao in", "mifi"]
@@ -61,15 +62,15 @@ export function riskyMembersDetailed(list: SharedNegativeList): { text: string; 
   return out
 }
 
-export function riskyMembers(list: SharedNegativeList): string[] {
-  return riskyMembersDetailed(list).map((r) => `${r.text} — chặn cả “${r.probe}”`)
+export function riskyMembers(list: SharedNegativeList, t: TFunction = makeT("vi")): string[] {
+  return riskyMembersDetailed(list).map((r) => t("libcase.c.ap.risky", { text: r.text, probe: r.probe }))
 }
 
 export function proposePmaxActions(input: {
   evidence: SearchEvidence
   diagnosis: Diagnosis
   lexicon: IntentLexicon
-}): { actions: CaseAction[]; manualTasks: Omit<ManualTask, "id" | "createdAt">[] } {
+}, t: TFunction = makeT("vi")): { actions: CaseAction[]; manualTasks: Omit<ManualTask, "id" | "createdAt">[] } {
   const { evidence: ev, diagnosis: dx, lexicon } = input
   const actions: CaseAction[] = []
   const manualTasks: Omit<ManualTask, "id" | "createdAt">[] = []
@@ -77,7 +78,7 @@ export function proposePmaxActions(input: {
   const list = pickSharedList(ev.sharedLists)
   // 19/10: gói theo công ty — PMax tên miền (MBC) không được phủ định "tên miền" / "tra cứu".
   const PACKS = negativePacksFor(lexicon)
-  const otherLabel = `sản phẩm của ${lexicon.catalog?.sibling.site ?? "công ty khác"}`
+  const otherLabel = t("libcase.c.ap.other", { site: lexicon.catalog?.sibling.site ?? t("libcase.c.as.otherCompany") })
 
   // 1 + 2: danh sách dùng chung (0: bỏ từ rủi ro trước — user chốt 26/09 phương án "bỏ 7 từ rồi mới gắn")
   if (list) {
@@ -87,8 +88,8 @@ export function proposePmaxActions(input: {
       actions.push({
         id: aid("shrm"), type: "REMOVE_FROM_SHARED_LIST", sharedSetId: list.id, sharedSetName: list.name, selected: true,
         words: risky.map(({ text, match }) => ({ text, match })),
-        reasons: risky.map((r) => `${r.text} — chặn cả “${r.probe}”`),
-        label: `Bỏ ${risky.length} từ quá chung khỏi danh sách “${list.name}” (chặn được câu tìm của người mua)`,
+        reasons: risky.map((r) => t("libcase.c.ap.risky", { text: r.text, probe: r.probe })),
+        label: t("libcase.c.ap.shrm", { n: risky.length, name: list.name }),
       })
     }
     const inList = new Set(list.members.map((m) => norm(m.text)))
@@ -100,7 +101,7 @@ export function proposePmaxActions(input: {
       actions.push({
         id: aid("shadd"), type: "ADD_TO_SHARED_LIST", sharedSetId: list.id, sharedSetName: list.name,
         selected: simulation.blockedConversions === 0, negatives: packWords, simulation,
-        label: `Thêm ${packWords.length} từ (tên đối thủ, tra cứu / đăng nhập, ${otherLabel}) vào danh sách dùng chung “${list.name}”`,
+        label: t("libcase.c.ap.shadd", { n: packWords.length, other: otherLabel, name: list.name }),
       })
     }
     if (!list.attached) {
@@ -111,8 +112,8 @@ export function proposePmaxActions(input: {
         id: aid("attach"), type: "ATTACH_SHARED_LIST", campaignId: ev.campaign.id, sharedSetId: list.id, sharedSetName: list.name,
         // Từ rủi ro đã có việc "bỏ" chọn sẵn phía trên → gắn được chọn sẵn; `flagged` vẫn giữ để
         // người duyệt thấy nếu bỏ tick việc kia.
-        selected: simulation.blockedConversions === 0, simulation, flagged: risky.map((r) => `${r.text} — chặn cả “${r.probe}”`),
-        label: `Gắn danh sách “${list.name}” (${kept.length + packWords.length} từ${risky.length ? `, sau khi bỏ ${risky.length} từ` : ""}) vào chiến dịch này`,
+        selected: simulation.blockedConversions === 0, simulation, flagged: risky.map((r) => t("libcase.c.ap.risky", { text: r.text, probe: r.probe })),
+        label: t("libcase.c.ap.attach", { name: list.name, n: kept.length + packWords.length, after: risky.length ? t("libcase.c.ap.attachAfter", { n: risky.length }) : "" }),
       })
     }
   } else {
@@ -122,7 +123,7 @@ export function proposePmaxActions(input: {
     if (negatives.length) {
       const simulation = simulateNegatives(ev.searchTerms, negatives)
       actions.push({ id: aid("neg"), type: "ADD_NEGATIVES", campaignIds: [ev.campaign.id], negatives, simulation, selected: simulation.blockedConversions === 0,
-        label: `Thêm ${negatives.length} từ khoá phủ định (tên đối thủ, tra cứu, ${otherLabel}) vào chiến dịch` })
+        label: t("libcase.c.ap.neg", { n: negatives.length, other: otherLabel }) })
     }
   }
 
@@ -135,15 +136,15 @@ export function proposePmaxActions(input: {
       actions.push({
         id: aid("brand"), type: "ADD_NEGATIVES", campaignIds: [ev.campaign.id], negatives: brand, simulation,
         selected: simulation.blockedConversions === 0,
-        label: `Chặn lượt tìm thương hiệu Mắt Bão trong Pmax (${brand.length} từ, chỉ ở chiến dịch này)`,
+        label: t("libcase.c.ap.brand", { n: brand.length }),
       })
     }
   }
 
   if (dx.causes.some((c) => c.id === "pmax-search-no-orders")) {
     manualTasks.push({
-      title: "Xem lại phần kênh Tìm kiếm của Pmax sau 14 ngày",
-      detail: "Kênh Tìm kiếm của Pmax không ra đơn trong kỳ. Sau khi chặn thương hiệu + đối thủ, nếu vẫn 0 đơn thì cân nhắc tách nhóm từ khoá mua hàng sang chiến dịch Search riêng (tool chưa làm được việc này).",
+      title: t("libcase.c.ap.task.title"),
+      detail: t("libcase.c.ap.task.detail"),
       assignee: null, status: "open",
     })
   }

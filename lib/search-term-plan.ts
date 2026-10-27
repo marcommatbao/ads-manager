@@ -7,6 +7,9 @@
 // bấm tay. Toàn bộ hàm dưới đây là hàm thuần, không phụ thuộc React.
 // ============================================================
 
+import type { TFunction } from "@/lib/i18n/translate";
+import { viT, nfOf, tk } from "@/lib/google-i18n";
+
 export interface PlanTerm {
   searchTerm: string; campaignName: string; campaignId: string; adGroupId: string;
   clicks: number; conversions: number; cost: number;
@@ -21,9 +24,9 @@ export interface PlanTerm {
  * khách. Còn "whois", "check domain" thì đúng là người dùng công cụ, chặn được.
  * Chỉ đưa ra tiền mà không đưa ra ý định là mời người dùng chặn nhầm.
  */
-export function intentOf(term: string): { key: "brand" | "buy" | "tool" | "competitor" | "job" | "free" | "other"; label: string; safe: boolean } {
-  const t = term.toLowerCase();
-  const has = (arr: string[]) => arr.some(w => t.includes(w));
+export function intentOf(term: string, t: TFunction = viT): { key: "brand" | "buy" | "tool" | "competitor" | "job" | "free" | "other"; label: string; safe: boolean } {
+  const tl = term.toLowerCase();
+  const has = (arr: string[]) => arr.some(w => tl.includes(w));
   // THƯƠNG HIỆU MÌNH phải xét TRƯỚC mọi nhóm khác. "công ty cổ phần mắt bão"
   // (56 nhấp, ₫231.304, 0 chuyển đổi) đang bị xếp vào "khác" — tức nhãn CHẶN
   // ĐƯỢC. Người gõ đúng tên công ty mình là khách tìm đúng mình; chặn cụm đó
@@ -36,9 +39,9 @@ export function intentOf(term: string): { key: "brand" | "buy" | "tool" | "compe
   // CỐ Ý chỉ bỏ dấu cho nhánh THƯƠNG HIỆU, không áp cho các nhánh khác: nhánh
   // "ý định mua" có từ "giá", bỏ dấu thành "gia" sẽ khớp bừa vào "gia đình",
   // "giao hàng", "quốc gia". Tên thương hiệu đủ đặc trưng nên không có rủi ro đó.
-  const noTone = t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d");
+  const noTone = tl.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d");
   if (["mat bao", "matbao", "matbaocloud"].some(w => noTone.includes(w)))
-    return { key: "brand", label: "THƯƠNG HIỆU MÌNH", safe: false };
+    return { key: "brand", label: t("libgoogle.stp.i.brand"), safe: false };
   // So khớp ĐỐI THỦ cũng bỏ dấu, cùng lý do với nhánh thương hiệu: danh sách
   // viết không dấu mà khách gõ có dấu thì trượt. Ca thật 04/09/2026:
   // "pa việt nam" (10 nhấp, ₫89.365) bị dán nhãn "khác" vì danh sách chỉ có
@@ -54,18 +57,18 @@ export function intentOf(term: string): { key: "brand" | "buy" | "tool" | "compe
        "z.com", "zcom", "lanit", "vietnix", "hostinger", "bluehost", "hostgator", "namesilo",
        "dynadot", "ionos", "ovh", "digitalocean", "vultr", "linode", "contabo", "squarespace",
        "wix"].some(w => noTone.includes(w)))
-    return { key: "competitor", label: "đối thủ", safe: true };
+    return { key: "competitor", label: t("libgoogle.stp.i.competitor"), safe: true };
   if (has(["tuyển dụng", "tuyen dung", "lương", "việc làm", "viec lam"]))
-    return { key: "job", label: "tìm việc", safe: true };
+    return { key: "job", label: t("libgoogle.stp.i.job"), safe: true };
   if (has(["whois", "rdap", "icann", "check", "kiểm tra", "kiem tra", "tra cứu", "tra cuu", "tra tên", "tra ten",
            "lookup", "là gì", "la gi", "ý nghĩa", "y nghia", "cách ", "huong dan", "hướng dẫn"]))
-    return { key: "tool", label: "tra cứu / học", safe: true };
+    return { key: "tool", label: t("libgoogle.stp.i.tool"), safe: true };
   if (has(["miễn phí", "mien phi", "free", "crack", "lậu"]))
-    return { key: "free", label: "tìm đồ miễn phí", safe: true };
+    return { key: "free", label: t("libgoogle.stp.i.free"), safe: true };
   if (has(["mua", "đăng ký", "dang ky", "giá", "gia re", "gia ré", "bảng giá", "bang gia", "báo giá",
            "đặt", "thuê", "thue", "order", "gia hạn", "gia han"]))
-    return { key: "buy", label: "Ý ĐỊNH MUA", safe: false };
-  return { key: "other", label: "khác", safe: true };
+    return { key: "buy", label: t("libgoogle.stp.i.buy"), safe: false };
+  return { key: "other", label: t("libgoogle.stp.i.other"), safe: true };
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -99,6 +102,10 @@ export const ADD_TIER: Record<AddTier, { label: string; rank: number; cls: strin
     desc: "Tên đối thủ, hoặc CPA đắt hơn mốc từ 2 lần trở lên — thêm vào là bơm tiền vào chỗ đang lỗ." },
 };
 
+/** Nhãn / mô tả tầng theo ngôn ngữ (ADD_TIER giữ bản tiếng Việt cho nơi không truyền t). */
+export const addTierText = (tier: AddTier, t: TFunction = viT) => ({ label: tk(t, `libgoogle.stp.add.${tier}.label`), desc: tk(t, `libgoogle.stp.add.${tier}.desc`) });
+export const negTierText = (tier: NegTier, t: TFunction = viT) => ({ label: tk(t, `libgoogle.stp.neg.${tier}.label`), desc: tk(t, `libgoogle.stp.neg.${tier}.desc`) });
+
 /** Dưới mức này là chuyển đổi phân bổ lẻ — chưa đủ để kết luận gì. */
 const MIN_CONV_EVIDENCE = 1;
 /** Đắt hơn mốc bao nhiêu lần thì khuyên đừng thêm. */
@@ -110,39 +117,39 @@ export interface TermGroup { term: string; clicks: number; cost: number; convers
  *  cáo cụm tìm kiếm, không chỉ trên hai danh sách hiển thị. */
 export interface Blast { terms: number; conversions: number; cost: number }
 
-export function addTierOf(g: TermGroup, benchmarkCpa: number | null): {
+export function addTierOf(g: TermGroup, benchmarkCpa: number | null, t: TFunction = viT): {
   tier: AddTier; why: string; cpa: number | null; ratio: number | null;
 } {
-  const intent = intentOf(g.term);
+  const intent = intentOf(g.term, t);
   const cpa = g.conversions > 0 ? g.cost / g.conversions : null;
   const ratio = cpa !== null && benchmarkCpa ? cpa / benchmarkCpa : null;
 
   if (intent.key === "competitor") {
     return { tier: "avoid", cpa, ratio,
-      why: "Tên ĐỐI THỦ. Người gõ đang muốn mua của họ, không phải của mình — giá thầu cao mà tỉ lệ mua thấp. Bộ phân loại ý định trước đây chỉ chạy cho danh sách chặn nên loại này lọt vào đây trần trụi." };
+      why: t("libgoogle.stp.why.comp") };
   }
   if (intent.key === "brand") {
     return { tier: "add_now", cpa, ratio,
-      why: "Từ khoá THƯƠNG HIỆU của mình — nên chủ động giữ để không phải trả giá cao khi đối thủ mua tên mình. Đây là nguyên tắc chung, không phải phán quyết theo CPA." };
+      why: t("libgoogle.stp.why.brandAdd") };
   }
   if (benchmarkCpa === null) {
     return { tier: "weak", cpa, ratio,
-      why: "Kỳ 30 ngày chưa có chuyển đổi nào để làm mốc so sánh — chưa xếp hạng được." };
+      why: t("libgoogle.stp.why.noBench") };
   }
   if (g.conversions < MIN_CONV_EVIDENCE) {
     return { tier: "weak", cpa, ratio,
-      why: `Mới ${g.conversions.toFixed(1)} chuyển đổi — đây là chuyển đổi phân bổ lẻ, CPA tính trên đó là nhiễu. Chờ đủ 1 chuyển đổi rồi xét lại.` };
+      why: t("libgoogle.stp.why.fewConv", { n: g.conversions.toFixed(1) }) };
   }
   if (ratio !== null && ratio <= 1) {
     return { tier: "add_now", cpa, ratio,
-      why: `CPA rẻ hơn mốc cụm tìm kiếm 30 ngày (${ratio.toFixed(2)}×). Khoá lại bằng khớp chính xác để chủ động ra giá.` };
+      why: t("libgoogle.stp.why.cheap", { r: ratio.toFixed(2) }) };
   }
   if (ratio !== null && ratio <= CPA_AVOID_X) {
     return { tier: "add_watch", cpa, ratio,
-      why: `CPA đắt hơn mốc ${ratio.toFixed(1)}× nhưng đã có chuyển đổi thật. Thêm bằng khớp cụm, đặt giá thầu thấp rồi theo dõi.` };
+      why: t("libgoogle.stp.why.watch", { r: ratio.toFixed(1) }) };
   }
   return { tier: "avoid", cpa, ratio,
-    why: `CPA đắt hơn mốc ${ratio ? ratio.toFixed(1) : "?"}× — thêm vào là chủ động bơm tiền vào chỗ đang lỗ.` };
+    why: t("libgoogle.stp.why.avoid", { r: ratio ? ratio.toFixed(1) : "?" }) };
 }
 
 export type NegTier = "block_now" | "block_scoped" | "dont_block";
@@ -156,29 +163,29 @@ export const NEG_TIER: Record<NegTier, { label: string; rank: number; cls: strin
     desc: "Ý định mua hoặc tên thương hiệu mình. Việc tiếp theo là kiểm trang đích và mã đo chuyển đổi, KHÔNG phải chặn." },
 };
 
-export function negTierOf(g: TermGroup, conflicting: string[], blast?: Blast): {
+export function negTierOf(g: TermGroup, conflicting: string[], blast?: Blast, t: TFunction = viT): {
   tier: NegTier; why: string; negMatch: "EXACT" | "PHRASE";
 } {
-  const intent = intentOf(g.term);
+  const intent = intentOf(g.term, t);
   if (intent.key === "brand") {
     return { tier: "dont_block", negMatch: "EXACT",
-      why: "Đây là TÊN THƯƠNG HIỆU của mình. 0 chuyển đổi ở cụm thương hiệu gần như luôn là trang đích hoặc đo lường có vấn đề. Việc tiếp theo: kiểm trang đích và mã theo dõi chuyển đổi, KHÔNG phải chặn." };
+      why: t("libgoogle.stp.why.negBrand") };
   }
   if (intent.key === "buy") {
     return { tier: "dont_block", negMatch: "EXACT",
-      why: "Người gõ đang MUỐN MUA. 0 chuyển đổi ở đây thường là trang đích hoặc đo lường, không phải từ khoá sai. Việc tiếp theo: xem trang đích cụm này dẫn tới, đừng chặn." };
+      why: t("libgoogle.stp.why.negBuy") };
   }
   // Chặn khớp cụm mà nuốt theo cụm ĐANG RA ĐƠN là tự bắn vào chân. Ca thật:
   // "tên miền" đứng đầu bảng đáng chặn, nhưng chặn khớp cụm sẽ chặn luôn
   // "mua tên miền", "đăng ký tên miền" — cả danh mục sản phẩm lõi.
   if (blast && blast.conversions > 0) {
     return { tier: "block_scoped", negMatch: "EXACT",
-      why: `Chặn KHỚP CỤM sẽ chặn luôn ${blast.terms} cụm khác đang mang về ${blast.conversions.toFixed(1)} chuyển đổi (${Math.round(blast.cost).toLocaleString("vi-VN")}₫). Chỉ được chặn bằng KHỚP CHÍNH XÁC — đúng cụm này, không đụng cụm khác.` };
+      why: t("libgoogle.stp.why.blast", { terms: blast.terms, conv: blast.conversions.toFixed(1), cost: Math.round(blast.cost).toLocaleString(nfOf(t)) }) };
   }
   if (conflicting.includes(g.term.trim().toLowerCase())) {
     return { tier: "block_scoped", negMatch: "EXACT",
-      why: "Cụm này ĐANG RA ĐƠN ở nhóm quảng cáo khác. Chỉ chặn ở nhóm nó không ra đơn — chặn toàn tài khoản là cắt mất chỗ đang ra tiền." };
+      why: t("libgoogle.stp.why.conflict") };
   }
   return { tier: "block_now", negMatch: "PHRASE",
-    why: `Nhóm "${intent.label}" — không phải người muốn mua, và không ra đơn ở bất kỳ nhóm nào${blast && blast.terms > 0 ? `. Chặn khớp cụm nuốt thêm ${blast.terms} cụm nữa nhưng chúng cũng 0 chuyển đổi` : ""}. Chặn được ngay.` };
+    why: t("libgoogle.stp.why.blockNow", { label: intent.label, blast: blast && blast.terms > 0 ? t("libgoogle.stp.why.blockNowBlast", { n: blast.terms }) : "" }) };
 }

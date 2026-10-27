@@ -33,7 +33,7 @@ import type { MetaHealth } from "@/lib/measure/meta-health";
 import type { GoogleHealth } from "@/lib/measure/google-health";
 import type { LinkSuggestion } from "@/lib/measure/utm-suggest";
 import { orderedCompanyIds, companyLabel } from "@/lib/companies/registry";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import type { MessageKey } from "@/lib/i18n/messages";
 
 type Platform = AdPlatform;
@@ -69,6 +69,7 @@ export default function DoLuongUtmPage() {
 }
 
 function DoLuongUtmPageInner() {
+  const intl = useIntlLocale();
   const t = useT();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -343,13 +344,13 @@ function DoLuongUtmPageInner() {
       {!healthLoading && !healthError && fbHealth && (
         <>
           <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">
-            {t("meta.utm.fb.info", { a: num(fbHealth.links.onPlatform), b: num(fbHealth.links.postRead) })}
+            {t("meta.utm.fb.info", { a: num(fbHealth.links.onPlatform, undefined, intl), b: num(fbHealth.links.postRead, undefined, intl) })}
           </div>
           {fbHealth.links.postUnreadable > 0 && (
             <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
               <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
               <span>
-                {t("meta.utm.fb.unreadable", { n: num(fbHealth.links.postUnreadable), pages: fbHealth.links.postNoToken.map((p) => p.pageId).join(", ") })}{" "}
+                {t("meta.utm.fb.unreadable", { n: num(fbHealth.links.postUnreadable, undefined, intl), pages: fbHealth.links.postNoToken.map((p) => p.pageId).join(", ") })}{" "}
                 <Link href="/settings#ket-noi" className="font-medium underline underline-offset-2">{t("meta.measure.fh.lk.addToken")}</Link>
               </span>
             </div>
@@ -391,7 +392,7 @@ function DoLuongUtmPageInner() {
                           <td className="py-2"><code className="text-xs">{o.source ?? t("meta.utm.noTable.empty")}</code></td>
                           <td className="py-2"><code className="text-xs">{o.medium ?? t("meta.utm.noTable.empty")}</code></td>
                           <td className="py-2"><code className="text-xs">{o.campaign ?? t("meta.utm.noTable.empty")}</code></td>
-                          <td className="py-2 text-right tabular-nums">{num(o.count)}</td>
+                          <td className="py-2 text-right tabular-nums">{num(o.count, undefined, intl)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -404,7 +405,7 @@ function DoLuongUtmPageInner() {
           ) : (
             <div className="rounded-xl border border-slate-200 bg-white">
               <div className="border-b border-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-800">
-                {t("meta.utm.bad.title", { n: num(fbHealth.links.bad.length) })}
+                {t("meta.utm.bad.title", { n: num(fbHealth.links.bad.length, undefined, intl) })}
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -433,7 +434,7 @@ function DoLuongUtmPageInner() {
                             <div className="font-medium text-slate-800">{row.adName}</div>
                             <div className="text-xs text-slate-400">{row.campaignName}</div>
                           </td>
-                          <td className="px-3 py-2.5 text-right tabular-nums">{vnd(row.cost)}</td>
+                          <td className="px-3 py-2.5 text-right tabular-nums">{vnd(row.cost, intl)}</td>
                           <td className="px-3 py-2.5"><code className="block max-w-[220px] break-all text-xs text-slate-600">{row.link ?? "—"}</code></td>
                           <td className="px-3 py-2.5">
                             <div className="flex max-w-[220px] flex-col gap-1">
@@ -484,7 +485,7 @@ function DoLuongUtmPageInner() {
           ) : (
             <div className="rounded-xl border border-slate-200 bg-white">
               <div className="border-b border-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-800">
-                {t("meta.utm.g.count", { n: num(googleRows.length) })}
+                {t("meta.utm.g.count", { n: num(googleRows.length, undefined, intl) })}
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -557,6 +558,7 @@ function LinkSuggestSection({
   existingLinks: StandardLink[];
   onSaved: (json: LinksResponse) => void;
 }) {
+  const intl = useIntlLocale();
   const t = useT();
   const { toast } = useToast();
   const url = `/api/measure/utm-links/suggest?company=${company}&platform=${platform}`;
@@ -639,7 +641,7 @@ function LinkSuggestSection({
                     onChange={(e) => setDraft((cur) => ({ ...cur, [s.key]: { ...d, url: e.target.value } }))}
                   />
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <Pill tone="grey">{t("meta.utm.sg.adsCost", { n: num(s.ads), cost: vnd(s.cost) })}</Pill>
+                    <Pill tone="grey">{t("meta.utm.sg.adsCost", { n: num(s.ads, undefined, intl), cost: vnd(s.cost, intl) })}</Pill>
                     {s.campaignProposedByTool && <Pill tone="amber">{t("meta.utm.sg.proposed")}</Pill>}
                   </div>
                   {s.variants.length > 0 && (

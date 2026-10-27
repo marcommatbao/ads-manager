@@ -11,7 +11,7 @@ import { vnd, ddmmyyyy } from "./format";
 import { postJson, ApiError } from "./api";
 import type { CampaignCase } from "@/lib/case/store";
 import { nextSteps, type NextVerdict } from "@/lib/case/next-steps";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import type { MessageKey } from "@/lib/i18n/messages";
 
 const PILL: Record<NextVerdict | "none", { text: MessageKey; cls: string }> = {
@@ -26,6 +26,7 @@ type Busy = "check" | "reopen" | `undo:${string}`;
 type Confirm = "reopen" | `undo:${string}` | null;
 
 export function NextStepsPanel({ c, onRefresh }: { c: CampaignCase; onRefresh: (next: CampaignCase) => void }) {
+  const intl = useIntlLocale();
   const t = useT();
   const v = useMemo(() => nextSteps(c), [c]);
   const [busy, setBusy] = useState<Busy | null>(null);
@@ -77,8 +78,8 @@ export function NextStepsPanel({ c, onRefresh }: { c: CampaignCase; onRefresh: (
           <p className="font-medium text-slate-900">{v.headline}</p>
           {v.source && (
             <p className="mt-0.5 text-xs text-slate-500">
-              {t("overview.nextsteps.sourceAt", { date: ddmmyyyy(v.source.at) })}
-              {v.source.from && v.source.to ? ` (${ddmmyyyy(v.source.from)} → ${ddmmyyyy(v.source.to)})` : ""}
+              {t("overview.nextsteps.sourceAt", { date: ddmmyyyy(v.source.at, intl) })}
+              {v.source.from && v.source.to ? ` (${ddmmyyyy(v.source.from, intl)} → ${ddmmyyyy(v.source.to, intl)})` : ""}
               {v.source.kind === "check" ? ` (${t("overview.nextsteps.checkNow")})` : ""}
             </p>
           )}
@@ -147,7 +148,7 @@ export function NextStepsPanel({ c, onRefresh }: { c: CampaignCase; onRefresh: (
                         return (
                           <li key={u.executionId}>
                             <div className="flex flex-wrap items-center justify-between gap-2">
-                              <span>{ddmmyyyy(u.at)} · {u.summary}</span>
+                              <span>{ddmmyyyy(u.at, intl)} · {u.summary}</span>
                               {confirm !== key && (
                                 <Button type="button" size="sm" variant="outline" onClick={() => { setErr(null); setConfirm(key); }} disabled={!idle}>{t("overview.nextsteps.undo")}</Button>
                               )}
@@ -185,6 +186,7 @@ export function NextStepsPanel({ c, onRefresh }: { c: CampaignCase; onRefresh: (
 }
 
 function CauseList({ title, items, small }: { title: string; items: { id: string; title: string; money: number | null }[]; small?: boolean }) {
+  const intl = useIntlLocale();
   return (
     <div>
       <div className="mb-1 text-xs font-semibold text-slate-500">{title}</div>
@@ -192,7 +194,7 @@ function CauseList({ title, items, small }: { title: string; items: { id: string
         {items.map((x) => (
           <li key={x.id} className="flex justify-between gap-3">
             <span>{x.title}</span>
-            {x.money !== null && <span className="tabular-nums">{vnd(x.money)}</span>}
+            {x.money !== null && <span className="tabular-nums">{vnd(x.money, intl)}</span>}
           </li>
         ))}
       </ul>

@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireCompany, requireUser } from "@/lib/case/http"
 import { suggestFor } from "@/lib/playbook/suggest"
+import { getT } from "@/lib/i18n/server"
 
 export const dynamic = "force-dynamic"
 
@@ -14,5 +15,5 @@ export async function GET(request: NextRequest) {
   if (!co.ok) return co.response
   const platform = sp.get("platform") === "google" ? "google" : "facebook"
   const product = (sp.get("product") ?? "").slice(0, 60)
-  return NextResponse.json({ success: true, ...suggestFor(co.value, platform, product) })
+  return NextResponse.json({ success: true, ...suggestFor(co.value, platform, product, await getT()) })
 }

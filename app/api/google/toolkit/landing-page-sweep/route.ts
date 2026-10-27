@@ -13,6 +13,8 @@
 // ============================================================
 
 import { NextRequest, NextResponse } from "next/server";
+import { getT } from "@/lib/i18n/server";
+import { makeT } from "@/lib/i18n/translate";
 import { getCurrentUser, type SessionUser } from "@/lib/auth";
 import { checkCronAuth } from "@/lib/cron-auth";
 import { canAccessCompany } from "@/lib/permissions";
@@ -41,14 +43,16 @@ export async function GET(req: NextRequest) {
     ? { id: "cron", name: "Cron", email: "cron@internal", role: "super_admin", companies: ["ALL"] }
     : await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // Lượt cron (service-to-service) giữ tiếng Việt; người dùng giao diện theo cookie ngôn ngữ.
+  const t = user.id === "cron" ? makeT("vi") : await getT();
 
   const { searchParams } = new URL(req.url);
   const company = (searchParams.get("company") || "MBC") as string;
   if (!isCompany(company)) {
-    return NextResponse.json({ error: "Công ty không có ở bản cài này" }, { status: 400 });
+    return NextResponse.json({ error: t("libgoogle.lps.noCompany") }, { status: 400 });
   }
   if (!canAccessCompany(user, company)) {
-    return NextResponse.json({ error: "Không có quyền xem công ty này" }, { status: 403 });
+    return NextResponse.json({ error: t("libgoogle.lps.noView") }, { status: 403 });
   }
 
   const dateRange = RANGES[searchParams.get("days") ?? "30"] ?? RANGES["30"];
@@ -69,7 +73,7 @@ export async function GET(req: NextRequest) {
     //    tài khoản, trong khi nguồn 2 tìm ra 5 (MBC) và 96 (MBI) quảng cáo bị
     //    từ chối. Thiếu nguồn 2 là mù đúng chỗ có vấn đề.
     const [result, disapproved] = await Promise.all([
-      sweepLandingPages(run, { dateRange, includePaused }),
+      sweepLandingPages(run, { dateRange, includePaused, t }),
       fetchDisapprovedAds(run),
     ]);
 
@@ -79,7 +83,7 @@ export async function GET(req: NextRequest) {
 
     if (!result.ok) {
       return NextResponse.json(
-        { success: false, error: result.error ?? "Không đọc được danh sách trang đích từ Google Ads" },
+        { success: false, error: result.error ?? t("libgoogle.lps.noList") },
         { status: 502 },
       );
     }

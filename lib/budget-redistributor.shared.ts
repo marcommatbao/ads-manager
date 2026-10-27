@@ -1,3 +1,4 @@
+import { makeT, type TFunction } from "@/lib/i18n/translate"
 // ============================================================
 // Budget Redistributor — Shared Types & Constants
 // Safe to import from both client and server components.
@@ -138,12 +139,15 @@ export const DEFAULT_SETTINGS: RedistributionSettings = {
 // Pure Helpers (no Node.js APIs)
 // ─────────────────────────────────────────────
 
-export function fmtVND(val: number): string {
-  if (val >= 1_000_000_000) return `₫${(val / 1_000_000_000).toFixed(1)}Tỷ`;
-  if (val >= 1_000_000) return `₫${(val / 1_000_000).toFixed(1)}Tr`;
+export function fmtVND(val: number, t: TFunction = makeT("vi")): string {
+  if (val >= 1_000_000_000) return `₫${(val / 1_000_000_000).toFixed(1)}${t("libcase.r.unit.B")}`;
+  if (val >= 1_000_000) return `₫${(val / 1_000_000).toFixed(1)}${t("libcase.r.unit.M")}`;
   if (val >= 1_000) return `₫${(val / 1_000).toFixed(0)}K`;
-  return `₫${Math.round(val).toLocaleString("vi-VN")}`;
+  return `₫${Math.round(val).toLocaleString(t("libcase.r.numLocale"))}`;
 }
+
+/** Nhãn nhóm mục tiêu theo ngôn ngữ (GROUP_LABELS giữ tiếng Việt). */
+export const groupLabel = (g: ObjectiveGroup, t: TFunction = makeT("vi")): string => t(`libcase.r.grp.${g}` as never);
 
 export function estimateSavings(changes: BudgetChange[]): number {
   let savings = 0;

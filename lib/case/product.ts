@@ -7,6 +7,7 @@
 // Bỏ dấu trước khi so thì cả hai lỗi gõ dấu đều về đúng nhóm.
 
 import { stripDiacritics } from "./text"
+import { makeT, type TFunction } from "@/lib/i18n/translate"
 
 export type ProductGroup =
   | "HOSTING" | "DOMAIN" | "SSL" | "EINVOICE" | "ESIGN" | "ECONTRACT" | "SALEAI" | "DEFAULT"
@@ -34,3 +35,6 @@ export const PRODUCT_LABEL: Record<ProductGroup, string> = {
   SALEAI: "Sale.AI",
   DEFAULT: "Khác",
 }
+
+/** Nhãn nhóm sản phẩm theo ngôn ngữ (PRODUCT_LABEL giữ bản tiếng Việt cho mã/so khớp). */
+export const productLabel = (g: ProductGroup, t: TFunction = makeT("vi")): string => t(`libcase.c.product.${g}` as never)

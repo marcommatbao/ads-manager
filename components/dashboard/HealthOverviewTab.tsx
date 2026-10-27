@@ -27,7 +27,7 @@ import type { CardTone, FixItem, HealthOverview, StatusCard } from "@/lib/overvi
 import type { ChangeLevel, MonitorChange } from "@/lib/monitor/measure-monitor";
 import type { LeadFlow, LeadFlowStatus } from "@/lib/monitor/lead-flow";
 import { orderedCompanyIds, companyLabel } from "@/lib/companies/registry";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import type { MessageKey } from "@/lib/i18n/messages";
 import type { TFunction } from "@/lib/i18n/translate";
 
@@ -58,6 +58,7 @@ const RANK_TONE: Record<FixItem["rank"], PillTone> = {
 };
 
 export function HealthOverviewTab() {
+  const intl = useIntlLocale();
   const t = useT();
   const { user } = useSession();
   const allowedCompanies = resolveCompanyScope(user?.companies, user?.role);
@@ -172,7 +173,7 @@ export function HealthOverviewTab() {
                         <td className="px-3 py-2.5">
                           <Pill tone={RANK_TONE[fix.rank]} className="mb-1">{t(RANK_LABEL[fix.rank])}</Pill>
                           <div className="font-semibold text-slate-900">{fix.title}</div>
-                          {fix.money !== undefined && <div className="mt-0.5 text-xs font-semibold tabular-nums text-red-600">{vnd(fix.money)}</div>}
+                          {fix.money !== undefined && <div className="mt-0.5 text-xs font-semibold tabular-nums text-red-600">{vnd(fix.money, intl)}</div>}
                         </td>
                         <td className="px-3 py-2.5 text-slate-600">{fix.why}</td>
                         <td className="px-3 py-2.5 text-slate-600">{fix.suggestion}</td>
@@ -366,6 +367,7 @@ function LeadFlowSection() {
 }
 
 function LeadFlowCard({ flow, status }: { flow: LeadFlow; status: LeadFlowStatus | null }) {
+  const intl = useIntlLocale();
   const t = useT();
   const pill: { tone: PillTone; text: MessageKey } = status ? LEAD_STATUS_PILL[status.status] : { tone: "grey", text: "overview.healthtab.lead.status.unchecked" };
   return (
@@ -381,9 +383,9 @@ function LeadFlowCard({ flow, status }: { flow: LeadFlow; status: LeadFlowStatus
         <>
           <p className="mt-2 text-sm text-slate-600">{status.message}</p>
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
-            <span>{t("overview.healthtab.lead.lastLead")} <b className="font-semibold text-slate-700">{status.lastLeadAt ? datetimeVN(status.lastLeadAt) : t("overview.healthtab.lead.none")}</b></span>
-            <span>{t("overview.healthtab.lead.formsSince")} <b className="font-semibold tabular-nums text-slate-700">{num(status.formsSinceLead)}</b></span>
-            {status.expectedLeads !== null && <span>{rich(t("overview.healthtab.lead.expected", { n: num(status.expectedLeads) }), "font-semibold tabular-nums text-slate-700")}</span>}
+            <span>{t("overview.healthtab.lead.lastLead")} <b className="font-semibold text-slate-700">{status.lastLeadAt ? datetimeVN(status.lastLeadAt, intl) : t("overview.healthtab.lead.none")}</b></span>
+            <span>{t("overview.healthtab.lead.formsSince")} <b className="font-semibold tabular-nums text-slate-700">{num(status.formsSinceLead, undefined, intl)}</b></span>
+            {status.expectedLeads !== null && <span>{rich(t("overview.healthtab.lead.expected", { n: num(status.expectedLeads, undefined, intl) }), "font-semibold tabular-nums text-slate-700")}</span>}
           </div>
           <div className="mt-3 overflow-x-auto">
             <table className="w-full text-xs">
@@ -397,7 +399,7 @@ function LeadFlowCard({ flow, status }: { flow: LeadFlow; status: LeadFlowStatus
               <tbody>
                 {status.days.map((d) => (
                   <tr key={d.date} className="border-t border-slate-50">
-                    <td className="py-1 pr-4 text-slate-500">{ddmmyyyy(d.date)}</td>
+                    <td className="py-1 pr-4 text-slate-500">{ddmmyyyy(d.date, intl)}</td>
                     <td className="py-1 pr-4 tabular-nums text-slate-700">{d.forms}</td>
                     <td className="py-1 tabular-nums text-slate-700">{d.leads}</td>
                   </tr>

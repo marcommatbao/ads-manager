@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { vnd, pct } from "./format";
 import type { CampaignCase } from "@/lib/case/store";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import type { MessageKey } from "@/lib/i18n/messages";
 
 const SHARE_OF_LABEL: Record<string, MessageKey> = {
@@ -28,6 +28,7 @@ export function Step4Causes({
   onNext: () => void;
   busy?: boolean;
 }) {
+  const intl = useIntlLocale();
   const t = useT();
   const dx = c.diagnosis;
   const campaignCost = c.evidence?.campaign.cost ?? 0;
@@ -78,10 +79,10 @@ export function Step4Causes({
                   </div>
                   <div className="shrink-0 text-right">
                     <div className={`tabular-nums font-bold ${cause.money !== null ? "text-red-600" : "text-slate-700"}`}>
-                      {cause.money !== null ? vnd(cause.money) : t("overview.step4.inseparable")}
+                      {cause.money !== null ? vnd(cause.money, intl) : t("overview.step4.inseparable")}
                     </div>
                     {cause.share !== null && cause.shareOf && (
-                      <div className="text-xs text-slate-400">{pct(cause.share)} {SHARE_OF_LABEL[cause.shareOf] ? t(SHARE_OF_LABEL[cause.shareOf]) : cause.shareOf}</div>
+                      <div className="text-xs text-slate-400">{pct(cause.share, 1, intl)} {SHARE_OF_LABEL[cause.shareOf] ? t(SHARE_OF_LABEL[cause.shareOf]) : cause.shareOf}</div>
                     )}
                   </div>
                 </summary>
@@ -92,7 +93,7 @@ export function Step4Causes({
                       {cause.evidence.map((e, j) => (
                         <span key={j} className="inline-flex items-center gap-1 rounded-full bg-slate-50 px-2 py-1 text-xs text-slate-600">
                           {e.label}
-                          {e.cost !== undefined && <b className="tabular-nums">· {vnd(e.cost)}</b>}
+                          {e.cost !== undefined && <b className="tabular-nums">· {vnd(e.cost, intl)}</b>}
                           {e.clicks !== undefined && <span className="tabular-nums text-slate-400">· {t("overview.step4.clicks", { n: e.clicks })}</span>}
                         </span>
                       ))}

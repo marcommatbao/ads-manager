@@ -13,7 +13,7 @@
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Loader2, RefreshCw, Tag, Undo2, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import { getJson, postJson, ApiError } from "@/components/case/api";
 import { vnd, ddmmyyyy, datetimeVN } from "@/components/case/format";
 import { Button } from "@/components/ui/button";
@@ -59,6 +59,7 @@ function CleanupResultCard({ exec }: { exec: CleanupExecution }) {
 // ── Lịch sử gắn nhãn ──
 
 function CleanupHistoryRow({ h, onUndo }: { h: CleanupExecution; onUndo: (id: string) => void }) {
+  const intl = useIntlLocale();
   const t = useT();
   const ok = h.status === "done";
   return (
@@ -68,14 +69,14 @@ function CleanupHistoryRow({ h, onUndo }: { h: CleanupExecution; onUndo: (id: st
           {ok ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> : <XCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
           {t("google.pmaxCleanup.campaignCount", { n: h.campaigns.length })}
         </span>
-        <span className="text-slate-400">{datetimeVN(h.at)}</span>
+        <span className="text-slate-400">{datetimeVN(h.at, intl)}</span>
         <span className="text-slate-500">{h.by}</span>
       </div>
       {h.campaigns.length > 0 && <ul className="mt-1.5 list-disc space-y-0.5 pl-4 text-slate-600">{h.campaigns.map((c) => <li key={c.id}>{c.name}</li>)}</ul>}
       {h.errors.length > 0 && <ul className="mt-1.5 list-disc space-y-0.5 pl-4 text-red-700">{h.errors.map((e, i) => <li key={i}>{e}</li>)}</ul>}
       {ok && (
         h.undoneAt ? (
-          <p className="mt-1.5 text-slate-500">{t("google.pmaxCleanup.undoneAt", { time: datetimeVN(h.undoneAt) })}</p>
+          <p className="mt-1.5 text-slate-500">{t("google.pmaxCleanup.undoneAt", { time: datetimeVN(h.undoneAt, intl) })}</p>
         ) : (
           <div className="mt-2 flex justify-end">
             <Button variant="destructive" size="sm" className="h-8" onClick={() => onUndo(h.id)}>
@@ -91,6 +92,7 @@ function CleanupHistoryRow({ h, onUndo }: { h: CleanupExecution; onUndo: (id: st
 // ── Root ──
 
 export function CleanupPanel({ company }: { company: Company }) {
+  const intl = useIntlLocale();
   const t = useT();
   const confirmId = useId();
   const [data, setData] = useState<CleanupResponse | null>(null);
@@ -238,8 +240,8 @@ export function CleanupPanel({ company }: { company: Company }) {
                         )}
                       </td>
                       <td className="max-w-[220px] truncate px-2 py-2 text-slate-800" title={c.name}>{c.name}</td>
-                      <td className="px-2 py-2 text-slate-500">{ddmmyyyy(c.started)}</td>
-                      <td className="px-2 py-2 text-right text-slate-500">{vnd(c.spend12m)}</td>
+                      <td className="px-2 py-2 text-slate-500">{ddmmyyyy(c.started, intl)}</td>
+                      <td className="px-2 py-2 text-right text-slate-500">{vnd(c.spend12m, intl)}</td>
                       <td className="px-2 py-2 text-slate-500">{c.lastSpendMonth ? c.lastSpendMonth.split("-").reverse().join("/") : "—"}</td>
                       <td className="px-2 py-2">
                         {c.labelled ? (

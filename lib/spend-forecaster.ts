@@ -7,6 +7,9 @@
 // Types
 // ─────────────────────────────────────────────
 
+import { makeT, type TFunction } from "@/lib/i18n/translate";
+import { fmtVND } from "@/lib/budget-redistributor.shared";
+
 export type SpendTrend = "over" | "under" | "on_track";
 
 export interface SpendForecast {
@@ -33,18 +36,10 @@ function getDaysInMonth(year: number, month: number): number {
   return new Date(year, month + 1, 0).getDate();
 }
 
-function formatCurrencyVN(val: number): string {
-  if (val >= 1_000_000_000) return `₫${(val / 1_000_000_000).toFixed(1)}Tỷ`;
-  if (val >= 1_000_000) return `₫${(val / 1_000_000).toFixed(1)}Tr`;
-  if (val >= 1_000) return `₫${(val / 1_000).toFixed(0)}K`;
-  return `₫${Math.round(val).toLocaleString("vi-VN")}`;
+function formatCurrencyVN(val: number, t: TFunction = makeT("vi")): string {
+  return fmtVND(val, t);
 }
 
-const MONTH_NAMES_VI = [
-  "Tháng 1", "Tháng 2", "Tháng 3", "Tháng 4",
-  "Tháng 5", "Tháng 6", "Tháng 7", "Tháng 8",
-  "Tháng 9", "Tháng 10", "Tháng 11", "Tháng 12",
-];
 
 // ─────────────────────────────────────────────
 // Main forecaster
@@ -53,7 +48,8 @@ const MONTH_NAMES_VI = [
 export function forecastMonthlySpend(
   monthSoFar: number,
   monthlyBudget: number,
-  now?: Date
+  now?: Date,
+  t: TFunction = makeT("vi")
 ): SpendForecast {
   const d = now ?? new Date();
   const year = d.getFullYear();
@@ -91,11 +87,11 @@ export function forecastMonthlySpend(
   let recommendation: string;
   if (trend === "over") {
     const dailyCut = daysLeft > 0 ? overUnderAmount / daysLeft : overUnderAmount;
-    recommendation = `Cần giảm trung bình ${formatCurrencyVN(dailyCut)}/ngày để đúng budget`;
+    recommendation = t("libcase.r.fc.cut", { amt: formatCurrencyVN(dailyCut, t) });
   } else if (trend === "under") {
-    recommendation = `Còn dư ${formatCurrencyVN(overUnderAmount)} — có thể tăng budget cho campaigns đang tốt`;
+    recommendation = t("libcase.r.fc.left", { amt: formatCurrencyVN(overUnderAmount, t) });
   } else {
-    recommendation = "Chi tiêu đang đúng kế hoạch — giữ nguyên chiến lược hiện tại";
+    recommendation = t("libcase.r.fc.ok");
   }
 
   return {
@@ -105,13 +101,13 @@ export function forecastMonthlySpend(
     daysLeft,
     totalDaysInMonth: totalDays,
     forecastTotal,
-    forecastFormatted: formatCurrencyVN(forecastTotal),
+    forecastFormatted: formatCurrencyVN(forecastTotal, t),
     progressPct,
     spendProgressPct,
     trend,
     overUnderAmount,
     recommendation,
-    monthLabel: `${MONTH_NAMES_VI[month]} ${year}`,
+    monthLabel: `${t(`libcase.r.month.${month + 1}` as never)} ${year}`,
   };
 }
 
@@ -122,7 +118,8 @@ export function forecastMonthlySpend(
 export function forecastWeighted(
   dailySpends: number[],   // array of daily spends, most recent last
   monthlyBudget: number,
-  now?: Date
+  now?: Date,
+  t: TFunction = makeT("vi")
 ): SpendForecast {
   const d = now ?? new Date();
   const totalDays = getDaysInMonth(d.getFullYear(), d.getMonth());
@@ -142,18 +139,18 @@ export function forecastWeighted(
     const weightedDailyAvg = (recentAvg * 0.6) + (olderAvg * 0.4);
     const forecastTotal = monthSoFar + (weightedDailyAvg * daysLeft);
 
-    const base = forecastMonthlySpend(monthSoFar, monthlyBudget, d);
+    const base = forecastMonthlySpend(monthSoFar, monthlyBudget, d, t);
     return {
       ...base,
       dailyAverage: weightedDailyAvg,
       forecastTotal,
-      forecastFormatted: formatCurrencyVN(forecastTotal),
+      forecastFormatted: formatCurrencyVN(forecastTotal, t),
       overUnderAmount: Math.abs(forecastTotal - monthlyBudget),
     };
   }
 
   // Fallback to simple forecast
-  return forecastMonthlySpend(monthSoFar, monthlyBudget, d);
+  return forecastMonthlySpend(monthSoFar, monthlyBudget, d, t);
 }
 
 // ─────────────────────────────────────────────
@@ -165,3 +162,6 @@ export const TREND_CONFIG: Record<SpendTrend, { icon: string; color: string; bg:
   under:    { icon: "📉", color: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-200", label: "Dưới budget" },
   on_track: { icon: "✅", color: "text-blue-700", bg: "bg-blue-50", border: "border-blue-200", label: "Đúng kế hoạch" },
 };
+
+/** Nhãn xu hướng theo ngôn ngữ (TREND_CONFIG giữ tiếng Việt). */
+export const trendLabel = (k: SpendTrend, t: TFunction = makeT("vi")): string => t(`libcase.r.fc.${k}` as never);

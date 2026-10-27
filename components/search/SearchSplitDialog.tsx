@@ -66,6 +66,7 @@ const VERDICT_CLS: Record<"tot" | "theo_doi" | "dung", string> = {
 };
 
 function AdGroupPreview({ g }: { g: SplitAdGroup }) {
+  const intlLoc = useIntlLocale();
   const t = useT();
   const [open, setOpen] = useState(false);
   return (
@@ -84,8 +85,8 @@ function AdGroupPreview({ g }: { g: SplitAdGroup }) {
                 <tr key={k.criterion} className="border-t border-slate-50">
                   <td className="py-1 pr-2 text-slate-700">{k.text}</td>
                   <td className="py-1 pr-2 text-slate-500">{MATCH_LABEL[k.match] ? t(MATCH_LABEL[k.match]) : k.match}</td>
-                  <td className="py-1 pr-2 text-right tabular-nums text-slate-600">{vnd(k.cost)}</td>
-                  <td className="py-1 text-right tabular-nums text-slate-600">{num(k.purchases, { maximumFractionDigits: 1 })}</td>
+                  <td className="py-1 pr-2 text-right tabular-nums text-slate-600">{vnd(k.cost, intlLoc)}</td>
+                  <td className="py-1 text-right tabular-nums text-slate-600">{num(k.purchases, { maximumFractionDigits: 1 }, intlLoc)}</td>
                 </tr>
               ))}
             </tbody>
@@ -114,6 +115,7 @@ function AssessmentView({
 }: {
   assessment: SplitAssessment; selectedOption: "keep_total" | "grow"; onSelectOption: (id: "keep_total" | "grow", genericBudget: number) => void;
 }) {
+  const intlLoc = useIntlLocale();
   const t = useT();
   return (
     <div className="space-y-2">
@@ -132,7 +134,7 @@ function AssessmentView({
                 <span className={cn("shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold", i === 0 ? "bg-indigo-50 text-indigo-700 border-indigo-200" : "bg-emerald-50 text-emerald-700 border-emerald-200")}>{s.role}</span>
               </div>
               <p className="mt-1 text-slate-500">{s.keywords}</p>
-              <p className="mt-1 text-slate-400">{t("google.searchSplit.perDay", { amount: vnd(s.budgetPerDay) })} · {s.bidding}</p>
+              <p className="mt-1 text-slate-400">{t("google.searchSplit.perDay", { amount: vnd(s.budgetPerDay, intlLoc) })} · {s.bidding}</p>
             </div>
           ))}
         </div>
@@ -152,7 +154,7 @@ function AssessmentView({
                     </span>
                     {assessment.recommendedOption === o.id && <span className="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">{t("google.searchSplit.recommended")}</span>}
                   </span>
-                  <span className="text-slate-500">{t("google.searchSplit.budgetLine", { brand: vnd(o.brandBudget), generic: vnd(o.genericBudget), total: vnd(o.total) })}</span>
+                  <span className="text-slate-500">{t("google.searchSplit.budgetLine", { brand: vnd(o.brandBudget, intlLoc), generic: vnd(o.genericBudget, intlLoc), total: vnd(o.total, intlLoc) })}</span>
                   <span className="text-slate-400">{o.note}</span>
                 </label>
               );
@@ -206,6 +208,7 @@ function PlanView({
 }: {
   plan: SplitPlan; assessment: SplitAssessment | null; company: Company; range: Range; confirmText: string; onCreated: (rec: SplitRecord) => void;
 }) {
+  const intlLoc = useIntlLocale();
   const t = useT();
   const confirmId = useId();
   const [budget, setBudget] = useState(String(plan.budgetPerDay));
@@ -301,13 +304,13 @@ function PlanView({
           <label className="block">
             <span className="font-semibold text-slate-700">{t("google.searchSplit.dailyBudget")}</span>
             <Input type="number" min={0} value={budget} onChange={(e) => { setBudget(e.target.value); setValidateOk(false); }} className="mt-1 h-9" />
-            <span className="mt-1 block text-slate-400">{t("google.searchSplit.genericCostNow", { amount: t("google.searchSplit.perDay", { amount: vnd(plan.genericCostPerDay) }) })}</span>
+            <span className="mt-1 block text-slate-400">{t("google.searchSplit.genericCostNow", { amount: t("google.searchSplit.perDay", { amount: vnd(plan.genericCostPerDay, intlLoc) }) })}</span>
           </label>
           {brandBudget && plan.sourceBudgetPerDay && brandBudget !== plan.sourceBudgetPerDay && (
             <p className="rounded-md bg-sky-50 px-2 py-1.5 text-sky-800">
               {plan.sourceBudgetShared
                 ? t("google.searchSplit.sharedBudget")
-                : t("google.searchSplit.keepTotal", { from: vnd(plan.sourceBudgetPerDay), to: vnd(brandBudget) })}
+                : t("google.searchSplit.keepTotal", { from: vnd(plan.sourceBudgetPerDay, intlLoc), to: vnd(brandBudget, intlLoc) })}
             </p>
           )}
           <div className="block">
@@ -315,7 +318,7 @@ function PlanView({
             <div className="mt-1 space-y-1">
               {([
                 ["none", t("google.searchSplit.cpa.none")],
-                ...(plan.sourceTargetCpa ? [["keep", t("google.searchSplit.cpa.keep", { cpa: vnd(plan.sourceTargetCpa) })]] : []),
+                ...(plan.sourceTargetCpa ? [["keep", t("google.searchSplit.cpa.keep", { cpa: vnd(plan.sourceTargetCpa, intlLoc) })]] : []),
                 ["set", t("google.searchSplit.cpa.set")],
               ] as ["none" | "keep" | "set", string][]).map(([v, l]) => (
                 <label key={v} className="flex items-center gap-1.5 text-slate-600">
@@ -382,7 +385,7 @@ function PlanView({
             <DialogTitle>{t("google.searchSplit.createTitle", { name: plan.newName, company })}</DialogTitle>
             <DialogDescription>{t("google.searchSplit.createDesc")}</DialogDescription>
           </DialogHeader>
-          <p className="text-xs text-slate-600">{t("google.searchSplit.createSummary", { kw: genericKeywords, groups: plan.adGroups.length, budget: t("google.searchSplit.perDay", { amount: vnd(Number(budget) || plan.budgetPerDay) }) })}</p>
+          <p className="text-xs text-slate-600">{t("google.searchSplit.createSummary", { kw: genericKeywords, groups: plan.adGroups.length, budget: t("google.searchSplit.perDay", { amount: vnd(Number(budget) || plan.budgetPerDay, intlLoc) }) })}</p>
           <div className="space-y-1.5">
             <label htmlFor={confirmId} className="text-xs font-medium text-slate-500">
               {t("google.searchSplit.typePrefix")}<code className="rounded bg-slate-100 px-1 py-0.5">{confirmText}</code>{t("google.searchSplit.typeSuffix")}
@@ -521,6 +524,7 @@ function SplitAdsPanel({ rec, company, canEdit }: { rec: SplitRecord; company: C
 }
 
 function SeriesPanel({ rec, company }: { rec: SplitRecord; company: Company }) {
+  const intlLoc = useIntlLocale();
   const t = useT();
   const [data, setData] = useState<SplitSeries | null>(null);
   const [busy, setBusy] = useState(false);
@@ -530,7 +534,7 @@ function SeriesPanel({ rec, company }: { rec: SplitRecord; company: Company }) {
     try { const j = await getJson(`/api/google/search/split?company=${company}&series=${rec.id}`); setData(j.series as SplitSeries); }
     catch (e) { setErr(e instanceof ApiError ? e.message : t("google.searchSplit.readFailed")); } finally { setBusy(false); }
   }
-  const cpa = (x: { cpa: number | null }) => (x.cpa ? vnd(x.cpa) : "—");
+  const cpa = (x: { cpa: number | null }) => (x.cpa ? vnd(x.cpa, intlLoc) : "—");
   return (
     <div className="space-y-1.5 border-t border-slate-100 pt-2">
       <Button type="button" variant="outline" size="sm" className="h-8 bg-white" onClick={load} disabled={busy}>
@@ -540,12 +544,12 @@ function SeriesPanel({ rec, company }: { rec: SplitRecord; company: Company }) {
       {data && (
         <div className="space-y-1.5 rounded-lg border border-slate-100 bg-slate-50 p-2.5">
           <p>{t("google.searchSplit.series.newCampaign", { status: data.newStatus ?? "—" })}{data.learning ? ` · ${data.learning}` : ""}{data.sourceLostBudget7d != null ? t("google.searchSplit.series.lostBudget", { pct: Math.round(data.sourceLostBudget7d * 100) }) : ""}</p>
-          <p>{t("google.searchSplit.series.totals", { from: data.from.slice(5).split("-").reverse().join("/"), to: data.to.slice(5).split("-").reverse().join("/"), sCost: vnd(data.totals.source.cost), sConv: num(data.totals.source.conv), sCpa: cpa(data.totals.source), nCost: vnd(data.totals.split.cost), nConv: num(data.totals.split.conv), nCpa: cpa(data.totals.split) })}</p>
+          <p>{t("google.searchSplit.series.totals", { from: data.from.slice(5).split("-").reverse().join("/"), to: data.to.slice(5).split("-").reverse().join("/"), sCost: vnd(data.totals.source.cost, intlLoc), sConv: num(data.totals.source.conv, undefined, intlLoc), sCpa: cpa(data.totals.source), nCost: vnd(data.totals.split.cost, intlLoc), nConv: num(data.totals.split.conv, undefined, intlLoc), nCpa: cpa(data.totals.split) })}</p>
           <div className="max-h-48 overflow-auto">
             <table className="w-full text-[11px]">
               <thead className="text-slate-400"><tr><th className="text-left">{t("google.searchSplit.series.date")}</th><th className="text-right">{t("google.searchSplit.series.sCost")}</th><th className="text-right">{t("google.searchSplit.series.sConv")}</th><th className="text-right">{t("google.searchSplit.series.nCost")}</th><th className="text-right">{t("google.searchSplit.series.nConv")}</th></tr></thead>
               <tbody>{[...data.points].reverse().map((p) => (
-                <tr key={p.date} className="border-t border-slate-100"><td>{p.date.slice(5).split("-").reverse().join("/")}</td><td className="text-right tabular-nums">{vnd(p.source.cost)}</td><td className="text-right tabular-nums">{num(p.source.conv)}</td><td className="text-right tabular-nums">{vnd(p.split.cost)}</td><td className="text-right tabular-nums">{num(p.split.conv)}</td></tr>
+                <tr key={p.date} className="border-t border-slate-100"><td>{p.date.slice(5).split("-").reverse().join("/")}</td><td className="text-right tabular-nums">{vnd(p.source.cost, intlLoc)}</td><td className="text-right tabular-nums">{num(p.source.conv, undefined, intlLoc)}</td><td className="text-right tabular-nums">{vnd(p.split.cost, intlLoc)}</td><td className="text-right tabular-nums">{num(p.split.conv, undefined, intlLoc)}</td></tr>
               ))}</tbody>
             </table>
           </div>
@@ -623,7 +627,7 @@ function SplitRecordCard({
         <p className="min-w-0 truncate font-semibold text-slate-800" title={rec.name}>{rec.name}</p>
         <span className={cn("shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold", STEP_CLS[rec.step])}>{t(STEP_LABEL[rec.step])}</span>
       </div>
-      <p className="text-slate-400">{t("google.searchSplit.recSummary", { source: rec.sourceName, kw: rec.keywordsCount, groups: rec.adGroupsCount, budget: t("google.searchSplit.perDay", { amount: vnd(rec.budgetPerDay) }) })}</p>
+      <p className="text-slate-400">{t("google.searchSplit.recSummary", { source: rec.sourceName, kw: rec.keywordsCount, groups: rec.adGroupsCount, budget: t("google.searchSplit.perDay", { amount: vnd(rec.budgetPerDay, intl) }) })}</p>
       {rec.movedAt && <p className="text-slate-400">{t("google.searchSplit.movedAt", { time: new Date(rec.movedAt).toLocaleString(intl, { timeZone: "Asia/Ho_Chi_Minh" }) })}</p>}
       {rec.errors.length > 0 && <ul className="list-disc space-y-0.5 pl-4 text-red-700">{rec.errors.map((e, i) => <li key={i}>{e}</li>)}</ul>}
       {rec.goalReport && <p className="text-slate-400">{rec.goalReport}</p>}
@@ -684,8 +688,8 @@ function SplitRecordCard({
         <p className="border-t border-slate-100 pt-2 text-slate-600">
           <span className="font-semibold text-slate-700">{t("google.searchSplit.sourceBudgetLabel")}</span>
           {rec.sourceBudget.appliedAt
-            ? <>{t("google.searchSplit.sbChanged", { range: `${rec.sourceBudget.before ? `${vnd(rec.sourceBudget.before)} → ` : ""}${t("google.searchSplit.perDay", { amount: vnd(rec.sourceBudget.target) })}` })}{rec.step === "moved" ? t("google.searchSplit.sbUndoNote") : ""}</>
-            : <>{t("google.searchSplit.sbWillLower", { amount: t("google.searchSplit.perDay", { amount: vnd(rec.sourceBudget.target) }) })}</>}
+            ? <>{t("google.searchSplit.sbChanged", { range: `${rec.sourceBudget.before ? `${vnd(rec.sourceBudget.before, intl)} → ` : ""}${t("google.searchSplit.perDay", { amount: vnd(rec.sourceBudget.target, intl) })}` })}{rec.step === "moved" ? t("google.searchSplit.sbUndoNote") : ""}</>
+            : <>{t("google.searchSplit.sbWillLower", { amount: t("google.searchSplit.perDay", { amount: vnd(rec.sourceBudget.target, intl) }) })}</>}
         </p>
       )}
       {rec.step === "created" && (
@@ -716,7 +720,7 @@ function SplitRecordCard({
             <label className="block space-y-1 text-xs">
               <span className="font-medium text-slate-600">{t("google.searchSplit.newBudgetFor", { name: rec.sourceName })}</span>
               <Input type="number" min={50000} value={amount} onChange={(e) => setAmount(e.target.value)} className="h-10" />
-              <span className="block text-slate-400">{t("google.searchSplit.keepTotalHint", { amount: vnd(rec.budgetPerDay) })}</span>
+              <span className="block text-slate-400">{t("google.searchSplit.keepTotalHint", { amount: vnd(rec.budgetPerDay, intl) })}</span>
             </label>
           )}
           <div className="space-y-1.5">

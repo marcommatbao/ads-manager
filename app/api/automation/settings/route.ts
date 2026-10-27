@@ -5,6 +5,7 @@
 // The Auto-Apply settings page has always called this route; it was never
 // implemented, so every toggle read `undefined` and every save 404'd.
 // ============================================================
+import { getT } from "@/lib/i18n/server";
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { canAccessCompany, hasPermission } from "@/lib/permissions";
@@ -26,11 +27,12 @@ function parseCompany(value: string | null): Company | null {
 }
 
 export async function GET(request: NextRequest) {
+  const t = await getT();
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const company = parseCompany(request.nextUrl.searchParams.get("company"));
-  if (!company) return NextResponse.json({ error: "Công ty không có ở bản cài này" }, { status: 400 });
+  if (!company) return NextResponse.json({ error: t("libcase.r.as.1") }, { status: 400 });
   if (!canAccessCompany(user, company)) {
     return NextResponse.json({ error: "Access denied for this company" }, { status: 403 });
   }
@@ -51,11 +53,12 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const t = await getT();
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   // Enabling a rule authorises real budget/keyword mutations to run unattended.
   if (!hasPermission(user.role, "can_edit")) {
-    return NextResponse.json({ error: "Không có quyền thay đổi cấu hình tự động" }, { status: 403 });
+    return NextResponse.json({ error: t("libcase.r.as.2") }, { status: 403 });
   }
 
   let body: { company?: string; enabledRules?: string[]; mode?: AutoApplyMode | null };
@@ -66,13 +69,13 @@ export async function POST(request: NextRequest) {
   }
 
   const company = parseCompany(body.company ?? null);
-  if (!company) return NextResponse.json({ error: "Công ty không có ở bản cài này" }, { status: 400 });
+  if (!company) return NextResponse.json({ error: t("libcase.r.as.1") }, { status: 400 });
   if (!canAccessCompany(user, company)) {
     return NextResponse.json({ error: "Access denied for this company" }, { status: 403 });
   }
 
   if (body.enabledRules !== undefined && !Array.isArray(body.enabledRules)) {
-    return NextResponse.json({ error: "enabledRules phải là mảng" }, { status: 400 });
+    return NextResponse.json({ error: t("libcase.r.as.3") }, { status: 400 });
   }
   // Reject unknown rule ids loudly instead of silently dropping them — a
   // toggle that reports saved but was discarded is exactly the failure this
@@ -82,13 +85,13 @@ export async function POST(request: NextRequest) {
   );
   if (unknown.length > 0) {
     return NextResponse.json(
-      { error: `Rule không hợp lệ: ${unknown.join(", ")}` },
+      { error: t("libcase.r.as.4", { v1: unknown.join(", ") }) },
       { status: 400 },
     );
   }
 
   if (body.mode !== undefined && body.mode !== null && body.mode !== "dry_run" && body.mode !== "auto_apply") {
-    return NextResponse.json({ error: "mode phải là dry_run, auto_apply hoặc null" }, { status: 400 });
+    return NextResponse.json({ error: t("libcase.r.as.5") }, { status: 400 });
   }
 
   const saved = await saveAutoApplySettings(

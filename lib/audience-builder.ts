@@ -4,6 +4,8 @@
 // ============================================================
 
 import { createHash } from "crypto";
+import type { TFunction } from "@/lib/i18n/translate";
+import type { MessageKey } from "@/lib/i18n/messages";
 
 // ─────────────────────────────────────────────
 // Types
@@ -449,3 +451,13 @@ export function estimateAudienceSize(config: AudienceConfig, realCount?: number)
 
 // Minimum audience size for FB Lookalike
 export const MIN_AUDIENCE_SIZE = 100;
+
+// ─────────────────────────────────────────────
+// Nhãn theo ngôn ngữ (GĐ3) — không truyền `t` thì trả đúng bản tiếng Việt ở các bảng trên.
+// ─────────────────────────────────────────────
+export const sourceLabel = (id: AudienceSource, t?: TFunction): string => (t ? t(`libmeta.aud.src.${id}.label` as MessageKey) : (AUDIENCE_SOURCES.find((s) => s.id === id)?.label ?? id));
+export const sourceDescription = (id: AudienceSource, t?: TFunction): string => (t ? t(`libmeta.aud.src.${id}.desc` as MessageKey) : (AUDIENCE_SOURCES.find((s) => s.id === id)?.description ?? ""));
+/** Mô tả của một mức lookalike (nhãn "N% Lookalike" giống nhau ở cả hai ngôn ngữ). */
+export const lookalikeDescription = (ratio: LookalikeRatio, t?: TFunction): string => (t && ratio !== 0.10 ? t(`libmeta.aud.la.${Math.round(ratio * 100)}.desc` as MessageKey) : (LOOKALIKE_OPTIONS.find((o) => o.ratio === ratio)?.description ?? ""));
+export const timeRangeLabel = (days: number, t?: TFunction): string => (t && [90, 180, 365].includes(days) ? t(`libmeta.aud.range.${days}` as MessageKey) : (TIME_RANGES.find((r) => r.days === days)?.label ?? String(days)));
+export const minAmountLabel = (value: number, t?: TFunction): string => (t && [0, 500000, 1000000, 3000000].includes(value) ? t(`libmeta.aud.amt.${value}` as MessageKey) : (MIN_AMOUNTS.find((a) => a.value === value)?.label ?? String(value)));

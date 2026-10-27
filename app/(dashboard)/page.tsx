@@ -88,6 +88,7 @@ function PlatformCard({
   currency = "USD",
   notConnected = false,
 }: PlatformCardProps & { notConnected?: boolean }) {
+  const intl = useIntlLocale();
   const t = useT();
   function Val({ v }: { v: string }) {
     if (isLoading) return <div className="h-5 w-16 animate-pulse rounded bg-slate-100" />;
@@ -95,7 +96,7 @@ function PlatformCard({
   }
 
   // Format spend for platform card
-  const spendDisplay = formatCurrency(spend, currency, false);
+  const spendDisplay = formatCurrency(spend, currency, false, intl);
 
   return (
     <div
@@ -1180,6 +1181,7 @@ function computeCompanyStats(allCampaigns: Campaign[]) {
 function CompanySplitCards({ allCampaigns, currency, isLoading, onSelect }: {
   allCampaigns: Campaign[]; currency: string; isLoading: boolean; onSelect: (c: CompanyFilter) => void;
 }) {
+  const intl = useIntlLocale();
   const t = useT();
   const stats = computeCompanyStats(allCampaigns);
   if (isLoading) return (
@@ -1205,7 +1207,7 @@ function CompanySplitCards({ allCampaigns, currency, isLoading, onSelect }: {
             </div>
           </div>
           <div className="grid grid-cols-2 gap-y-1.5 gap-x-4 text-xs">
-            <div><span className="text-slate-400">{t("overview.home.splitSpend")}</span> <b className={s.accent}>{formatCurrency(s.spend, currency, true)}</b></div>
+            <div><span className="text-slate-400">{t("overview.home.splitSpend")}</span> <b className={s.accent}>{formatCurrency(s.spend, currency, true, intl)}</b></div>
             <div><span className="text-slate-400">{t("overview.home.splitCampaigns")}</span> <b className={s.accent}>{t("overview.home.splitActive", { n: s.campaigns })}</b></div>
             <div><span className="text-slate-400">CTR:</span> <b className={s.accent}>{s.ctr.toFixed(2)}%</b></div>
           </div>

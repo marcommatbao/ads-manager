@@ -17,7 +17,7 @@ import {
   AlertTriangle, CheckCircle2, ExternalLink, Loader2, RefreshCw, TestTube2, XCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import type { MessageKey } from "@/lib/i18n/messages";
 import { getJson, postJson, ApiError } from "@/components/case/api";
 import { vnd, num, pct, ddmmyyyy, datetimeVN } from "@/components/case/format";
@@ -60,6 +60,7 @@ const VERDICT_META: Record<ExperimentResult["verdict"], { label: MessageKey; cls
 function CandidateCard({ c, selected, onSelect, disabled }: {
   c: ExperimentDesign["candidates"][number]; selected: boolean; onSelect: () => void; disabled: boolean;
 }) {
+  const intl = useIntlLocale();
   const t = useT();
   const [showAll, setShowAll] = useState(false);
   const names = c.holdoutNames;
@@ -84,15 +85,15 @@ function CandidateCard({ c, selected, onSelect, disabled }: {
             )}
           </div>
           <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-slate-600 sm:grid-cols-3">
-            <span>{t("google.pmaxExperiment.kpiShare")} <strong className="text-slate-800">{pct(c.holdoutShare, 0)}</strong></span>
-            <span>{t("google.pmaxExperiment.kpiPerWeek")} <strong className="text-slate-800">{num(c.kpiHoldoutPerWeek, { maximumFractionDigits: 1 })}</strong></span>
-            <span>{t("google.pmaxExperiment.pmaxClaimPerWeek")} <strong className="text-slate-800">{num(c.pmaxClaimPerWeek, { maximumFractionDigits: 1 })}</strong></span>
-            <span>{t("google.pmaxExperiment.pmaxCostPerWeek")} <strong className="text-slate-800">{vnd(c.pmaxCostPerWeek)}</strong></span>
-            <span>{t("google.pmaxExperiment.ifGoogleRight")} <strong className="text-slate-800">~{pct(c.expectedEffect, 0)}</strong></span>
+            <span>{t("google.pmaxExperiment.kpiShare")} <strong className="text-slate-800">{pct(c.holdoutShare, 0, intl)}</strong></span>
+            <span>{t("google.pmaxExperiment.kpiPerWeek")} <strong className="text-slate-800">{num(c.kpiHoldoutPerWeek, { maximumFractionDigits: 1 }, intl)}</strong></span>
+            <span>{t("google.pmaxExperiment.pmaxClaimPerWeek")} <strong className="text-slate-800">{num(c.pmaxClaimPerWeek, { maximumFractionDigits: 1 }, intl)}</strong></span>
+            <span>{t("google.pmaxExperiment.pmaxCostPerWeek")} <strong className="text-slate-800">{vnd(c.pmaxCostPerWeek, intl)}</strong></span>
+            <span>{t("google.pmaxExperiment.ifGoogleRight")} <strong className="text-slate-800">~{pct(c.expectedEffect, 0, intl)}</strong></span>
           </div>
           <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-slate-500">
-            <span>{t("google.pmaxExperiment.mde4", { pct: pct(c.mde[4] ?? 1, 0) })}</span>
-            <span>{t("google.pmaxExperiment.mde6", { pct: pct(c.mde[6] ?? 1, 0) })}</span>
+            <span>{t("google.pmaxExperiment.mde4", { pct: pct(c.mde[4] ?? 1, 0, intl) })}</span>
+            <span>{t("google.pmaxExperiment.mde6", { pct: pct(c.mde[6] ?? 1, 0, intl) })}</span>
           </div>
           <p className="text-[11px] italic text-slate-500">{c.note}</p>
         </div>
@@ -133,6 +134,7 @@ function VerdictBadge({ verdict }: { verdict: ExperimentResult["verdict"] }) {
 function RunningExperimentCard({ exp, company, canEdit, onChanged }: {
   exp: GeoExperiment; company: Company; canEdit: boolean; onChanged: () => void;
 }) {
+  const intl = useIntlLocale();
   const t = useT();
   const [local, setLocal] = useState(exp);
   useEffect(() => setLocal(exp), [exp]);
@@ -179,7 +181,7 @@ function RunningExperimentCard({ exp, company, canEdit, onChanged }: {
       </div>
       <div>
         <div className="flex items-center justify-between text-[11px] text-indigo-700/80">
-          <span>{ddmmyyyy(local.start)} → {ddmmyyyy(local.plannedEnd)}</span>
+          <span>{ddmmyyyy(local.start, intl)} → {ddmmyyyy(local.plannedEnd, intl)}</span>
           <span>{progress}%</span>
         </div>
         <div className="mt-1 h-1.5 rounded-full bg-indigo-100">
@@ -191,12 +193,12 @@ function RunningExperimentCard({ exp, company, canEdit, onChanged }: {
           <p>{r.text || t("google.pmaxExperiment.notEnoughWeeks")}</p>
           {r.testWeeks >= 2 && (
             <>
-              <p>{t("google.pmaxExperiment.change")} <strong>{pct(r.change, 0)}</strong> ({t("google.pmaxExperiment.ci")} {pct(r.ciLow, 0)} … {pct(r.ciHigh, 0)})</p>
+              <p>{t("google.pmaxExperiment.change")} <strong>{pct(r.change, 0, intl)}</strong> ({t("google.pmaxExperiment.ci")} {pct(r.ciLow, 0, intl)} … {pct(r.ciHigh, 0, intl)})</p>
               <VerdictBadge verdict={r.verdict} />
             </>
           )}
-          {r.leakCost > 0 && <p className="text-amber-700">{t("google.pmaxExperiment.leak", { cost: vnd(r.leakCost) })}</p>}
-          <p className="text-[10px] text-indigo-400">{t("google.pmaxExperiment.measuredAt", { time: datetimeVN(r.at) })}</p>
+          {r.leakCost > 0 && <p className="text-amber-700">{t("google.pmaxExperiment.leak", { cost: vnd(r.leakCost, intl) })}</p>}
+          <p className="text-[10px] text-indigo-400">{t("google.pmaxExperiment.measuredAt", { time: datetimeVN(r.at, intl) })}</p>
         </div>
       )}
       {remeasureErr && <p className="text-xs text-red-600">{remeasureErr}</p>}
@@ -230,6 +232,7 @@ function RunningExperimentCard({ exp, company, canEdit, onChanged }: {
 }
 
 function EndedExperimentCard({ exp }: { exp: GeoExperiment }) {
+  const intl = useIntlLocale();
   const t = useT();
   return (
     <div className="space-y-1.5 rounded-xl border border-slate-200 bg-white p-3 text-xs">
@@ -239,7 +242,7 @@ function EndedExperimentCard({ exp }: { exp: GeoExperiment }) {
           {exp.status === "failed" ? t("google.pmaxExperiment.failedStart") : t("google.pmaxExperiment.ended")}
         </span>
       </div>
-      <p className="text-slate-400">{ddmmyyyy(exp.start)} → {exp.endedAt ? datetimeVN(exp.endedAt) : ddmmyyyy(exp.plannedEnd)}</p>
+      <p className="text-slate-400">{ddmmyyyy(exp.start, intl)} → {exp.endedAt ? datetimeVN(exp.endedAt, intl) : ddmmyyyy(exp.plannedEnd, intl)}</p>
       {exp.lastResult?.text && <p className="text-slate-600">{exp.lastResult.text}</p>}
       {exp.endReport && exp.endReport.length > 0 && (
         <ul className="list-disc space-y-0.5 pl-4 text-slate-500">{exp.endReport.map((l, i) => <li key={i}>{l}</li>)}</ul>
@@ -254,6 +257,7 @@ function EndedExperimentCard({ exp }: { exp: GeoExperiment }) {
 // ── Root ──
 
 export function ExperimentPanel({ company }: { company: Company }) {
+  const intl = useIntlLocale();
   const t = useT();
   const ga4Id = useId(), weeksId = useId(), confirmId = useId();
 
@@ -444,7 +448,7 @@ export function ExperimentPanel({ company }: { company: Company }) {
             <div className="space-y-1.5 border-t border-slate-100 pt-2.5">
               <p className="text-[11px] font-semibold text-slate-500">{t("google.pmaxExperiment.csvTitle")} <code>ngay,tinh,so_don</code>)</p>
               {data.csv && (
-                <p className="text-[11px] text-slate-400">{t("google.pmaxExperiment.csvInUse", { date: data.csv.uploadedAt.slice(0, 10), rows: data.csv.rows, from: ddmmyyyy(data.csv.from), to: ddmmyyyy(data.csv.to) })}</p>
+                <p className="text-[11px] text-slate-400">{t("google.pmaxExperiment.csvInUse", { date: data.csv.uploadedAt.slice(0, 10), rows: data.csv.rows, from: ddmmyyyy(data.csv.from, intl), to: ddmmyyyy(data.csv.to, intl) })}</p>
               )}
               {canEdit && (
                 <>
@@ -486,7 +490,7 @@ export function ExperimentPanel({ company }: { company: Company }) {
                       <Checkbox checked={!!checkedCampaigns[cp.id]} onCheckedChange={() => setCheckedCampaigns((p) => ({ ...p, [cp.id]: !p[cp.id] }))} disabled={!canEdit} />
                       <span className="truncate text-slate-700">{cp.name}</span>
                     </span>
-                    <span className="shrink-0 tabular-nums text-slate-400">{vnd(cp.cost)}{t("google.pmaxExperiment.per30d")}</span>
+                    <span className="shrink-0 tabular-nums text-slate-400">{vnd(cp.cost, intl)}{t("google.pmaxExperiment.per30d")}</span>
                   </label>
                 ))}
               </div>
@@ -551,8 +555,8 @@ export function ExperimentPanel({ company }: { company: Company }) {
           </DialogHeader>
           {validateExp && (
             <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              {t("google.pmaxExperiment.dlgWarnA", { names: validateExp.holdoutNames.join(", "), weeks: validateExp.weeks, cost: vnd(validateExp.pmaxCostPerWeek) })}{" "}
-              {t("google.pmaxExperiment.dlgWarnB", { date: ddmmyyyy(validateExp.plannedEnd) })}
+              {t("google.pmaxExperiment.dlgWarnA", { names: validateExp.holdoutNames.join(", "), weeks: validateExp.weeks, cost: vnd(validateExp.pmaxCostPerWeek, intl) })}{" "}
+              {t("google.pmaxExperiment.dlgWarnB", { date: ddmmyyyy(validateExp.plannedEnd, intl) })}
             </p>
           )}
           <div className="space-y-1.5">

@@ -11,6 +11,7 @@
 // cứu/điều hướng → hỏi cách làm → ý định mua → còn lại.
 
 import { stripDiacritics, tokens } from "./text"
+import { makeT, type TFunction } from "@/lib/i18n/translate"
 import { mentionsAny, type ProductCatalog } from "./product-catalog"
 
 export type Intent =
@@ -128,3 +129,6 @@ export function bucketByIntent(rows: TermRow[], lex: IntentLexicon, maxExamples 
     }))
     .sort((a, z) => z.cost - a.cost)
 }
+
+/** Nhãn ý định theo ngôn ngữ (INTENT_LABEL giữ bản tiếng Việt). */
+export const intentLabel = (i: Intent, t: TFunction = makeT("vi")): string => t(`libcase.c.intent.${i}` as never)

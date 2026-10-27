@@ -20,7 +20,7 @@ import { GoogleRealOrderCompare } from "@/components/measure/GoogleRealOrderComp
 import { MetaRealOrderCompare } from "@/components/measure/MetaRealOrderCompare";
 import { datetimeVN, num, vnd } from "@/components/case/format";
 import { getJson, postJson, ApiError } from "@/components/case/api";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import type { Company } from "@/lib/case/types";
 import type { RealOrderSettings, SyncResult } from "@/lib/conversions/sync";
 import type { Coverage } from "@/lib/conversions/real-orders";
@@ -43,20 +43,22 @@ const rich = (s: string) => s.split(/<(b|code)>(.*?)<\/\1>/).map((part, i, a) =>
 const pctOf = (a: number, b: number) => (b > 0 ? `${Math.round((a / b) * 100)}%` : "—")
 
 function CoverageBox({ title, c }: { title: string; c: Coverage | null }) {
+  const intl = useIntlLocale();
   const t = useT()
   if (!c) return null
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-3">
       <div className="text-xs font-medium text-slate-500">{title}</div>
-      <div className="mt-1 text-lg font-bold text-slate-900">{t("meta.measure.ro.cov.head", { n: num(c.orders), value: vnd(c.value) })}</div>
+      <div className="mt-1 text-lg font-bold text-slate-900">{t("meta.measure.ro.cov.head", { n: num(c.orders, undefined, intl), value: vnd(c.value, intl) })}</div>
       <div className="mt-1 text-xs text-slate-600">
-        {rich(t("meta.measure.ro.cov.line", { email: pctOf(c.withEmail, c.orders), phone: pctOf(c.withPhone, c.orders), gclid: c.withClickId ? ` · gclid ${pctOf(c.withClickId, c.orders)}` : "", fbc: c.withFbc ? ` · fbc ${pctOf(c.withFbc, c.orders)}` : "", matchable: pctOf(c.matchable, c.orders), n: num(c.matchable) }))}
+        {rich(t("meta.measure.ro.cov.line", { email: pctOf(c.withEmail, c.orders), phone: pctOf(c.withPhone, c.orders), gclid: c.withClickId ? ` · gclid ${pctOf(c.withClickId, c.orders)}` : "", fbc: c.withFbc ? ` · fbc ${pctOf(c.withFbc, c.orders)}` : "", matchable: pctOf(c.matchable, c.orders), n: num(c.matchable, undefined, intl) }))}
       </div>
     </div>
   )
 }
 
 export function RealOrdersView({ company }: { company: Company }) {
+  const intl = useIntlLocale();
   const t = useT()
   const url = `/api/conversions/real-orders?company=${company}`
   const { data, error, isLoading, mutate } = useSWR<StatusResponse>(url, getJson)
@@ -125,8 +127,8 @@ export function RealOrdersView({ company }: { company: Company }) {
             </p>
           )}
           <div className="mt-2 text-xs text-slate-500">
-            {t("meta.measure.ro.g.queue", { pending: num(data.google.stats.byStatus.pending), uploaded: num(data.google.stats.byStatus.uploaded), failed: num(data.google.stats.byStatus.failed) })}
-            {g?.at && <>{t("meta.measure.ro.g.changed", { time: datetimeVN(g.at), by: g.by ?? "" })}</>}
+            {t("meta.measure.ro.g.queue", { pending: num(data.google.stats.byStatus.pending, undefined, intl), uploaded: num(data.google.stats.byStatus.uploaded, undefined, intl), failed: num(data.google.stats.byStatus.failed, undefined, intl) })}
+            {g?.at && <>{t("meta.measure.ro.g.changed", { time: datetimeVN(g.at, intl), by: g.by ?? "" })}</>}
           </div>
           {data.canEdit && (
             <Button className="mt-3" size="sm" variant={g?.enabled ? "outline" : "default"} disabled={!!busy}
@@ -145,8 +147,8 @@ export function RealOrdersView({ company }: { company: Company }) {
             {rich(t("meta.measure.ro.m.desc", { event: data.metaEventName }))}
           </p>
           <div className="mt-2 text-xs text-slate-500">
-            {t("meta.measure.ro.m.queue", { pending: num(data.meta.byStatus.pending), sent: num(data.meta.byStatus.sent), testSent: num(data.meta.byStatus.test_sent), failed: num(data.meta.byStatus.failed), expired: num(data.meta.byStatus.expired) })}
-            {data.meta.lastSentAt && <>{t("meta.measure.ro.m.lastSent", { time: datetimeVN(data.meta.lastSentAt) })}</>}
+            {t("meta.measure.ro.m.queue", { pending: num(data.meta.byStatus.pending, undefined, intl), sent: num(data.meta.byStatus.sent, undefined, intl), testSent: num(data.meta.byStatus.test_sent, undefined, intl), failed: num(data.meta.byStatus.failed, undefined, intl), expired: num(data.meta.byStatus.expired, undefined, intl) })}
+            {data.meta.lastSentAt && <>{t("meta.measure.ro.m.lastSent", { time: datetimeVN(data.meta.lastSentAt, intl) })}</>}
           </div>
           {data.meta.lastErrors.length > 0 && <p className="mt-2 rounded-md bg-red-50 p-2 text-xs text-red-800">{t("meta.measure.ro.m.lastErrors", { errors: data.meta.lastErrors.join(" · ") })}</p>}
           {data.canEdit && (
@@ -173,9 +175,9 @@ export function RealOrdersView({ company }: { company: Company }) {
         <Button size="sm" variant="outline" disabled={!!busy} onClick={() => call("run", { op: "run" }, (r) => {
           const x = r.result
           if (!x) return t("meta.measure.ro.run.done")
-          const parts = [t("meta.measure.ro.run.orders", { n: num(x.coverage30?.orders ?? 0) })]
-          if (x.google.enabled) parts.push(t("meta.measure.ro.run.google", { n: num(x.google.accepted ?? 0) }))
-          if (x.meta.enabled) parts.push(x.meta.error ? t("meta.measure.ro.run.metaErr", { error: x.meta.error }) : t("meta.measure.ro.run.meta", { test: x.meta.test ? t("meta.measure.ro.run.test") : "", sent: num(x.meta.send?.sent ?? 0), received: num(x.meta.send?.received ?? 0), failed: num(x.meta.send?.failed ?? 0) }))
+          const parts = [t("meta.measure.ro.run.orders", { n: num(x.coverage30?.orders ?? 0, undefined, intl) })]
+          if (x.google.enabled) parts.push(t("meta.measure.ro.run.google", { n: num(x.google.accepted ?? 0, undefined, intl) }))
+          if (x.meta.enabled) parts.push(x.meta.error ? t("meta.measure.ro.run.metaErr", { error: x.meta.error }) : t("meta.measure.ro.run.meta", { test: x.meta.test ? t("meta.measure.ro.run.test") : "", sent: num(x.meta.send?.sent ?? 0, undefined, intl), received: num(x.meta.send?.received ?? 0, undefined, intl), failed: num(x.meta.send?.failed ?? 0, undefined, intl) }))
           return parts.join(" · ")
         })}>
           {busy === "run" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />} {t("meta.measure.ro.run.btn")}

@@ -18,6 +18,8 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+import { makeT, type TFunction } from "@/lib/i18n/translate"
+
 export interface ManualGuide {
   whatToDo:  string          // 1 câu tóm tắt
   steps:     string[]        // bước thực hiện
@@ -26,202 +28,205 @@ export interface ManualGuide {
   externalHint?: string      // gợi ý platform bên ngoài
 }
 
-export function getManualGuide(imp: any): ManualGuide {
-  const camp = imp.campaignName ? `"${imp.campaignName}"` : "campaign này"
-  const kw   = imp.keyword      ? `"${imp.keyword}"`      : "keyword này"
+export function getManualGuide(imp: any, t: TFunction = makeT("vi")): ManualGuide {
+  const camp = imp.campaignName ? `"${imp.campaignName}"` : t("libcase.r.mg.1")
+  const kw   = imp.keyword      ? `"${imp.keyword}"`      : t("libcase.r.mg.2")
+
+  // Tiêu đề đề xuất do máy chủ sinh bằng tiếng Việt — tách cụm từ tìm kiếm ra khỏi tiền tố (so khớp CHỮ GỐC, không dịch).
+  const searchTermOf = imp.title?.replace("Negative từ khóa không liên quan: ", "").replace("Negative search term không liên quan: ", "").replace(/"/g, "")
 
   switch (imp.type) {
 
     case "FIX_LOW_QS_KEYWORD":
       return {
-        whatToDo: `Tăng Quality Score của ${kw} từ ${imp.currentMetric} lên ${imp.targetMetric}`,
+        whatToDo: t("libcase.r.mg.3", { v1: kw, v2: imp.currentMetric, v3: imp.targetMetric }),
         steps: [
-          `1. Vào Google Ads → Campaign ${camp} → Ad Groups → tìm keyword ${kw}`,
-          `2. Kiểm tra điểm yếu: Ad Relevance / Expected CTR / Landing Page`,
-          `3. Nếu Ad Relevance thấp: thêm từ khóa vào headlines của RSA`,
-          `4. Nếu Landing Page thấp: đảm bảo trang đích chứa nội dung liên quan đến keyword`,
-          `5. Nếu Expected CTR thấp: viết lại ad copy với USP mạnh hơn (giá, khuyến mãi, bảo hành)`,
+          t("libcase.r.mg.4", { v1: camp, v2: kw }),
+          t("libcase.r.mg.5"),
+          t("libcase.r.mg.6"),
+          t("libcase.r.mg.7"),
+          t("libcase.r.mg.8"),
         ],
         internalLink:  "/creative",
-        internalLabel: "✨ Mở Creative AI để viết lại Ad",
-        externalHint:  "Google Ads → Từ khóa → cột Quality Score",
+        internalLabel: t("libcase.r.mg.9"),
+        externalHint:  t("libcase.r.mg.10"),
       }
 
     case "PAUSE_FB_AD_LOW_CTR":
       return {
-        whatToDo: `Pause ad Facebook có CTR thấp, thay bằng creative mới`,
+        whatToDo: t("libcase.r.mg.11"),
         steps: [
-          `1. Vào Facebook Ads Manager → campaign ${camp}`,
-          `2. Tìm ad "${imp.adName || imp.title}" → tắt (toggle OFF)`,
-          `3. Duplicate ad set này → tạo ad mới với:`,
-          `   • Hình ảnh/video khác (thử lifestyle thay product shot)`,
-          `   • Headline có số liệu cụ thể (vd: "Tiết kiệm 50%" thay "Ưu đãi tốt")`,
-          `   • Primary text ngắn hơn (< 125 ký tự cho mobile)`,
-          `4. Chạy A/B 3-5 ngày, giữ ad nào CTR > 1%`,
+          t("libcase.r.mg.12", { v1: camp }),
+          t("libcase.r.mg.13", { v1: imp.adName || imp.title }),
+          t("libcase.r.mg.14"),
+          t("libcase.r.mg.15"),
+          t("libcase.r.mg.16"),
+          t("libcase.r.mg.17"),
+          t("libcase.r.mg.18"),
         ],
         internalLink:  "/creative",
-        internalLabel: "✨ Tạo creative mới với AI",
+        internalLabel: t("libcase.r.mg.19"),
         externalHint:  "Meta Ads Manager → Ads → Filter by CTR",
       }
 
     case "PAUSE_FB_AD_FATIGUE":
       return {
-        whatToDo: `Refresh creative hoặc mở rộng audience để giảm frequency`,
+        whatToDo: t("libcase.r.mg.20"),
         steps: [
-          `1. Ad Set "${imp.adGroupName}" đang có frequency > 3.5× — audience đã "bão hòa"`,
-          `2. Phương án A — Refresh creative: tạo 2-3 ad mới trong ad set này`,
-          `3. Phương án B — Mở rộng audience: tăng tuổi/vị trí/interest, bỏ exclusion quá hẹp`,
-          `4. Phương án C — Tạm dừng 1-2 tuần rồi relaunch`,
-          `5. Sau khi refresh, frequency nên về < 2.5× trong 7 ngày đầu`,
+          t("libcase.r.mg.21", { v1: imp.adGroupName }),
+          t("libcase.r.mg.22"),
+          t("libcase.r.mg.23"),
+          t("libcase.r.mg.24"),
+          t("libcase.r.mg.25"),
         ],
         internalLink:  "/creative",
-        internalLabel: "✨ Tạo creative mới với AI",
-        externalHint:  "Meta Ads Manager → Ad Sets → cột Frequency",
+        internalLabel: t("libcase.r.mg.19"),
+        externalHint:  t("libcase.r.mg.26"),
       }
 
     case "DAYPART_OPPORTUNITY":
       return {
-        whatToDo: `Tắt quảng cáo trong các khung giờ không có conversion để tiết kiệm ngân sách`,
+        whatToDo: t("libcase.r.mg.27"),
         steps: [
-          `1. Vào tool Dayparting để xem chi tiết hiệu suất từng giờ`,
-          `2. Chọn campaign muốn tối ưu`,
-          `3. Tắt các giờ đang tốn tiền nhưng 0 conversion (thường: 0:00–6:00)`,
-          `4. Giữ nguyên giờ hành chính 7:00–21:00 (B2B convert tốt nhất)`,
-          `5. Áp dụng và theo dõi CPL sau 7 ngày`,
+          t("libcase.r.mg.28"),
+          t("libcase.r.mg.29"),
+          t("libcase.r.mg.30"),
+          t("libcase.r.mg.31"),
+          t("libcase.r.mg.32"),
         ],
         internalLink:  "/toolkit/dayparting",
-        internalLabel: "🕐 Mở Dayparting Tool",
+        internalLabel: t("libcase.r.mg.33"),
       }
 
     case "FIX_AD_STRENGTH":
     case "IMPROVE_PMAX_ASSETS":
       return {
-        whatToDo: `Cải thiện Ad Strength để tăng Quality Score và giảm CPC`,
+        whatToDo: t("libcase.r.mg.34"),
         steps: [
-          `1. Vào Creative AI để xem gợi ý cải thiện ad`,
-          `2. Thêm ít nhất 15 headlines đa dạng (không lặp cùng ý)`,
-          `3. Thêm 4+ descriptions nêu rõ USP khác nhau`,
-          `4. Đảm bảo headlines chứa từ khóa chính của ad group`,
-          `5. Pinning headlines quan trọng vào position 1`,
-          `6. Sau khi update, chờ 1-2 tuần Google re-evaluate`,
+          t("libcase.r.mg.35"),
+          t("libcase.r.mg.36"),
+          t("libcase.r.mg.37"),
+          t("libcase.r.mg.38"),
+          t("libcase.r.mg.39"),
+          t("libcase.r.mg.40"),
         ],
         internalLink:  `/creative${imp.resourceName ? `?adResource=${imp.resourceName}` : ""}`,
-        internalLabel: "✨ Mở Creative AI",
-        externalHint:  "Google Ads → Quảng cáo → cột Ad Strength",
+        internalLabel: t("libcase.r.mg.41"),
+        externalHint:  t("libcase.r.mg.42"),
       }
 
     case "ADD_AD_EXTENSION":
       return {
-        whatToDo: `Thêm extensions để tăng CTR và chiếm nhiều diện tích trên Google hơn`,
+        whatToDo: t("libcase.r.mg.43"),
         steps: [
-          `1. Vào Google Ads → campaign ${camp} → Tiện ích mở rộng`,
-          `2. Thêm Sitelink (4-6 link): Báo giá, Liên hệ, Tính năng, Khuyến mãi`,
-          `3. Thêm Callout (4+): "Hỗ trợ 24/7", "Không ràng buộc", "Miễn phí setup"`,
-          `4. Thêm Structured Snippet: liệt kê sản phẩm/dịch vụ`,
-          `5. Thêm Call extension nếu có hotline`,
-          `6. Extensions không tốn thêm tiền, chỉ tăng CTR`,
+          t("libcase.r.mg.44", { v1: camp }),
+          t("libcase.r.mg.45"),
+          t("libcase.r.mg.46"),
+          t("libcase.r.mg.47"),
+          t("libcase.r.mg.48"),
+          t("libcase.r.mg.49"),
         ],
-        externalHint: "Google Ads → Quảng cáo & tiện ích → Tiện ích",
+        externalHint: t("libcase.r.mg.50"),
       }
 
     case "GEO_BID_ADJUSTMENT":
       return {
-        whatToDo: `Giảm bid hoặc tạm dừng các khu vực địa lý không có conversion`,
+        whatToDo: t("libcase.r.mg.51"),
         steps: [
-          `1. Vào Google Ads → campaign ${camp} → Vị trí`,
-          `2. Xem hiệu suất theo tỉnh/TP (cột Conversion)`,
-          `3. Khu vực 0 conv sau 30 ngày: giảm bid -50% hoặc loại trừ`,
-          `4. Ưu tiên: Hà Nội, TP.HCM, Đà Nẵng (B2B tập trung ở đây)`,
-          `5. Tạo bid adjustment cho HN/HCM +20% để tăng exposure ở thị trường tốt`,
+          t("libcase.r.mg.52", { v1: camp }),
+          t("libcase.r.mg.53"),
+          t("libcase.r.mg.54"),
+          t("libcase.r.mg.55"),
+          t("libcase.r.mg.56"),
         ],
-        externalHint: "Google Ads → Vị trí → Điều chỉnh giá thầu",
+        externalHint: t("libcase.r.mg.57"),
       }
 
     case "DEVICE_BID_ADJUSTMENT":
       return {
-        whatToDo: `Giảm bid cho Mobile vì CPL Mobile đang cao hơn Desktop đáng kể`,
+        whatToDo: t("libcase.r.mg.58"),
         steps: [
-          `1. Vào Google Ads → campaign ${camp} → Thiết bị`,
-          `2. So sánh CPL Mobile vs Desktop`,
-          `3. Set bid adjustment cho Mobile: ${imp.targetMetric || "-20% đến -40%"}`,
-          `4. Hoặc dùng nút Apply để hệ thống tự điều chỉnh`,
-          `5. Theo dõi sau 2 tuần — B2B thường có CPL Mobile cao hơn 2x`,
+          t("libcase.r.mg.59", { v1: camp }),
+          t("libcase.r.mg.60"),
+          t("libcase.r.mg.step3mobile", { v1: imp.targetMetric || t("libcase.r.mg.bidDefault") }),
+          t("libcase.r.mg.61"),
+          t("libcase.r.mg.62"),
         ],
       }
 
     case "ADD_EXACT_MATCH":
       return {
-        whatToDo: `Thêm keyword [exact match] để kiểm soát traffic tốt hơn và giảm CPC`,
+        whatToDo: t("libcase.r.mg.63"),
         steps: [
-          `1. Vào Google Ads → campaign ${camp} → Ad Groups`,
-          `2. Trong ad group chứa keyword broad "${imp.keyword}"`,
-          `3. Thêm keyword mới: [${imp.keyword}] (dạng exact, thêm dấu ngoặc vuông)`,
-          `4. Set bid cho exact match cao hơn broad 20-30%`,
-          `5. Monitor: exact match sẽ convert tốt hơn và CPC thấp hơn`,
-          `6. Sau 2 tuần, có thể giảm bid hoặc pause phiên bản broad`,
+          t("libcase.r.mg.64", { v1: camp }),
+          t("libcase.r.mg.65", { v1: imp.keyword }),
+          t("libcase.r.mg.66", { v1: imp.keyword }),
+          t("libcase.r.mg.67"),
+          t("libcase.r.mg.68"),
+          t("libcase.r.mg.69"),
         ],
-        externalHint: "Google Ads → Từ khóa → Thêm từ khóa",
+        externalHint: t("libcase.r.mg.70"),
       }
 
     case "PAUSE_SEARCH_TERM":
     case "NEGATIVE_BRAND_LEAK":
       return {
-        whatToDo: `Thêm negative keyword để ngăn từ khóa không liên quan trigger ads`,
+        whatToDo: t("libcase.r.mg.71"),
         steps: [
-          `1. Vào Google Ads → campaign ${camp}`,
-          `2. Báo cáo → Cụm từ tìm kiếm`,
-          `3. Tìm search term: "${imp.title?.replace("Negative từ khóa không liên quan: ", "").replace("Negative search term không liên quan: ", "").replace(/"/g, "")}"`,
-          `4. Chọn → Thêm làm từ khóa phủ định → Exact match`,
-          `5. Hoặc nhấn Apply để hệ thống tự thêm negative`,
+          t("libcase.r.mg.72", { v1: camp }),
+          t("libcase.r.mg.73"),
+          t("libcase.r.mg.74", { v1: searchTermOf }),
+          t("libcase.r.mg.75"),
+          t("libcase.r.mg.76"),
         ],
-        externalHint: "Google Ads → Cụm từ tìm kiếm → Thêm làm từ khóa phủ định",
+        externalHint: t("libcase.r.mg.77"),
       }
 
     case "INCREASE_BUDGET_CAPPED":
       return {
-        whatToDo: `Tăng ngân sách campaign đang bị giới hạn để lấy thêm conversion`,
+        whatToDo: t("libcase.r.mg.78"),
         steps: [
-          `1. Campaign ${camp} đang mất ${imp.currentMetric?.match(/\d+%/)?.[0] || ""} impression do hết budget`,
-          `2. Vào Google Ads → Campaigns → Budget`,
-          `3. Tăng budget theo đề xuất: ${imp.targetMetric}`,
-          `4. Hoặc nhấn Apply để hệ thống tự tăng`,
-          `5. Monitor CPL sau khi tăng — nếu CPL vẫn tốt, tiếp tục scale`,
+          t("libcase.r.mg.79", { v1: camp, v2: imp.currentMetric?.match(/\d+%/)?.[0] || "" }),
+          t("libcase.r.mg.80"),
+          t("libcase.r.mg.81", { v1: imp.targetMetric }),
+          t("libcase.r.mg.82"),
+          t("libcase.r.mg.83"),
         ],
       }
 
     case "LOWER_TARGET_CPA":
       return {
-        whatToDo: `Hạ target CPA để Google bidding aggressively hơn, lấy thêm volume`,
+        whatToDo: t("libcase.r.mg.84"),
         steps: [
-          `1. Campaign ${camp}: CPA thực tế đang thấp hơn target CPA`,
-          `2. Vào Google Ads → Campaigns → Chiến lược giá thầu`,
-          `3. Hạ target CPA xuống: ${imp.targetMetric}`,
-          `4. Hoặc nhấn Apply — hệ thống tự điều chỉnh`,
-          `5. Không hạ quá 15% mỗi lần, chờ 2 tuần để thuật toán học lại`,
+          t("libcase.r.mg.85", { v1: camp }),
+          t("libcase.r.mg.86"),
+          t("libcase.r.mg.87", { v1: imp.targetMetric }),
+          t("libcase.r.mg.88"),
+          t("libcase.r.mg.89"),
         ],
       }
 
     case "INCREASE_BID_HIGH_ROAS":
       return {
-        whatToDo: `Keyword này đang convert rất tốt — tăng bid để lấy thêm traffic`,
+        whatToDo: t("libcase.r.mg.90"),
         steps: [
-          `1. Keyword ${kw} trong ${camp} có CPL thấp hơn target nhiều`,
-          `2. Vào Google Ads → Từ khóa → tìm keyword này`,
-          `3. Tăng CPC max lên 120-150% so với hiện tại`,
-          `4. Hoặc nếu đang dùng Smart Bidding: hạ target CPA xuống 80%`,
-          `5. Monitor sau 1 tuần — mục tiêu tăng impression share`,
+          t("libcase.r.mg.91", { v1: kw, v2: camp }),
+          t("libcase.r.mg.92"),
+          t("libcase.r.mg.93"),
+          t("libcase.r.mg.94"),
+          t("libcase.r.mg.95"),
         ],
       }
 
     case "DUPLICATE_FB_WINNING_ADSET":
       return {
-        whatToDo: `Scale ad set đang perform tốt bằng cách duplicate và tăng budget`,
+        whatToDo: t("libcase.r.mg.96"),
         steps: [
-          `1. Vào Meta Ads Manager → Ad Set "${imp.adGroupName}"`,
-          `2. Duplicate ad set này (giữ nguyên targeting và creative)`,
-          `3. Tăng budget của duplicate lên 50% so với original`,
-          `4. Không chỉnh targeting ngay — để thuật toán học`,
-          `5. Sau 7 ngày: giữ ad set nào CPL tốt hơn, pause cái còn lại`,
+          t("libcase.r.mg.97", { v1: imp.adGroupName }),
+          t("libcase.r.mg.98"),
+          t("libcase.r.mg.99"),
+          t("libcase.r.mg.100"),
+          t("libcase.r.mg.101"),
         ],
         externalHint: "Meta Ads Manager → Ad Sets → Duplicate",
       }
@@ -232,103 +237,103 @@ export function getManualGuide(imp: any): ManualGuide {
 
     case "PAUSE_KEYWORD":
       return {
-        whatToDo: `Tạm dừng ${kw} — đang tiêu tiền mà không ra chuyển đổi`,
+        whatToDo: t("libcase.r.mg.102", { v1: kw }),
         steps: [
-          `1. Vào Google Ads → campaign ${camp} → Từ khoá`,
-          `2. Tìm ${kw} (${imp.currentMetric || "xem cột Chi phí và Chuyển đổi"})`,
-          `3. Kiểm lại cụm từ tìm kiếm đã kích hoạt nó — nếu lệch nghĩa thì thêm phủ định thay vì tạm dừng`,
-          `4. Nếu đúng nghĩa mà vẫn không ra chuyển đổi: chọn từ khoá → Tạm dừng`,
-          `5. Ghi lại ngày tạm dừng để 2 tuần sau còn đối chiếu hiệu quả`,
+          t("libcase.r.mg.103", { v1: camp }),
+          t("libcase.r.mg.104", { v1: kw, v2: imp.currentMetric || t("libcase.r.mg.seeCol1") }),
+          t("libcase.r.mg.105"),
+          t("libcase.r.mg.106"),
+          t("libcase.r.mg.107"),
         ],
-        externalHint: "Google Ads → Từ khoá → chọn → Tạm dừng",
+        externalHint: t("libcase.r.mg.108"),
       }
 
     case "PAUSE_LOW_CTR_AD":
       return {
-        whatToDo: `Tạm dừng quảng cáo CTR thấp trong ${camp} và thay bằng bản mới`,
+        whatToDo: t("libcase.r.mg.109", { v1: camp }),
         steps: [
-          `1. Vào Google Ads → campaign ${camp} → Quảng cáo`,
-          `2. So CTR của quảng cáo này với các quảng cáo còn lại trong CÙNG nhóm (${imp.currentMetric || "xem cột CTR"})`,
-          `3. Chỉ tạm dừng khi nhóm còn ÍT NHẤT 2 quảng cáo đang chạy — tắt hết là nhóm ngừng phân phối`,
-          `4. Tạo bản thay thế trước, để nhóm không bị hụt quảng cáo`,
-          `5. Tạm dừng bản cũ sau khi bản mới đã được duyệt`,
+          t("libcase.r.mg.110", { v1: camp }),
+          t("libcase.r.mg.111", { v1: imp.currentMetric || t("libcase.r.mg.seeCol2") }),
+          t("libcase.r.mg.112"),
+          t("libcase.r.mg.113"),
+          t("libcase.r.mg.114"),
         ],
-        externalHint: "Google Ads → Quảng cáo → chọn → Tạm dừng",
+        externalHint: t("libcase.r.mg.115"),
       }
 
     case "PAUSE_PMAX_ASSET":
       return {
-        whatToDo: `Gỡ tài sản kém hiệu quả khỏi nhóm tài sản PMax của ${camp}`,
+        whatToDo: t("libcase.r.mg.116", { v1: camp }),
         steps: [
-          `1. Vào Google Ads → campaign ${camp} → Nhóm tài sản`,
-          `2. Mở nhóm chứa tài sản bị đánh dấu, xem cột Hiệu suất (Thấp/Tốt/Tốt nhất)`,
-          `3. KHÔNG xoá nếu gỡ xong sẽ tụt dưới số tối thiểu Google yêu cầu (3 tiêu đề, 2 mô tả, 1 ảnh mỗi tỉ lệ)`,
-          `4. Thêm tài sản thay thế TRƯỚC, rồi mới gỡ tài sản kém`,
-          `5. Chờ ít nhất 2 tuần để Google đánh giá lại trước khi kết luận`,
+          t("libcase.r.mg.117", { v1: camp }),
+          t("libcase.r.mg.118"),
+          t("libcase.r.mg.119"),
+          t("libcase.r.mg.120"),
+          t("libcase.r.mg.121"),
         ],
         internalLink: "/google-pmax",
-        internalLabel: "Mở PMax Insights",
+        internalLabel: t("libcase.r.mg.122"),
       }
 
     case "SHIFT_BUDGET_CHANNEL":
       return {
-        whatToDo: `Chuyển ngân sách sang kênh đang hiệu quả hơn`,
+        whatToDo: t("libcase.r.mg.123"),
         steps: [
-          `1. Đối chiếu CPL/ROAS hai kênh trong cùng khoảng thời gian — khác kỳ là so sai`,
-          `2. Chuyển từng phần 10-20%, KHÔNG chuyển hết một lần: đổi ngân sách mạnh đẩy campaign về giai đoạn học lại`,
-          `3. Giảm ở kênh kém trước, chờ 3-4 ngày, rồi mới tăng ở kênh tốt`,
-          `4. Theo dõi CPL kênh nhận thêm ngân sách — tăng ngân sách thường kéo CPL lên theo`,
+          t("libcase.r.mg.124"),
+          t("libcase.r.mg.125"),
+          t("libcase.r.mg.126"),
+          t("libcase.r.mg.127"),
         ],
         internalLink: "/toolkit/budget-pacing",
-        internalLabel: "Xem tốc độ tiêu ngân sách",
+        internalLabel: t("libcase.r.mg.128"),
       }
 
     case "RAISE_BUDGET_TOP_CAMPAIGN":
       return {
-        whatToDo: `Tăng ngân sách cho ${camp} — đang hiệu quả mà bị giới hạn`,
+        whatToDo: t("libcase.r.mg.129", { v1: camp }),
         steps: [
-          `1. Xác nhận campaign THẬT SỰ bị giới hạn: trạng thái ngân sách "Bị giới hạn" hoặc mất impression share vì ngân sách`,
-          `2. Tăng tối đa 20-30% mỗi lần. Tăng gấp đôi trở lên sẽ đẩy campaign về giai đoạn học lại`,
-          `3. Chờ 3-4 ngày rồi mới đánh giá — ngày đầu sau khi tăng thường nhiễu`,
-          `4. Nếu CPL tăng quá ngưỡng sau khi tăng ngân sách: hạ về mức cũ`,
+          t("libcase.r.mg.130"),
+          t("libcase.r.mg.131"),
+          t("libcase.r.mg.132"),
+          t("libcase.r.mg.133"),
         ],
         internalLink: "/toolkit/budget-pacing",
-        internalLabel: "Xem tốc độ tiêu ngân sách",
+        internalLabel: t("libcase.r.mg.128"),
       }
 
     case "ADD_COMPETITOR_KW":
       return {
-        whatToDo: `Thêm từ khoá thương hiệu đối thủ vào ${camp}`,
+        whatToDo: t("libcase.r.mg.134", { v1: camp }),
         steps: [
-          `1. Tạo nhóm quảng cáo RIÊNG cho từ khoá đối thủ — không trộn vào nhóm thương hiệu mình`,
-          `2. Dùng khớp cụm hoặc khớp chính xác, tránh khớp rộng (rất dễ đốt tiền)`,
-          `3. TUYỆT ĐỐI không đưa tên đối thủ vào nội dung quảng cáo — Google cấm và có thể bị gỡ quảng cáo`,
-          `4. Viết nội dung nêu điểm khác biệt của mình, không so sánh trực tiếp`,
-          `5. Đặt giá thầu thấp hơn nhóm thương hiệu và theo dõi CPL riêng cho nhóm này`,
+          t("libcase.r.mg.135"),
+          t("libcase.r.mg.136"),
+          t("libcase.r.mg.137"),
+          t("libcase.r.mg.138"),
+          t("libcase.r.mg.139"),
         ],
-        externalHint: "Google Ads → Nhóm quảng cáo mới → Từ khoá",
+        externalHint: t("libcase.r.mg.140"),
       }
 
     case "EXPAND_REMARKETING":
       return {
-        whatToDo: `Mở rộng tệp tiếp thị lại cho ${camp}`,
+        whatToDo: t("libcase.r.mg.141", { v1: camp }),
         steps: [
-          `1. Kiểm tệp hiện có đã đủ kích thước tối thiểu chưa (Google 1.000, Meta 1.000)`,
-          `2. Mở rộng cửa sổ thời gian (30 → 60 → 90 ngày) trước khi nới điều kiện hành vi`,
-          `3. Tách tệp theo mức độ quan tâm: đã xem giá / đã thêm giỏ / đã liên hệ — mỗi tệp một thông điệp`,
-          `4. Loại trừ người đã mua, nếu không sẽ trả tiền để quảng cáo cho khách cũ`,
+          t("libcase.r.mg.142"),
+          t("libcase.r.mg.143"),
+          t("libcase.r.mg.144"),
+          t("libcase.r.mg.145"),
         ],
         internalLink: "/audiences",
-        internalLabel: "Mở Audiences",
+        internalLabel: t("libcase.r.mg.146"),
       }
 
     default:
       return {
-        whatToDo: imp.description || "Xem chi tiết và xử lý theo gợi ý",
+        whatToDo: imp.description || t("libcase.r.mg.147"),
         steps: [
-          imp.currentMetric ? `Hiện tại: ${imp.currentMetric}` : "",
-          imp.targetMetric  ? `Mục tiêu: ${imp.targetMetric}`  : "",
-          imp.impact        ? `Tác động: ${imp.impact}`         : "",
+          imp.currentMetric ? t("libcase.r.mg.148", { v1: imp.currentMetric }) : "",
+          imp.targetMetric  ? t("libcase.r.mg.149", { v1: imp.targetMetric })  : "",
+          imp.impact        ? t("libcase.r.mg.150", { v1: imp.impact })         : "",
         ].filter(Boolean),
       }
   }

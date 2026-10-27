@@ -14,7 +14,7 @@
 import { useId, useState } from "react";
 import { CheckCircle2, ChevronDown, ChevronUp, Loader2, Undo2, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import { postJson, ApiError } from "@/components/case/api";
 import { num, pct, datetimeVN } from "@/components/case/format";
 import { Button } from "@/components/ui/button";
@@ -32,6 +32,7 @@ const EDITABLE_MODES = ["TARGET_ALL_EQUALLY", "BID_HIGHER_FOR_NEW_CUSTOMER"] as 
 function CampaignRow({ row, company, modeLabels, canEdit, confirmText, onChanged }: {
   row: NewCustomerRow; company: Company; modeLabels: Record<string, string>; canEdit: boolean; confirmText: string; onChanged: () => void;
 }) {
+  const intl = useIntlLocale();
   const t = useT();
   const confirmId = useId();
   const [mode, setMode] = useState<string>(row.mode);
@@ -83,16 +84,16 @@ function CampaignRow({ row, company, modeLabels, canEdit, confirmText, onChanged
       <p className="truncate text-sm font-bold text-slate-800" title={row.name}>{row.name}</p>
       <p className="text-[11px] text-slate-500">{t("google.pmaxNewCustomer.current")}: <strong className="text-slate-700">{modeLabels[row.mode] ?? row.mode}</strong></p>
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-600">
-        <span>{t("google.pmaxNewCustomer.newCust")}: <strong className="text-slate-800">{num(row.newConv, { maximumFractionDigits: 1 })}</strong></span>
-        <span>{t("google.pmaxNewCustomer.returning")}: <strong className="text-slate-800">{num(row.returningConv, { maximumFractionDigits: 1 })}</strong></span>
-        <span>{t("google.pmaxNewCustomer.unknown")}: <strong className="text-slate-800">{num(row.unknownConv, { maximumFractionDigits: 1 })}</strong></span>
+        <span>{t("google.pmaxNewCustomer.newCust")}: <strong className="text-slate-800">{num(row.newConv, { maximumFractionDigits: 1 }, intl)}</strong></span>
+        <span>{t("google.pmaxNewCustomer.returning")}: <strong className="text-slate-800">{num(row.returningConv, { maximumFractionDigits: 1 }, intl)}</strong></span>
+        <span>{t("google.pmaxNewCustomer.unknown")}: <strong className="text-slate-800">{num(row.unknownConv, { maximumFractionDigits: 1 }, intl)}</strong></span>
       </div>
       {row.newShare != null && (
         <div>
           <div className="h-1.5 rounded-full bg-slate-100">
             <div className="h-1.5 rounded-full bg-emerald-500" style={{ width: `${Math.round(row.newShare * 100)}%` }} />
           </div>
-          <p className="mt-0.5 text-[10px] text-slate-400">{t("google.pmaxNewCustomer.newShare", { pct: pct(row.newShare, 0) })}</p>
+          <p className="mt-0.5 text-[10px] text-slate-400">{t("google.pmaxNewCustomer.newShare", { pct: pct(row.newShare, 0, intl) })}</p>
         </div>
       )}
       {row.suggest && <p className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-800">{row.suggest}</p>}
@@ -151,6 +152,7 @@ function CampaignRow({ row, company, modeLabels, canEdit, confirmText, onChanged
 }
 
 function HistoryRow({ ch, modeLabels, onUndo, undoing }: { ch: NewCustomerChange; modeLabels: Record<string, string>; onUndo: () => void; undoing: boolean }) {
+  const intl = useIntlLocale();
   const t = useT();
   const ok = ch.status === "done";
   return (
@@ -160,13 +162,13 @@ function HistoryRow({ ch, modeLabels, onUndo, undoing }: { ch: NewCustomerChange
           {ok ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> : <XCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
           {ch.campaignName}: {modeLabels[ch.from] ?? ch.from} → {modeLabels[ch.to] ?? ch.to}
         </span>
-        <span className="text-slate-400">{datetimeVN(ch.at)}</span>
+        <span className="text-slate-400">{datetimeVN(ch.at, intl)}</span>
         <span className="text-slate-500">{ch.by}</span>
       </div>
       {ch.error && <p className="mt-1 text-red-700">{ch.error}</p>}
       {ok && (
         ch.undoneAt ? (
-          <p className="mt-1.5 text-slate-500">{t("google.pmaxNewCustomer.undoneAt", { time: datetimeVN(ch.undoneAt) })}</p>
+          <p className="mt-1.5 text-slate-500">{t("google.pmaxNewCustomer.undoneAt", { time: datetimeVN(ch.undoneAt, intl) })}</p>
         ) : (
           <div className="mt-1.5 flex justify-end">
             <Button variant="destructive" size="sm" className="h-7" onClick={onUndo} disabled={undoing}>

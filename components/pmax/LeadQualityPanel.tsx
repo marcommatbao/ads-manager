@@ -16,7 +16,7 @@ import { useCallback, useEffect, useId, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, ExternalLink, Loader2, RefreshCw, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import type { MessageKey } from "@/lib/i18n/messages";
 import { getJson, postJson, ApiError } from "@/components/case/api";
 import { datetimeVN } from "@/components/case/format";
@@ -48,6 +48,7 @@ const ACTION_STATUS_LABEL: Record<string, MessageKey> = { ENABLED: "google.pmaxL
 const EVENT_STATUS_LABEL: Record<string, MessageKey> = { pending: "google.pmaxLead.eventStatus.pending", uploaded: "google.pmaxLead.eventStatus.uploaded", failed: "google.pmaxLead.eventStatus.failed", skipped: "google.pmaxLead.eventStatus.skipped" };
 
 export function LeadQualityPanel({ company }: { company: Company }) {
+  const intl = useIntlLocale();
   const t = useT();
   const qId = useId(), wId = useId(), caConfirmId = useId();
 
@@ -261,7 +262,7 @@ export function LeadQualityPanel({ company }: { company: Company }) {
           <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-3.5">
             <p className="text-xs font-semibold text-slate-600">{t("google.pmaxLead.webhookTitle")}</p>
             <p className="text-[11px] text-slate-500">
-              {data.webhook.configured ? data.webhook.createdAt ? t("google.pmaxLead.configuredAt", { time: datetimeVN(data.webhook.createdAt) }) : t("google.pmaxLead.configured") : t("google.pmaxLead.notConfigured")}
+              {data.webhook.configured ? data.webhook.createdAt ? t("google.pmaxLead.configuredAt", { time: datetimeVN(data.webhook.createdAt, intl) }) : t("google.pmaxLead.configured") : t("google.pmaxLead.notConfigured")}
             </p>
             <div className="flex items-center gap-2">
               <code className="min-w-0 flex-1 truncate rounded bg-slate-50 px-2 py-1.5 text-[11px]">{origin}{data.webhook.path}</code>
@@ -368,7 +369,7 @@ export function LeadQualityPanel({ company }: { company: Company }) {
                         <td className="px-2.5 py-1.5 text-slate-700">{e.key}</td>
                         <td className="px-2.5 py-1.5 text-slate-600">{data.stageLabels[e.stage]}</td>
                         <td className="px-2.5 py-1.5 text-slate-600">{t(EVENT_STATUS_LABEL[e.status])}</td>
-                        <td className="px-2.5 py-1.5 text-slate-400">{datetimeVN(e.time)}</td>
+                        <td className="px-2.5 py-1.5 text-slate-400">{datetimeVN(e.time, intl)}</td>
                         <td className="px-2.5 py-1.5 text-slate-400">{e.via}</td>
                         <td className="px-2.5 py-1.5 text-red-600">{e.error ?? "—"}</td>
                       </tr>

@@ -7,7 +7,7 @@
 // ============================================================
 
 import { cn } from "@/lib/utils";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import type { MessageKey } from "@/lib/i18n/messages";
 import { vnd, num } from "@/components/case/format";
 import type { LearningCheck } from "@/lib/pmax/signals";
@@ -25,6 +25,7 @@ const STATUS_META: Record<LearningCheck["status"], { label: MessageKey; cls: str
 };
 
 function LearningRow({ c }: { c: LearningCheck }) {
+  const intl = useIntlLocale();
   const t = useT();
   const meta = STATUS_META[c.status];
   return (
@@ -34,12 +35,12 @@ function LearningRow({ c }: { c: LearningCheck }) {
         <span className={cn("shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold", meta.cls)}>{t(meta.label)}</span>
       </div>
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-600">
-        <span>{t("google.pmaxLearning.conv30")} <strong className="text-slate-800">{num(c.conv, { maximumFractionDigits: 1 })}</strong> ({num(c.convClick, { maximumFractionDigits: 1 })} {t("google.pmaxLearning.clicks")})</span>
+        <span>{t("google.pmaxLearning.conv30")} <strong className="text-slate-800">{num(c.conv, { maximumFractionDigits: 1 }, intl)}</strong> ({num(c.convClick, { maximumFractionDigits: 1 }, intl)} {t("google.pmaxLearning.clicks")})</span>
         <span>
-          {t("google.pmaxLearning.budget")} <strong className="text-slate-800">{vnd(c.budget)}{t("google.pmaxLearning.perDay")}</strong>
-          {c.neededBudget != null && c.budget < c.neededBudget && <> → {t("google.pmaxLearning.need")} <strong className="text-slate-800">{vnd(c.neededBudget)}</strong></>}
+          {t("google.pmaxLearning.budget")} <strong className="text-slate-800">{vnd(c.budget, intl)}{t("google.pmaxLearning.perDay")}</strong>
+          {c.neededBudget != null && c.budget < c.neededBudget && <> → {t("google.pmaxLearning.need")} <strong className="text-slate-800">{vnd(c.neededBudget, intl)}</strong></>}
         </span>
-        {c.cpa != null && <span>CPA: <strong className="text-slate-800">{vnd(c.cpa)}</strong></span>}
+        {c.cpa != null && <span>CPA: <strong className="text-slate-800">{vnd(c.cpa, intl)}</strong></span>}
       </div>
       {c.issues.length > 0 && (
         <ul className="list-disc space-y-0.5 pl-4 text-[11px] text-slate-500">{c.issues.map((issue, i) => <li key={i}>{issue}</li>)}</ul>

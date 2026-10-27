@@ -8,6 +8,8 @@ import type {
   PolicyChangeType,
   PolicyReviewStatus,
 } from "./types";
+import type { TFunction } from "@/lib/i18n/translate";
+import type { MessageKey } from "@/lib/i18n/messages";
 
 export const CATEGORY_LABELS: Record<PolicyCategory, string> = {
   policy: "Chính sách",
@@ -49,3 +51,9 @@ export const STATUS_LABELS: Record<PolicyReviewStatus, string> = {
   archived: "Đã lưu trữ",
   flagged_for_followup: "Cần theo dõi tiếp",
 };
+
+// Hàm nhãn theo ngôn ngữ — không truyền `t` thì trả bản tiếng Việt ở các bảng trên (giữ nguyên hành vi cũ).
+export const categoryLabel = (v: PolicyCategory, t?: TFunction): string => (t ? t(`libmeta.pr.cat.${v}` as MessageKey) : CATEGORY_LABELS[v]);
+export const changeTypeLabel = (v: PolicyChangeType, t?: TFunction): string => (t ? t(`libmeta.pr.chg.${v}` as MessageKey) : CHANGE_TYPE_LABELS[v]);
+export const affectedAreaLabel = (v: PolicyAffectedArea, t?: TFunction): string => (t ? t(`libmeta.pr.area.${v}` as MessageKey) : AFFECTED_AREA_LABELS[v]);
+export const statusLabel = (v: PolicyReviewStatus, t?: TFunction): string => (t ? t(`libmeta.pr.status.${v}` as MessageKey) : STATUS_LABELS[v]);

@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { fail, requireUser } from "@/lib/case/http"
 import { canAccessCompany } from "@/lib/permissions"
 import { healthOverview } from "@/lib/overview/health"
+import { getT } from "@/lib/i18n/server"
 import type { Company } from "@/lib/case/types"
 
 export const dynamic = "force-dynamic"
@@ -16,9 +17,9 @@ export async function GET(request: NextRequest) {
   const want = sp.get("company") ?? "ALL"
   const allowed = (["MBI", "MBC"] as Company[]).filter((c) => canAccessCompany(u.value, c))
   const companies = want === "ALL" ? allowed : allowed.filter((c) => c === want)
-  if (!companies.length) return NextResponse.json({ success: false, error: "Không có quyền với công ty này" }, { status: 403 })
+  if (!companies.length) return NextResponse.json({ success: false, error: (await getT())("libcase.r.noCompanyAccess") }, { status: 403 })
   try {
-    return NextResponse.json({ success: true, ...(await healthOverview(companies, { force: sp.get("force") === "1" })) })
+    return NextResponse.json({ success: true, ...(await healthOverview(companies, { force: sp.get("force") === "1", t: await getT() })) })
   } catch (err) {
     return fail(err)
   }

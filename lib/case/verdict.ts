@@ -9,6 +9,8 @@
 //   roas: chi phí − doanh thu ÷ ROAS trần
 // 0 đơn mà chưa chi đủ để kết luận → "chưa đủ dữ liệu", KHÔNG đánh đỏ vội.
 
+import { makeT, type TFunction } from "@/lib/i18n/translate"
+
 export type TargetBasis = "cpa" | "roas"
 /** Đợt 23 (3d): "cpl" = chi phí mỗi lead — chỉ cho phiên chiến dịch thu lead (dòng mục tiêu lưu CPL ở cplTarget/cplCeiling). */
 export type CaseBasis = TargetBasis | "cpl"
@@ -54,46 +56,46 @@ export const ROAS_MIN_SPEND_TO_JUDGE = 1_000_000
 const vnd = (n: number) => `₫${Math.round(n).toLocaleString("vi-VN")}`
 const times = (n: number) => n.toLocaleString("vi-VN", { maximumFractionDigits: 1 })
 
-export function verdictOf(p: CampaignPerf, t: CaseTarget | null): Verdict {
+export function verdictOf(p: CampaignPerf, tg: CaseTarget | null, t: TFunction = makeT("vi")): Verdict {
   const cpa = p.orders > 0 ? p.cost / p.orders : null
   const roas = p.cost > 0 ? p.orderValue / p.cost : null
   const flags: string[] = []
   // Click → lead > 15% là bình thường với form trên Meta — cờ "nghi đếm sai" chỉ cho đơn mua.
-  if (t?.basis !== "cpl" && p.clicks >= 50 && p.orders / p.clicks > SUSPICIOUS_CVR) {
-    flags.push(`${Math.round((p.orders / p.clicks) * 100)}% click thành đơn — cần kiểm hành động chuyển đổi đang được đếm`)
+  if (tg?.basis !== "cpl" && p.clicks >= 50 && p.orders / p.clicks > SUSPICIOUS_CVR) {
+    flags.push(t("libcase.s.verdict.cvrFlag", { pct: Math.round((p.orders / p.clicks) * 100) }))
   }
   const base = { cpa, roas, flags }
 
-  if (!t) return { ...base, status: "no_target", overCeiling: null, label: "Chưa đặt mục tiêu cho sản phẩm này" }
+  if (!tg) return { ...base, status: "no_target", overCeiling: null, label: t("libcase.s.verdict.noTarget") }
 
-  if (t.basis === "cpa" || t.basis === "cpl") {
-    const w = t.basis === "cpl" ? "lead" : "đơn"
+  if (tg.basis === "cpa" || tg.basis === "cpl") {
+    const w = tg.basis === "cpl" ? t("libcase.s.word.lead") : t("libcase.s.word.order")
     if (p.orders === 0) {
-      if (p.cost >= t.ceiling * ZERO_RESULT_SPEND_MULT) {
-        return { ...base, status: "red", overCeiling: p.cost, label: `0 ${w} · đã chi gấp ${times(p.cost / t.ceiling)} lần trần` }
+      if (p.cost >= tg.ceiling * ZERO_RESULT_SPEND_MULT) {
+        return { ...base, status: "red", overCeiling: p.cost, label: t("libcase.s.verdict.zeroRed", { w, x: times(p.cost / tg.ceiling) }) }
       }
-      if (p.cost >= t.ceiling) {
-        return { ...base, status: "amber", overCeiling: null, label: `0 ${w} · đã chi ${times(p.cost / t.ceiling)} lần trần — đáng lo, chưa đủ để kết luận (cần ${ZERO_RESULT_SPEND_MULT} lần)` }
+      if (p.cost >= tg.ceiling) {
+        return { ...base, status: "amber", overCeiling: null, label: t("libcase.s.verdict.zeroAmber", { w, x: times(p.cost / tg.ceiling), n: ZERO_RESULT_SPEND_MULT }) }
       }
-      return { ...base, status: "grey", overCeiling: null, label: `Chưa đủ dữ liệu — mới chi ${times(p.cost / t.ceiling)} lần trần` }
+      return { ...base, status: "grey", overCeiling: null, label: t("libcase.s.verdict.notEnoughSpent", { x: times(p.cost / tg.ceiling) }) }
     }
-    const over = p.cost - t.ceiling * p.orders
-    if (over > 0) return { ...base, status: "red", overCeiling: over, label: `Vượt trần ${vnd(t.ceiling)}/${w}` }
-    if (cpa! > t.target) return { ...base, status: "amber", overCeiling: null, label: "Trên mục tiêu, dưới trần" }
-    return { ...base, status: "green", overCeiling: null, label: "Đạt mục tiêu" }
+    const over = p.cost - tg.ceiling * p.orders
+    if (over > 0) return { ...base, status: "red", overCeiling: over, label: t("libcase.s.verdict.overCeil", { c: vnd(tg.ceiling), w }) }
+    if (cpa! > tg.target) return { ...base, status: "amber", overCeiling: null, label: t("libcase.s.verdict.aboveTarget") }
+    return { ...base, status: "green", overCeiling: null, label: t("libcase.s.verdict.onTarget") }
   }
 
   // roas
   if (p.orders === 0 || p.orderValue <= 0) {
     if (p.cost >= ROAS_MIN_SPEND_TO_JUDGE) {
-      return { ...base, status: "red", overCeiling: p.cost, label: "Chưa có doanh thu dù đã chi đủ để kết luận" }
+      return { ...base, status: "red", overCeiling: p.cost, label: t("libcase.s.verdict.noRevenue") }
     }
-    return { ...base, status: "grey", overCeiling: null, label: "Chưa đủ dữ liệu" }
+    return { ...base, status: "grey", overCeiling: null, label: t("libcase.s.verdict.notEnough") }
   }
-  const over = p.cost - p.orderValue / t.ceiling
-  if (over > 0) return { ...base, status: "red", overCeiling: over, label: `ROAS dưới trần ${t.ceiling}` }
-  if (roas! < t.target) return { ...base, status: "amber", overCeiling: null, label: "Dưới mục tiêu, trên trần" }
-  return { ...base, status: "green", overCeiling: null, label: "Đạt mục tiêu" }
+  const over = p.cost - p.orderValue / tg.ceiling
+  if (over > 0) return { ...base, status: "red", overCeiling: over, label: t("libcase.s.verdict.roasBelow", { c: tg.ceiling }) }
+  if (roas! < tg.target) return { ...base, status: "amber", overCeiling: null, label: t("libcase.s.verdict.belowTarget") }
+  return { ...base, status: "green", overCeiling: null, label: t("libcase.s.verdict.onTarget") }
 }
 
 /** Thứ tự bảng tổng quan: đỏ theo tiền vượt trần giảm dần → vàng → xám → xanh → chưa đặt mục tiêu. */

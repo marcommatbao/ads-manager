@@ -10,6 +10,8 @@ import { enums } from "google-ads-api"
 import { addDays, vnDate } from "@/lib/case/dates"
 import type { Company } from "@/lib/case/types"
 import type { SplitRecord } from "./split"
+import type { TFunction } from "@/lib/i18n/translate"
+import { viT } from "@/lib/google-i18n"
 
 type Row = Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
 const inv = (e: unknown) => Object.fromEntries(Object.entries(e as Record<string, unknown>).filter(([, v]) => typeof v === "number").map(([k, v]) => [v as number, k])) as Record<number, string>
@@ -62,21 +64,21 @@ export function buildSeries(rows: { date: string; campaignId: string; cost: numb
 
 const BSS = inv(enums.BiddingStrategySystemStatus)
 const CS = inv(enums.CampaignStatus)
-export function learningLabel(status: number | null | undefined): string | null {
+export function learningLabel(status: number | null | undefined, t: TFunction = viT): string | null {
   const s = status == null ? "" : BSS[status] ?? ""
   if (!s) return null
-  if (s.startsWith("LEARNING")) return "Đang học (Google còn thu thập dữ liệu — chưa nên đánh giá)"
-  if (s.startsWith("LIMITED")) return `Bị giới hạn (${s.replace("LIMITED_BY_", "").toLowerCase().replace(/_/g, " ")})`
-  if (s === "ENABLED") return "Ổn định"
+  if (s.startsWith("LEARNING")) return t("libgoogle.st.learning")
+  if (s.startsWith("LIMITED")) return t("libgoogle.st.limited", { why: s.replace("LIMITED_BY_", "").toLowerCase().replace(/_/g, " ") })
+  if (s === "ENABLED") return t("libgoogle.st.stable")
   return s.toLowerCase().replace(/_/g, " ")
 }
 
 /** Diễn biến theo ngày từ lúc chuyển (hoặc lúc tạo) tới hôm qua, tối đa 21 ngày — ~2 truy vấn Google Ads. */
-export async function splitSeries(company: Company, r: SplitRecord, now = new Date()): Promise<SplitSeries> {
+export async function splitSeries(company: Company, r: SplitRecord, now = new Date(), t: TFunction = viT): Promise<SplitSeries> {
   const { getGoogleAdsCustomer } = await import("@/lib/google-ads-client")
   const c = getGoogleAdsCustomer(company)
   const splitId = String(r.newCampaign ?? "").split("/").pop() ?? ""
-  if (!/^\d+$/.test(splitId) || !/^\d+$/.test(r.sourceId)) throw new Error("Bản tách thiếu mã chiến dịch")
+  if (!/^\d+$/.test(splitId) || !/^\d+$/.test(r.sourceId)) throw new Error(t("libgoogle.st.errNoId"))
   const to = addDays(vnDate(now), -1)
   const start = vnDay(r.movedAt ?? r.at)
   const minFrom = addDays(to, -20)
@@ -89,7 +91,7 @@ export async function splitSeries(company: Company, r: SplitRecord, now = new Da
   const s = buildSeries(daily.map((x) => ({ date: String(x.segments.date), campaignId: String(x.campaign.id), cost: Number(x.metrics.cost_micros) / 1e6 || 0, conv: Number(x.metrics.conversions) || 0 })), { source: r.sourceId, split: splitId }, from, to)
   const mine = state.find((x) => String(x.campaign.id) === splitId), src = state.find((x) => String(x.campaign.id) === r.sourceId)
   const lost = src?.metrics?.search_budget_lost_impression_share
-  return { ...s, newStatus: mine ? CS[mine.campaign.status] ?? null : null, learning: learningLabel(mine?.campaign?.bidding_strategy_system_status), sourceLostBudget7d: lost == null ? null : Number(lost) }
+  return { ...s, newStatus: mine ? CS[mine.campaign.status] ?? null : null, learning: learningLabel(mine?.campaign?.bidding_strategy_system_status, t), sourceLostBudget7d: lost == null ? null : Number(lost) }
 }
 
 // ── Job hằng ngày ──

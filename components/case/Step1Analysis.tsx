@@ -11,7 +11,7 @@ import { vnd, num, pct, ddmmyyyy } from "./format";
 import { metaObjectiveLabel } from "./meta-copy";
 import type { CampaignCase } from "@/lib/case/store";
 import { metaGoalKind, metaResults } from "@/lib/case/goal-kind";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import type { MessageKey } from "@/lib/i18n/messages";
 
 const BIDDING_LABEL: Record<string, MessageKey> = {
@@ -23,6 +23,7 @@ const BIDDING_LABEL: Record<string, MessageKey> = {
 };
 
 export function Step1Analysis({ c, onNext, busy }: { c: CampaignCase; onNext: () => void; busy?: boolean }) {
+  const intl = useIntlLocale();
   const t = useT();
   const ev = c.evidence;
   if (!ev) {
@@ -47,33 +48,33 @@ export function Step1Analysis({ c, onNext, busy }: { c: CampaignCase; onNext: ()
         <div>
           <h2 className="text-base font-bold text-slate-900">{t("overview.step1.title")}</h2>
           <p className="mt-0.5 text-sm text-slate-500">
-            {t("overview.step1.sourceMeta", { company: c.company, from: ddmmyyyy(c.range.from), to: ddmmyyyy(c.range.to) })}
+            {t("overview.step1.sourceMeta", { company: c.company, from: ddmmyyyy(c.range.from, intl), to: ddmmyyyy(c.range.to, intl) })}
           </p>
         </div>
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Kpi label={t("overview.step1.kpi.spent")} value={vnd(camp.cost)} bad={results === 0} />
-          <Kpi label={leads ? t("overview.step1.kpi.leadMeta") : t("overview.step1.kpi.purchaseMeta")} value={num(results)} bad={results === 0} sub={leads ? t("overview.step1.goalLeads") : t("overview.step1.goalPurchase")} />
-          <Kpi label={leads ? t("overview.step1.kpi.costPerLead") : t("overview.step1.kpi.costPerPurchase")} value={cpa !== null ? vnd(cpa) : "—"} />
+          <Kpi label={t("overview.step1.kpi.spent")} value={vnd(camp.cost, intl)} bad={results === 0} />
+          <Kpi label={leads ? t("overview.step1.kpi.leadMeta") : t("overview.step1.kpi.purchaseMeta")} value={num(results, undefined, intl)} bad={results === 0} sub={leads ? t("overview.step1.goalLeads") : t("overview.step1.goalPurchase")} />
+          <Kpi label={leads ? t("overview.step1.kpi.costPerLead") : t("overview.step1.kpi.costPerPurchase")} value={cpa !== null ? vnd(cpa, intl) : "—"} />
           {leads
-            ? <Kpi label={t("overview.step1.landingViews")} value={num(camp.landingViews)} />
-            : <Kpi label={t("overview.step1.kpi.metaRevenue")} value={vnd(camp.purchaseValue)} bad={camp.purchases > 0 && camp.purchaseValue <= 0} />}
+            ? <Kpi label={t("overview.step1.landingViews")} value={num(camp.landingViews, undefined, intl)} />
+            : <Kpi label={t("overview.step1.kpi.metaRevenue")} value={vnd(camp.purchaseValue, intl)} bad={camp.purchases > 0 && camp.purchaseValue <= 0} />}
         </div>
 
         <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
           <div className="border-b border-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-800">{t("overview.step1.config")}</div>
           <table className="w-full text-sm">
             <tbody>
-              <Row label={t("overview.step1.row.objective")}>{metaObjectiveLabel(camp.objective)}</Row>
+              <Row label={t("overview.step1.row.objective")}>{metaObjectiveLabel(camp.objective, t)}</Row>
               <Row label={t("overview.step1.row.dailyBudget")}>
-                <span className="tabular-nums">{camp.dailyBudget !== null ? vnd(camp.dailyBudget) : t("overview.step1.adsetLevelBudget")}</span>
+                <span className="tabular-nums">{camp.dailyBudget !== null ? vnd(camp.dailyBudget, intl) : t("overview.step1.adsetLevelBudget")}</span>
               </Row>
               <Row label={t("overview.step1.row.frequency")}>
                 <span className="tabular-nums">{camp.frequency !== null ? camp.frequency.toFixed(2) : "—"}</span>
-                {" · "}{t("overview.step1.reach")} <span className="tabular-nums">{num(camp.reach)}</span>
+                {" · "}{t("overview.step1.reach")} <span className="tabular-nums">{num(camp.reach, undefined, intl)}</span>
               </Row>
-              <Row label={t("overview.step1.row.linkClicks")}><span className="tabular-nums">{num(camp.linkClicks)}</span></Row>
-              <Row label={t("overview.step1.landingViews")}><span className="tabular-nums">{num(camp.landingViews)}</span></Row>
+              <Row label={t("overview.step1.row.linkClicks")}><span className="tabular-nums">{num(camp.linkClicks, undefined, intl)}</span></Row>
+              <Row label={t("overview.step1.landingViews")}><span className="tabular-nums">{num(camp.landingViews, undefined, intl)}</span></Row>
               <Row label={t("overview.step1.row.status")}>{camp.status === "ACTIVE" ? t("overview.step1.running") : camp.status}</Row>
             </tbody>
           </table>
@@ -87,8 +88,8 @@ export function Step1Analysis({ c, onNext, busy }: { c: CampaignCase; onNext: ()
           {results === 0 ? <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /> : <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />}
           <span>
             {results === 0
-              ? t("overview.step1.zeroMeta", { word, cost: vnd(camp.cost) })
-              : t("overview.step1.someMeta", { n: num(results), word, cost: vnd(camp.cost) })}
+              ? t("overview.step1.zeroMeta", { word, cost: vnd(camp.cost, intl) })
+              : t("overview.step1.someMeta", { n: num(results, undefined, intl), word, cost: vnd(camp.cost, intl) })}
           </span>
         </div>
 
@@ -107,15 +108,15 @@ export function Step1Analysis({ c, onNext, busy }: { c: CampaignCase; onNext: ()
       <div>
         <h2 className="text-base font-bold text-slate-900">{t("overview.step1.title")}</h2>
         <p className="mt-0.5 text-sm text-slate-500">
-          {t("overview.step1.sourceGoogle", { company: c.company, from: ddmmyyyy(c.range.from), to: ddmmyyyy(c.range.to) })}
+          {t("overview.step1.sourceGoogle", { company: c.company, from: ddmmyyyy(c.range.from, intl), to: ddmmyyyy(c.range.to, intl) })}
         </p>
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Kpi label={t("overview.step1.kpi.spent")} value={vnd(camp.cost)} bad={camp.orders === 0} />
-        <Kpi label={t("overview.step1.kpi.clicks")} value={num(camp.clicks)} sub={cpc !== null ? t("overview.step1.avgCpc", { cpc: vnd(cpc) }) : undefined} />
-        <Kpi label={t("overview.step1.kpi.orders")} value={num(camp.orders)} bad={camp.orders === 0} sub={t("overview.step1.goalPurchase")} />
-        <Kpi label={t("overview.step1.kpi.allConv")} value={num(camp.allConversions, { maximumFractionDigits: 1 })} sub={t("overview.step1.kpi.allConvSub")} />
+        <Kpi label={t("overview.step1.kpi.spent")} value={vnd(camp.cost, intl)} bad={camp.orders === 0} />
+        <Kpi label={t("overview.step1.kpi.clicks")} value={num(camp.clicks, undefined, intl)} sub={cpc !== null ? t("overview.step1.avgCpc", { cpc: vnd(cpc, intl) }) : undefined} />
+        <Kpi label={t("overview.step1.kpi.orders")} value={num(camp.orders, undefined, intl)} bad={camp.orders === 0} sub={t("overview.step1.goalPurchase")} />
+        <Kpi label={t("overview.step1.kpi.allConv")} value={num(camp.allConversions, { maximumFractionDigits: 1 }, intl)} sub={t("overview.step1.kpi.allConvSub")} />
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
@@ -124,15 +125,15 @@ export function Step1Analysis({ c, onNext, busy }: { c: CampaignCase; onNext: ()
           <tbody>
             <Row label={t("overview.step1.row.bidding")}>
               {BIDDING_LABEL[camp.biddingType] ? t(BIDDING_LABEL[camp.biddingType]) : camp.biddingType}
-              {camp.targetCpa !== null && <> · {t("overview.step1.bidding.TARGET_CPA")} <b className="tabular-nums">{vnd(camp.targetCpa)}</b></>}
+              {camp.targetCpa !== null && <> · {t("overview.step1.bidding.TARGET_CPA")} <b className="tabular-nums">{vnd(camp.targetCpa, intl)}</b></>}
               {camp.targetRoas !== null && <> · {t("overview.step1.bidding.TARGET_ROAS")} <b className="tabular-nums">{camp.targetRoas}</b></>}
             </Row>
-            <Row label={t("overview.step1.row.dailyBudget")}><span className="tabular-nums">{vnd(camp.budgetDaily)}</span></Row>
+            <Row label={t("overview.step1.row.dailyBudget")}><span className="tabular-nums">{vnd(camp.budgetDaily, intl)}</span></Row>
             {ev?.kind !== "google_pmax" && (
             <Row label={t("overview.step1.row.impShare")}>
-              <span className="tabular-nums">{pct(camp.impressionShare)}</span>
-              {camp.lostIsBudget !== null && <> · {t("overview.step1.lost")} <span className="tabular-nums">{pct(camp.lostIsBudget)}</span> {t("overview.step1.dueBudget")}</>}
-              {camp.lostIsRank !== null && <> · <span className="tabular-nums">{pct(camp.lostIsRank)}</span> {t("overview.step1.dueRank")}</>}
+              <span className="tabular-nums">{pct(camp.impressionShare, 1, intl)}</span>
+              {camp.lostIsBudget !== null && <> · {t("overview.step1.lost")} <span className="tabular-nums">{pct(camp.lostIsBudget, 1, intl)}</span> {t("overview.step1.dueBudget")}</>}
+              {camp.lostIsRank !== null && <> · <span className="tabular-nums">{pct(camp.lostIsRank, 1, intl)}</span> {t("overview.step1.dueRank")}</>}
             </Row>
             )}
             <Row label={t("overview.step1.row.status")}>{camp.status === "ENABLED" ? t("overview.step1.running") : camp.status}</Row>
@@ -156,9 +157,9 @@ export function Step1Analysis({ c, onNext, busy }: { c: CampaignCase; onNext: ()
               {ev.network.filter((n) => n.cost > 0).map((n) => (
                 <tr key={n.network} className="border-t border-slate-50">
                   <td className="px-4 py-2 text-slate-700">{NETWORK_LABEL[n.network] ? t(NETWORK_LABEL[n.network]) : n.network}</td>
-                  <td className="px-4 py-2 text-right tabular-nums">{vnd(n.cost)}</td>
-                  <td className="px-4 py-2 text-right tabular-nums">{num(n.clicks)}</td>
-                  <td className={`px-4 py-2 text-right tabular-nums ${n.conversions === 0 ? "font-semibold text-red-600" : "text-slate-800"}`}>{num(n.conversions, { maximumFractionDigits: 1 })}</td>
+                  <td className="px-4 py-2 text-right tabular-nums">{vnd(n.cost, intl)}</td>
+                  <td className="px-4 py-2 text-right tabular-nums">{num(n.clicks, undefined, intl)}</td>
+                  <td className={`px-4 py-2 text-right tabular-nums ${n.conversions === 0 ? "font-semibold text-red-600" : "text-slate-800"}`}>{num(n.conversions, { maximumFractionDigits: 1 }, intl)}</td>
                 </tr>
               ))}
             </tbody>
@@ -174,8 +175,8 @@ export function Step1Analysis({ c, onNext, busy }: { c: CampaignCase; onNext: ()
         {camp.orders === 0 ? <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /> : <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />}
         <span>
           {camp.orders === 0
-            ? t("overview.step1.zeroGoogle", { cost: vnd(camp.cost) })
-            : t("overview.step1.someGoogle", { n: num(camp.orders), cost: vnd(camp.cost) })}
+            ? t("overview.step1.zeroGoogle", { cost: vnd(camp.cost, intl) })
+            : t("overview.step1.someGoogle", { n: num(camp.orders, undefined, intl), cost: vnd(camp.cost, intl) })}
         </span>
       </div>
 

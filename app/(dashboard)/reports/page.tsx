@@ -350,7 +350,7 @@ export default function ReportsPage() {
                   <span className="text-[10px] font-bold text-slate-400 uppercase">{t("overview.reports.kpiImpressions")}</span>
                   <MousePointer className="h-4 w-4 text-amber-400" />
                 </div>
-                <p className="text-xl font-black">{formatNumber(analytics.totalImpressions)}</p>
+                <p className="text-xl font-black">{formatNumber(analytics.totalImpressions, loc)}</p>
               </div>
             </div>
 

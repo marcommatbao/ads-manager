@@ -5,7 +5,7 @@ import { AlertTriangle, CheckCircle2, Clock, Pause, PlugZap, SkipForward, XCircl
 import { cn } from "@/lib/utils";
 import type { HealthJob, HealthConnector, HealthAlertChannel } from "./types";
 import { absTime } from "./format";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 
 interface StatChipProps {
   icon: React.ReactNode;
@@ -36,6 +36,7 @@ export function SummaryStrip({
 }: {
   jobs: HealthJob[]; connectors: HealthConnector[]; alertChannel: HealthAlertChannel; bootAt: string;
 }) {
+  const intl = useIntlLocale();
   const t = useT();
   const counts = useMemo(() => {
     const c = { failed: 0, missed: 0, stale: 0, paused: 0, waiting: 0, ok: 0 };
@@ -74,7 +75,7 @@ export function SummaryStrip({
         ) : (
           <span className="font-semibold text-red-600">{t("overview.health.summary.noChannel")}</span>
         )}
-        <span>{t("overview.health.summary.boot", { time: absTime(bootAt) })}</span>
+        <span>{t("overview.health.summary.boot", { time: absTime(bootAt, intl) })}</span>
       </div>
     </div>
   );

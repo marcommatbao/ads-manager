@@ -11,6 +11,7 @@ import { deriveTone } from "./tone-engine";
 import { deriveCta } from "./cta-engine";
 import { adaptForMeta, adaptForGoogle } from "./platform-adapter";
 import { runCompliance, getSensitiveTerms } from "./compliance";
+import { makeT, type TFunction } from "@/lib/i18n/translate";
 
 function inferLandingPageType(url: string): string {
   if (/pricing|gia|bang-gia/i.test(url))  return "pricing";
@@ -48,7 +49,7 @@ function buildValueProposition(
   return frames[funnelStage];
 }
 
-export function buildBrief(input: BriefInput): CreativeBrief {
+export function buildBrief(input: BriefInput, t: TFunction = makeT("vi")): CreativeBrief {
   const {
     company, platform, product, objective, funnelStage,
     selectedSegments, customAudienceNote,
@@ -94,7 +95,7 @@ export function buildBrief(input: BriefInput): CreativeBrief {
     inferredPageType: inferLandingPageType(landingPageUrl),
     alignment:        inferLandingAlignment(landingPageUrl, product),
     notes: inferLandingAlignment(landingPageUrl, product) === "mismatch"
-      ? "Landing page domain không thuộc matbao.net / matbao.in — verify trước khi launch."
+      ? t("libmeta.cb.landingMismatch")
       : undefined,
   } : undefined;
 
@@ -123,13 +124,13 @@ export function buildBrief(input: BriefInput): CreativeBrief {
     launchConstraints: launchConstraints ? {
       ...launchConstraints,
       budgetGuidance: (launchConstraints.dailyBudgetVnd ?? 0) > 0 && (launchConstraints.dailyBudgetVnd ?? 0) < 200_000
-        ? "Ngân sách thấp hơn khuyến nghị cho conversion objective (200K₫+/ngày). Cân nhắc tăng hoặc đổi sang traffic objective."
+        ? t("libmeta.cb.budgetGuidance")
         : undefined,
     } : undefined,
   };
 
   // ── [8] Compliance ────────────────────────────────────────
-  const complianceNotes = runCompliance(draft);
+  const complianceNotes = runCompliance(draft, t);
   const blockers = complianceNotes.filter(n => n.severity === "block");
   if (blockers.length > 0) {
     throw new Error(`Brief blocked by compliance: ${blockers.map(b => b.rule).join(", ")}`);

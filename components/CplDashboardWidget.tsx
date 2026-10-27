@@ -5,7 +5,7 @@ import { formatCurrency } from "@/lib/utils";
 import { Loader2, Target, ArrowRight, CheckCircle2, AlertTriangle, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 
 interface RootCauseAnalysis {
   likely_causes: string[];
@@ -15,6 +15,7 @@ interface RootCauseAnalysis {
 }
 
 export function CplDashboardWidget() {
+  const intl = useIntlLocale();
   const t = useT();
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -99,7 +100,7 @@ export function CplDashboardWidget() {
             {good.length > 0 ? good.map(c => (
               <div key={c.campaign_id} className="bg-emerald-50/50 border border-emerald-100 rounded p-2">
                 <p className="text-[10px] font-semibold text-slate-700 truncate" title={c.campaign_name}>{c.campaign_name}</p>
-                <p className="text-lg font-bold text-emerald-700 leading-tight">{formatCurrency(c.cpl_data.cpl, "VND", false)}</p>
+                <p className="text-lg font-bold text-emerald-700 leading-tight">{formatCurrency(c.cpl_data.cpl, "VND", false, intl)}</p>
               </div>
             )) : <p className="text-xs text-slate-400">{t("panels.cpl.none")}</p>}
           </div>
@@ -110,7 +111,7 @@ export function CplDashboardWidget() {
             {critical.length > 0 ? critical.map(c => (
               <div key={c.campaign_id} className="bg-red-50/50 border border-red-100 rounded p-2">
                  <p className="text-[10px] font-semibold text-slate-700 truncate" title={c.campaign_name}>{c.campaign_name}</p>
-                 <p className="text-lg font-bold text-red-700 leading-tight">{formatCurrency(c.cpl_data.cpl, "VND", false)}</p>
+                 <p className="text-lg font-bold text-red-700 leading-tight">{formatCurrency(c.cpl_data.cpl, "VND", false, intl)}</p>
                  <button
                    onClick={() => toggleRootCause(c.campaign_id)}
                    className="text-[10px] font-semibold text-indigo-600 hover:text-indigo-700 flex items-center gap-0.5 mt-1"

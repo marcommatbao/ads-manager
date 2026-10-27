@@ -16,6 +16,7 @@ import { writeFileAtomicSync } from "@/lib/fs-atomic"
 import type { Company } from "@/lib/case/types"
 import { GtmApiError, SCOPE_WRITE, gtmCall, readLive, type GtmLive } from "./gtm-api"
 import type { GtmFixProposal, TagDoctorReport } from "./tag-doctor"
+import { makeT, type TFunction } from "@/lib/i18n/translate"
 
 export const GTM_CONFIRM_TEXT = "XAC NHAN"
 export const MAX_GTM_FIXES = 5
@@ -39,19 +40,25 @@ export const needsSignalAck = (fixes: GtmFixProposal[]) => fixes.some((f) => f.k
 export class GtmFixError extends Error { constructor(message: string, public status = 400) { super(message) } }
 
 /** Điều kiện trước — hàm thuần: thẻ còn đúng như lúc chẩn đoán không. null = áp được. */
-export function precheck(f: GtmFixProposal, live: Pick<GtmLive, "tags" | "triggers">): string | null {
+export type PrecheckCode = "gone" | "already" | "changed" | "noTrigger" | "trigChanged"
+/** Mã kết quả điều kiện trước — logic dò theo MÃ, không dò chữ (chữ đổi theo ngôn ngữ). null = áp được. */
+export function precheckCode(f: GtmFixProposal, live: Pick<GtmLive, "tags" | "triggers">): PrecheckCode | null {
   const t = live.tags.find((x) => x.id === f.tagId)
-  if (!t) return `${f.label}: thẻ không còn trong bản live — bỏ qua.`
+  if (!t) return "gone"
   if (f.kind === "tag_standard") {
-    if (t.params.eventName === "standard" && t.params.standardEventName === f.toName) return `${f.label}: đã đúng sẵn — bỏ qua.`
-    if (t.params.eventName === "standard" || t.params.customEventName !== f.fromName) return `${f.label}: thẻ đã đổi từ lúc chẩn đoán — bỏ qua, chạy lại chẩn đoán.`
+    if (t.params.eventName === "standard" && t.params.standardEventName === f.toName) return "already"
+    if (t.params.eventName === "standard" || t.params.customEventName !== f.fromName) return "changed"
     return null
   }
-  if (!live.triggers.some((x) => x.id === f.toTriggerId)) return `${f.label}: trigger đích không còn — bỏ qua.`
+  if (!live.triggers.some((x) => x.id === f.toTriggerId)) return "noTrigger"
   const cur = [...t.firingTriggerIds].sort().join(",")
-  if (cur === f.toTriggerId) return `${f.label}: đã đúng sẵn — bỏ qua.`
-  if (cur !== [...f.fromTriggerIds].sort().join(",")) return `${f.label}: trigger của thẻ đã đổi từ lúc chẩn đoán — bỏ qua.`
+  if (cur === f.toTriggerId) return "already"
+  if (cur !== [...f.fromTriggerIds].sort().join(",")) return "trigChanged"
   return null
+}
+export function precheck(f: GtmFixProposal, live: Pick<GtmLive, "tags" | "triggers">, t: TFunction = makeT("vi")): string | null {
+  const c = precheckCode(f, live)
+  return c ? t(`libmeta.gf.${c === "gone" ? "gone" : c}` as "libmeta.gf.gone", { label: f.label }) : null
 }
 
 /** Áp một đề xuất lên bản JSON thẻ của workspace — hàm thuần, trả bản mới. */
@@ -86,15 +93,15 @@ const msg = (e: unknown) => (e instanceof Error ? e.message : String(e))
 export async function runGtmFix(input: {
   company: Company; report: Pick<TagDoctorReport, "gtmFixes">; fixIds: string[]; actor: string
   validateOnly: boolean; confirmText?: string; acknowledgeSignalLoss?: boolean
-}): Promise<GtmFixExecution> {
+}, t: TFunction = makeT("vi")): Promise<GtmFixExecution> {
   const selected = input.report.gtmFixes.filter((f) => input.fixIds.includes(f.id))
-  if (!selected.length) throw new GtmFixError("Chưa chọn việc nào")
-  if (selected.length > MAX_GTM_FIXES) throw new GtmFixError(`Tối đa ${MAX_GTM_FIXES} việc một lần`)
+  if (!selected.length) throw new GtmFixError(t("libmeta.gf.noneSelected"))
+  if (selected.length > MAX_GTM_FIXES) throw new GtmFixError(t("libmeta.gf.maxFixes", { max: MAX_GTM_FIXES }))
   const containers = [...new Set(selected.map((f) => f.container))]
-  if (containers.length > 1) throw new GtmFixError("Mỗi lần chỉ sửa một container GTM")
-  if (!input.validateOnly && input.confirmText?.trim() !== GTM_CONFIRM_TEXT) throw new GtmFixError(`Gõ đúng “${GTM_CONFIRM_TEXT}” để publish lên website thật`)
+  if (containers.length > 1) throw new GtmFixError(t("libmeta.gf.oneContainer"))
+  if (!input.validateOnly && input.confirmText?.trim() !== GTM_CONFIRM_TEXT) throw new GtmFixError(t("libmeta.gf.typeConfirm", { text: GTM_CONFIRM_TEXT }))
   if (!input.validateOnly && needsSignalAck(selected) && !input.acknowledgeSignalLoss) {
-    throw new GtmFixError("Việc đã chọn làm Google mất tín hiệu đặt giá (xem cảnh báo). Tick ô xác nhận nếu vẫn muốn publish.")
+    throw new GtmFixError(t("libmeta.gf.signalAck"))
   }
 
   const container = containers[0]
@@ -104,15 +111,15 @@ export async function runGtmFix(input: {
     prevVersionId: null, newVersionId: null, readback: [],
   }
   let live: GtmLive
-  try { live = await readLive(container) } catch (e) { exec.errors.push(`Không đọc được bản live: ${msg(e)}`); return exec }
+  try { live = await readLive(container) } catch (e) { exec.errors.push(t("libmeta.gf.liveReadFail", { msg: msg(e) })); return exec }
   exec.prevVersionId = live.versionId
   const todo: GtmFixProposal[] = []
-  for (const f of selected) { const why = precheck(f, live); if (why) exec.skipped.push(why); else todo.push(f) }
+  for (const f of selected) { const why = precheck(f, live, t); if (why) exec.skipped.push(why); else todo.push(f) }
   if (!todo.length) { exec.status = "done"; return exec }
 
   // Workspace riêng — không đụng Default Workspace.
   let ws: string | null = null
-  const dropWorkspace = async () => { if (ws) { try { await gtmCall("DELETE", ws, undefined, SCOPE_WRITE) } catch (e) { exec.errors.push(`Không xoá được workspace tạm ${ws}: ${msg(e)} — xoá tay trong GTM`) } ws = null } }
+  const dropWorkspace = async () => { if (ws) { try { await gtmCall("DELETE", ws, undefined, SCOPE_WRITE) } catch (e) { exec.errors.push(t("libmeta.gf.wsDropFail", { ws: String(ws), msg: msg(e) })) } ws = null } }
   try {
     const w = await gtmCall("POST", `${live.path}/workspaces`, { name: `AdsCommand ${exec.id}`, description: `Tool AdsCommand — ${input.actor} — ${todo.map((f) => f.label).join(" | ").slice(0, 400)}` }, SCOPE_WRITE)
     ws = String(w.path)
@@ -122,10 +129,10 @@ export async function runGtmFix(input: {
       exec.applied.push({ fixId: f.id, label: f.label })
     }
     const pv = await gtmCall("POST", `${ws}:quick_preview`, {}, SCOPE_WRITE)
-    if (pv.compilerError) throw new GtmApiError("GTM biên dịch lỗi với thay đổi này — CHƯA publish")
-    if (pv.syncStatus?.mergeConflict) throw new GtmApiError("Xung đột với bản live mới hơn — CHƯA publish, chạy lại chẩn đoán")
+    if (pv.compilerError) throw new GtmApiError(t("libmeta.gf.compilerError"))
+    if (pv.syncStatus?.mergeConflict) throw new GtmApiError(t("libmeta.gf.mergeConflict"))
   } catch (e) {
-    exec.errors.push(`${e instanceof GtmApiError ? "" : "Lỗi: "}${msg(e)}`)
+    exec.errors.push(e instanceof GtmApiError ? msg(e) : t("libmeta.gf.errPrefix", { msg: msg(e) }))
     exec.applied = []
     await dropWorkspace()
     if (!input.validateOnly) await withFileLock(FILE, async () => writeLog([...readLog(), exec]))
@@ -135,48 +142,48 @@ export async function runGtmFix(input: {
   if (input.validateOnly) {
     await dropWorkspace()
     exec.status = exec.errors.length ? "failed" : "done"
-    exec.readback = exec.applied.map((a) => ({ label: a.label, ok: true, note: "GTM biên dịch được — chưa publish (workspace tạm đã xoá)" }))
+    exec.readback = exec.applied.map((a) => ({ label: a.label, ok: true, note: t("libmeta.gf.validateNote") }))
     return exec
   }
 
   try {
     const cv = await gtmCall("POST", `${ws}:create_version`, { name: `AdsCommand ${exec.id}`, notes: `${input.actor}: ${todo.map((f) => f.label).join(" | ")}` }, SCOPE_WRITE)
-    if (cv.compilerError || !cv.containerVersion) throw new GtmApiError("Không tạo được phiên bản")
+    if (cv.compilerError || !cv.containerVersion) throw new GtmApiError(t("libmeta.gf.noVersion"))
     ws = null // workspace đã được GTM dùng để tạo phiên bản
     exec.newVersionId = String(cv.containerVersion.containerVersionId)
     await gtmCall("POST", `${live.path}/versions/${exec.newVersionId}:publish`, {}, SCOPE_WRITE)
   } catch (e) {
-    exec.errors.push(`Lỗi khi tạo phiên bản / publish: ${msg(e)}${exec.newVersionId ? ` — phiên bản ${exec.newVersionId} đã tạo nhưng có thể CHƯA publish` : ""}`)
+    exec.errors.push(t("libmeta.gf.publishErr", { msg: msg(e), extra: exec.newVersionId ? t("libmeta.gf.publishErrExtra", { id: exec.newVersionId }) : "" }))
     await dropWorkspace()
   }
   try {
     const after = await readLive(container)
     const isNew = after.versionId === exec.newVersionId
     exec.readback = todo.map((f) => {
-      const ok = isNew && precheck(f, after)?.includes("đã đúng sẵn") === true
-      return { label: f.label, ok, note: isNew ? (ok ? "Bản live đã có thay đổi" : "Bản live KHÔNG có thay đổi như mong đợi") : `Bản live là ${after.versionId}, không phải ${exec.newVersionId ?? "?"}` }
+      const ok = isNew && precheckCode(f, after) === "already"
+      return { label: f.label, ok, note: isNew ? (ok ? t("libmeta.gf.rbOk") : t("libmeta.gf.rbNo")) : t("libmeta.gf.rbOther", { live: after.versionId, expected: exec.newVersionId ?? "?" }) }
     })
-  } catch (e) { exec.errors.push(`Đã publish nhưng không đọc lại được: ${msg(e)}`) }
+  } catch (e) { exec.errors.push(t("libmeta.gf.rbFail", { msg: msg(e) })) }
   exec.status = !exec.errors.length && exec.readback.length > 0 && exec.readback.every((r) => r.ok) ? "done" : "failed"
   await withFileLock(FILE, async () => writeLog([...readLog(), exec]))
   return exec
 }
 
-export async function undoGtmFix(company: Company, execId: string, actor: string): Promise<string[]> {
+export async function undoGtmFix(company: Company, execId: string, actor: string, t: TFunction = makeT("vi")): Promise<string[]> {
   return withFileLock(FILE, async () => {
     const log = readLog()
     const ex = log.find((e) => e.id === execId && e.company === company)
-    if (!ex || ex.mode !== "write" || !ex.newVersionId || !ex.prevVersionId) throw new GtmFixError("Không tìm thấy lần publish", 404)
-    if (ex.undoneAt) throw new GtmFixError("Lần này đã được hoàn tác", 409)
+    if (!ex || ex.mode !== "write" || !ex.newVersionId || !ex.prevVersionId) throw new GtmFixError(t("libmeta.gf.undoNotFound"), 404)
+    if (ex.undoneAt) throw new GtmFixError(t("libmeta.gf.undoDone"), 409)
     const live = await readLive(ex.container)
     if (live.versionId !== ex.newVersionId) {
-      throw new GtmFixError(`Bản live hiện là ${live.versionId}${live.versionName ? ` “${live.versionName}”` : ""}, không còn là bản tool tạo (${ex.newVersionId}) — có người đã publish sau; không đè. Hoàn tác tay trong GTM nếu cần.`, 409)
+      throw new GtmFixError(t("libmeta.gf.undoLiveChanged", { live: live.versionId, name: live.versionName ? ` “${live.versionName}”` : "", expected: ex.newVersionId }), 409)
     }
     await gtmCall("POST", `${live.path}/versions/${ex.prevVersionId}:publish`, {}, SCOPE_WRITE)
     const after = await readLive(ex.container)
-    const report = [after.versionId === ex.prevVersionId ? `Đã publish lại bản ${ex.prevVersionId} (trước khi tool sửa).` : `CHƯA về bản ${ex.prevVersionId} — bản live là ${after.versionId}.`]
+    const report = [after.versionId === ex.prevVersionId ? t("libmeta.gf.undoRepublished", { id: ex.prevVersionId }) : t("libmeta.gf.undoNotBack", { id: ex.prevVersionId, live: after.versionId })]
     ex.undoneAt = new Date().toISOString()
-    ex.undoReport = [`Hoàn tác bởi ${actor}`, ...report]
+    ex.undoReport = [t("libmeta.gf.undoBy", { actor }), ...report]
     writeLog(log)
     return report
   })

@@ -28,6 +28,8 @@ import { productGroupOf } from "@/lib/case/product"
 import { representativeQuery } from "@/lib/playbook/suggest"
 import { customerIdOf, PMAX_CONFIRM_TEXT, PmaxControlError } from "./controls"
 import { vetOption, type TextType } from "./assets"
+import type { TFunction } from "@/lib/i18n/translate"
+import { viT } from "@/lib/google-i18n"
 
 type Row = Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
 const inv = (e: Record<string, unknown>) => Object.fromEntries(Object.entries(e).filter(([, v]) => typeof v === "number").map(([k, v]) => [v as number, k]))
@@ -50,6 +52,7 @@ export function planThemes(input: {
   playbook: string[]
   lex: IntentLexicon
   limit?: number
+  tr?: TFunction
 }): { themes: ThemeGroup["themes"]; suggestions: ThemeGroup["suggestions"] } {
   // Lạc đề = KHÔNG lượt tìm có bấm nào chứa ≥ một nửa số từ của theme. Đo 28/09: đòi đủ MỌI từ thì "gia hạn microsoft
   // 365" cũng bị coi lạc đề (44/50 theme) — quá tay; nửa số từ vẫn bắt được "Bất động sản", "Trò chơi" trong nhóm Tên miền.
@@ -64,12 +67,13 @@ export function planThemes(input: {
     if (it === "own_brand" || it === "competitor" || it === "lookup" || it === "own_other") return
     have.add(k); out.push({ text, why, source })
   }
-  for (const w of [...input.winners].sort((a, b) => b.conversions - a.conversions)) push(w.term, `${w.source === "pmax" ? "Lượt tìm PMax" : "Từ khoá Search"} ra ${Math.round(w.conversions * 10) / 10} đơn (90 ngày)`, w.source)
-  for (const p of input.playbook) push(p, "Cụm tìm kiếm thắng trong Sổ kinh nghiệm", "playbook")
+  const tr = input.tr ?? viT
+  for (const w of [...input.winners].sort((a, b) => b.conversions - a.conversions)) push(w.term, tr("libgoogle.th.winWhy", { src: w.source === "pmax" ? tr("libgoogle.th.winPmax") : tr("libgoogle.th.winSearch"), n: Math.round(w.conversions * 10) / 10 }), w.source)
+  for (const p of input.playbook) push(p, tr("libgoogle.th.playbookWhy"), "playbook")
   return { themes, suggestions: out.slice(0, input.limit ?? 30) }
 }
 
-export async function readThemes(company: Company): Promise<ThemeGroup[]> {
+export async function readThemes(company: Company, tr: TFunction = viT): Promise<ThemeGroup[]> {
   const c = getGoogleAdsCustomer(company)
   const to = addDays(vnDate(), -1), from = addDays(to, -89)
   const between = `segments.date BETWEEN '${from}' AND '${to}'`
@@ -92,7 +96,7 @@ export async function readThemes(company: Company): Promise<ThemeGroup[]> {
       .filter((k) => productGroupOf(k.cn) === prod && prod !== productGroupOf(""))
     const plan = planThemes({
       themes: sig.filter((s) => String(s.asset_group.id) === String(g.asset_group.id) && s.asset_group_signal.search_theme?.text).map((s) => ({ text: String(s.asset_group_signal.search_theme.text), resourceName: String(s.asset_group_signal.resource_name) })),
-      terms: camTerms, lex,
+      terms: camTerms, lex, tr,
       winners: [...camTerms.filter((t) => t.conversions >= 1).map((t) => ({ term: t.term, conversions: t.conversions, source: "pmax" as const })), ...searchWins.map((k) => ({ term: k.term, conversions: k.conversions, source: "search" as const }))],
       // Chủ đề trong sổ là chữ KHÔNG dấu ("gia re") → lấy lượt tìm thật có dấu làm theme; không có thì bỏ, không đoán dấu.
       playbook: pb.filter((e) => [...tokens(e.value)].some((w) => nameToks.has(w))).map((e) => representativeQuery(e.value, e.evidence)).filter((x): x is string => !!x),
@@ -109,26 +113,26 @@ function readLog(): ThemeExecution[] { try { return JSON.parse(fs.readFileSync(F
 function writeLog(l: ThemeExecution[]) { fs.mkdirSync(path.dirname(FILE), { recursive: true }); writeFileAtomicSync(FILE, JSON.stringify(l.slice(-300), null, 1)) }
 export const listThemeChanges = (co: Company) => readLog().filter((e) => e.company === co).reverse().slice(0, 30)
 
-export async function applyThemes(input: { company: Company; assetGroupId: string; add: string[]; remove: string[]; actor: string; validateOnly: boolean; confirmText?: string }): Promise<ThemeExecution> {
-  if (!input.validateOnly && input.confirmText?.trim() !== PMAX_CONFIRM_TEXT) throw new PmaxControlError(`Gõ đúng “${PMAX_CONFIRM_TEXT}” để ghi lên tài khoản thật`)
+export async function applyThemes(input: { company: Company; assetGroupId: string; add: string[]; remove: string[]; actor: string; validateOnly: boolean; confirmText?: string }, tr: TFunction = viT): Promise<ThemeExecution> {
+  if (!input.validateOnly && input.confirmText?.trim() !== PMAX_CONFIRM_TEXT) throw new PmaxControlError(tr("libgoogle.sc.errConfirm", { text: PMAX_CONFIRM_TEXT }))
   const c = getGoogleAdsCustomer(input.company)
   const cust = customerIdOf(input.company)
   const ag = `customers/${cust}/assetGroups/${Number(input.assetGroupId)}`
   const [g] = (await c.query(`SELECT asset_group.name FROM asset_group WHERE asset_group.resource_name = '${ag}' AND campaign.advertising_channel_type = 'PERFORMANCE_MAX'`)) as Row[]
-  if (!g) throw new PmaxControlError("Không thấy asset group PMax", 404)
+  if (!g) throw new PmaxControlError(tr("libgoogle.th.errNoGroup"), 404)
   const cur = (await c.query(`SELECT asset_group_signal.resource_name, asset_group_signal.search_theme.text FROM asset_group_signal WHERE asset_group.resource_name = '${ag}'`)) as Row[]
   const curThemes = cur.filter((r) => r.asset_group_signal.search_theme?.text).map((r) => ({ text: String(r.asset_group_signal.search_theme.text), resourceName: String(r.asset_group_signal.resource_name) }))
   const removed = curThemes.filter((t) => input.remove.includes(t.resourceName))
   const haveK = new Set(curThemes.filter((t) => !removed.includes(t)).map((t) => stripDiacritics(t.text).trim()))
   const added: { text: string; resourceName?: string }[] = [...new Set(input.add.map((t) => t.trim().replace(/\s+/g, " ")).filter((t) => t && t.length <= 80))].filter((t) => { const k = stripDiacritics(t); if (haveK.has(k)) return false; haveK.add(k); return true }).map((text) => ({ text }))
   const exec: ThemeExecution = { id: `pmaxth_${Date.now().toString(36)}`, company: input.company, at: new Date().toISOString(), by: input.actor, assetGroup: ag, assetGroupName: String(g.asset_group.name), added, removed, status: "failed", errors: [] }
-  if (!added.length && !removed.length) { exec.errors.push("Không có thay đổi"); return exec }
-  if (curThemes.length - removed.length + added.length > MAX_THEMES) { exec.errors.push(`Vượt trần ${MAX_THEMES} theme/asset group (đang ${curThemes.length}, gỡ ${removed.length}, thêm ${added.length}) — gỡ bớt theme lạc đề trước`); return exec }
+  if (!added.length && !removed.length) { exec.errors.push(tr("libgoogle.th.errNoChange")); return exec }
+  if (curThemes.length - removed.length + added.length > MAX_THEMES) { exec.errors.push(tr("libgoogle.th.errCap", { max: MAX_THEMES, cur: curThemes.length, rm: removed.length, add: added.length })); return exec }
   const ops = [
     ...removed.map((t) => ({ entity: "asset_group_signal", operation: "remove", resource: t.resourceName })),
     ...added.map((t) => ({ entity: "asset_group_signal", operation: "create", resource: { asset_group: ag, search_theme: { text: t.text } } })),
   ]
-  try { await c.mutateResources(ops as never, { validate_only: true } as never) } catch (e) { exec.errors.push(`Google từ chối khi kiểm — CHƯA ghi gì: ${googleAdsErrorMessage(e)}`); return exec }
+  try { await c.mutateResources(ops as never, { validate_only: true } as never) } catch (e) { exec.errors.push(tr("libgoogle.pa.errValidate", { msg: googleAdsErrorMessage(e) })); return exec }
   if (input.validateOnly) { exec.status = "done"; return exec }
   return withFileLock(FILE, async () => {
     try {
@@ -137,27 +141,27 @@ export async function applyThemes(input: { company: Company; assetGroupId: strin
       added.forEach((t, i) => { t.resourceName = resp[removed.length + i]?.asset_group_signal_result?.resource_name })
       const after = (await c.query(`SELECT asset_group_signal.resource_name, asset_group_signal.search_theme.text FROM asset_group_signal WHERE asset_group.resource_name = '${ag}'`)) as Row[]
       const live = new Set(after.map((r) => stripDiacritics(String(r.asset_group_signal.search_theme?.text ?? ""))))
-      const bad = [...added.filter((t) => !live.has(stripDiacritics(t.text))).map((t) => `chưa thấy “${t.text}”`), ...removed.filter((t) => live.has(stripDiacritics(t.text))).map((t) => `vẫn còn “${t.text}”`)]
-      if (bad.length) exec.errors.push(`Đọc lại không khớp: ${bad.join(", ")}`)
-    } catch (e) { exec.errors.push(`Lỗi khi ghi: ${googleAdsErrorMessage(e)}`) }
+      const bad = [...added.filter((t) => !live.has(stripDiacritics(t.text))).map((t) => tr("libgoogle.th.badMissing", { text: t.text })), ...removed.filter((t) => live.has(stripDiacritics(t.text))).map((t) => tr("libgoogle.th.badStill", { text: t.text }))]
+      if (bad.length) exec.errors.push(tr("libgoogle.th.errReadMismatch", { list: bad.join(", ") }))
+    } catch (e) { exec.errors.push(tr("libgoogle.sg.errWrite", { msg: googleAdsErrorMessage(e) })) }
     exec.status = exec.errors.length ? "failed" : "done"
     writeLog([...readLog(), exec])
     return exec
   })
 }
 
-export async function undoThemes(company: Company, id: string): Promise<ThemeExecution> {
+export async function undoThemes(company: Company, id: string, tr: TFunction = viT): Promise<ThemeExecution> {
   return withFileLock(FILE, async () => {
     const log = readLog()
     const ex = log.find((e) => e.id === id && e.company === company)
-    if (!ex || ex.status !== "done") throw new PmaxControlError("Không tìm thấy lần đổi", 404)
-    if (ex.undoneAt) throw new PmaxControlError("Đã hoàn tác rồi", 409)
+    if (!ex || ex.status !== "done") throw new PmaxControlError(tr("libgoogle.th.errNoThemeChange"), 404)
+    if (ex.undoneAt) throw new PmaxControlError(tr("libgoogle.rsa.errUndone"), 409)
     const c = getGoogleAdsCustomer(company)
     const ops = [
       ...ex.added.filter((t) => t.resourceName).map((t) => ({ entity: "asset_group_signal", operation: "remove", resource: t.resourceName })),
       ...ex.removed.map((t) => ({ entity: "asset_group_signal", operation: "create", resource: { asset_group: ex.assetGroup, search_theme: { text: t.text } } })),
     ]
-    try { await c.mutateResources(ops as never) } catch (e) { throw new PmaxControlError(`Chưa hoàn tác được — Google từ chối (không đổi gì): ${googleAdsErrorMessage(e)}`, 502) }
+    try { await c.mutateResources(ops as never) } catch (e) { throw new PmaxControlError(tr("libgoogle.pa.errUndoGoogle", { msg: googleAdsErrorMessage(e) }), 502) }
     ex.undoneAt = new Date().toISOString()
     writeLog(log)
     return ex
@@ -180,14 +184,14 @@ export function sameSite(url: string, sourceUrls: string[]): boolean {
   try { const h = new URL(url).hostname.replace(/^www\./, ""); return /^https?:$/.test(new URL(url).protocol) && sourceUrls.some((s) => { try { return new URL(s).hostname.replace(/^www\./, "") === h } catch { return false } }) } catch { return false }
 }
 
-export async function draftAssetGroup(company: Company, input: { campaignId: string; sourceAssetGroupId: string; theme: string; finalUrl: string }): Promise<AssetGroupDraft> {
+export async function draftAssetGroup(company: Company, input: { campaignId: string; sourceAssetGroupId: string; theme: string; finalUrl: string }, tr: TFunction = viT): Promise<AssetGroupDraft> {
   const theme = input.theme.trim().slice(0, 80)
-  if (theme.length < 3) throw new PmaxControlError("Nhập chủ đề (vd: Hosting WordPress)")
+  if (theme.length < 3) throw new PmaxControlError(tr("libgoogle.th.errTopic"))
   const c = getGoogleAdsCustomer(company)
   const [src] = (await c.query(`SELECT asset_group.id, asset_group.name, asset_group.final_urls, campaign.id FROM asset_group WHERE ${PM} AND asset_group.id = ${Number(input.sourceAssetGroupId)} AND campaign.id = ${Number(input.campaignId)}`)) as Row[]
-  if (!src) throw new PmaxControlError("Không thấy asset group nguồn trong chiến dịch này", 404)
+  if (!src) throw new PmaxControlError(tr("libgoogle.th.errNoSource"), 404)
   const srcUrls = (src.asset_group.final_urls ?? []).map(String)
-  if (!sameSite(input.finalUrl, srcUrls)) throw new PmaxControlError(`Trang đích phải cùng tên miền với asset group nguồn (${srcUrls[0] ?? "?"})`)
+  if (!sameSite(input.finalUrl, srcUrls)) throw new PmaxControlError(tr("libgoogle.th.errSameSite", { url: srcUrls[0] ?? "?" }))
   const links = (await c.query(`SELECT asset_group_asset.field_type, asset.resource_name, asset.name, asset.type, asset.text_asset.text, asset.youtube_video_asset.youtube_video_title FROM asset_group_asset WHERE asset_group.id = ${Number(input.sourceAssetGroupId)} AND asset_group_asset.status = 'ENABLED'`)) as Row[]
   const media = links.filter((l) => MEDIA_FIELDS.includes(FT[l.asset_group_asset.field_type])).map((l) => ({ field: FT[l.asset_group_asset.field_type], asset: String(l.asset.resource_name), label: String(l.asset.text_asset?.text || l.asset.youtube_video_asset?.youtube_video_title || l.asset.name || l.asset.resource_name.split("/").pop()) }))
   const sample = (f: string) => links.filter((l) => FT[l.asset_group_asset.field_type] === f).slice(0, 4).map((l) => l.asset.text_asset?.text).filter(Boolean).join(" | ")
@@ -206,7 +210,7 @@ Trả JSON: {"headlines":[],"longHeadlines":[],"descriptions":[],"searchThemes":
     const ok: string[] = []
     for (const x of Array.isArray(arr) ? arr : []) {
       const t = String(x ?? "").trim().replace(/\s+/g, " ")
-      const v = vetOption(t, field, ok)
+      const v = vetOption(t, field, ok, tr)
       if (v.ok && ok.length < max) ok.push(t); else if (t && !v.ok) rejected.push(`"${t}" — ${v.reason}`)
     }
     return ok
@@ -218,14 +222,14 @@ Trả JSON: {"headlines":[],"longHeadlines":[],"descriptions":[],"searchThemes":
 }
 
 /** Kiểm đủ tối thiểu trước khi gửi Google. HÀM THUẦN. */
-export function draftProblems(d: Pick<AssetGroupDraft, "headlines" | "longHeadlines" | "descriptions" | "media">): string[] {
+export function draftProblems(d: Pick<AssetGroupDraft, "headlines" | "longHeadlines" | "descriptions" | "media">, tr: TFunction = viT): string[] {
   const p: string[] = []
-  if (d.headlines.length < 3) p.push("cần ≥ 3 tiêu đề")
-  if (d.longHeadlines.length < 1) p.push("cần ≥ 1 tiêu đề dài")
-  if (d.descriptions.length < 2) p.push("cần ≥ 2 mô tả")
-  if (!d.descriptions.some((x) => [...x].length <= 60)) p.push("cần ít nhất 1 mô tả ≤ 60 ký tự")
-  if (!d.media.some((m) => m.field === "MARKETING_IMAGE")) p.push("asset group nguồn thiếu ảnh ngang")
-  if (!d.media.some((m) => m.field === "SQUARE_MARKETING_IMAGE")) p.push("asset group nguồn thiếu ảnh vuông")
+  if (d.headlines.length < 3) p.push(tr("libgoogle.th.p.headlines"))
+  if (d.longHeadlines.length < 1) p.push(tr("libgoogle.th.p.long"))
+  if (d.descriptions.length < 2) p.push(tr("libgoogle.th.p.desc"))
+  if (!d.descriptions.some((x) => [...x].length <= 60)) p.push(tr("libgoogle.th.p.desc60"))
+  if (!d.media.some((m) => m.field === "MARKETING_IMAGE")) p.push(tr("libgoogle.th.p.landscape"))
+  if (!d.media.some((m) => m.field === "SQUARE_MARKETING_IMAGE")) p.push(tr("libgoogle.th.p.square"))
   return p
 }
 
@@ -235,20 +239,20 @@ function readAg(): NewAssetGroupRecord[] { try { return JSON.parse(fs.readFileSy
 function writeAg(l: NewAssetGroupRecord[]) { fs.mkdirSync(path.dirname(AG_FILE), { recursive: true }); writeFileAtomicSync(AG_FILE, JSON.stringify(l.slice(-200), null, 1)) }
 export const listNewAssetGroups = (co: Company) => readAg().filter((e) => e.company === co).reverse().slice(0, 30)
 
-export async function createAssetGroup(input: { company: Company; draft: Omit<AssetGroupDraft, "rejected">; actor: string; validateOnly: boolean; confirmText?: string }): Promise<NewAssetGroupRecord> {
-  if (!input.validateOnly && input.confirmText?.trim() !== PMAX_CONFIRM_TEXT) throw new PmaxControlError(`Gõ đúng “${PMAX_CONFIRM_TEXT}” để tạo trên tài khoản thật`)
+export async function createAssetGroup(input: { company: Company; draft: Omit<AssetGroupDraft, "rejected">; actor: string; validateOnly: boolean; confirmText?: string }, tr: TFunction = viT): Promise<NewAssetGroupRecord> {
+  if (!input.validateOnly && input.confirmText?.trim() !== PMAX_CONFIRM_TEXT) throw new PmaxControlError(tr("libgoogle.th.errConfirm", { text: PMAX_CONFIRM_TEXT }))
   const d = input.draft
   const c = getGoogleAdsCustomer(input.company)
   const cust = customerIdOf(input.company)
   // Kiểm lại MỌI thứ client gửi: chữ (độ dài, luật), URL cùng site, ảnh đúng là của asset group nguồn.
   const [src] = (await c.query(`SELECT asset_group.final_urls FROM asset_group WHERE ${PM} AND asset_group.id = ${Number(d.sourceAssetGroupId)} AND campaign.id = ${Number(d.campaignId)}`)) as Row[]
-  if (!src) throw new PmaxControlError("Không thấy asset group nguồn", 404)
-  if (!sameSite(d.finalUrl, (src.asset_group.final_urls ?? []).map(String))) throw new PmaxControlError("Trang đích phải cùng tên miền với asset group nguồn")
+  if (!src) throw new PmaxControlError(tr("libgoogle.th.errNoSource2"), 404)
+  if (!sameSite(d.finalUrl, (src.asset_group.final_urls ?? []).map(String))) throw new PmaxControlError(tr("libgoogle.th.errSameSite2"))
   const srcMedia = new Set(((await c.query(`SELECT asset.resource_name FROM asset_group_asset WHERE asset_group.id = ${Number(d.sourceAssetGroupId)} AND asset_group_asset.status = 'ENABLED'`)) as Row[]).map((r) => String(r.asset.resource_name)))
   const media = d.media.filter((m) => srcMedia.has(m.asset) && MEDIA_FIELDS.includes(m.field))
-  const clean = (xs: string[], f: TextType, max: number) => xs.map((t) => t.trim().replace(/\s+/g, " ")).filter((t, i, a) => vetOption(t, f, a.slice(0, i)).ok).slice(0, max)
+  const clean = (xs: string[], f: TextType, max: number) => xs.map((t) => t.trim().replace(/\s+/g, " ")).filter((t, i, a) => vetOption(t, f, a.slice(0, i), tr).ok).slice(0, max)
   const draft = { ...d, headlines: clean(d.headlines, "HEADLINE", 15), longHeadlines: clean(d.longHeadlines, "LONG_HEADLINE", 5), descriptions: clean(d.descriptions, "DESCRIPTION", 5), media, searchThemes: [...new Set(d.searchThemes.map((t) => t.trim()).filter((t) => t && t.length <= 80))].slice(0, MAX_THEMES), name: d.name.trim().slice(0, 120) || "AdsCommand" }
-  const rec: NewAssetGroupRecord = { id: `pmaxag_${Date.now().toString(36)}`, company: input.company, at: new Date().toISOString(), by: input.actor, campaignId: d.campaignId, name: draft.name, status: "failed", errors: draftProblems(draft), draft }
+  const rec: NewAssetGroupRecord = { id: `pmaxag_${Date.now().toString(36)}`, company: input.company, at: new Date().toISOString(), by: input.actor, campaignId: d.campaignId, name: draft.name, status: "failed", errors: draftProblems(draft, tr), draft }
   if (rec.errors.length) return rec
   const AG = `customers/${cust}/assetGroups/-1`
   let t = -2
@@ -263,16 +267,16 @@ export async function createAssetGroup(input: { company: Company; draft: Omit<As
     ...links,
     ...draft.searchThemes.map((s) => ({ entity: "asset_group_signal", operation: "create", resource: { asset_group: AG, search_theme: { text: s } } })),
   ]
-  try { await c.mutateResources(all as never, { validate_only: true } as never) } catch (e) { rec.errors.push(`Google từ chối khi kiểm — CHƯA tạo gì: ${googleAdsErrorMessage(e)}`); return rec }
+  try { await c.mutateResources(all as never, { validate_only: true } as never) } catch (e) { rec.errors.push(tr("libgoogle.th.errValidateCreate", { msg: googleAdsErrorMessage(e) })); return rec }
   if (input.validateOnly) { rec.status = "done"; return rec }
   return withFileLock(AG_FILE, async () => {
     try {
       const res = (await c.mutateResources(all as never)) as { mutate_operation_responses?: Row[] }
       rec.resourceName = res?.mutate_operation_responses?.[ops.length]?.asset_group_result?.resource_name
       const [chk] = rec.resourceName ? (await c.query(`SELECT asset_group.status FROM asset_group WHERE asset_group.resource_name = '${rec.resourceName}'`)) as Row[] : []
-      if (!chk) rec.errors.push("Đọc lại không thấy asset group vừa tạo")
-      else if (inv(enums.AssetGroupStatus as unknown as Record<string, unknown>)[chk.asset_group.status] !== "PAUSED") rec.errors.push("Asset group không ở trạng thái tạm dừng")
-    } catch (e) { rec.errors.push(`Lỗi khi tạo — Google không tạo gì: ${googleAdsErrorMessage(e)}`) }
+      if (!chk) rec.errors.push(tr("libgoogle.th.errReadNone"))
+      else if (inv(enums.AssetGroupStatus as unknown as Record<string, unknown>)[chk.asset_group.status] !== "PAUSED") rec.errors.push(tr("libgoogle.th.errNotPaused"))
+    } catch (e) { rec.errors.push(tr("libgoogle.th.errCreate", { msg: googleAdsErrorMessage(e) })) }
     rec.status = rec.errors.length ? "failed" : "done"
     writeAg([...readAg(), rec])
     return rec
@@ -280,17 +284,17 @@ export async function createAssetGroup(input: { company: Company; draft: Omit<As
 }
 
 /** Bật / tạm dừng / gỡ asset group DO TOOL TẠO (không đụng asset group khác). */
-export async function setAssetGroupState(company: Company, id: string, action: "enable" | "pause" | "remove", actor: string, confirmText?: string): Promise<NewAssetGroupRecord> {
-  if (confirmText?.trim() !== PMAX_CONFIRM_TEXT) throw new PmaxControlError(`Gõ đúng “${PMAX_CONFIRM_TEXT}” để ghi lên tài khoản thật`)
+export async function setAssetGroupState(company: Company, id: string, action: "enable" | "pause" | "remove", actor: string, confirmText?: string, tr: TFunction = viT): Promise<NewAssetGroupRecord> {
+  if (confirmText?.trim() !== PMAX_CONFIRM_TEXT) throw new PmaxControlError(tr("libgoogle.sc.errConfirm", { text: PMAX_CONFIRM_TEXT }))
   return withFileLock(AG_FILE, async () => {
     const l = readAg()
     const r = l.find((x) => x.id === id && x.company === company)
-    if (!r?.resourceName || r.status !== "done" || r.removedAt) throw new PmaxControlError("Không tìm thấy asset group do tool tạo", 404)
+    if (!r?.resourceName || r.status !== "done" || r.removedAt) throw new PmaxControlError(tr("libgoogle.th.errNoToolGroup"), 404)
     const c = getGoogleAdsCustomer(company)
     try {
       if (action === "remove") await c.assetGroups.remove([r.resourceName])
       else await c.assetGroups.update([{ resource_name: r.resourceName, status: (enums.AssetGroupStatus as unknown as Record<string, number>)[action === "enable" ? "ENABLED" : "PAUSED"] }] as never)
-    } catch (e) { throw new PmaxControlError(`Google từ chối: ${googleAdsErrorMessage(e)}`, 502) }
+    } catch (e) { throw new PmaxControlError(tr("libgoogle.th.errGoogle", { msg: googleAdsErrorMessage(e) }), 502) }
     if (action === "remove") r.removedAt = new Date().toISOString()
     else r.enabledAt = action === "enable" ? new Date().toISOString() : undefined
     r.errors = [...r.errors.filter((e) => !e.startsWith("[")), `[${actor} · ${action} · ${new Date().toISOString().slice(0, 16)}]`].slice(-10)

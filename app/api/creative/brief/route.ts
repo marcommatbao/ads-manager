@@ -12,6 +12,7 @@ import { saveDraft, listDrafts } from "@/lib/creative-brief/store";
 import { randomUUID } from "crypto";
 import type { BriefInput } from "@/lib/creative-brief/types";
 import { friendlyError } from "@/lib/not-configured";
+import { getT } from "@/lib/i18n/server";
 
 export const dynamic  = "force-dynamic";
 export const revalidate = 0;
@@ -46,7 +47,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const brief = buildBrief(input);
+    const brief = buildBrief(input, await getT());
     // Đợt 7b — đính mẫu đã thắng/thua từ Sổ kinh nghiệm. Sổ hỏng không được chặn brief.
     try {
       const refs = briefReferences(input.company, input.platform === "both" ? ["facebook", "google"] : [input.platform], String(input.product));

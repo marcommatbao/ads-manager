@@ -56,14 +56,15 @@ export const CURRENCY_CONFIG: Record<string, {
 export function formatCurrency(
   value: number,
   currency = "USD",
-  rawMinorUnit = true
+  rawMinorUnit = true,
+  intlLocale = "vi-VN"
 ): string {
   const config = CURRENCY_CONFIG[currency] || CURRENCY_CONFIG['USD'];
   const actualValue = rawMinorUnit ? value / config.divideBy : value;
 
   if (currency === 'VND') {
     // VND format: ₫150,000 (no decimals)
-    return `₫${actualValue.toLocaleString('vi-VN', { maximumFractionDigits: 0 })}`;
+    return `₫${actualValue.toLocaleString(intlLocale, { maximumFractionDigits: 0 })}`;
   }
 
   return `${config.symbol}${actualValue
@@ -78,9 +79,10 @@ export function formatCurrency(
  * 45_300        → "45.3K"
  * 123           → "123"
  */
-export function formatNumber(value: number): string {
-  if (value >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(1)}T`;
-  if (value >= 1_000_000)     return `${(value / 1_000_000).toFixed(1)}Tr`;
+export function formatNumber(value: number, intlLocale = "vi-VN"): string {
+  const en = !intlLocale.startsWith("vi"); // EN: B / M / K
+  if (value >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(1)}${en ? "B" : "T"}`;
+  if (value >= 1_000_000)     return `${(value / 1_000_000).toFixed(1)}${en ? "M" : "Tr"}`;
   if (value >= 1_000)         return `${(value / 1_000).toFixed(1)}K`;
   return String(Math.round(value));
 }

@@ -158,10 +158,10 @@ export function KeywordTable({ keywords, loading, applyingId, onAddNegative, onA
                   <TableCell className="text-right tabular-nums">{kw.impressions.toLocaleString(loc)}</TableCell>
                   <TableCell className="text-right tabular-nums">{kw.clicks.toLocaleString(loc)}</TableCell>
                   <TableCell className="text-right tabular-nums">{fmtPct(kw.ctr)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatCurrency(kw.currentCpc, "VND")}</TableCell>
+                  <TableCell className="text-right tabular-nums">{formatCurrency(kw.currentCpc, "VND", true, loc)}</TableCell>
                   <TableCell className="text-right tabular-nums">{kw.qualityScore ?? "—"}</TableCell>
-                  <TableCell className="text-right tabular-nums">{kw.cplEstimate !== null ? formatCurrency(kw.cplEstimate, "VND") : "—"}</TableCell>
-                  <TableCell className="text-right tabular-nums" title={kw.suggestedMaxCpc > 0 ? undefined : t("panels.keywords.noCpcTitle")}>{kw.suggestedMaxCpc > 0 ? formatCurrency(kw.suggestedMaxCpc, "VND") : "—"}</TableCell>
+                  <TableCell className="text-right tabular-nums">{kw.cplEstimate !== null ? formatCurrency(kw.cplEstimate, "VND", true, loc) : "—"}</TableCell>
+                  <TableCell className="text-right tabular-nums" title={kw.suggestedMaxCpc > 0 ? undefined : t("panels.keywords.noCpcTitle")}>{kw.suggestedMaxCpc > 0 ? formatCurrency(kw.suggestedMaxCpc, "VND", true, loc) : "—"}</TableCell>
                   <TableCell><Badge className={BUDGET_STYLE[kw.budgetImpact]}>{BUDGET_LABEL[kw.budgetImpact] === "—" ? "—" : t(BUDGET_LABEL[kw.budgetImpact] as MessageKey)}</Badge></TableCell>
                   <TableCell className="max-w-[180px] text-xs text-muted-foreground">{kw.suggestedAction}</TableCell>
                   <TableCell className="text-right">
@@ -232,7 +232,7 @@ export function KeywordTable({ keywords, loading, applyingId, onAddNegative, onA
                             value={cpcDraft[kw.id] ?? String(Math.round(kw.suggestedMaxCpc > 0 ? kw.suggestedMaxCpc : kw.currentCpc))}
                             onChange={e => setCpcDraft(prev => ({ ...prev, [kw.id]: e.target.value }))}
                           />
-                          <p className="mt-1 text-xs text-muted-foreground">{kw.suggestedMaxCpc > 0 ? <>{t("panels.keywords.cpcSuggest", { amount: formatCurrency(kw.suggestedMaxCpc, "VND") })}</> : t("panels.keywords.cpcNoSuggest")}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">{kw.suggestedMaxCpc > 0 ? <>{t("panels.keywords.cpcSuggest", { amount: formatCurrency(kw.suggestedMaxCpc, "VND", true, loc) })}</> : t("panels.keywords.cpcNoSuggest")}</p>
                           <Button
                             size="sm"
                             className="mt-3 w-full"

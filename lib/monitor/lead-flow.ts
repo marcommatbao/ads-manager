@@ -17,6 +17,7 @@ import { writeFileAtomicSync } from "@/lib/fs-atomic"
 // Cài đặt cũng trống thì mọi cảnh báo ĐỨT từ 25/09 đã trả notConfigured và KHÔNG TỚI AI (user: "không biết khi nào lỗi").
 import { sendSystemAlert } from "@/lib/system-alert"
 import { isCompany } from "@/lib/companies/registry";
+import { makeT, type TFunction } from "@/lib/i18n/translate";
 
 const FILE = path.join(process.cwd(), "data", "lead-flows.json")
 type Row = Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -66,15 +67,15 @@ export function readFlows(): LeadFlow[] { return readStore().flows ?? DEFAULT_FL
 export function saveFlows(flows: LeadFlow[]): void { writeStore({ ...readStore(), flows }) }
 export function lastStatuses(): LeadFlowStatus[] { const s = readStore(); return readFlows().map((f) => s.last?.[f.id]).filter((x): x is LeadFlowStatus => !!x) }
 
-export function validateFlows(x: unknown): string | null {
-  if (!Array.isArray(x) || x.length > 20) return "Danh sách đường lead không hợp lệ"
+export function validateFlows(x: unknown, t: TFunction = makeT("vi")): string | null {
+  if (!Array.isArray(x) || x.length > 20) return t("libcase.r.lf.list")
   for (const [i, f] of (x as Partial<LeadFlow>[]).entries()) {
-    if (!f || typeof f.id !== "string" || !/^[a-z0-9_]{2,40}$/.test(f.id)) return `Dòng ${i + 1}: mã chỉ gồm a-z, 0-9, _`
-    if (!isCompany(f.company)) return `Dòng ${i + 1}: công ty`
-    if (!f.pixelId || !/^\d+$/.test(f.pixelId)) return `Dòng ${i + 1}: Pixel ID là số`
-    if (!Array.isArray(f.pixelEvents) || !f.pixelEvents.length || f.pixelEvents.some((e) => typeof e !== "string" || !e.trim())) return `Dòng ${i + 1}: cần ít nhất 1 tên sự kiện form`
-    if (!f.odooSourceIlike || typeof f.odooSourceIlike !== "string") return `Dòng ${i + 1}: nguồn lead Odoo`
-    if (!(Number(f.minForms) >= 1) || !(Number(f.quietHours) >= 2) || !(Number(f.minExpectedLeads ?? 4) >= 1)) return `Dòng ${i + 1}: ngưỡng (≥1 form, ≥1 lead kỳ vọng, ≥2 giờ)`
+    if (!f || typeof f.id !== "string" || !/^[a-z0-9_]{2,40}$/.test(f.id)) return t("libcase.r.lf.id", { i: i + 1 })
+    if (!isCompany(f.company)) return t("libcase.r.lf.company", { i: i + 1 })
+    if (!f.pixelId || !/^\d+$/.test(f.pixelId)) return t("libcase.r.lf.pixel", { i: i + 1 })
+    if (!Array.isArray(f.pixelEvents) || !f.pixelEvents.length || f.pixelEvents.some((e) => typeof e !== "string" || !e.trim())) return t("libcase.r.lf.events", { i: i + 1 })
+    if (!f.odooSourceIlike || typeof f.odooSourceIlike !== "string") return t("libcase.r.lf.source", { i: i + 1 })
+    if (!(Number(f.minForms) >= 1) || !(Number(f.quietHours) >= 2) || !(Number(f.minExpectedLeads ?? 4) >= 1)) return t("libcase.r.lf.thr", { i: i + 1 })
   }
   return null
 }
@@ -102,14 +103,25 @@ export function evaluateFlow(flow: LeadFlow, formsByHour: { at: string; n: numbe
   const enough = expectedLeads !== null ? expectedLeads >= (flow.minExpectedLeads ?? 4) : formsSinceLead >= flow.minForms * 3
   const broken = formsSinceLead >= flow.minForms && enough && (hoursSinceLead === null || hoursSinceLead >= flow.quietHours)
   const quiet = !broken && hoursSinceLead !== null && hoursSinceLead >= flow.quietHours && formsSinceLead === 0
-  const since2 = lastLeadAt ? `từ ${new Date(lastLeadAt).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh", hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" })}` : "trong 7 ngày"
+  const status: LeadFlowStatus["status"] = broken ? "broken" : quiet ? "quiet" : "ok"
   return {
-    status: broken ? "broken" : quiet ? "quiet" : "ok", lastLeadAt, hoursSinceLead, formsSinceLead, ratio: ratio === null ? null : Math.round(ratio * 1000) / 1000, expectedLeads, days,
-    message: broken
-      ? `ĐỨT: ${formsSinceLead} lượt gửi form trên pixel ${since2}${expectedLeads !== null ? ` (thường ra ~${expectedLeads} lead)` : ""} nhưng CRM không có lead nào — lead có thể đang bị mất.`
-      : quiet ? `Yên: ${Math.round(hoursSinceLead!)} giờ không có form lẫn lead (bình thường nếu ít khách).`
-      : `Bình thường: lead cuối ${since2}${formsSinceLead ? `, sau đó ${formsSinceLead} lượt form (dưới ngưỡng ${flow.minForms})` : ""}.`,
+    status, lastLeadAt, hoursSinceLead, formsSinceLead, ratio: ratio === null ? null : Math.round(ratio * 1000) / 1000, expectedLeads, days,
+    message: flowMessage(status, flow.minForms, lastLeadAt, hoursSinceLead, formsSinceLead, expectedLeads),
   }
+}
+
+/** Câu mô tả trạng thái đường lead theo ngôn ngữ (mặc định tiếng Việt). Dựng từ số liệu nên có thể vẽ lại từ trạng thái đã lưu. */
+function flowMessage(status: LeadFlowStatus["status"], minForms: number, lastLeadAt: string | null, hoursSinceLead: number | null, formsSinceLead: number, expectedLeads: number | null, t: TFunction = makeT("vi")): string {
+  const since2 = lastLeadAt ? t("libcase.r.lf.since", { t: new Date(lastLeadAt).toLocaleString(t("libcase.r.lf.dateLocale"), { timeZone: "Asia/Ho_Chi_Minh", hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" }) }) : t("libcase.r.lf.sinceNone")
+  if (status === "broken") return t("libcase.r.lf.broken", { forms: formsSinceLead, since: since2, exp: expectedLeads !== null ? t("libcase.r.lf.exp", { n: expectedLeads }) : "" })
+  if (status === "quiet") return t("libcase.r.lf.quiet", { h: Math.round(hoursSinceLead!) })
+  return t("libcase.r.lf.ok", { since: since2, after: formsSinceLead ? t("libcase.r.lf.okAfter", { n: formsSinceLead, min: minForms }) : "" })
+}
+
+/** Thông điệp trạng thái theo ngôn ngữ cho giao diện/API (trạng thái lưu sẵn bằng tiếng Việt). */
+export function leadFlowMessage(s: LeadFlowStatus, t: TFunction = makeT("vi")): string {
+  if (s.status === "error") return t("libcase.r.lf.err")
+  return flowMessage(s.status, s.flow.minForms, s.lastLeadAt, s.hoursSinceLead, s.formsSinceLead, s.expectedLeads, t)
 }
 
 async function formsByHour(flow: LeadFlow, now: Date): Promise<{ at: string; n: number }[]> {

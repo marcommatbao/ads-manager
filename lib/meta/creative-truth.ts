@@ -17,6 +17,8 @@ import { ga4Ids } from "@/lib/meta-accounts"
 import { serviceAccountToken } from "@/lib/measure/gtm-api"
 import { META_EVENT_NAME } from "@/lib/conversions/meta-capi"
 import type { Company } from "@/lib/case/types"
+import { makeT, type TFunction } from "@/lib/i18n/translate"
+import type { MessageKey } from "@/lib/i18n/messages"
 
 type Row = Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -50,7 +52,13 @@ export interface AdTruth extends AdInput {
   thumb?: string | null; title?: string | null; link?: string | null; status?: string | null
 }
 
-const vnd = (n: number) => `₫${Math.round(n).toLocaleString("vi-VN")}`
+const vnd = (n: number, t: TFunction) => `₫${Math.round(n).toLocaleString(t("libmeta.numLocale"))}`
+
+/** Nhãn nguồn / kết luận theo ngôn ngữ — TRUTH_LABEL / VERDICT_LABEL ở trên là bản tiếng Việt cố định. */
+export const truthLabelOf = (s: TruthSource, t: TFunction = makeT("vi")): string => t(`libmeta.ct.src.${s}` as MessageKey)
+export const verdictLabelOf = (v: Verdict, t: TFunction = makeT("vi")): string => t(`libmeta.ct.verdict.${v}` as MessageKey)
+export const truthLabels = (t: TFunction = makeT("vi")): Record<TruthSource, string> => ({ odoo: truthLabelOf("odoo", t), ga4: truthLabelOf("ga4", t), click: truthLabelOf("click", t) })
+export const verdictLabels = (t: TFunction = makeT("vi")): Record<Verdict, string> => ({ nhan_ban: verdictLabelOf("nhan_ban", t), nen_tat: verdictLabelOf("nen_tat", t), bi_nham: verdictLabelOf("bi_nham", t), meta_bao_ho: verdictLabelOf("meta_bao_ho", t), chua_du_so: verdictLabelOf("chua_du_so", t), on: verdictLabelOf("on", t) })
 
 /** Nguồn chung cho CẢ tài khoản (không trộn nguồn giữa các dòng — trộn là so táo với cam). */
 export function pickSource(ads: Pick<AdInput, "odoo" | "ga4">[], opts: { odooReady: boolean }): TruthSource {
@@ -61,7 +69,7 @@ export function pickSource(ads: Pick<AdInput, "odoo" | "ga4">[], opts: { odooRea
 }
 
 /** Chấm từng quảng cáo — HÀM THUẦN. CPA mốc = chi cả tài khoản / đơn theo nguồn đã chọn. */
-export function judgeAds(ads: AdInput[], source: TruthSource): { ads: AdTruth[]; accountCpa: number | null; totals: { spend: number; truth: number; meta: number; value: number | null } } {
+export function judgeAds(ads: AdInput[], source: TruthSource, t: TFunction = makeT("vi")): { ads: AdTruth[]; accountCpa: number | null; totals: { spend: number; truth: number; meta: number; value: number | null } } {
   const val = (a: AdInput) => (source === "odoo" ? a.odoo : source === "ga4" ? a.ga4 : a.click) ?? 0
   const spend = ads.reduce((s, a) => s + a.spend, 0)
   const truthTotal = ads.reduce((s, a) => s + val(a), 0)
@@ -76,19 +84,19 @@ export function judgeAds(ads: AdInput[], source: TruthSource): { ads: AdTruth[];
     let verdict: Verdict = "chua_du_so"
     const fatigued = a.frequency != null && a.frequency >= FATIGUE_FREQ
     if (accountCpa != null && truth === 0 && a.spend >= LOSER_SPEND_RATIO * accountCpa) {
-      verdict = "nen_tat"; reasons.push(`Chi ${vnd(a.spend)} (≥ ${LOSER_SPEND_RATIO} lần CPA chung ${vnd(accountCpa)}) mà 0 đơn`)
+      verdict = "nen_tat"; reasons.push(t("libmeta.ct.reasonLoser", { spend: vnd(a.spend, t), ratio: LOSER_SPEND_RATIO, cpa: vnd(accountCpa, t) }))
     } else if (accountCpa != null && cpa != null && truth >= MIN_ORDERS_WINNER && cpa <= WINNER_CPA_RATIO * accountCpa && !fatigued) {
-      verdict = "nhan_ban"; reasons.push(`${Math.round(truth * 10) / 10} đơn, CPA ${vnd(cpa)} — thấp hơn ${Math.round((1 - cpa / accountCpa) * 100)}% so với chung`)
+      verdict = "nhan_ban"; reasons.push(t("libmeta.ct.reasonWinner", { n: Math.round(truth * 10) / 10, cpa: vnd(cpa, t), pct: Math.round((1 - cpa / accountCpa) * 100) }))
     } else if (fatigued && (cpa == null || accountCpa == null || cpa > accountCpa)) {
-      verdict = "bi_nham"; reasons.push(`Tần suất ${a.frequency!.toFixed(1)} — cùng người thấy lặp lại, CPA ${cpa ? vnd(cpa) : "chưa có đơn"}`)
+      verdict = "bi_nham"; reasons.push(t("libmeta.ct.reasonFatigue", { freq: a.frequency!.toFixed(1), cpa: cpa ? vnd(cpa, t) : t("libmeta.ct.noOrdersYet") }))
     } else if (accountCpa != null && truth >= MIN_ORDERS_WINNER) {
       verdict = "on"
     }
     if (viewShare != null && a.metaPurchases >= 10 && viewShare >= VIEW_HEAVY_AD) {
-      reasons.push(`Meta báo ${Math.round(a.metaPurchases)} "mua hàng" nhưng ${Math.round(viewShare * 100)}% là chỉ xem`)
+      reasons.push(t("libmeta.ct.reasonViewHeavy", { n: Math.round(a.metaPurchases), pct: Math.round(viewShare * 100) }))
       if (verdict === "chua_du_so" || verdict === "on") verdict = "meta_bao_ho"
     }
-    if (fatigued && verdict === "nhan_ban") reasons.push(`Tần suất ${a.frequency!.toFixed(1)} — nhân bản sang đối tượng mới`)
+    if (fatigued && verdict === "nhan_ban") reasons.push(t("libmeta.ct.reasonDuplicateFatigue", { freq: a.frequency!.toFixed(1) }))
     return { ...a, truth, truthSource: source, cpa, roas, viewShare, verdict, reasons }
   })
   const order: Record<Verdict, number> = { nen_tat: 0, nhan_ban: 1, bi_nham: 2, meta_bao_ho: 3, on: 4, chua_du_so: 5 }
@@ -113,9 +121,9 @@ export function toAdInput(r: Row, odooType: string | null): AdInput {
   }
 }
 
-async function ga4ByAdContent(company: Company, range: { from: string; to: string }): Promise<Map<string, number> | { error: string }> {
+async function ga4ByAdContent(company: Company, range: { from: string; to: string }, t: TFunction): Promise<Map<string, number> | { error: string }> {
   const prop = ga4Ids(company).propertyId
-  if (!prop) return { error: "chưa khai báo GA4 property" }
+  if (!prop) return { error: t("libmeta.xray.ga4NoProperty") }
   let token: string
   try { token = await serviceAccountToken("https://www.googleapis.com/auth/analytics.readonly") } catch (e) { return { error: e instanceof Error ? e.message : String(e) } }
   const res = await fetch(`https://analyticsdata.googleapis.com/v1beta/${prop}:runReport`, {
@@ -124,7 +132,7 @@ async function ga4ByAdContent(company: Company, range: { from: string; to: strin
       dimensionFilter: { filter: { fieldName: "sessionManualAdContent", stringFilter: { matchType: "FULL_REGEXP", value: "\\d{6,}" } } }, limit: 5000 }),
   })
   const j = (await res.json().catch(() => ({}))) as Row
-  if (!res.ok) return { error: res.status === 403 ? "service account chưa có quyền Viewer GA4" : `GA4 ${res.status}` }
+  if (!res.ok) return { error: res.status === 403 ? t("libmeta.xray.ga4NoViewer") : `GA4 ${res.status}` }
   const m = new Map<string, number>()
   for (const r of (j.rows ?? []) as Row[]) m.set(String(r.dimensionValues[0].value), (m.get(String(r.dimensionValues[0].value)) ?? 0) + (Number(r.metricValues[0].value) || 0))
   return m
@@ -142,8 +150,9 @@ export interface CreativeTruth {
 
 const memo = new Map<string, { at: number; value: CreativeTruth }>()
 
-export async function creativeTruth(company: Company, range: { from: string; to: string }, opts: { force?: boolean } = {}): Promise<CreativeTruth> {
-  const key = `${company}|${range.from}|${range.to}`
+export async function creativeTruth(company: Company, range: { from: string; to: string }, opts: { force?: boolean } = {}, t: TFunction = makeT("vi")): Promise<CreativeTruth> {
+  // Văn bản (lý do, ghi chú, nhãn) sinh theo ngôn ngữ → khoá nhớ có ngôn ngữ, bản EN không làm hỏng bản VI.
+  const key = `${t("libmeta.localeTag")}|${company}|${range.from}|${range.to}`
   const hit = memo.get(key)
   if (!opts.force && hit && Date.now() - hit.at < 60 * 60_000) return hit.value
   const act = `act_${adAccountId()}`
@@ -155,7 +164,7 @@ export async function creativeTruth(company: Company, range: { from: string; to:
     const { metaAccountIds } = await import("@/lib/meta-accounts")
     const cc = await metaGetAll<Row>(`${act}/customconversions`, { fields: "id,name,rule,event_source_id,is_archived", limit: "200" }, 2); calls++
     conv = findOdooConversion(cc, metaAccountIds(company).pixelId || null)
-  } catch (e) { errors.push(`Chuyển đổi tuỳ chỉnh: ${e instanceof Error ? e.message : String(e)}`) }
+  } catch (e) { errors.push(t("libmeta.ct.errCustomConv", { msg: e instanceof Error ? e.message : String(e) })) }
 
   const ins = await metaGetAll<Row>(`${act}/insights`, {
     level: "ad", time_range: JSON.stringify({ since: range.from, until: range.to }),
@@ -164,18 +173,18 @@ export async function creativeTruth(company: Company, range: { from: string; to:
   }, 5); calls++
   const rows = ins.filter((r) => detectCompany(String(r.campaign_name)) === company && Number(r.spend) > 0).map((r) => toAdInput(r, conv?.actionType ?? null))
 
-  const ga4 = await ga4ByAdContent(company, range)
+  const ga4 = await ga4ByAdContent(company, range, t)
   let ga4AdsTagged = 0
-  if ("error" in ga4) notes.push(`GA4 theo mã quảng cáo: ${ga4.error}`)
+  if ("error" in ga4) notes.push(t("libmeta.ct.noteGa4", { msg: ga4.error }))
   else for (const a of rows) { const n = ga4.get(a.id); if (n != null) { a.ga4 = n; ga4AdsTagged++ } }
 
   const odooReady = !!conv && rows.some((a) => (a.odoo ?? 0) > 0)
-  if (conv && !odooReady) notes.push(`Đã có chuyển đổi tuỳ chỉnh "${conv.name}" nhưng chưa có đơn nào Meta khớp với lượt bấm trong kỳ — tạm chấm theo nguồn khác.`)
-  if (!conv) notes.push(`Chưa có chuyển đổi tuỳ chỉnh từ sự kiện ${META_EVENT_NAME} — muốn chấm theo đơn đã thu tiền: bật gửi Meta (Đo lường → Đơn thật), rồi Events Manager → Chuyển đổi tuỳ chỉnh → tạo từ sự kiện ${META_EVENT_NAME}.`)
-  if (!ga4AdsTagged) notes.push("Chưa quảng cáo nào có utm_content = mã quảng cáo. Quảng cáo tạo từ trang Creative (bật UTM tự động) từ nay sẽ tự gắn.")
+  if (conv && !odooReady) notes.push(t("libmeta.ct.noteConvNoMatch", { name: conv.name }))
+  if (!conv) notes.push(t("libmeta.ct.noteNoConv", { event: META_EVENT_NAME }))
+  if (!ga4AdsTagged) notes.push(t("libmeta.ct.noteNoUtmContent"))
 
   const source = pickSource(rows, { odooReady })
-  const j = judgeAds(rows, source)
+  const j = judgeAds(rows, source, t)
 
   // Ảnh + tiêu đề cho các quảng cáo chi nhiều nhất (tiết kiệm lượt gọi).
   const top = [...j.ads].sort((a, b) => b.spend - a.spend).slice(0, DETAIL_ADS)
@@ -190,13 +199,13 @@ export async function creativeTruth(company: Company, range: { from: string; to:
         a.title = x.creative?.title ?? null
         a.link = x.creative?.object_story_spec?.link_data?.link ?? x.creative?.asset_feed_spec?.link_urls?.[0]?.website_url ?? null
       }
-    } catch (e) { errors.push(`Ảnh quảng cáo: ${e instanceof Error ? e.message : String(e)}`); break }
+    } catch (e) { errors.push(t("libmeta.ct.errImages", { msg: e instanceof Error ? e.message : String(e) })); break }
   }
 
   const counts = { nhan_ban: 0, nen_tat: 0, bi_nham: 0, meta_bao_ho: 0, chua_du_so: 0, on: 0 } as Record<Verdict, number>
   for (const a of j.ads) counts[a.verdict]++
   const value: CreativeTruth = {
-    company, range, collectedAt: new Date().toISOString(), source, sourceLabel: TRUTH_LABEL[source], accountCpa: j.accountCpa,
+    company, range, collectedAt: new Date().toISOString(), source, sourceLabel: truthLabelOf(source, t), accountCpa: j.accountCpa,
     totals: { ...j.totals, ads: j.ads.length }, ads: j.ads, setup: { odooConversion: conv ? { id: conv.id, name: conv.name } : null, ga4AdsTagged }, counts, calls, errors, notes,
   }
   memo.set(key, { at: Date.now(), value })

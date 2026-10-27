@@ -41,6 +41,9 @@ export interface CreativeInput {
 // Score Dimension Configs (for UI display)
 // ─────────────────────────────────────────────
 
+import { makeT, type TFunction } from "@/lib/i18n/translate";
+import type { MessageKey } from "@/lib/i18n/messages";
+
 export const SCORE_DIMENSIONS: Array<{
   key: keyof CreativeScoreBreakdown;
   label: string;
@@ -59,7 +62,10 @@ export const SCORE_DIMENSIONS: Array<{
 // Main Scoring Function
 // ─────────────────────────────────────────────
 
-export function scoreCreative(creative: CreativeInput): CreativeScore {
+/** Nhãn một chiều chấm điểm theo ngôn ngữ (SCORE_DIMENSIONS[].label là bản tiếng Việt cố định). */
+export const scoreDimensionLabel = (key: keyof CreativeScoreBreakdown, t: TFunction = makeT("vi")): string => t(`libmeta.sc.dim.${key}` as MessageKey);
+
+export function scoreCreative(creative: CreativeInput, t: TFunction = makeT("vi")): CreativeScore {
   const scores: CreativeScoreBreakdown = {
     hook: 0,
     clarity: 0,
@@ -141,57 +147,42 @@ export function scoreCreative(creative: CreativeInput): CreativeScore {
     const headlineHasNumber = /\d/.test(creative.headline);
     const headlineHasQuestion = /\?/.test(creative.headline);
     if (!headlineHasNumber && !headlineHasQuestion) {
-      suggestions.push("💡 Mở đầu bằng con số cụ thể hoặc câu hỏi gây tò mò để tăng CTR ngay từ dòng đầu");
+      suggestions.push("💡 " + t("libmeta.sc.hookNone"));
     } else if (!headlineHasNumber) {
-      suggestions.push("💡 Thêm số liệu thực tế (tỉ lệ %, thời gian, giá trị) để headline đáng tin và hấp dẫn hơn");
+      suggestions.push("💡 " + t("libmeta.sc.hookNum"));
     } else {
-      suggestions.push("💡 Thêm trigger word (\"Bí quyết\", \"Cảnh báo\", \"Sai lầm\") để kéo sự chú ý tốt hơn");
+      suggestions.push("💡 " + t("libmeta.sc.hookTrigger"));
     }
   }
 
   if (scores.clarity < 10) {
     if (creative.headline.length > 60) {
-      suggestions.push("💡 Headline đang quá dài — cắt xuống ≤ 40 ký tự, giữ lại ý mạnh nhất");
+      suggestions.push("💡 " + t("libmeta.sc.clarLongHeadline"));
     } else if (creative.description.length > 50) {
-      suggestions.push("💡 Description nên ≤ 30 ký tự — một cụm từ chốt lợi ích là đủ");
+      suggestions.push("💡 " + t("libmeta.sc.clarLongDesc"));
     } else {
-      suggestions.push("💡 Tách headline và description rõ ràng hơn: headline = hook, description = benefit cụ thể");
+      suggestions.push("💡 " + t("libmeta.sc.clarSplit"));
     }
   }
 
   if (scores.socialProof < 8) {
-    const spOptions = [
-      "Thêm bằng chứng xã hội: số lượng khách hàng, năm hoạt động, hoặc giải thưởng đã đạt được",
-      "Thêm quote/review thực từ khách hàng vào primary text để tăng độ tin cậy",
-      "Dẫn chứng tỉ lệ thành công hoặc kết quả cụ thể (VD: \"95% khách hàng gia hạn\")",
-      "Thêm tên thương hiệu uy tín đã dùng dịch vụ để xây dựng trust nhanh hơn",
-    ];
+    const spOptions = [t("libmeta.sc.sp1"), t("libmeta.sc.sp2"), t("libmeta.sc.sp3"), t("libmeta.sc.sp4")];
     suggestions.push("💡 " + spOptions[Math.floor((total + creative.headline.length) % spOptions.length)]);
   }
 
   if (scores.offer === 0) {
-    const offerOptions = [
-      "Thêm offer rõ ràng: giảm X%, tặng kèm Y miễn phí, hoặc dùng thử Z ngày không mất phí",
-      "Thêm ưu đãi có thời hạn (\"Chỉ còn hôm nay\", \"Ưu đãi tháng này\") để tạo urgency",
-      "Tạo offer bundle: mua A tặng B — khách hàng cảm thấy được lời hơn giảm giá thẳng",
-    ];
+    const offerOptions = [t("libmeta.sc.of1"), t("libmeta.sc.of2"), t("libmeta.sc.of3")];
     suggestions.push("💡 " + offerOptions[Math.floor(creative.headline.length % offerOptions.length)]);
   }
 
   if (scores.cta < 8) {
-    const ctaOptions = [
-      "\"Nhận tư vấn miễn phí\"",
-      "\"Đăng ký ngay hôm nay\"",
-      "\"Xem chi tiết ngay\"",
-      "\"Nhận ưu đãi ngay\"",
-      "\"Bắt đầu miễn phí\"",
-    ];
+    const ctaOptions = [t("libmeta.sc.cta1"), t("libmeta.sc.cta2"), t("libmeta.sc.cta3"), t("libmeta.sc.cta4"), t("libmeta.sc.cta5")];
     const ctaPick = ctaOptions[Math.floor((total + creative.primaryText.length) % ctaOptions.length)];
-    suggestions.push(`💡 Thêm CTA hành động rõ ràng — gợi ý: ${ctaPick}`);
+    suggestions.push("💡 " + t("libmeta.sc.ctaSuggest", { pick: ctaPick }));
   }
 
   if (!creative.hasImage) {
-    suggestions.push("💡 Thêm ảnh/video — quảng cáo có visual đạt CTR cao hơn 2-3× so với chỉ có text");
+    suggestions.push("💡 " + t("libmeta.sc.noImage"));
   }
 
   // ── CTR estimate ──

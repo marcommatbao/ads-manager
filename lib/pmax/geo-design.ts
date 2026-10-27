@@ -15,6 +15,9 @@
 //                       chạy sang Search" khi tắt PMax; đơn chạy sang tự nhiên/trực tiếp thì KHÔNG thấy → thiên về
 //                       kết luận "PMax tạo đơn thêm". Luôn ghi rõ trên giao diện.
 
+import type { TFunction } from "@/lib/i18n/translate"
+import { viT } from "@/lib/google-i18n"
+
 export type KpiKind = "orders" | "google_non_pmax"
 /** series[geoId][weekMonday] = KPI tuần đó. */
 export type WeeklySeries = Record<string, Record<string, number>>
@@ -81,7 +84,9 @@ export function designCandidates(input: {
   pmaxClaim: Record<string, number>
   pmaxCost: Record<string, number>
   testWeeks?: number[]
+  tr?: TFunction
 }): DesignCandidate[] {
+  const tr = input.tr ?? viT
   const { series, weeks, kpiKind } = input
   const nPre = weeks.length
   const totals: Record<string, number> = {}
@@ -107,19 +112,19 @@ export function designCandidates(input: {
     // chừng (vd đúng một nửa) cần ≤ 50% — ghi trong câu chú thích. Đo 28/09 MBC Hà Nội (GA4 khách mới): kỳ vọng 30%, phát hiện ≥ 19%/6 tuần.
     const sensitive = !tooFew && expected > 0 && bestMde <= expected * 0.8
     const fine = !tooFew && expected > 0 && bestMde <= expected * 0.5
-    const note = !lr.length ? "Không đủ số theo tuần để đo." :
-      tooFew ? `Quá ít số: vùng tắt ~${kpiPerWeek.toFixed(1)}/tuần, đối chứng ~${controlPerWeek.toFixed(1)}/tuần (cần ≥ ${MIN_KPI_PER_WEEK}) — chỉ số này không đo được; cần đơn thật (GA4/CSV).` :
-      fine ? `Nhạy tốt: phát hiện được thay đổi ≥ ${pct(bestMde)}, kỳ vọng nếu Google đúng ${pct(expected)} — đo được cả trường hợp Google đúng một phần.` :
-      sensitive ? `Đủ để phân biệt "Google đúng" (giảm ~${pct(expected)}) với "không tạo đơn thêm" (giảm ~0%): phát hiện được ≥ ${pct(bestMde)} (chạy ${Object.entries(mde).find(([, v]) => v === bestMde)?.[0]} tuần). Mức lưng chừng sẽ ra "chưa rõ".` :
-      `Chưa đủ nhạy: chỉ phát hiện được thay đổi ≥ ${pct(bestMde)}, kỳ vọng ${pct(expected)} — kết quả dễ "không rõ".`
+    const note = !lr.length ? tr("libgoogle.gd.noteNoData") :
+      tooFew ? tr("libgoogle.gd.noteTooFew", { h: kpiPerWeek.toFixed(1), c: controlPerWeek.toFixed(1), min: MIN_KPI_PER_WEEK }) :
+      fine ? tr("libgoogle.gd.noteFine", { mde: pct(bestMde), exp: pct(expected) }) :
+      sensitive ? tr("libgoogle.gd.noteSensitive", { exp: pct(expected), mde: pct(bestMde), weeks: String(Object.entries(mde).find(([, v]) => v === bestMde)?.[0]) }) :
+      tr("libgoogle.gd.noteWeak", { mde: pct(bestMde), exp: pct(expected) })
     return { id, label, holdout, holdoutShare: all ? kpiH / all : 0, kpiHoldoutPerWeek: kpiPerWeek, pmaxClaimPerWeek: claimPerWeek, pmaxCostPerWeek: nPre ? cost / nPre : 0,
       expectedEffect: expected, preWeeks: lr.length, logRatioSd: s, mde, sensitive, note }
   }
   const out: DesignCandidate[] = []
-  if (totals[HANOI]) out.push(mk("hn", "Tắt PMax ở Hà Nội", [HANOI]))
-  if (totals[HCM]) out.push(mk("hcm", "Tắt PMax ở TP.HCM", [HCM]))
+  if (totals[HANOI]) out.push(mk("hn", tr("libgoogle.gd.lblHn"), [HANOI]))
+  if (totals[HCM]) out.push(mk("hcm", tr("libgoogle.gd.lblHcm"), [HCM]))
   const half = splitProvinces(totals, [HANOI, HCM])
-  if (half.length) out.push(mk("tinh", `Tắt PMax ở ${half.length} tỉnh (nửa các tỉnh ngoài HN/HCM)`, half))
+  if (half.length) out.push(mk("tinh", tr("libgoogle.gd.lblTinh", { n: half.length }), half))
   return out
 }
 
@@ -140,13 +145,14 @@ export interface ExperimentResult {
 }
 
 /** Khác-biệt-trong-khác-biệt trên log tỉ lệ tuần. Cần ≥ 2 tuần chạy. */
-export function analyzeExperiment(input: { kpiKind: KpiKind; series: WeeklySeries; holdout: string[]; preWeeks: string[]; testWeeks: string[]; pmaxClaimPerWeek: number }): ExperimentResult {
+export function analyzeExperiment(input: { kpiKind: KpiKind; series: WeeklySeries; holdout: string[]; preWeeks: string[]; testWeeks: string[]; pmaxClaimPerWeek: number; tr?: TFunction }): ExperimentResult {
+  const tr = input.tr ?? viT
   const pre = logRatios(input.series, input.holdout, input.preWeeks)
   const test = logRatios(input.series, input.holdout, input.testWeeks)
   const H = new Set(input.holdout)
   const claimed = input.pmaxClaimPerWeek * test.length
   const base = { testWeeks: test.length, claimed }
-  if (test.length < 2 || pre.length < 2) return { ...base, change: 0, ciLow: 0, ciHigh: 0, kpiDelta: 0, incrementality: null, verdict: "chua_du", text: `Mới có ${test.length} tuần trọn — cần ít nhất 2 tuần (nên 4) mới đọc được.` }
+  if (test.length < 2 || pre.length < 2) return { ...base, change: 0, ciLow: 0, ciHigh: 0, kpiDelta: 0, incrementality: null, verdict: "chua_du", text: tr("libgoogle.gd.notEnough", { n: test.length }) }
   const d = mean(test) - mean(pre)
   const se = sd(pre) * Math.sqrt(1 / pre.length + 1 / test.length)
   const change = Math.exp(d) - 1
@@ -176,13 +182,13 @@ export function analyzeExperiment(input: { kpiKind: KpiKind; series: WeeklySerie
     else if (ciLow > 0) verdict = "mot_phan"
     else verdict = "khong_ro"
   }
-  const inc = incrementality == null ? "" : ` Ước tính ~${pct(Math.min(incrementality, 1))} số đơn PMax Google ghi là đơn thêm thật.`
+  const inc = incrementality == null ? "" : tr("libgoogle.gd.incText", { pct: pct(Math.min(incrementality, 1)) })
   const TEXT: Record<ExperimentResult["verdict"], string> = {
     chua_du: "",
-    google_dung: `Tắt PMax làm ${input.kpiKind === "orders" ? "đơn thật giảm" : "đơn Search không bù lại"} gần đúng mức Google ghi — đơn PMax phần lớn là đơn thêm thật.${inc}`,
-    mot_phan: `PMax có tạo đơn thêm nhưng ít hơn Google ghi.${inc}`,
-    khong_them: `Tắt PMax mà ${input.kpiKind === "orders" ? "đơn thật gần như không giảm" : "đơn chạy sang Search gần đủ"} — phần lớn "đơn" PMax Google ghi là khách đằng nào cũng mua.${inc}`,
-    khong_ro: `Chưa kết luận được (khoảng tin cậy ${pct(ciLow)} … ${pct(ciHigh)} quá rộng) — chạy thêm tuần hoặc chọn vùng lớn hơn.`,
+    google_dung: tr("libgoogle.gd.vGoogle", { what: input.kpiKind === "orders" ? tr("libgoogle.gd.kpiOrdersDown") : tr("libgoogle.gd.kpiSearchNoMake"), inc }),
+    mot_phan: tr("libgoogle.gd.vPartial", { inc }),
+    khong_them: tr("libgoogle.gd.vNone", { what: input.kpiKind === "orders" ? tr("libgoogle.gd.kpiOrdersFlat") : tr("libgoogle.gd.kpiSearchBack"), inc }),
+    khong_ro: tr("libgoogle.gd.vUnclear", { lo: pct(ciLow), hi: pct(ciHigh) }),
   }
   return { ...base, change, ciLow, ciHigh, kpiDelta, incrementality, verdict, text: TEXT[verdict] }
 }

@@ -9,6 +9,7 @@
 // Vị trí không có trong bảng → không loại được bằng tool (báo, không đoán).
 
 import { META_GRAPH_VERSION } from "@/lib/meta/graph-version"
+import { makeT, type TFunction } from "@/lib/i18n/translate"
 
 export type PlacementField =
   | "facebook_positions" | "instagram_positions" | "audience_network_positions" | "messenger_positions"
@@ -58,7 +59,7 @@ const LABEL: Record<string, string> = {
 
 export const placementKey = (platform: string, position: string) => `${platform}:${position}`
 export const placementTarget = (key: string): PlacementTarget | null => MAP[key] ?? null
-export const placementLabel = (key: string) => LABEL[key] ?? key.replace(":", " · ")
+export const placementLabel = (key: string, t: TFunction = makeT("vi")) => (key in LABEL ? t(`libcase.c.pl.${key}` as never) : key.replace(":", " · "))
 export const isReels = (key: string) => /reels/.test(key)
 
 export const POSITION_FIELDS: PlacementField[] = ["facebook_positions", "instagram_positions", "audience_network_positions", "messenger_positions"]
@@ -130,9 +131,9 @@ export function writableTargeting(t: Targeting, version: string = META_GRAPH_VER
 }
 
 /** Câu cảnh báo cho người dùng khi writableTargeting bỏ vị trí Meta đã khai tử; null nếu không bỏ gì. */
-export function retiredPositionsNote(retired: string[]): string | null {
+export function retiredPositionsNote(retired: string[], t: TFunction = makeT("vi")): string | null {
   if (!retired.length) return null
-  return `Bỏ vị trí Meta đã ngừng hỗ trợ (nhóm cũ còn giữ, gửi lại sẽ bị Meta từ chối): ${retired.map((r) => r.replace(":", " → ")).join(", ")}.`
+  return t("libcase.c.pl.retired", { list: retired.map((r) => r.replace(":", " → ")).join(", ") })
 }
 
 /** Nhóm quảng cáo đang để Meta tự chọn vị trí (không khai nền tảng/vị trí) không. */

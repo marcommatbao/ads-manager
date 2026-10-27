@@ -8,7 +8,9 @@
 
 import { enums } from "google-ads-api"
 import { getGoogleAdsCustomer } from "@/lib/google-ads-client"
-import { intentOf, mentionsBrand, INTENT_LABEL, type Intent, type IntentLexicon } from "@/lib/case/intent"
+import { intentOf, mentionsBrand, type Intent, type IntentLexicon } from "@/lib/case/intent"
+import type { TFunction } from "@/lib/i18n/translate"
+import { viT, nfOf, tk } from "@/lib/google-i18n"
 import { lexiconFor } from "@/lib/case/targets"
 import { stripDiacritics } from "@/lib/case/text"
 import type { Company } from "@/lib/case/types"
@@ -42,9 +44,27 @@ export interface ChannelRow {
 export interface XrayWarning { level: "bad" | "warn"; id: string; text: string; campaignId?: string }
 
 /** Hàm thuần: 2 bảng thô → kênh (có chia kiểu ghi nhận) + cảnh báo. */
-export function buildChannels(costRows: { network: string; cost: number; clicks: number; impressions: number; viewThrough: number }[], convRows: { network: string; attribution: string; conversions: number; value: number }[]): { channels: ChannelRow[]; totals: { cost: number; convClick: number; convEngaged: number }; warnings: XrayWarning[] } {
+export const channelLabel = (n: string, t: TFunction = viT): string => { const k = `libgoogle.chl.${n}`; const v = tk(t, k); return v === k ? n : v }
+
+/** Cảnh báo từ các dòng kênh đã gộp — HÀM THUẦN (dựng lại được theo ngôn ngữ mà không cần số thô). */
+export function channelWarnings(channels: ChannelRow[], t: TFunction = viT): XrayWarning[] {
+  const fmt = (n: number) => n.toLocaleString(nfOf(t), { maximumFractionDigits: 1 })
+  const warnings: XrayWarning[] = []
+  for (const x of channels) {
+    const conv = x.convClick + x.convEngaged
+    const engagedShare = conv ? x.convEngaged / conv : 0
+    if (x.costShare >= HEAVY_SHARE && engagedShare >= ENGAGED_HEAVY) warnings.push({ level: "bad", id: `engaged_${x.network}`,
+      text: tk(t, "libgoogle.px.engaged", { label: x.label, share: Math.round(x.costShare * 100), eng: Math.round(engagedShare * 100), click: fmt(x.convClick), cpa: x.cpaClick ? tk(t, "libgoogle.px.cpaPer", { v: fmt(Math.round(x.cpaClick)) }) : tk(t, "libgoogle.px.none") }) })
+    else if (x.costShare >= HEAVY_SHARE && x.convClick === 0 && x.cost > 0) warnings.push({ level: "bad", id: `nochannel_${x.network}`,
+      text: tk(t, "libgoogle.px.noChannel", { label: x.label, share: Math.round(x.costShare * 100) }) })
+  }
+  return warnings
+}
+
+/** Hàm thuần: 2 bảng thô → kênh (có chia kiểu ghi nhận) + cảnh báo. */
+export function buildChannels(costRows: { network: string; cost: number; clicks: number; impressions: number; viewThrough: number }[], convRows: { network: string; attribution: string; conversions: number; value: number }[], t: TFunction = viT): { channels: ChannelRow[]; totals: { cost: number; convClick: number; convEngaged: number }; warnings: XrayWarning[] } {
   const by = new Map<string, ChannelRow>()
-  const get = (n: string) => by.get(n) ?? { network: n, label: CHANNEL_LABEL[n] ?? n, cost: 0, clicks: 0, impressions: 0, convClick: 0, convEngaged: 0, viewThrough: 0, value: 0, costShare: 0, cpaClick: null }
+  const get = (n: string) => by.get(n) ?? { network: n, label: channelLabel(n, t), cost: 0, clicks: 0, impressions: 0, convClick: 0, convEngaged: 0, viewThrough: 0, value: 0, costShare: 0, cpaClick: null }
   for (const r of costRows) { const x = get(r.network); x.cost += r.cost; x.clicks += r.clicks; x.impressions += r.impressions; x.viewThrough += r.viewThrough; by.set(r.network, x) }
   for (const r of convRows) {
     const x = get(r.network)
@@ -55,28 +75,18 @@ export function buildChannels(costRows: { network: string; cost: number; clicks:
   const cost = [...by.values()].reduce((s, x) => s + x.cost, 0)
   const channels = [...by.values()].map((x) => ({ ...x, costShare: cost ? x.cost / cost : 0, cpaClick: x.convClick > 0 ? x.cost / x.convClick : null }))
     .filter((x) => x.cost > 0 || x.convClick + x.convEngaged > 0).sort((a, b) => b.cost - a.cost)
-  const warnings: XrayWarning[] = []
-  for (const x of channels) {
-    const conv = x.convClick + x.convEngaged
-    const engagedShare = conv ? x.convEngaged / conv : 0
-    if (x.costShare >= HEAVY_SHARE && engagedShare >= ENGAGED_HEAVY) warnings.push({ level: "bad", id: `engaged_${x.network}`,
-      text: `${x.label} ăn ${Math.round(x.costShare * 100)}% chi PMax; ${Math.round(engagedShare * 100)}% "đơn" ở đây là sau lượt XEM (không bấm) — Google vẫn tính để đặt giá nên dồn tiền vào kênh này. Đơn TỪ LƯỢT BẤM: ${fmt(x.convClick)} (${x.cpaClick ? `₫${fmt(Math.round(x.cpaClick))}/đơn` : "không có"}). Cần thí nghiệm đo tăng thật trước khi tin.` })
-    else if (x.costShare >= HEAVY_SHARE && x.convClick === 0 && x.cost > 0) warnings.push({ level: "bad", id: `nochannel_${x.network}`,
-      text: `${x.label} ăn ${Math.round(x.costShare * 100)}% chi PMax mà 0 đơn từ lượt bấm.` })
-  }
+  const warnings = channelWarnings(channels, t)
   return { channels, totals: { cost, convClick: channels.reduce((s, x) => s + x.convClick, 0), convEngaged: channels.reduce((s, x) => s + x.convEngaged, 0) }, warnings }
 }
-
-const fmt = (n: number) => n.toLocaleString("vi-VN", { maximumFractionDigits: 1 })
 
 // ── Lượt tìm PMax theo ý định + n-gram ──
 export interface SearchTermRow { campaignId: string; term: string; cost: number; clicks: number; conversions: number; impressions: number }
 export interface IntentSummary { intent: Intent; label: string; terms: number; cost: number; clicks: number; conversions: number; examples: { term: string; clicks: number; conversions: number }[] }
-export function summarizeTerms(rows: SearchTermRow[], lex: IntentLexicon): { intents: IntentSummary[]; ngrams: { gram: string; terms: number; clicks: number; conversions: number }[] } {
+export function summarizeTerms(rows: SearchTermRow[], lex: IntentLexicon, t: TFunction = viT): { intents: IntentSummary[]; ngrams: { gram: string; terms: number; clicks: number; conversions: number }[] } {
   const by = new Map<Intent, IntentSummary & { all: SearchTermRow[] }>()
   for (const r of rows) {
     const k = intentOf(r.term, lex)
-    const b = by.get(k) ?? { intent: k, label: INTENT_LABEL[k], terms: 0, cost: 0, clicks: 0, conversions: 0, examples: [], all: [] }
+    const b = by.get(k) ?? { intent: k, label: tk(t, `libgoogle.intent.${k}`), terms: 0, cost: 0, clicks: 0, conversions: 0, examples: [], all: [] }
     b.terms++; b.cost += r.cost; b.clicks += r.clicks; b.conversions += r.conversions; b.all.push(r)
     by.set(k, b)
   }
@@ -134,8 +144,24 @@ export interface PmaxXray {
   errors: string[]
 }
 
+// Bộ nhớ đệm giữ bản TIẾNG VIỆT; chữ theo ngôn ngữ được dựng lại mỗi yêu cầu (renderPmaxXray) → EN không đầu độc VI.
 const memo = new Map<string, { at: number; value: PmaxXray }>()
-export async function pmaxXray(company: Company, range: { from: string; to: string }, opts: { force?: boolean } = {}): Promise<PmaxXray> {
+
+/** Dựng lại nhãn kênh / nhãn ý định / cảnh báo theo ngôn ngữ của t — không đụng số liệu. */
+export function renderPmaxXray(v: PmaxXray, t: TFunction): PmaxXray {
+  if (nfOf(t) === nfOf(viT)) return v
+  const relabel = (cs: ChannelRow[]) => cs.map((c) => ({ ...c, label: channelLabel(c.network, t) }))
+  const account = { ...v.account, channels: relabel(v.account.channels) }
+  account.warnings = channelWarnings(account.channels, t)
+  const campaigns = v.campaigns.map((c) => { const channels = relabel(c.channels); return { ...c, channels, warnings: channelWarnings(channels, t).map((w) => ({ ...w, campaignId: c.id })) } })
+  return { ...v, account, campaigns, terms: { ...v.terms, intents: v.terms.intents.map((i) => ({ ...i, label: tk(t, `libgoogle.intent.${i.intent}`) })) } }
+}
+
+export async function pmaxXray(company: Company, range: { from: string; to: string }, opts: { force?: boolean } = {}, t: TFunction = viT): Promise<PmaxXray> {
+  return renderPmaxXray(await pmaxXrayVi(company, range, opts), t)
+}
+
+async function pmaxXrayVi(company: Company, range: { from: string; to: string }, opts: { force?: boolean } = {}): Promise<PmaxXray> {
   const key = `${company}|${range.from}|${range.to}`
   const hit = memo.get(key)
   if (!opts.force && hit && Date.now() - hit.at < 30 * 60_000) return hit.value

@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
+import { getT } from "@/lib/i18n/server"
+import { makeT } from "@/lib/i18n/translate"
 import { startJobRun } from "@/lib/jobs/cron-guard"
 import { safeDateRange, safeNumericId, InvalidGaqlInput } from "@/lib/google-ads-guards"
 import { enums } from "google-ads-api"
@@ -20,14 +22,6 @@ import {
 } from "@/lib/qs-history"
 import { pickCompany } from "@/lib/companies"
 import { friendlyError } from "@/lib/not-configured";
-
-// ── QS label mapping ──
-const QS_LABEL: Record<string, string> = {
-  ABOVE_AVERAGE: "Trên TB",
-  AVERAGE:       "Trung bình",
-  BELOW_AVERAGE: "Dưới TB",
-  UNKNOWN:       "—",
-}
 
 export async function GET(req: NextRequest) {
   // Service-to-service path for the nightly snapshot cron. The QS history that
@@ -57,6 +51,15 @@ export async function GET(req: NextRequest) {
 }
 
 async function handle(req: NextRequest, user: SessionUser): Promise<NextResponse> {
+  // Cron (service-to-service) giữ tiếng Việt; người dùng giao diện theo cookie ngôn ngữ.
+  const t = user.id === "cron" ? makeT("vi") : await getT()
+  // ── QS label mapping ──
+  const QS_LABEL: Record<string, string> = {
+    ABOVE_AVERAGE: t("libgoogle.qs.l.ABOVE_AVERAGE"),
+    AVERAGE:       t("libgoogle.qs.l.AVERAGE"),
+    BELOW_AVERAGE: t("libgoogle.qs.l.BELOW_AVERAGE"),
+    UNKNOWN:       "—",
+  }
   try {
     const { searchParams } = new URL(req.url)
     const company    = (searchParams.get("company")    || "MBC") as string
@@ -190,14 +193,14 @@ async function handle(req: NextRequest, user: SessionUser): Promise<NextResponse
 
         const suggestion =
           weakest === "AD_RELEVANCE"
-            ? "Headlines chưa chứa từ khóa chính → Mở Creative AI để refresh copy"
+            ? t("libgoogle.qs.sugAd")
           : weakest === "LANDING_PAGE"
-            ? "Landing page chưa liên quan đến từ khóa → Kiểm tra nội dung trang (ngoài phạm vi app)"
+            ? t("libgoogle.qs.sugLp")
           : weakest === "EXPECTED_CTR"
-            ? "CTR dự đoán thấp → Thêm số, USP mạnh vào headlines"
+            ? t("libgoogle.qs.sugCtr")
           : grade === "GOOD" || grade === "EXCELLENT"
-            ? `QS tốt (${qs}) — tiếp tục theo dõi`
-          : "QS ổn — tiếp tục theo dõi"
+            ? t("libgoogle.qs.sugGood", { qs })
+          : t("libgoogle.qs.sugOk")
 
         return {
           criterionId:  critId,
@@ -297,9 +300,9 @@ async function handle(req: NextRequest, user: SessionUser): Promise<NextResponse
     }
 
     const ROOT_CAUSE_LABEL: Record<string, string> = {
-      AD_RELEVANCE: "Ad Relevance — headlines chưa khớp từ khóa",
-      LANDING_PAGE: "Landing Page — trang đích chưa liên quan",
-      EXPECTED_CTR: "Expected CTR — dự đoán CTR thấp",
+      AD_RELEVANCE: t("libgoogle.qs.rc.AD_RELEVANCE"),
+      LANDING_PAGE: t("libgoogle.qs.rc.LANDING_PAGE"),
+      EXPECTED_CTR: t("libgoogle.qs.rc.EXPECTED_CTR"),
     }
 
     // Concrete "làm gì tiếp theo" per nguyên nhân chính — the rollup used to
@@ -312,20 +315,20 @@ async function handle(req: NextRequest, user: SessionUser): Promise<NextResponse
     ): string => {
       if (!cause) {
         return poorCount > 0
-          ? `${poorCount} từ khóa QS thấp nhưng không cùng 1 nguyên nhân rõ rệt — xem chi tiết từng từ khóa bên dưới để xử lý riêng lẻ`
-          : "Nhóm đang ổn — theo dõi định kỳ, chưa cần hành động"
+          ? t("libgoogle.qs.actMixed", { n: poorCount })
+          : t("libgoogle.qs.actOk")
       }
       const [type, count] = cause
       if (type === "AD_RELEVANCE") {
-        return `Viết lại headline cho ${count} từ khóa — thêm đúng từ khóa chính vào headline 1-3 (Google chấm Ad Relevance dựa trên mức khớp chữ, không chỉ chủ đề)`
+        return t("libgoogle.qs.actAd", { n: count })
       }
       if (type === "LANDING_PAGE") {
-        return `Kiểm tra landing page cho ${count} từ khóa — nội dung trang đích cần khớp rõ với ý định tìm kiếm của từ khóa (đổi URL đích hoặc bổ sung nội dung trang, việc này ngoài phạm vi app)`
+        return t("libgoogle.qs.actLp", { n: count })
       }
       if (type === "EXPECTED_CTR") {
-        return `Thêm số liệu cụ thể/USP mạnh/CTA rõ vào headline cho ${count} từ khóa để tăng CTR dự đoán (vd "Giảm 30%", "Miễn phí SSL" thay vì mô tả chung chung)`
+        return t("libgoogle.qs.actCtr", { n: count })
       }
-      return "Xem chi tiết từng từ khóa bên dưới"
+      return t("libgoogle.qs.actDefault")
     }
 
     const adGroupRollup = Object.values(adGroupMap)
@@ -393,7 +396,7 @@ async function handle(req: NextRequest, user: SessionUser): Promise<NextResponse
     }
 
     if (!lpResult.ok) {
-      landingPageError = lpResult.error ?? "Không lấy được dữ liệu trang đích"
+      landingPageError = lpResult.error ?? t("libgoogle.qs.lpErr")
     } else {
       // Chỉ số theo ad group từ phía keyword — dùng để quy về URL.
       const kwByAdGroup = new Map<string, { poorLp: number; count: number; qsSum: number; impr: number; name: string }>()

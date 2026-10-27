@@ -10,16 +10,18 @@ import { actorOf, fail, requireCompany, requireUser } from "@/lib/case/http"
 import { hasPermission, canAccessCompany } from "@/lib/permissions"
 import { allowForce } from "@/lib/cost-guard"
 import { friendlyError } from "@/lib/not-configured"
+import { getT } from "@/lib/i18n/server"
+import type { TFunction } from "@/lib/i18n/translate"
 import { abReading, getAbTest, listAbTests, type AbVariant } from "@/lib/meta/ab-audience"
 import { AbRefused, createAbTest, discardAbTest, endAbTest, measureAbTest, planAbTest, startAbTest } from "@/lib/meta/ab-audience-exec"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
 
-function metaErr(e: unknown) {
+function metaErr(e: unknown, t: TFunction) {
   if (e instanceof AbRefused) return NextResponse.json({ success: false, error: e.message }, { status: 409 })
   const msg = e instanceof Error ? e.message : String(e)
-  if (/Application request limit|User request limit|#17|#4\b/.test(msg)) return NextResponse.json({ success: false, error: "Meta đang giới hạn số lượt gọi của app — thử lại sau ít phút." }, { status: 429 })
+  if (/Application request limit|User request limit|#17|#4\b/.test(msg)) return NextResponse.json({ success: false, error: t("libmeta.api.metaRateLimit") }, { status: 429 })
   return fail(e instanceof Error ? new Error(friendlyError(msg)) : e)
 }
 
@@ -29,6 +31,7 @@ export async function GET(request: NextRequest) {
   const q = request.nextUrl.searchParams
   const co = requireCompany(u.value, q.get("company"))
   if (!co.ok) return co.response
+  const tr = await getT()
   const force = q.get("force") === "1" && allowForce(`ab|${co.value}`, hasPermission(u.value.role, "can_edit"))
   const tests = listAbTests(co.value).slice(0, 30)
   const out = []
@@ -36,7 +39,7 @@ export async function GET(request: NextRequest) {
     if (t.status !== "running" && t.status !== "ended") { out.push({ test: t, measure: null, reading: null, error: null }); continue }
     try {
       const m = await measureAbTest(t, { force })
-      out.push({ test: t, measure: m, reading: abReading(t, m.group, m.days), error: null })
+      out.push({ test: t, measure: m, reading: abReading(t, m.group, m.days, tr), error: null })
     } catch (e) {
       out.push({ test: t, measure: null, reading: null, error: friendlyError(e instanceof Error ? e.message : String(e)) })
     }
@@ -59,6 +62,7 @@ export async function POST(request: NextRequest) {
   const b = (await request.json().catch(() => ({}))) as Record<string, unknown>
   const action = String(b.action ?? "")
   const actor = actorOf(u.value)
+  const tr = await getT()
 
   if (action === "plan" || action === "create") {
     const co = requireCompany(u.value, b.company)
@@ -70,9 +74,9 @@ export async function POST(request: NextRequest) {
     if (action === "create" && inFlight.has(key)) return NextResponse.json({ success: false, error: "Đang tạo — chờ lần bấm trước xong" }, { status: 409 })
     inFlight.add(key)
     try {
-      if (action === "plan") return NextResponse.json({ success: true, plan: await planAbTest(co.value, src, variant) })
+      if (action === "plan") return NextResponse.json({ success: true, plan: await planAbTest(co.value, src, variant, tr) })
       return NextResponse.json({ success: true, test: await createAbTest(co.value, src, variant, actor) })
-    } catch (e) { return metaErr(e) }
+    } catch (e) { return metaErr(e, tr) }
     finally { inFlight.delete(key) }
   }
 
@@ -87,7 +91,7 @@ export async function POST(request: NextRequest) {
       if (action === "discard") return NextResponse.json({ success: true, ...(await discardAbTest(t, actor)) })
       const side = b.pause === "a" || b.pause === "b" ? b.pause : null
       return NextResponse.json({ success: true, test: await endAbTest(t, side, actor) })
-    } catch (e) { return metaErr(e) }
+    } catch (e) { return metaErr(e, tr) }
     finally { inFlight.delete(t.id) }
   }
   return NextResponse.json({ success: false, error: "Hành động không hợp lệ" }, { status: 400 })

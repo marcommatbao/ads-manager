@@ -6,6 +6,10 @@ import { optEventOf, pickAction, pickActionWindow, PURCHASE_TYPES } from "@/lib/
 import { META_LEAD_TYPES, metaGoalKind, type GoalKind } from "@/lib/case/goal-kind"
 import { compareGroup, type CompareAdset, type CompareGroup } from "./audience-compare"
 import { setCapped } from "@/lib/cost-guard"
+import { makeT, type TFunction } from "@/lib/i18n/translate"
+
+/** Lỗi do đầu vào (chọn sai chiến dịch) → route trả 400. Route dò bằng instanceof, KHÔNG dò chữ (chữ đổi theo ngôn ngữ). */
+export class CompareInputError extends Error {}
 
 type Row = Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
 export const MAX_COMPARE_CAMPAIGNS = 3
@@ -47,10 +51,11 @@ export function forgetCompare(company: string): void {
   for (const k of [...memo.keys()]) if (k.startsWith(`${company}|`)) memo.delete(k)
 }
 
-export async function compareAudiences(company: string, campaignIds: string[], range: { from: string; to: string }, opts: { force?: boolean } = {}): Promise<CompareResult> {
+export async function compareAudiences(company: string, campaignIds: string[], range: { from: string; to: string }, opts: { force?: boolean } = {}, t: TFunction = makeT("vi")): Promise<CompareResult> {
   const ids = [...new Set(campaignIds)].filter((x) => /^\d{5,25}$/.test(x))
-  if (ids.length < 2 || ids.length > MAX_COMPARE_CAMPAIGNS) throw new Error(`Chọn 2–${MAX_COMPARE_CAMPAIGNS} chiến dịch để so sánh`)
-  const key = `${company}|${[...ids].sort().join(",")}|${range.from}|${range.to}`
+  if (ids.length < 2 || ids.length > MAX_COMPARE_CAMPAIGNS) throw new CompareInputError(t("libmeta.acf.pick", { max: MAX_COMPARE_CAMPAIGNS }))
+  // Cờ/tóm tắt sinh theo ngôn ngữ → khoá có ngôn ngữ ở CUỐI (forgetCompare dò tiền tố công ty).
+  const key = `${company}|${[...ids].sort().join(",")}|${range.from}|${range.to}|${t("libmeta.localeTag")}`
   const hit = memo.get(key)
   if (!opts.force && hit && Date.now() - hit.at < 600_000) return hit.v
 
@@ -60,7 +65,7 @@ export async function compareAudiences(company: string, campaignIds: string[], r
       fields: "id,name,objective,status,adsets.limit(100){id,name,status,optimization_goal,promoted_object,learning_stage_info,targeting},ads.limit(300){adset_id,status,creative{id}}",
     })
     // Công ty lấy từ TÊN chiến dịch phía Meta — không tin danh sách client gửi (cùng luật các route ghi Meta).
-    if (detectCompany(String(c.name ?? "")) !== company) throw new Error(`Chiến dịch “${c.name ?? id}” không thuộc công ty đang chọn`)
+    if (detectCompany(String(c.name ?? "")) !== company) throw new CompareInputError(t("libmeta.acf.notCompany", { name: String(c.name ?? id) }))
     camps.push(c)
   }
   const ins = await metaGetAll<Row>(`act_${adAccountId()}/insights`, {
@@ -89,7 +94,7 @@ export async function compareAudiences(company: string, campaignIds: string[], r
   const v: CompareResult = {
     company, range,
     campaigns: camps.map((c) => ({ id: String(c.id), name: String(c.name ?? ""), objective: String(c.objective ?? ""), goalKind: metaGoalKind(String(c.objective ?? "")), status: String(c.status ?? "") })),
-    groups: kinds.map((k) => compareGroup(k, rows.filter((r) => r.goalKind === k))),
+    groups: kinds.map((k) => compareGroup(k, rows.filter((r) => r.goalKind === k), t)),
     mixedKinds: kinds.length > 1, fetchedAt: new Date().toISOString(),
   }
   setCapped(memo, key, { at: Date.now(), v })

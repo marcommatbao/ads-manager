@@ -20,6 +20,8 @@ import { blocks, withAccentVariants, type NegativeKw } from "@/lib/case/simulate
 import { stripDiacritics } from "@/lib/case/text"
 import type { Company } from "@/lib/case/types"
 import type { PmaxXray, SearchTermRow } from "./xray"
+import type { TFunction } from "@/lib/i18n/translate"
+import { viT, numT, tk } from "@/lib/google-i18n"
 
 type Row = Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
 export const PMAX_CONFIRM_TEXT = "XAC NHAN"
@@ -35,6 +37,8 @@ export interface ControlProposal {
   campaignName?: string
   label: string
   why: string
+  /** Mã ổn định (không phụ thuộc ngôn ngữ) cho các bộ lọc logic — vd "competitor" cho phủ định tên đối thủ. */
+  tag?: "competitor"
   /** Tích sẵn khi bằng chứng đủ; bỏ tích khi chỉ là gợi ý. */
   defaultChecked: boolean
   warning?: string
@@ -63,7 +67,6 @@ const AAT = inv(enums.AssetAutomationType as unknown as Record<string, unknown>)
 const AAS = inv(enums.AssetAutomationStatus as unknown as Record<string, unknown>)
 const AGE = inv(enums.AgeRangeType as unknown as Record<string, unknown>)
 const pathKey = (u: string) => { try { const x = new URL(u); return `${x.hostname.replace(/^www\./, "")}${x.pathname.replace(/\/+$/, "")}`.toLowerCase() } catch { return u.toLowerCase() } }
-const fmt = (n: number) => Math.round(n).toLocaleString("vi-VN")
 
 export async function readControlData(company: Company, range: { from: string; to: string }): Promise<ControlData> {
   const c = getGoogleAdsCustomer(company)
@@ -113,48 +116,49 @@ export async function readControlData(company: Company, range: { from: string; t
 
 // ── Đề xuất (hàm thuần) ──
 const NEG_INTENTS = new Set(["competitor", "lookup", "info"])
-export function proposeControls(x: Pick<PmaxXray, "campaigns" | "terms" | "searchKeywords">, d: ControlData, lex: IntentLexicon): ControlProposal[] {
+export function proposeControls(x: Pick<PmaxXray, "campaigns" | "terms" | "searchKeywords">, d: ControlData, lex: IntentLexicon, t: TFunction = viT): ControlProposal[] {
+  const fmt = (n: number) => numT(t, Math.round(n))
   const out: ControlProposal[] = []
   const camps = new Map(x.campaigns.map((c) => [c.id, c]))
   const enabled = x.campaigns.filter((c) => c.status === "ENABLED")
-  const converting = x.terms.rows.filter((t) => t.conversions > 0).map((t) => t.term)
+  const converting = x.terms.rows.filter((tm) => tm.conversions > 0).map((tm) => tm.term)
 
   // 1. Phủ định lượt tìm đối thủ / tra cứu / hỏi cách làm có bấm mà 0 đơn — theo chiến dịch.
   const byCamp = new Map<string, SearchTermRow[]>()
-  for (const t of x.terms.rows) (byCamp.get(t.campaignId) ?? byCamp.set(t.campaignId, []).get(t.campaignId)!).push(t)
+  for (const tm of x.terms.rows) (byCamp.get(tm.campaignId) ?? byCamp.set(tm.campaignId, []).get(tm.campaignId)!).push(tm)
   for (const [cid, rows] of byCamp) {
     const c = camps.get(cid)
     if (!c || c.status !== "ENABLED") continue
     const have = new Set(d.existing.negatives[cid] ?? [])
-    for (const t of rows) {
-      const intent = intentOf(t.term, lex)
-      if (!NEG_INTENTS.has(intent) || t.conversions > 0 || t.clicks < 2) continue
-      const text = t.term.toLowerCase().trim()
+    for (const tm of rows) {
+      const intent = intentOf(tm.term, lex)
+      if (!NEG_INTENTS.has(intent) || tm.conversions > 0 || tm.clicks < 2) continue
+      const text = tm.term.toLowerCase().trim()
       if (have.has(stripDiacritics(text))) continue
       const neg: NegativeKw = { text, match: "PHRASE" }
       const hurts = converting.find((ct) => blocks(ct, neg))
       if (hurts) continue // chặn nhầm lượt tìm đã ra đơn → bỏ
-      out.push({ id: `neg_${cid}_${stripDiacritics(text).replace(/\s+/g, "_")}`, kind: "neg_keyword", campaignId: cid, campaignName: c.name, label: `Phủ định “${text}”`,
-        why: `${intent === "competitor" ? "Tên đối thủ" : intent === "lookup" ? "Tra cứu / đăng nhập" : "Hỏi cách làm"} · ${t.clicks} lượt bấm, 0 đơn`, defaultChecked: intent === "competitor" || t.clicks >= 5, cost: t.cost, payload: { text, match: "PHRASE" } })
+      out.push({ id: `neg_${cid}_${stripDiacritics(text).replace(/\s+/g, "_")}`, kind: "neg_keyword", campaignId: cid, campaignName: c.name, label: t("libgoogle.pc.negLabel", { text }),
+        why: t("libgoogle.pc.negWhy", { kind: intent === "competitor" ? t("libgoogle.sc.negKindComp") : intent === "lookup" ? t("libgoogle.intent.lookup") : t("libgoogle.sc.negKindInfo"), clicks: tm.clicks }), ...(intent === "competitor" ? { tag: "competitor" as const } : {}), defaultChecked: intent === "competitor" || tm.clicks >= 5, cost: tm.cost, payload: { text, match: "PHRASE" } })
     }
   }
 
   // 2. Loại lượt tìm THƯƠNG HIỆU mình khỏi PMax — chỉ tích sẵn khi đã có Search đang chạy từ khoá thương hiệu.
   const hasBrandSearch = x.searchKeywords.some((k) => lex.brand.some((b) => stripDiacritics(k).includes(b)))
   for (const c of enabled) {
-    const brandRows = (byCamp.get(c.id) ?? []).filter((t) => intentOf(t.term, lex) === "own_brand")
-    const brandClicks = brandRows.reduce((s, t) => s + t.clicks, 0), brandCost = brandRows.reduce((s, t) => s + t.cost, 0)
+    const brandRows = (byCamp.get(c.id) ?? []).filter((tm) => intentOf(tm.term, lex) === "own_brand")
+    const brandClicks = brandRows.reduce((s, tm) => s + tm.clicks, 0), brandCost = brandRows.reduce((s, tm) => s + tm.cost, 0)
     if (brandClicks < 10) continue
     const have = new Set(d.existing.negatives[c.id] ?? [])
     // Chỉ từ thương hiệu THẬT SỰ có trong lượt tìm của chính chiến dịch này (bộ từ dùng chung 2 công ty — đo 28/09
     // tool từng đề xuất loại "mifi" (MBI) khỏi PMax MBC).
-    const seen = brandRows.map((t) => stripDiacritics(t.term))
-    for (const b of lex.brand.filter((b) => !have.has(b) && seen.some((t) => t.includes(b)))) {
-      const blockedConv = brandRows.filter((t) => t.conversions > 0 && stripDiacritics(t.term).includes(b)).reduce((s2, t) => s2 + t.conversions, 0)
-      out.push({ id: `brand_${c.id}_${b.replace(/\s+/g, "_")}`, kind: "brand_negative", campaignId: c.id, campaignName: c.name, label: `Loại thương hiệu “${b}” khỏi PMax`,
-        why: `${brandClicks} lượt bấm tìm thương hiệu mình trong kỳ (khách cũ, đằng nào cũng tới)`, defaultChecked: hasBrandSearch, cost: brandCost,
-        warning: !hasBrandSearch ? "Chưa thấy chiến dịch Search nào chạy từ khoá thương hiệu — loại khỏi PMax thì mất luôn lượt tìm này. Tạo Search thương hiệu trước."
-          : blockedConv ? `Chặn cả lượt tìm thương hiệu đã ra ${Math.round(blockedConv * 10) / 10} đơn trong kỳ qua PMax — Search thương hiệu phải đón được các lượt này.` : undefined,
+    const seen = brandRows.map((tm) => stripDiacritics(tm.term))
+    for (const b of lex.brand.filter((b) => !have.has(b) && seen.some((tm) => tm.includes(b)))) {
+      const blockedConv = brandRows.filter((tm) => tm.conversions > 0 && stripDiacritics(tm.term).includes(b)).reduce((s2, tm) => s2 + tm.conversions, 0)
+      out.push({ id: `brand_${c.id}_${b.replace(/\s+/g, "_")}`, kind: "brand_negative", campaignId: c.id, campaignName: c.name, label: t("libgoogle.pc.brandLabel", { b }),
+        why: t("libgoogle.pc.brandWhy", { n: brandClicks }), defaultChecked: hasBrandSearch, cost: brandCost,
+        warning: !hasBrandSearch ? t("libgoogle.pc.brandWarnNoSearch")
+          : blockedConv ? t("libgoogle.pc.brandWarnConv", { n: Math.round(blockedConv * 10) / 10 }) : undefined,
         payload: { text: b, match: "PHRASE" } })
     }
   }
@@ -170,9 +174,9 @@ export function proposeControls(x: Pick<PmaxXray, "campaigns" | "terms" | "searc
   for (const p of [...pl.values()].sort((a, b) => b.impressions - a.impressions).slice(0, 60)) {
     if (!["MOBILE_APPLICATION", "YOUTUBE_CHANNEL", "YOUTUBE_VIDEO", "WEBSITE"].includes(p.type) || p.impressions < 200) continue
     const app = p.type === "MOBILE_APPLICATION"
-    out.push({ id: `pl_${p.type}_${p.placement}`, kind: "placement_exclusion", label: `Loại ${app ? "app" : p.type === "WEBSITE" ? "web" : "YouTube"} “${p.name || p.placement}”`,
-      why: `${fmt(p.impressions)} lượt hiển thị · ${p.camps.size} chiến dịch PMax (Google không cho biết chi phí/đơn theo vị trí)`, defaultChecked: app, cost: null,
-      warning: app ? undefined : "Chưa có số đơn theo vị trí — chỉ loại khi bạn chắc vị trí này không hợp khách.", payload: { placementType: p.type, placement: p.placement } })
+    out.push({ id: `pl_${p.type}_${p.placement}`, kind: "placement_exclusion", label: t("libgoogle.pc.plLabel", { kind: app ? t("libgoogle.pc.plApp") : p.type === "WEBSITE" ? t("libgoogle.pc.plWeb") : t("libgoogle.pc.plYt"), name: p.name || p.placement }),
+      why: t("libgoogle.pc.plWhy", { n: fmt(p.impressions), c: p.camps.size }), defaultChecked: app, cost: null,
+      warning: app ? undefined : t("libgoogle.pc.plWarn"), payload: { placementType: p.type, placement: p.placement } })
   }
 
   // 4. Trang đích Google tự mở rộng tới (không nằm trong URL của asset group) có chi mà 0 đơn → loại trang.
@@ -187,8 +191,8 @@ export function proposeControls(x: Pick<PmaxXray, "campaigns" | "terms" | "searc
     try { u = new URL(l.url) } catch { continue }
     const arg = `${u.hostname.replace(/^www\./, "")}${u.pathname}`.replace(/\/+$/, "")
     if ((d.existing.webpages[l.campaignId] ?? []).includes(arg.toLowerCase())) continue
-    out.push({ id: `wp_${l.campaignId}_${arg}`, kind: "webpage_exclusion", campaignId: l.campaignId, campaignName: c.name, label: `Loại trang ${arg}`,
-      why: `Google tự mở rộng tới trang này: ₫${fmt(l.cost)} · ${l.clicks} lượt bấm · 0 đơn`, defaultChecked: true, cost: l.cost, payload: { url: arg } })
+    out.push({ id: `wp_${l.campaignId}_${arg}`, kind: "webpage_exclusion", campaignId: l.campaignId, campaignName: c.name, label: t("libgoogle.pc.wpLabel", { arg }),
+      why: t("libgoogle.pc.wpWhy", { cost: fmt(l.cost), clicks: l.clicks }), defaultChecked: true, cost: l.cost, payload: { url: arg } })
   }
 
   // 5. Mở rộng URL đang BẬT mà trang mở rộng ăn ≥ 30% chi của chiến dịch với CPA tệ hơn trang chính → gợi ý tắt.
@@ -202,9 +206,9 @@ export function proposeControls(x: Pick<PmaxXray, "campaigns" | "terms" | "searc
     if (!total || expCost / total < 0.3) continue
     const cpa = (xs: typeof lps) => (sum(xs, "conversions") ? sum(xs, "cost") / sum(xs, "conversions") : Infinity)
     if (cpa(exp) <= cpa(main)) continue
-    out.push({ id: `urlexp_${c.id}`, kind: "url_expansion_off", campaignId: c.id, campaignName: c.name, label: "Tắt mở rộng URL",
-      why: `Trang Google tự chọn ăn ${Math.round((expCost / total) * 100)}% chi (₫${fmt(expCost)}) với CPA ${cpa(exp) === Infinity ? "không có đơn" : `₫${fmt(cpa(exp))}`} so với trang chính ${cpa(main) === Infinity ? "—" : `₫${fmt(cpa(main))}`}`,
-      defaultChecked: false, cost: expCost, warning: "Tắt mở rộng URL có thể làm giảm lượt hiển thị; theo dõi 2 tuần.", payload: {} })
+    out.push({ id: `urlexp_${c.id}`, kind: "url_expansion_off", campaignId: c.id, campaignName: c.name, label: t("libgoogle.pc.urlLabel"),
+      why: t("libgoogle.pc.urlWhy", { share: Math.round((expCost / total) * 100), cost: fmt(expCost), cpa: cpa(exp) === Infinity ? t("libgoogle.sx.noOrders") : t("libgoogle.pc.cpaV", { v: fmt(cpa(exp)) }), main: cpa(main) === Infinity ? "—" : t("libgoogle.pc.cpaV", { v: fmt(cpa(main)) }) }),
+      defaultChecked: false, cost: expCost, warning: t("libgoogle.pc.urlWarn"), payload: {} })
   }
 
   // 6. B5 — loại độ tuổi: chỉ khi CPA ≥ 2× trung bình VÀ nhóm tuổi mang < 3% đơn (Search 90 ngày). Đo 28/09 MBC: 55–64 CPA
@@ -218,9 +222,9 @@ export function proposeControls(x: Pick<PmaxXray, "campaigns" | "terms" | "searc
       if (a.conv / tv >= AGE_MAX_CONV_SHARE || cpa < AGE_BAD_CPA_X * avg || a.cost < avg * 2) continue
       for (const c of enabled) {
         if ((d.existing.ages[c.id] ?? []).includes(a.age)) continue
-        out.push({ id: `age_${c.id}_${a.age}`, kind: "age_exclusion", campaignId: c.id, campaignName: c.name, label: `Loại độ tuổi ${AGE_LABEL[a.age] ?? a.age}`,
-          why: `Search 90 ngày: tuổi ${AGE_LABEL[a.age] ?? a.age} chi ₫${fmt(a.cost)} → ${Math.round(a.conv)} đơn (CPA ${cpa === Infinity ? "không có đơn" : `₫${fmt(cpa)}`} so với trung bình ₫${fmt(avg)}), chỉ ${(a.conv / tv * 100).toFixed(1)}% đơn`,
-          defaultChecked: false, cost: null, warning: "Google không báo độ tuổi cho PMax — bằng chứng lấy từ chiến dịch Search; theo dõi đơn 2 tuần sau khi loại.", payload: { ageRange: a.age } })
+        out.push({ id: `age_${c.id}_${a.age}`, kind: "age_exclusion", campaignId: c.id, campaignName: c.name, label: t("libgoogle.pc.ageLabel", { age: AGE_LABEL[a.age] ?? a.age }),
+          why: t("libgoogle.pc.ageWhy", { age: AGE_LABEL[a.age] ?? a.age, cost: fmt(a.cost), n: Math.round(a.conv), cpa: cpa === Infinity ? t("libgoogle.sx.noOrders") : t("libgoogle.pc.cpaV", { v: fmt(cpa) }), avg: fmt(avg), pct: (a.conv / tv * 100).toFixed(1) }),
+          defaultChecked: false, cost: null, warning: t("libgoogle.pc.ageWarn"), payload: { ageRange: a.age } })
       }
     }
   }
@@ -242,11 +246,11 @@ function writeLog(list: ControlExecution[]) { fs.mkdirSync(path.dirname(FILE), {
 export const listControlExecutions = (company: Company) => readLog().filter((e) => e.company === company).reverse()
 
 /** Kiểm trước / ghi các đề xuất đã chọn. Đề xuất được TÍNH LẠI từ số tươi ở route — client chỉ gửi mã. */
-export async function runControls(input: { company: Company; proposals: ControlProposal[]; ids: string[]; actor: string; validateOnly: boolean; confirmText?: string; customerId: string }): Promise<ControlExecution> {
+export async function runControls(input: { company: Company; proposals: ControlProposal[]; ids: string[]; actor: string; validateOnly: boolean; confirmText?: string; customerId: string }, t: TFunction = viT): Promise<ControlExecution> {
   const sel = input.proposals.filter((p) => input.ids.includes(p.id))
-  if (!sel.length) throw new PmaxControlError("Chưa chọn việc nào (hoặc đề xuất đã thay đổi — tải lại)")
-  if (sel.length > MAX_OPS) throw new PmaxControlError(`Tối đa ${MAX_OPS} việc một lần`)
-  if (!input.validateOnly && input.confirmText?.trim() !== PMAX_CONFIRM_TEXT) throw new PmaxControlError(`Gõ đúng “${PMAX_CONFIRM_TEXT}” để ghi lên tài khoản thật`)
+  if (!sel.length) throw new PmaxControlError(t("libgoogle.sc.errNone"))
+  if (sel.length > MAX_OPS) throw new PmaxControlError(t("libgoogle.sc.errMax", { max: MAX_OPS }))
+  if (!input.validateOnly && input.confirmText?.trim() !== PMAX_CONFIRM_TEXT) throw new PmaxControlError(t("libgoogle.sc.errConfirm", { text: PMAX_CONFIRM_TEXT }))
   const c = getGoogleAdsCustomer(input.company)
   const cust = input.customerId
   const exec: ControlExecution = { id: `pmaxc_${Date.now().toString(36)}`, company: input.company, at: new Date().toISOString(), by: input.actor, mode: input.validateOnly ? "validate" : "write", status: "failed", applied: [], skipped: [], errors: [], readback: [] }
@@ -268,15 +272,15 @@ export async function runControls(input: { company: Company; proposals: ControlP
   }
   const vopt = { validate_only: true } as never
   const withOpt = (o: never | undefined) => [
-    negOps.length ? { label: "phủ định", n: negOps.map((x) => x.p), run: () => c.campaignCriteria.create(negOps.map(({ p, n }) => ({ campaign: camp(p.campaignId!), negative: true, keyword: { text: n.text, match_type: n.match === "EXACT" ? enums.KeywordMatchType.EXACT : enums.KeywordMatchType.PHRASE } })), o) } : null,
-    pages.length ? { label: "loại trang", n: pages, run: () => c.campaignCriteria.create(pages.map((p) => ({ campaign: camp(p.campaignId!), negative: true, webpage: { criterion_name: `AdsCommand loại ${p.payload.url}`.slice(0, 250), conditions: [{ operand: enums.WebpageConditionOperand.URL, argument: p.payload.url! }] } })), o) } : null,
-    ages.length ? { label: "loại tuổi", n: ages, run: () => c.campaignCriteria.create(ages.map((p) => ({ campaign: camp(p.campaignId!), negative: true, age_range: { type: enums.AgeRangeType[p.payload.ageRange as keyof typeof enums.AgeRangeType] } })), o) } : null,
-    places.length ? { label: "loại vị trí", n: places, run: () => c.customerNegativeCriteria.create(places.map((p) => placementCriterion(p) as never), o) } : null,
-    urlOff.length ? { label: "tắt mở rộng URL", n: urlOff, run: () => c.campaigns.update(urlOff.map((p) => ({ resource_name: camp(p.campaignId!), asset_automation_settings: [{ asset_automation_type: enums.AssetAutomationType.FINAL_URL_EXPANSION_TEXT_ASSET_AUTOMATION, asset_automation_status: enums.AssetAutomationStatus.OPTED_OUT }] })), o) } : null,
+    negOps.length ? { label: t("libgoogle.sc.batchNeg"), n: negOps.map((x) => x.p), run: () => c.campaignCriteria.create(negOps.map(({ p, n }) => ({ campaign: camp(p.campaignId!), negative: true, keyword: { text: n.text, match_type: n.match === "EXACT" ? enums.KeywordMatchType.EXACT : enums.KeywordMatchType.PHRASE } })), o) } : null,
+    pages.length ? { label: t("libgoogle.pc.batchPages"), n: pages, run: () => c.campaignCriteria.create(pages.map((p) => ({ campaign: camp(p.campaignId!), negative: true, webpage: { criterion_name: `AdsCommand loại ${p.payload.url}`.slice(0, 250), conditions: [{ operand: enums.WebpageConditionOperand.URL, argument: p.payload.url! }] } })), o) } : null,
+    ages.length ? { label: t("libgoogle.pc.batchAges"), n: ages, run: () => c.campaignCriteria.create(ages.map((p) => ({ campaign: camp(p.campaignId!), negative: true, age_range: { type: enums.AgeRangeType[p.payload.ageRange as keyof typeof enums.AgeRangeType] } })), o) } : null,
+    places.length ? { label: t("libgoogle.pc.batchPlaces"), n: places, run: () => c.customerNegativeCriteria.create(places.map((p) => placementCriterion(p) as never), o) } : null,
+    urlOff.length ? { label: t("libgoogle.pc.batchUrl"), n: urlOff, run: () => c.campaigns.update(urlOff.map((p) => ({ resource_name: camp(p.campaignId!), asset_automation_settings: [{ asset_automation_type: enums.AssetAutomationType.FINAL_URL_EXPANSION_TEXT_ASSET_AUTOMATION, asset_automation_status: enums.AssetAutomationStatus.OPTED_OUT }] })), o) } : null,
   ].filter((x): x is NonNullable<typeof x> => !!x)
 
   // Kiểm trước MỌI lô (validate_only) — Google từ chối lô nào thì KHÔNG ghi gì.
-  for (const b of withOpt(vopt)) { try { await b.run() } catch (e) { exec.errors.push(`Google từ chối khi kiểm (${b.label}) — CHƯA ghi gì: ${googleAdsErrorMessage(e)}`) } }
+  for (const b of withOpt(vopt)) { try { await b.run() } catch (e) { exec.errors.push(t("libgoogle.sc.errValidate", { label: b.label, msg: googleAdsErrorMessage(e) })) } }
   if (input.validateOnly) {
     exec.status = exec.errors.length ? "failed" : "done"
     exec.applied = exec.errors.length ? [] : sel.map((p) => ({ proposalId: p.id, label: p.label, kind: p.kind }))
@@ -288,7 +292,7 @@ export async function runControls(input: { company: Company; proposals: ControlP
       const res = (await b.run()) as { results?: { resource_name?: string }[] }
       const names = (res?.results ?? []).map((r) => r.resource_name ?? "")
       b.n.forEach((p, i) => exec.applied.push({ proposalId: p.id, label: p.label, kind: p.kind, resourceName: names[i] || undefined, ...(p.kind === "url_expansion_off" ? { previous: "OPTED_IN" } : {}) }))
-    } catch (e) { exec.errors.push(`Lỗi khi ghi (${b.label}): ${googleAdsErrorMessage(e)}`) }
+    } catch (e) { exec.errors.push(t("libgoogle.sc.errWrite", { label: b.label, msg: googleAdsErrorMessage(e) })) }
   }
   // Đọc lại: tài nguyên tạo ra phải tồn tại; mở rộng URL phải là OPTED_OUT.
   try {
@@ -300,7 +304,7 @@ export async function runControls(input: { company: Company; proposals: ControlP
     if (custNames.length) for (const r of (await c.query(`SELECT customer_negative_criterion.resource_name FROM customer_negative_criterion WHERE customer_negative_criterion.resource_name IN (${custNames.join(",")})`)) as Row[]) found.add(String(r.customer_negative_criterion.resource_name))
     const exp = urlOff.length ? await readControlDataUrl(input.company, urlOff.map((p) => p.campaignId!)) : {}
     exec.readback = exec.applied.map((a) => ({ label: a.label, ok: a.kind === "url_expansion_off" ? exp[sel.find((p) => p.id === a.proposalId)!.campaignId!] === "OPTED_OUT" : !!a.resourceName && found.has(a.resourceName) }))
-  } catch (e) { exec.errors.push(`Đã ghi nhưng không đọc lại được: ${googleAdsErrorMessage(e)}`) }
+  } catch (e) { exec.errors.push(t("libgoogle.sc.errReadback", { msg: googleAdsErrorMessage(e) })) }
   exec.status = !exec.errors.length && exec.readback.every((r) => r.ok) ? "done" : "failed"
   await withFileLock(FILE, async () => writeLog([...readLog(), exec]))
   return exec
@@ -315,12 +319,12 @@ async function readControlDataUrl(company: Company, ids: string[]): Promise<Reco
 }
 
 /** Hoàn tác: xoá đúng tài nguyên tool đã tạo; mở rộng URL trả về OPTED_IN. Tài nguyên đã bị người khác xoá → bỏ qua, báo. */
-export async function undoControls(company: Company, execId: string, actor: string, customerId: string): Promise<string[]> {
+export async function undoControls(company: Company, execId: string, actor: string, customerId: string, t: TFunction = viT): Promise<string[]> {
   return withFileLock(FILE, async () => {
     const log = readLog()
     const ex = log.find((e) => e.id === execId && e.company === company)
-    if (!ex || ex.mode !== "write") throw new PmaxControlError("Không tìm thấy lần ghi", 404)
-    if (ex.undoneAt) throw new PmaxControlError("Lần ghi này đã được hoàn tác", 409)
+    if (!ex || ex.mode !== "write") throw new PmaxControlError(t("libgoogle.sc.errNoRun"), 404)
+    if (ex.undoneAt) throw new PmaxControlError(t("libgoogle.pc.errUndone"), 409)
     const c = getGoogleAdsCustomer(company)
     const report: string[] = []
     const crit = ex.applied.filter((a) => a.resourceName && a.kind !== "placement_exclusion" && a.kind !== "url_expansion_off").map((a) => a.resourceName!)
@@ -331,18 +335,18 @@ export async function undoControls(company: Company, execId: string, actor: stri
       return new Set(rows.map((r) => String(r[res].resource_name)))
     }
     const aCrit = await alive("campaign_criterion", crit), aCust = await alive("customer_negative_criterion", cust)
-    if (aCrit.size) { await c.campaignCriteria.remove([...aCrit]); report.push(`Đã gỡ ${aCrit.size} phủ định/loại trừ cấp chiến dịch.`) }
-    if (aCust.size) { await c.customerNegativeCriteria.remove([...aCust]); report.push(`Đã gỡ ${aCust.size} loại trừ vị trí cấp tài khoản.`) }
+    if (aCrit.size) { await c.campaignCriteria.remove([...aCrit]); report.push(t("libgoogle.pc.undoCrit", { n: aCrit.size })) }
+    if (aCust.size) { await c.customerNegativeCriteria.remove([...aCust]); report.push(t("libgoogle.pc.undoCust", { n: aCust.size })) }
     const gone = crit.length + cust.length - aCrit.size - aCust.size
-    if (gone) report.push(`${gone} mục đã bị xoá từ trước (người khác/giao diện Google) — bỏ qua.`)
+    if (gone) report.push(t("libgoogle.pc.undoGone", { n: gone }))
     const urls = ex.applied.filter((a) => a.kind === "url_expansion_off")
     if (urls.length) {
       const ids = urls.map((a) => a.proposalId.replace(/^urlexp_/, ""))
       await c.campaigns.update(ids.map((id) => ({ resource_name: `customers/${customerId}/campaigns/${id}`, asset_automation_settings: [{ asset_automation_type: enums.AssetAutomationType.FINAL_URL_EXPANSION_TEXT_ASSET_AUTOMATION, asset_automation_status: enums.AssetAutomationStatus.OPTED_IN }] })))
-      report.push(`Đã bật lại mở rộng URL cho ${ids.length} chiến dịch.`)
+      report.push(t("libgoogle.pc.undoUrl", { n: ids.length }))
     }
     ex.undoneAt = new Date().toISOString()
-    ex.undoReport = [`Hoàn tác bởi ${actor}`, ...report]
+    ex.undoReport = [t("libgoogle.pc.undoneBy", { actor }), ...report]
     writeLog(log)
     return report
   })

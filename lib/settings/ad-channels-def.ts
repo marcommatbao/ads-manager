@@ -1,3 +1,4 @@
+import { makeT, type TFunction } from "@/lib/i18n/translate"
 // Đợt 27 — sổ KÊNH QUẢNG CÁO dùng chung cho KPI (trần ngân sách theo kênh), P&L (chi phí thực theo kênh) và Chi phí kênh
 // khác (khai tay). Tệp THUẦN — giao diện dùng được. Kênh gốc cố định; kênh thêm mới lưu ở data/ad-channels.json
 // (lib/settings/ad-channels.ts). Mã kênh (key) sinh MỘT lần từ tên và không bao giờ đổi — số đã lưu gắn theo mã này,
@@ -37,4 +38,6 @@ export function slugifyChannel(label: string): string {
 export const budgetChannelKeys = (chs: AdChannelDef[]) => chs.map((c) => c.key)
 /** Kênh hiện để NHẬP (bỏ kênh đã ẩn). */
 export const visibleChannels = (chs: AdChannelDef[]) => chs.filter((c) => !c.hidden)
-export const channelLabel = (chs: AdChannelDef[], key: string) => key === OTHER_CHANNEL.key ? OTHER_CHANNEL.label : chs.find((c) => c.key === key)?.label ?? key
+export const channelLabel = (chs: AdChannelDef[], key: string, t: TFunction = makeT("vi")) => key === OTHER_CHANNEL.key ? t("libcase.channel.other") : chs.find((c) => c.key === key)?.label ?? key
+/** Tên kênh "Kênh khác" theo ngôn ngữ (cho chi phí khai tay / P&L). */
+export const otherChannelLabel = (t: TFunction = makeT("vi")) => t("libcase.channel.other")

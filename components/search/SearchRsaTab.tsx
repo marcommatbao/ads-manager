@@ -24,7 +24,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose,
 } from "@/components/ui/dialog";
 import type { RsaAd, RsaLine, RsaEdit } from "@/lib/search/rsa";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import type { MessageKey } from "@/lib/i18n/messages";
 
 type Company = string;
@@ -86,6 +86,7 @@ function EditResultCard({ edit, phase }: { edit: RsaEdit; phase: "validate" | "w
 // ── Một dòng trong bảng lines ──
 
 function LinesTable({ lines, weakKeys }: { lines: RsaLine[]; weakKeys: Set<string> }) {
+  const intl = useIntlLocale();
   const t = useT();
   return (
     <div className="overflow-x-auto rounded-lg border border-slate-100">
@@ -108,10 +109,10 @@ function LinesTable({ lines, weakKeys }: { lines: RsaLine[]; weakKeys: Set<strin
                 {l.text}
                 {l.pinned && <span className="ml-1.5 inline-flex items-center gap-0.5 rounded bg-slate-100 px-1 py-0.5 text-[9px] font-bold text-slate-500"><Pin className="h-2.5 w-2.5" aria-hidden="true" />{t("google.searchRsa.pinned", { pos: l.pinned })}</span>}
               </td>
-              <td className="px-2 py-1 text-right text-slate-500">{num(l.impressions)}</td>
-              <td className="px-2 py-1 text-right text-slate-500">{num(l.clicks)}</td>
-              <td className="px-2 py-1 text-right text-slate-500">{l.ctr === null ? "—" : pct(l.ctr, 2)}</td>
-              <td className="px-2 py-1 text-right text-slate-500">{num(l.conversions, { maximumFractionDigits: 1 })}</td>
+              <td className="px-2 py-1 text-right text-slate-500">{num(l.impressions, undefined, intl)}</td>
+              <td className="px-2 py-1 text-right text-slate-500">{num(l.clicks, undefined, intl)}</td>
+              <td className="px-2 py-1 text-right text-slate-500">{l.ctr === null ? "—" : pct(l.ctr, 2, intl)}</td>
+              <td className="px-2 py-1 text-right text-slate-500">{num(l.conversions, { maximumFractionDigits: 1 }, intl)}</td>
             </tr>
           ))}
         </tbody>
@@ -183,6 +184,7 @@ function AdCard({
 }: {
   ad: RsaAd; company: Company; range: Range; canEdit: boolean; confirmText: string; onApplied: () => void;
 }) {
+  const intl = useIntlLocale();
   const t = useT();
   const confirmId = useId();
   const strength = STRENGTH_META[ad.adStrength] ?? STRENGTH_FALLBACK;
@@ -288,7 +290,7 @@ function AdCard({
           <Badge cls={approval.cls}>{approval.label ? t(approval.label) : approval.raw}</Badge>
         </div>
       </div>
-      <p className="text-[11px] text-slate-500">{t("google.searchRsa.costInRange")}<b className="text-slate-700">{vnd(ad.cost)}</b>{t("google.searchRsa.impressionsSuffix", { n: num(ad.impressions) })}</p>
+      <p className="text-[11px] text-slate-500">{t("google.searchRsa.costInRange")}<b className="text-slate-700">{vnd(ad.cost, intl)}</b>{t("google.searchRsa.impressionsSuffix", { n: num(ad.impressions, undefined, intl) })}</p>
 
       {ad.weak.length > 0 && (
         <div className="space-y-1.5">
@@ -383,6 +385,7 @@ function AdCard({
 // ── Lịch sử sửa RSA ──
 
 function RsaHistoryRow({ h, onUndo }: { h: RsaEdit; onUndo: (id: string) => void }) {
+  const intl = useIntlLocale();
   const t = useT();
   const ok = h.status === "done";
   return (
@@ -391,14 +394,14 @@ function RsaHistoryRow({ h, onUndo }: { h: RsaEdit; onUndo: (id: string) => void
         <span className={cn("flex items-center gap-1 font-semibold", ok ? "text-emerald-700" : "text-red-700")}>
           {ok ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> : <XCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />} {t("google.searchRsa.written")}
         </span>
-        <span className="text-slate-400">{datetimeVN(h.at)}</span>
+        <span className="text-slate-400">{datetimeVN(h.at, intl)}</span>
         <span className="text-slate-500">{h.by}</span>
         <span className="text-slate-400">· {h.label}</span>
       </div>
       {h.changes.length > 0 && <ul className="mt-1.5 list-disc space-y-0.5 pl-4 text-slate-600">{h.changes.map((c, i) => <li key={i}>&ldquo;{c.oldText}&rdquo; → &ldquo;{c.newText}&rdquo;</li>)}</ul>}
       {h.errors.length > 0 && <ul className="mt-1.5 list-disc space-y-0.5 pl-4 text-red-700">{h.errors.map((e, i) => <li key={i}>{e}</li>)}</ul>}
       {h.undoneAt ? (
-        <p className="mt-2 rounded-md border border-slate-200 bg-white p-2 font-semibold text-slate-600">{t("google.searchRsa.undoneAt", { time: datetimeVN(h.undoneAt) })}</p>
+        <p className="mt-2 rounded-md border border-slate-200 bg-white p-2 font-semibold text-slate-600">{t("google.searchRsa.undoneAt", { time: datetimeVN(h.undoneAt, intl) })}</p>
       ) : ok ? (
         <div className="mt-2 flex justify-end">
           <Button variant="destructive" size="sm" className="h-8" onClick={() => onUndo(h.id)}><Undo2 className="h-3.5 w-3.5" aria-hidden="true" /> {t("google.searchRsa.undo")}</Button>

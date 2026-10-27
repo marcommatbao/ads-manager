@@ -7,8 +7,10 @@
 // tsc và eslint đều xanh, chỉ `next build` mới báo. Theo quy ước *.shared.ts
 // sẵn có của repo (lib/budget-redistributor.shared.ts).
 //
-// Ở đây CHỈ được để kiểu và hằng số thuần. Không import gì ngoài kiểu.
+// Ở đây CHỈ được để kiểu và hằng số thuần. Không import gì ngoài kiểu
+// (ngoại lệ: từ điển i18n — thuần, không kéo fs).
 // ============================================================
+import { makeT, type TFunction } from "@/lib/i18n/translate";
 
 /** Kênh hiển thị = 4 kênh đặt được trần + "Kênh khác" (có chi nhưng không đặt trần). */
 export const ANALYSIS_CHANNELS = ["google", "facebook", "tiktok", "zalo", "other"] as const;
@@ -34,6 +36,9 @@ export const MONTH_STATUS_LABEL: Record<MonthStatus, string> = {
   suyt_dat: "Suýt đạt",
   khong_dat: "Không đạt",
 };
+
+/** Nhãn trạng thái tháng theo ngôn ngữ (MONTH_STATUS_LABEL giữ tiếng Việt). */
+export const monthStatusLabel = (s: MonthStatus, t: TFunction = makeT("vi")): string => t(`libcase.r.ms.${s}` as never);
 
 /** Một đại lượng đối chiếu kế hoạch ↔ thực tế. */
 export interface Metric {

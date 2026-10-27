@@ -6,6 +6,7 @@
 
 import type { Campaign } from "@/types/ads.types";
 import { getCompany } from "@/lib/campaign-utils";
+import { makeT, type TFunction } from "@/lib/i18n/translate";
 
 // ─────────────────────────────────────────────
 // Types
@@ -295,7 +296,8 @@ function fmt(v: number): string {
 export function detectAdFatigue(
   campaign: Campaign,
   last7Days: DailyInsight[],
-  last14Days: DailyInsight[]
+  last14Days: DailyInsight[],
+  t: TFunction = makeT("vi")
 ): FatigueAnalysis {
   const objectiveKey = resolveObjective(campaign.objective);
   const bm = FATIGUE_BENCHMARKS[objectiveKey];
@@ -316,8 +318,8 @@ export function detectAdFatigue(
         threshold: bm.cpc.critical,
         weight: 0.35,
         severity: "critical",
-        description: `CPC ₫${fmt(avgCPC)} ≥ ngưỡng tắt ₫${fmt(bm.cpc.critical)}`,
-        action: "Tắt campaign ngay — đã đến kill threshold",
+        description: t("libcase.r.fat.1", { v1: fmt(avgCPC), v2: fmt(bm.cpc.critical) }),
+        action: t("libcase.r.fat.2"),
       });
     } else if (avgCPC >= bm.cpc.warning) {
       score += 18;
@@ -327,8 +329,8 @@ export function detectAdFatigue(
         threshold: bm.cpc.warning,
         weight: 0.18,
         severity: "warning",
-        description: `CPC ₫${fmt(avgCPC)} đang tiến đến ngưỡng tắt ₫${fmt(bm.cpc.critical)}`,
-        action: "Theo dõi sát, chuẩn bị creative mới",
+        description: t("libcase.r.fat.3", { v1: fmt(avgCPC), v2: fmt(bm.cpc.critical) }),
+        action: t("libcase.r.fat.4"),
       });
     }
   }
@@ -352,8 +354,8 @@ export function detectAdFatigue(
       threshold: bm.frequency.critical,
       weight: 0.35,
       severity: "critical",
-      description: `Frequency ${avgFreq.toFixed(1)}x VÀ CTR giảm ${ctrDrop.toFixed(0)}%`,
-      action: "Audience bão hoà — tắt và tạo campaign mới",
+      description: t("libcase.r.fat.5", { v1: avgFreq.toFixed(1), v2: ctrDrop.toFixed(0) }),
+      action: t("libcase.r.fat.6"),
     });
   } else if (
     avgFreq >= bm.frequency.warning &&
@@ -366,8 +368,8 @@ export function detectAdFatigue(
       threshold: bm.frequency.warning,
       weight: 0.2,
       severity: "warning",
-      description: `Frequency ${avgFreq.toFixed(1)}x, CTR giảm ${ctrDrop.toFixed(0)}% — sắp bão hoà`,
-      action: "Chuẩn bị creative backup",
+      description: t("libcase.r.fat.7", { v1: avgFreq.toFixed(1), v2: ctrDrop.toFixed(0) }),
+      action: t("libcase.r.fat.8"),
     });
   } else if (avgFreq >= bm.frequency.critical) {
     // Only frequency is high (no CTR drop data) — still worth noting
@@ -378,8 +380,8 @@ export function detectAdFatigue(
       threshold: bm.frequency.critical,
       weight: 0.15,
       severity: "warning",
-      description: `Frequency ${avgFreq.toFixed(1)}x vượt ngưỡng ${bm.frequency.critical}x`,
-      action: "Mở rộng audience hoặc thêm creative mới",
+      description: t("libcase.r.fat.9", { v1: avgFreq.toFixed(1), v2: bm.frequency.critical }),
+      action: t("libcase.r.fat.10"),
     });
   }
 
@@ -397,8 +399,8 @@ export function detectAdFatigue(
         threshold: bm.ctr.critical,
         weight: 0.2,
         severity: "critical",
-        description: `CTR ${avgCTR.toFixed(2)}% dưới ngưỡng tối thiểu ${bm.ctr.critical}%`,
-        action: "Creative không hấp dẫn với audience này",
+        description: t("libcase.r.fat.11", { v1: avgCTR.toFixed(2), v2: bm.ctr.critical }),
+        action: t("libcase.r.fat.12"),
       });
     } else if (avgCTR < bm.ctr.warning && campaign.metrics.impressions > 5000) {
       score += 10;
@@ -408,7 +410,7 @@ export function detectAdFatigue(
         threshold: bm.ctr.warning,
         weight: 0.1,
         severity: "warning",
-        description: `CTR ${avgCTR.toFixed(2)}% dưới benchmark ${bm.ctr.warning}%`,
+        description: t("libcase.r.fat.13", { v1: avgCTR.toFixed(2), v2: bm.ctr.warning }),
       });
     }
   }
@@ -429,7 +431,7 @@ export function detectAdFatigue(
         threshold: bm.cpm_increase_pct.critical,
         weight: 0.1,
         severity: "warning",
-        description: `CPM tăng ${cpmIncrease.toFixed(0)}% so với tuần trước — audience đang cạn`,
+        description: t("libcase.r.fat.14", { v1: cpmIncrease.toFixed(0) }),
       });
     } else if (cpmIncrease >= bm.cpm_increase_pct.warning) {
       score += 5;
@@ -439,7 +441,7 @@ export function detectAdFatigue(
         threshold: bm.cpm_increase_pct.warning,
         weight: 0.05,
         severity: "info",
-        description: `CPM tăng ${cpmIncrease.toFixed(0)}% — theo dõi`,
+        description: t("libcase.r.fat.15", { v1: cpmIncrease.toFixed(0) }),
       });
     }
   }
@@ -464,7 +466,7 @@ export function detectAdFatigue(
           ? Math.max(2, Math.floor((100 - score) / 8))
           : Math.max(1, Math.floor((100 - score) / 12));
 
-  const recommendedAction = getRecommendation(fatigueLevel, signals, objectiveKey, bm);
+  const recommendedAction = getRecommendation(fatigueLevel, signals, objectiveKey, bm, t);
 
   const urgency: FatigueUrgency =
     fatigueLevel === "critical"
@@ -492,7 +494,7 @@ export function detectAdFatigue(
 // Used when daily insights are not available
 // ─────────────────────────────────────────────
 
-export function quickFatigueCheck(campaign: Campaign): FatigueAnalysis {
+export function quickFatigueCheck(campaign: Campaign, t: TFunction = makeT("vi")): FatigueAnalysis {
   const m = campaign.metrics;
   const objectiveKey = resolveObjective(campaign.objective);
   const bm = FATIGUE_BENCHMARKS[objectiveKey];
@@ -511,8 +513,8 @@ export function quickFatigueCheck(campaign: Campaign): FatigueAnalysis {
         threshold: bm.cpc.critical,
         weight: 0.35,
         severity: "critical",
-        description: `CPC ₫${fmt(m.cpc)} ≥ ngưỡng tắt ₫${fmt(bm.cpc.critical)}`,
-        action: "Tắt campaign ngay — đã đến kill threshold",
+        description: t("libcase.r.fat.16", { v1: fmt(m.cpc), v2: fmt(bm.cpc.critical) }),
+        action: t("libcase.r.fat.2"),
       });
     } else if (m.cpc >= bm.cpc.warning) {
       const score = 18;
@@ -523,8 +525,8 @@ export function quickFatigueCheck(campaign: Campaign): FatigueAnalysis {
         threshold: bm.cpc.warning,
         weight: 0.18,
         severity: "warning",
-        description: `CPC ₫${fmt(m.cpc)} đang tiến đến ngưỡng tắt ₫${fmt(bm.cpc.critical)}`,
-        action: "Theo dõi sát, chuẩn bị creative mới",
+        description: t("libcase.r.fat.17", { v1: fmt(m.cpc), v2: fmt(bm.cpc.critical) }),
+        action: t("libcase.r.fat.4"),
       });
     }
   }
@@ -540,8 +542,8 @@ export function quickFatigueCheck(campaign: Campaign): FatigueAnalysis {
       threshold: bm.frequency.critical,
       weight: 0.25,
       severity: freq >= bm.frequency.critical + 1 ? "critical" : "warning",
-      description: `Frequency ${freq.toFixed(1)}x ≥ ngưỡng ${bm.frequency.critical}x`,
-      action: "Mở rộng audience hoặc refresh creative",
+      description: t("libcase.r.fat.18", { v1: freq.toFixed(1), v2: bm.frequency.critical }),
+      action: t("libcase.r.fat.19"),
     });
   } else if (freq >= bm.frequency.warning) {
     const score = Math.min(12, (freq - bm.frequency.warning) * 8 + 5);
@@ -552,7 +554,7 @@ export function quickFatigueCheck(campaign: Campaign): FatigueAnalysis {
       threshold: bm.frequency.warning,
       weight: 0.12,
       severity: "warning",
-      description: `Frequency ${freq.toFixed(1)}x — sắp đến ngưỡng bão hoà`,
+      description: t("libcase.r.fat.20", { v1: freq.toFixed(1) }),
     });
   }
 
@@ -567,8 +569,8 @@ export function quickFatigueCheck(campaign: Campaign): FatigueAnalysis {
         threshold: bm.ctr.critical,
         weight: 0.2,
         severity: "critical",
-        description: `CTR ${m.ctr.toFixed(2)}% dưới mức tối thiểu ${bm.ctr.critical}%`,
-        action: "Creative không hấp dẫn — cần thay mới",
+        description: t("libcase.r.fat.21", { v1: m.ctr.toFixed(2), v2: bm.ctr.critical }),
+        action: t("libcase.r.fat.22"),
       });
     } else if (m.ctr < bm.ctr.warning) {
       const score = 10;
@@ -579,7 +581,7 @@ export function quickFatigueCheck(campaign: Campaign): FatigueAnalysis {
         threshold: bm.ctr.warning,
         weight: 0.1,
         severity: "warning",
-        description: `CTR ${m.ctr.toFixed(2)}% dưới benchmark ${bm.ctr.warning}%`,
+        description: t("libcase.r.fat.23", { v1: m.ctr.toFixed(2), v2: bm.ctr.warning }),
       });
     }
   }
@@ -594,7 +596,7 @@ export function quickFatigueCheck(campaign: Campaign): FatigueAnalysis {
       threshold: 50000,
       weight: 0.1,
       severity: "warning",
-      description: `CPM ₫${fmt(m.cpm)} cao bất thường`,
+      description: t("libcase.r.fat.24", { v1: fmt(m.cpm) }),
     });
   }
 
@@ -614,8 +616,8 @@ export function quickFatigueCheck(campaign: Campaign): FatigueAnalysis {
         threshold: cplThresholds.critical,
         weight: 0.15,
         severity: "critical",
-        description: `CPL ₫${fmt(cpl)} vượt ngưỡng critical ₫${fmt(cplThresholds.critical)} (${company})`,
-        action: "Pause ngay, tạo creative mới",
+        description: t("libcase.r.fat.25", { v1: fmt(cpl), v2: fmt(cplThresholds.critical), v3: company }),
+        action: t("libcase.r.fat.26"),
       });
     } else if (cpl > cplThresholds.warning) {
       totalScore += 8;
@@ -625,8 +627,8 @@ export function quickFatigueCheck(campaign: Campaign): FatigueAnalysis {
         threshold: cplThresholds.warning,
         weight: 0.08,
         severity: "warning",
-        description: `CPL ₫${fmt(cpl)} tiệm cận ngưỡng ₫${fmt(cplThresholds.warning)} (${company})`,
-        action: "Chuẩn bị creative dự phòng",
+        description: t("libcase.r.fat.27", { v1: fmt(cpl), v2: fmt(cplThresholds.warning), v3: company }),
+        action: t("libcase.r.fat.28"),
       });
     }
   }
@@ -657,7 +659,7 @@ export function quickFatigueCheck(campaign: Campaign): FatigueAnalysis {
     fatigueLevel,
     signals,
     estimatedDaysLeft,
-    recommendedAction: getRecommendation(fatigueLevel, signals, objectiveKey, bm),
+    recommendedAction: getRecommendation(fatigueLevel, signals, objectiveKey, bm, t),
     urgency,
     objective: objectiveKey,
     benchmarkUsed: bm.primary_metric,
@@ -672,7 +674,8 @@ function getRecommendation(
   level: FatigueLevel,
   signals: FatigueSignal[],
   objectiveKey: string,
-  bm: ObjectiveBenchmark
+  bm: ObjectiveBenchmark,
+  t: TFunction = makeT("vi")
 ): string {
   const hasCPCKill = signals.some((s) => s.type === "cpc_critical");
   const hasFreqCTR = signals.some(
@@ -681,20 +684,20 @@ function getRecommendation(
 
   if (level === "critical") {
     if (hasCPCKill) {
-      return `CPC đã chạm ₫${fmt(bm.cpc.critical)} — đúng kill threshold. Tắt campaign này.`;
+      return t("libcase.r.fat.29", { v1: fmt(bm.cpc.critical) });
     }
     if (hasFreqCTR) {
-      return `Frequency cao + CTR giảm mạnh — audience bão hoà. Tắt và clone campaign mới với target mới.`;
+      return t("libcase.r.fat.30");
     }
-    return "Creative cần được thay mới ngay lập tức. Audience đã bão hoà.";
+    return t("libcase.r.fat.31");
   }
   if (level === "fatigued") {
-    return `Đang tiến đến kill threshold. Chuẩn bị creative mới hoặc điều chỉnh audience trong 2-3 ngày.`;
+    return t("libcase.r.fat.32");
   }
   if (level === "warning") {
-    return `Theo dõi sát. Nếu trend tiếp tục xấu trong 2 ngày → hành động.`;
+    return t("libcase.r.fat.33");
   }
-  return `Campaign đang ổn định — tiếp tục theo dõi.`;
+  return t("libcase.r.fat.34");
 }
 
 // ─────────────────────────────────────────────
@@ -747,3 +750,9 @@ export const OBJECTIVE_LABELS: Record<string, string> = {
   VIDEO_VIEWS: "Video Views",
   REACH: "Reach / Awareness",
 };
+
+/** Nhãn huy hiệu theo ngôn ngữ (FATIGUE_BADGES giữ tiếng Việt). */
+export const fatigueBadgeLabel = (level: FatigueLevel, t: TFunction = makeT("vi")): string => t(`libcase.r.fatbadge.${level}` as never);
+/** Nhãn mục tiêu theo ngôn ngữ — chỉ nhãn "Engagement / Tương tác" cần dịch. */
+export const objectiveLabel = (key: string, t: TFunction = makeT("vi")): string =>
+  key === "OUTCOME_ENGAGEMENT" ? t("libcase.r.fatobj.engagement") : (OBJECTIVE_LABELS[key] ?? key);

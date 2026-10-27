@@ -8,11 +8,12 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@
 import type { HealthJob } from "./types";
 import { Badge, JOB_STATUS_META, RISK_META, SCHEDULED_BY_LABEL } from "./badges";
 import { relTime, absTime, truncate } from "./format";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 
 const PROBLEM_STATUSES = new Set(["failed", "missed", "stale"]);
 
 function JobDetailRow({ job }: { job: HealthJob }) {
+  const intl = useIntlLocale();
   const t = useT();
   const lastText = job.lastError ?? job.lastSummary;
   return (
@@ -32,7 +33,7 @@ function JobDetailRow({ job }: { job: HealthJob }) {
           )}
           {job.status === "missed" && job.missedAt && (
             <p className="text-red-700 font-medium">
-              {t("overview.health.jobs.detail.missed", { time: absTime(job.missedAt) })}
+              {t("overview.health.jobs.detail.missed", { time: absTime(job.missedAt, intl) })}
             </p>
           )}
           {!job.enabled && (
@@ -57,6 +58,7 @@ function JobDetailRow({ job }: { job: HealthJob }) {
 }
 
 function JobRow({ job }: { job: HealthJob }) {
+  const intl = useIntlLocale();
   const t = useT();
   const [expanded, setExpanded] = useState(false);
   const meta = JOB_STATUS_META[job.status];
@@ -72,21 +74,21 @@ function JobRow({ job }: { job: HealthJob }) {
         <TableCell>
           <Badge cls={meta.cls}>{t(meta.label)}</Badge>
           {job.status === "missed" && job.missedAt && (
-            <p className="text-[10px] text-red-600 mt-0.5">{t("overview.health.jobs.row.since", { time: absTime(job.missedAt) })}</p>
+            <p className="text-[10px] text-red-600 mt-0.5">{t("overview.health.jobs.row.since", { time: absTime(job.missedAt, intl) })}</p>
           )}
         </TableCell>
         <TableCell className="whitespace-normal max-w-[160px] text-xs text-slate-600">{job.intervalLabel}</TableCell>
         <TableCell className="text-xs text-slate-600">{t(SCHEDULED_BY_LABEL[job.scheduledBy])}</TableCell>
         <TableCell className="text-xs">
-          <p className="text-slate-700">{relTime(job.lastRunAt)}</p>
-          <p className="text-[11px] text-slate-400">{absTime(job.lastRunAt)}</p>
+          <p className="text-slate-700">{relTime(job.lastRunAt, t)}</p>
+          <p className="text-[11px] text-slate-400">{absTime(job.lastRunAt, intl)}</p>
           {summary.short !== "—" && (
             <p className={cn("text-[11px] mt-0.5 truncate max-w-[180px]", job.lastError ? "text-red-500" : "text-slate-400")}>
               {summary.short}
             </p>
           )}
         </TableCell>
-        <TableCell className="text-xs text-slate-600">{absTime(job.nextAt)}</TableCell>
+        <TableCell className="text-xs text-slate-600">{absTime(job.nextAt, intl)}</TableCell>
         <TableCell>
           <div className="flex items-center gap-1.5">
             <Badge cls={RISK_META[job.riskLevel].cls}>{RISK_META[job.riskLevel].label}</Badge>

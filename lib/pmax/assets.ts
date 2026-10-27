@@ -21,6 +21,8 @@ import { checkAdTextPolicy, type PolicyFinding } from "@/lib/google-ads-policy"
 import { stripDiacritics } from "@/lib/case/text"
 import type { Company } from "@/lib/case/types"
 import { customerIdOf, PMAX_CONFIRM_TEXT, PmaxControlError } from "./controls"
+import type { TFunction } from "@/lib/i18n/translate"
+import { viT, nfOf, tk } from "@/lib/google-i18n"
 
 type Row = Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
 const inv = (e: Record<string, unknown>) => Object.fromEntries(Object.entries(e).filter(([, v]) => typeof v === "number").map(([k, v]) => [v as number, k]))
@@ -39,6 +41,7 @@ export const FIELD_LABEL: Record<string, string> = {
   HEADLINE: "Tiêu đề", LONG_HEADLINE: "Tiêu đề dài", DESCRIPTION: "Mô tả", BUSINESS_NAME: "Tên doanh nghiệp", LOGO: "Logo", LANDSCAPE_LOGO: "Logo ngang",
   MARKETING_IMAGE: "Ảnh ngang", SQUARE_MARKETING_IMAGE: "Ảnh vuông", PORTRAIT_MARKETING_IMAGE: "Ảnh dọc", TALL_PORTRAIT_MARKETING_IMAGE: "Ảnh dọc cao", YOUTUBE_VIDEO: "Video YouTube",
 }
+export const fieldLabelT = (f: string, t: TFunction = viT): string => { const k = `libgoogle.pa.fl.${f}`; const v = tk(t, k); return v === k ? f : v }
 /** Tối thiểu / khuyên dùng theo hướng dẫn PMax (09/2026). Logo + tên DN có thể ở cấp chiến dịch (nguyên tắc thương hiệu). */
 export const REQUIRE: { field: string; min: number; recommended: number; brand?: boolean }[] = [
   { field: "HEADLINE", min: 3, recommended: 11 }, { field: "LONG_HEADLINE", min: 1, recommended: 4 }, { field: "DESCRIPTION", min: 2, recommended: 4 },
@@ -64,19 +67,19 @@ export interface GroupHealth {
 }
 
 /** Chấm một asset group — HÀM THUẦN. */
-export function assessGroup(g: Omit<GroupHealth, "missing" | "disapproved" | "weak" | "counts">, brandAtCampaign: Set<string>): GroupHealth {
+export function assessGroup(g: Omit<GroupHealth, "missing" | "disapproved" | "weak" | "counts">, brandAtCampaign: Set<string>, t: TFunction = viT): GroupHealth {
   const counts: Record<string, number> = {}
   for (const a of g.assets) counts[a.field] = (counts[a.field] ?? 0) + 1
   const missing = REQUIRE.flatMap((r) => {
     const have = (counts[r.field] ?? 0) + (r.field === "LOGO" ? counts.LANDSCAPE_LOGO ?? 0 : 0)
     if (r.brand && brandAtCampaign.has(r.field)) return []
     if (have >= r.recommended) return []
-    return [{ field: r.field, label: FIELD_LABEL[r.field] ?? r.field, have, need: have < r.min ? r.min : r.recommended, required: have < r.min }]
+    return [{ field: r.field, label: fieldLabelT(r.field, t), have, need: have < r.min ? r.min : r.recommended, required: have < r.min }]
   })
   const disapproved = g.assets.filter((a) => a.approval === "DISAPPROVED" || a.approval === "AREA_OF_INTEREST_ONLY" || a.approval === "APPROVED_LIMITED")
   const weak: GroupHealth["weak"] = []
-  for (const t of TEXT_TYPES) {
-    const xs = g.assets.filter((a) => a.field === t && a.impressions > 0)
+  for (const tt of TEXT_TYPES) {
+    const xs = g.assets.filter((a) => a.field === tt && a.impressions > 0)
     const total = xs.reduce((s, a) => s + a.impressions, 0)
     const rated = xs.filter((a) => a.impressions >= WEAK_MIN_IMPR)
     if (rated.length < 3) continue
@@ -85,14 +88,14 @@ export function assessGroup(g: Omit<GroupHealth, "missing" | "disapproved" | "we
     for (const a of rated) {
       const ctr = a.clicks / a.impressions
       if (a.inTop || ctr >= WEAK_CTR_X * med || a.impressions < WEAK_MIN_SHARE * total) continue
-      weak.push({ ...a, why: `${FIELD_LABEL[t]} hiển thị ${a.impressions.toLocaleString("vi-VN")} lần, tỉ lệ bấm ${(ctr * 100).toFixed(2)}% < ${Math.round(WEAK_CTR_X * 100)}% mức giữa (${(med * 100).toFixed(2)}%), không nằm trong tổ hợp thắng` })
+      weak.push({ ...a, why: t("libgoogle.pa.weakWhy", { kind: fieldLabelT(tt, t), impr: a.impressions.toLocaleString(nfOf(t)), ctr: (ctr * 100).toFixed(2), x: Math.round(WEAK_CTR_X * 100), med: (med * 100).toFixed(2) }) })
     }
   }
   weak.sort((a, b) => b.impressions - a.impressions)
   return { ...g, counts, missing, disapproved, weak }
 }
 
-export async function readAssetHealth(company: Company, range: { from: string; to: string }): Promise<{ groups: GroupHealth[]; errors: string[] }> {
+export async function readAssetHealth(company: Company, range: { from: string; to: string }, t: TFunction = viT): Promise<{ groups: GroupHealth[]; errors: string[] }> {
   const c = getGoogleAdsCustomer(company)
   const errors: string[] = []
   const q = async (label: string, g: string): Promise<Row[]> => { try { return (await c.query(g)) as Row[] } catch (e) { errors.push(`${label}: ${googleAdsErrorMessage(e)}`); return [] } }
@@ -132,7 +135,7 @@ export async function readAssetHealth(company: Company, range: { from: string; t
     })
     return assessGroup({ campaignId: String(g.campaign.id), campaignName: String(g.campaign.name), id: gid, resourceName: String(g.asset_group.resource_name), name: String(g.asset_group.name),
       finalUrls: (g.asset_group.final_urls ?? []).map(String), adStrength: name(AS, g.asset_group.ad_strength), status: name(AGPS, g.asset_group.primary_status),
-      statusReasons: ((g.asset_group.primary_status_reasons ?? []) as unknown[]).map((v) => name(AGPSR, v)), assets }, brandBy.get(String(g.campaign.id)) ?? new Set())
+      statusReasons: ((g.asset_group.primary_status_reasons ?? []) as unknown[]).map((v) => name(AGPSR, v)), assets }, brandBy.get(String(g.campaign.id)) ?? new Set(), t)
   })
   return { groups: out, errors }
 }
@@ -142,35 +145,35 @@ export async function readAssetHealth(company: Company, range: { from: string; t
 export interface Replacement { link: string; field: TextType; oldText: string; options: { text: string; findings: PolicyFinding[] }[]; rejected: string[] }
 
 /** Kiểm một phương án: độ dài, trùng chữ đang có, luật Google máy kiểm được. HÀM THUẦN. */
-export function vetOption(text: string, field: TextType, existing: string[]): { ok: boolean; reason?: string; findings: PolicyFinding[] } {
+export function vetOption(text: string, field: TextType, existing: string[], tr: TFunction = viT): { ok: boolean; reason?: string; findings: PolicyFinding[] } {
   const t = text.trim().replace(/\s+/g, " ")
-  if (!t) return { ok: false, reason: "rỗng", findings: [] }
-  if ([...t].length > TEXT_LIMIT[field]) return { ok: false, reason: `dài ${[...t].length}/${TEXT_LIMIT[field]} ký tự`, findings: [] }
+  if (!t) return { ok: false, reason: tr("libgoogle.pa.reasonEmpty"), findings: [] }
+  if ([...t].length > TEXT_LIMIT[field]) return { ok: false, reason: tr("libgoogle.pa.reasonLong", { n: [...t].length, max: TEXT_LIMIT[field] }), findings: [] }
   const k = stripDiacritics(t)
-  if (existing.some((e) => stripDiacritics(e) === k)) return { ok: false, reason: "trùng chữ đang có", findings: [] }
+  if (existing.some((e) => stripDiacritics(e) === k)) return { ok: false, reason: tr("libgoogle.pa.reasonDup"), findings: [] }
   const r = checkAdTextPolicy(field === "DESCRIPTION" ? { headlines: [], descriptions: [t] } : { headlines: [t], descriptions: [] })
   if (r.findings.some((f) => f.severity === "block")) return { ok: false, reason: r.findings.filter((f) => f.severity === "block").map((f) => f.rule).join(", "), findings: r.findings }
   return { ok: true, findings: r.findings }
 }
 
-export async function draftReplacements(company: Company, groupId: string, links: string[], range: { from: string; to: string }): Promise<{ group: string; items: Replacement[] }> {
-  const { groups } = await readAssetHealth(company, range)
+export async function draftReplacements(company: Company, groupId: string, links: string[], range: { from: string; to: string }, t: TFunction = viT): Promise<{ group: string; items: Replacement[] }> {
+  const { groups } = await readAssetHealth(company, range, t)
   const g = groups.find((x) => x.id === groupId)
-  if (!g) throw new PmaxControlError("Không thấy asset group", 404)
+  if (!g) throw new PmaxControlError(t("libgoogle.pa.errNoGroup"), 404)
   const targets = g.assets.filter((a) => links.includes(a.link) && (TEXT_TYPES as readonly string[]).includes(a.field) && a.text)
-  if (!targets.length) throw new PmaxControlError("Chưa chọn asset chữ nào")
-  if (targets.length > 10) throw new PmaxControlError("Tối đa 10 asset một lần")
+  if (!targets.length) throw new PmaxControlError(t("libgoogle.pa.errNoText"))
+  if (targets.length > 10) throw new PmaxControlError(t("libgoogle.pa.errMax10"))
   const strong = (f: string) => g.assets.filter((a) => a.field === f && a.text && a.ctr != null && a.impressions >= WEAK_MIN_IMPR).sort((a, b) => (b.ctr ?? 0) - (a.ctr ?? 0)).slice(0, 5).map((a) => a.text)
   const existing = g.assets.filter((a) => a.text).map((a) => a.text!)
   const r = await geminiRewrite({ company, kind: "Performance Max", context: `Asset group: "${g.name}" — trang đích: ${g.finalUrls[0] ?? "(không rõ)"}`,
     strong: { HEADLINE: strong("HEADLINE"), LONG_HEADLINE: strong("LONG_HEADLINE"), DESCRIPTION: strong("DESCRIPTION") } as Record<TextType, string[]>,
-    targets: targets.map((a) => ({ field: a.field as TextType, text: a.text! })), existing })
+    targets: targets.map((a) => ({ field: a.field as TextType, text: a.text! })), existing, t })
   const items: Replacement[] = targets.map((a, idx) => ({ link: a.link, field: a.field as TextType, oldText: a.text!, ...r[idx] }))
   return { group: g.name, items }
 }
 
 /** Gemini viết 3 phương án/dòng theo giọng các dòng đang được bấm nhiều → kiểm độ dài, trùng, luật. Dùng chung PMax + Search RSA. */
-export async function geminiRewrite(input: { company: Company; kind: string; context: string; strong: Partial<Record<TextType, string[]>>; targets: { field: TextType; text: string }[]; existing: string[] }): Promise<{ options: { text: string; findings: PolicyFinding[] }[]; rejected: string[] }[]> {
+export async function geminiRewrite(input: { company: Company; kind: string; context: string; strong: Partial<Record<TextType, string[]>>; targets: { field: TextType; text: string }[]; existing: string[]; t?: TFunction }): Promise<{ options: { text: string; findings: PolicyFinding[] }[]; rejected: string[] }[]> {
   const L: Record<TextType, string> = { HEADLINE: "Tiêu đề", LONG_HEADLINE: "Tiêu đề dài", DESCRIPTION: "Mô tả" }
   // Đợt 21 A3: hồ sơ doanh nghiệp (null = MBC/MBI chưa lưu hồ sơ → chuỗi cũ y nguyên).
   const bp = brandOverride(input.company)
@@ -188,7 +191,7 @@ Trả JSON: {"items":[{"i":1,"options":["...","...","..."]}]}`
     const options: { text: string; findings: PolicyFinding[] }[] = [], rejected: string[] = []
     for (const o of raw) {
       const t = String(o ?? "").trim().replace(/\s+/g, " ")
-      const v = vetOption(t, a.field, [...input.existing, ...options.map((x) => x.text)])
+      const v = vetOption(t, a.field, [...input.existing, ...options.map((x) => x.text)], input.t ?? viT)
       if (v.ok) options.push({ text: t, findings: v.findings }); else if (t) rejected.push(`"${t}" — ${v.reason}`)
     }
     return { options, rejected }
@@ -204,9 +207,9 @@ function readLog(): SwapExecution[] { try { return JSON.parse(fs.readFileSync(FI
 function writeLog(l: SwapExecution[]) { fs.mkdirSync(path.dirname(FILE), { recursive: true }); writeFileAtomicSync(FILE, JSON.stringify(l.slice(-300), null, 1)) }
 export const listSwaps = (co: Company) => readLog().filter((e) => e.company === co).reverse().slice(0, 30)
 
-export async function applySwaps(input: { company: Company; swaps: { link: string; newText: string }[]; actor: string; validateOnly: boolean; confirmText?: string }): Promise<SwapExecution> {
-  if (!input.validateOnly && input.confirmText?.trim() !== PMAX_CONFIRM_TEXT) throw new PmaxControlError(`Gõ đúng “${PMAX_CONFIRM_TEXT}” để ghi lên tài khoản thật`)
-  if (!input.swaps.length || input.swaps.length > 20) throw new PmaxControlError("Chọn 1–20 asset để thay")
+export async function applySwaps(input: { company: Company; swaps: { link: string; newText: string }[]; actor: string; validateOnly: boolean; confirmText?: string }, t: TFunction = viT): Promise<SwapExecution> {
+  if (!input.validateOnly && input.confirmText?.trim() !== PMAX_CONFIRM_TEXT) throw new PmaxControlError(t("libgoogle.sc.errConfirm", { text: PMAX_CONFIRM_TEXT }))
+  if (!input.swaps.length || input.swaps.length > 20) throw new PmaxControlError(t("libgoogle.pa.errRange"))
   const c = getGoogleAdsCustomer(input.company)
   const cust = customerIdOf(input.company)
   // Đọc lại liên kết TƯƠI từ Google (không tin client): còn bật, đúng loại chữ, đúng tài khoản.
@@ -216,9 +219,9 @@ export async function applySwaps(input: { company: Company; swaps: { link: strin
   for (const s of input.swaps) {
     const r = rows.find((x) => x.asset_group_asset.resource_name === s.link)
     const field = r ? name(FT, r.asset_group_asset.field_type) : ""
-    if (!r || name(inv(enums.AssetLinkStatus as unknown as Record<string, unknown>), r.asset_group_asset.status) !== "ENABLED") { exec.errors.push(`Liên kết ${s.link.split("/").pop()} không còn bật — tải lại`); continue }
-    if (!(TEXT_TYPES as readonly string[]).includes(field)) { exec.errors.push(`${s.link.split("/").pop()}: chỉ thay được asset chữ`); continue }
-    const v = vetOption(s.newText, field as TextType, [])
+    if (!r || name(inv(enums.AssetLinkStatus as unknown as Record<string, unknown>), r.asset_group_asset.status) !== "ENABLED") { exec.errors.push(t("libgoogle.pa.errLinkOff", { id: String(s.link.split("/").pop()) })); continue }
+    if (!(TEXT_TYPES as readonly string[]).includes(field)) { exec.errors.push(t("libgoogle.pa.errTextOnly", { id: String(s.link.split("/").pop()) })); continue }
+    const v = vetOption(s.newText, field as TextType, [], t)
     if (!v.ok) { exec.errors.push(`"${s.newText}": ${v.reason}`); continue }
     exec.items.push({ assetGroup: String(r.asset_group_asset.asset_group), field: field as TextType, oldLink: s.link, oldAsset: String(r.asset.resource_name), oldText: String(r.asset.text_asset?.text ?? ""), newText: s.newText.trim().replace(/\s+/g, " ") })
   }
@@ -228,7 +231,7 @@ export async function applySwaps(input: { company: Company; swaps: { link: strin
     { entity: "asset_group_asset", operation: "create", resource: { asset_group: it.assetGroup, asset: `customers/${cust}/assets/${-(i + 1)}`, field_type: (enums.AssetFieldType as unknown as Record<string, number>)[it.field] } },
     { entity: "asset_group_asset", operation: "remove", resource: it.oldLink },
   ])
-  try { await c.mutateResources(ops as never, { validate_only: true } as never) } catch (e) { exec.errors.push(`Google từ chối khi kiểm — CHƯA ghi gì: ${googleAdsErrorMessage(e)}`); return exec }
+  try { await c.mutateResources(ops as never, { validate_only: true } as never) } catch (e) { exec.errors.push(t("libgoogle.pa.errValidate", { msg: googleAdsErrorMessage(e) })); return exec }
   if (input.validateOnly) { exec.status = "done"; return exec }
   return withFileLock(FILE, async () => {
     try {
@@ -238,14 +241,14 @@ export async function applySwaps(input: { company: Company; swaps: { link: strin
         it.newAsset = resp[i * 3]?.asset_result?.resource_name
         it.newLink = resp[i * 3 + 1]?.asset_group_asset_result?.resource_name
       })
-    } catch (e) { exec.errors.push(`Lỗi khi ghi — Google không ghi gì: ${googleAdsErrorMessage(e)}`) }
+    } catch (e) { exec.errors.push(t("libgoogle.pa.errWrite", { msg: googleAdsErrorMessage(e) })) }
     if (!exec.errors.length) {
       try {
         const agNames = [...new Set(exec.items.map((i) => `'${i.assetGroup}'`))].join(",")
         const now = (await c.query(`SELECT asset_group_asset.resource_name, asset_group_asset.status, asset.text_asset.text FROM asset_group_asset WHERE asset_group_asset.asset_group IN (${agNames}) AND asset_group_asset.status = 'ENABLED'`)) as Row[]
         const live = new Set(now.map((r) => String(r.asset_group_asset.resource_name)))
         exec.readback = exec.items.map((it) => ({ label: `“${it.oldText}” → “${it.newText}”`, ok: !live.has(it.oldLink) && !!it.newLink && live.has(it.newLink) }))
-      } catch (e) { exec.errors.push(`Đã ghi nhưng không đọc lại được: ${googleAdsErrorMessage(e)}`) }
+      } catch (e) { exec.errors.push(t("libgoogle.sc.errReadback", { msg: googleAdsErrorMessage(e) })) }
     }
     exec.status = !exec.errors.length && exec.readback.every((r) => r.ok) ? "done" : "failed"
     writeLog([...readLog(), exec])
@@ -254,21 +257,21 @@ export async function applySwaps(input: { company: Company; swaps: { link: strin
 }
 
 /** Hoàn tác: gắn lại asset cũ (asset vẫn còn trong tài khoản) + gỡ asset mới — một lệnh. */
-export async function undoSwaps(company: Company, id: string, actor: string): Promise<SwapExecution> {
+export async function undoSwaps(company: Company, id: string, actor: string, t: TFunction = viT): Promise<SwapExecution> {
   return withFileLock(FILE, async () => {
     const log = readLog()
     const ex = log.find((e) => e.id === id && e.company === company)
-    if (!ex || ex.mode !== "write") throw new PmaxControlError("Không tìm thấy lần thay", 404)
-    if (ex.undoneAt) throw new PmaxControlError("Đã hoàn tác rồi", 409)
+    if (!ex || ex.mode !== "write") throw new PmaxControlError(t("libgoogle.pa.errNoSwap"), 404)
+    if (ex.undoneAt) throw new PmaxControlError(t("libgoogle.rsa.errUndone"), 409)
     const c = getGoogleAdsCustomer(company)
     const items = ex.items.filter((i) => i.newLink)
     const ops = items.flatMap((it) => [
       { entity: "asset_group_asset", operation: "remove", resource: it.newLink },
       { entity: "asset_group_asset", operation: "create", resource: { asset_group: it.assetGroup, asset: it.oldAsset, field_type: (enums.AssetFieldType as unknown as Record<string, number>)[it.field] } },
     ])
-    if (!ops.length) throw new PmaxControlError("Không có gì để hoàn tác")
-    try { await c.mutateResources(ops as never) } catch (e) { throw new PmaxControlError(`Chưa hoàn tác được — Google từ chối (không đổi gì): ${googleAdsErrorMessage(e)}`, 502) }
-    ex.undoneAt = new Date().toISOString(); ex.undoReport = [`${actor}: trả lại ${items.length} asset cũ`]
+    if (!ops.length) throw new PmaxControlError(t("libgoogle.sc.errNothingUndo"))
+    try { await c.mutateResources(ops as never) } catch (e) { throw new PmaxControlError(t("libgoogle.pa.errUndoGoogle", { msg: googleAdsErrorMessage(e) }), 502) }
+    ex.undoneAt = new Date().toISOString(); ex.undoReport = [t("libgoogle.pa.undoReport", { actor, n: items.length })]
     writeLog(log)
     return ex
   })

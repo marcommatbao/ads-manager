@@ -7,7 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { CreativeTypeBadge } from "./CreativeTypeBadge";
 import { CreativeStatusBadge } from "./CreativeStatusBadge";
 import { cn, formatCurrency, formatNumber } from "@/lib/utils";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import type { CreativeItem } from "@/types/creative-content.types";
 
 function formatShortDate(iso: string): string {
@@ -25,6 +25,7 @@ interface CreativeCardProps {
 }
 
 export function CreativeCard({ item, currency, selected, onToggleSelect, onViewDetail }: CreativeCardProps) {
+  const intl = useIntlLocale();
   const t = useT();
   const preview = item.primaryText || (item.descriptions ?? []).join(" · ") || t("creative.adsContent.card.noPreview");
 
@@ -97,8 +98,8 @@ export function CreativeCard({ item, currency, selected, onToggleSelect, onViewD
         <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
           {item.metrics.metricsAvailable ? (
             <>
-              <span className="font-medium text-slate-700">{formatCurrency(item.metrics.spend, currency, false)}</span>
-              <span>{t("creative.adsContent.card.clicks", { n: formatNumber(item.metrics.clicks) })}</span>
+              <span className="font-medium text-slate-700">{formatCurrency(item.metrics.spend, currency, false, intl)}</span>
+              <span>{t("creative.adsContent.card.clicks", { n: formatNumber(item.metrics.clicks, intl) })}</span>
             </>
           ) : (
             <span className="italic text-slate-400">{t("creative.adsContent.card.campaignLevelSpend")}</span>

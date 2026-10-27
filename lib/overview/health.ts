@@ -15,7 +15,8 @@ import { lastDays } from "@/lib/case/dates"
 import type { Company } from "@/lib/case/types"
 import { metaHealth, type MetaHealth } from "@/lib/measure/meta-health"
 import { tagDoctor, type TagDoctorReport } from "@/lib/measure/tag-doctor"
-import { lastStatuses, type LeadFlowStatus } from "@/lib/monitor/lead-flow"
+import { lastStatuses, leadFlowMessage, type LeadFlowStatus } from "@/lib/monitor/lead-flow"
+import { makeT, type TFunction } from "@/lib/i18n/translate"
 import { pmaxXray, type PmaxXray } from "@/lib/pmax/xray"
 
 export type CardTone = "ok" | "warn" | "bad" | "unknown"
@@ -32,7 +33,6 @@ type Settled<T> = { ok: true; value: T } | { ok: false; error: string }
 const settle = async <T,>(p: Promise<T>): Promise<Settled<T>> => {
   try { return { ok: true, value: await p } } catch (e) { return { ok: false, error: e instanceof Error ? e.message : String(e) } }
 }
-const vnd = (n: number) => `₫${Math.round(n).toLocaleString("vi-VN")}`
 const worst = (ts: CardTone[]): CardTone => (ts.includes("bad") ? "bad" : ts.includes("warn") ? "warn" : ts.includes("unknown") ? "unknown" : "ok")
 
 /** Hàm thuần: kết quả từng nguồn → thẻ + danh sách ưu tiên + lưu ý. */
@@ -48,7 +48,12 @@ export function buildHealthOverview(input: {
   /** Đợt 10a — PMax X-quang 30 ngày theo công ty. */
   pmax?: Record<string, Settled<PmaxXray>>
   now?: Date
+  /** Ngôn ngữ hiển thị (mặc định tiếng Việt). */
+  t?: TFunction
 }): HealthOverview {
+  const t = input.t ?? makeT("vi")
+  const loc = t("libcase.r.numLocale")
+  const vnd = (n: number) => `₫${Math.round(n).toLocaleString(loc)}`
   const cards: StatusCard[] = []
   const fixes: FixItem[] = []
   const notes: string[] = []
@@ -67,15 +72,15 @@ export function buildHealthOverview(input: {
       const bad = x.account.warnings.filter((w) => w.level === "bad")
       const brand = x.cannibalization.pmaxClicks >= 30 ? x.cannibalization.brandShare : 0
       tones.push(bad.length ? "bad" : brand >= 0.4 ? "warn" : "ok")
-      parts.push(`${co}: chi ₫${Math.round(x.account.totals.cost).toLocaleString("vi-VN")} · ${Math.round(x.account.totals.convClick)} đơn từ lượt bấm, ${Math.round(x.account.totals.convEngaged)} sau lượt xem${brand >= 0.4 ? ` · ${Math.round(brand * 100)}% lượt bấm tìm kiếm là tìm thương hiệu` : ""}`)
+      parts.push(`${co}: ${t("libcase.r.health.1", { cost: Math.round(x.account.totals.cost).toLocaleString(loc), conv: Math.round(x.account.totals.convClick), eng: Math.round(x.account.totals.convEngaged) })}${brand >= 0.4 ? t("libcase.r.health.2", { pct: Math.round(brand * 100) }) : ""}`)
       for (const w of bad) fixes.push({
         id: `pmax_${co}_${w.id}`, rank: "money", company: co, money: 0,
         title: `${co} · PMax: ${w.text.split(";")[0]}`, why: w.text,
-        suggestion: "Xem PMax X-quang; đo tăng thật bằng thí nghiệm trước khi đổi cách tính đơn (Đợt 10c).",
-        href: "/google-pmax?tab=xray", hrefLabel: "Mở PMax X-quang",
+        suggestion: t("libcase.r.health.3"),
+        href: "/google-pmax?tab=xray", hrefLabel: t("libcase.r.health.4"),
       })
     }
-    if (parts.length || err) cards.push({ id: "pmax", title: "PMax", tone: worst(tones.length ? tones : ["unknown"]), text: parts.join(" · ") || "Không đọc được", href: "/google-pmax?tab=xray", error: err })
+    if (parts.length || err) cards.push({ id: "pmax", title: "PMax", tone: worst(tones.length ? tones : ["unknown"]), text: parts.join(" · ") || t("libcase.r.health.5"), href: "/google-pmax?tab=xray", error: err })
   }
 
   // ── Đường lead: form trên web ↔ lead trong CRM ──
@@ -83,13 +88,13 @@ export function buildHealthOverview(input: {
     const flows = (input.leadFlows ?? []).filter((f) => cos.includes(f.flow.company))
     if (flows.length) {
       const tone = worst(flows.map((f) => (f.status === "broken" ? "bad" : f.status === "error" ? "unknown" : "ok")))
-      cards.push({ id: "leads", title: "Đường lead", tone, href: "/?tab=health#duong-lead",
-        text: flows.map((f) => `${f.flow.label}: ${f.status === "broken" ? "✕ " : f.status === "error" ? "? " : "✓ "}${f.message}`).join(" · ") })
+      cards.push({ id: "leads", title: t("libcase.r.health.6"), tone, href: "/?tab=health#duong-lead",
+        text: flows.map((f) => `${f.flow.label}: ${f.status === "broken" ? "✕ " : f.status === "error" ? "? " : "✓ "}${leadFlowMessage(f, t)}`).join(" · ") })
       for (const f of flows.filter((x) => x.status === "broken")) fixes.push({
         id: `lead_flow_${f.flow.id}`, rank: "measurement", company: f.flow.company,
-        title: `Lead có thể đang mất — ${f.flow.label}`,
-        why: f.message, suggestion: "Báo đội web/CRM kiểm đường gửi form → CRM ngay và lấy lại các lượt gửi form từ lúc đứt.",
-        href: "/?tab=health#duong-lead", hrefLabel: "Xem đường lead",
+        title: t("libcase.r.health.7", { label: f.flow.label }),
+        why: leadFlowMessage(f, t), suggestion: t("libcase.r.health.8"),
+        href: "/?tab=health#duong-lead", hrefLabel: t("libcase.r.health.9"),
       })
     }
   }
@@ -100,24 +105,24 @@ export function buildHealthOverview(input: {
     let err: string | undefined
     for (const co of cos) {
       const m = input.meta[co]
-      if (!m?.ok) { tones.push("unknown"); err = m?.error; parts.push(`${co}: không đọc được`); continue }
+      if (!m?.ok) { tones.push("unknown"); err = m?.error; parts.push(t("libcase.r.health.10", { co })); continue }
       const probs = m.value.products.flatMap((p) => p.optEvents.map((e) => ({ p, e }))).filter(({ e }) => e.status === "dead" || e.status === "low" || e.allFail || e.adsLow)
       const landing = m.value.landing.filter((l) => l.flagged).length
       const nv = m.value.noValue.length
       tones.push(probs.length || nv ? "bad" : landing ? "warn" : "ok")
-      parts.push(`${co}: ${probs.length} sự kiện tối ưu có vấn đề · ${nv} chiến dịch lượt mua ₫0 · ${landing} chiến dịch click→trang < 30%`)
+      parts.push(t("libcase.r.health.11", { co, probs: probs.length, nv, landing }))
       for (const { p, e } of probs.slice(0, 3)) {
         fixes.push({
           id: `meta_opt_${co}_${p.group}_${e.label}`, rank: "measurement", company: co,
-          title: `${co} · ${p.label}: nhóm quảng cáo tối ưu theo “${e.label}”${e.custom ? " (tự đặt)" : ""} — Meta chỉ tính ${e.adsAttributed} lượt từ quảng cáo`,
-          why: "Meta không có đủ tín hiệu để học → phân phối gần như mò, mọi con số chi phí/đơn đều kém tin cậy.",
-          suggestion: e.custom ? "Tạo nhóm mới tối ưu theo sự kiện CHUẨN đủ số (mở phiên xử lý → bước 5 “Tạo nhóm mới”)." : "Gộp nhóm/chiến dịch để đủ ~50 sự kiện/tuần, hoặc tạo nhóm mới theo sự kiện chuẩn sâu nhất đủ số.",
-          href: "/xu-ly", hrefLabel: "Mở phiên xử lý",
+          title: t("libcase.r.health.12", { co, label: p.label, event: e.label, custom: e.custom ? t("libcase.r.health.13") : "", n: e.adsAttributed }),
+          why: t("libcase.r.health.14"),
+          suggestion: e.custom ? t("libcase.r.health.15") : t("libcase.r.health.16"),
+          href: "/xu-ly", hrefLabel: t("libcase.r.health.17"),
         })
       }
-      if (m.value.links.postUnreadable > 0) notes.push(`${co}: ${m.value.links.postUnreadable} quảng cáo bài viết chưa đọc được link — Trang chưa có token (Cài đặt → Kết nối → Trang Facebook).`)
+      if (m.value.links.postUnreadable > 0) notes.push(t("libcase.r.health.18", { co, n: m.value.links.postUnreadable }))
     }
-    cards.push({ id: "meta", title: "Đo lường Meta", tone: worst(tones), text: parts.join(" · "), href: "/do-luong", error: err })
+    cards.push({ id: "meta", title: t("libcase.r.health.19"), tone: worst(tones), text: parts.join(" · "), href: "/do-luong", error: err })
   }
 
   // ── Đo lường Google + Gắn thẻ (cùng nguồn Chẩn đoán gắn thẻ) ──
@@ -125,28 +130,28 @@ export function buildHealthOverview(input: {
     const gParts: string[] = [], gTones: CardTone[] = [], tParts: string[] = [], tTones: CardTone[] = []
     let err: string | undefined
     for (const co of cos) {
-      const t = input.tags[co]
-      if (!t?.ok) { gTones.push("unknown"); tTones.push("unknown"); err = t?.error; gParts.push(`${co}: không đọc được`); tParts.push(`${co}: không đọc được`); continue }
-      const gIssues = t.value.issues.filter((i) => i.platform === "google")
-      const tIssues = t.value.issues.filter((i) => i.platform !== "google")
+      const tg = input.tags[co]
+      if (!tg?.ok) { gTones.push("unknown"); tTones.push("unknown"); err = tg?.error; gParts.push(t("libcase.r.health.10", { co })); tParts.push(t("libcase.r.health.10", { co })); continue }
+      const gIssues = tg.value.issues.filter((i) => i.platform === "google")
+      const tIssues = tg.value.issues.filter((i) => i.platform !== "google")
       gTones.push(gIssues.some((i) => i.severity === "bad") ? "bad" : gIssues.length ? "warn" : "ok")
       tTones.push(tIssues.some((i) => i.severity === "bad") ? "bad" : tIssues.length ? "warn" : "ok")
-      gParts.push(gIssues.length ? `${co}: ${gIssues[0].title}` : `${co}: ✓ không có lỗi`)
-      tParts.push(tIssues.length ? `${co}: ${tIssues.length} vấn đề (${tIssues.filter((i) => i.severity === "bad").length} nghiêm trọng)` : `${co}: ✓ sạch`)
+      gParts.push(gIssues.length ? `${co}: ${gIssues[0].title}` : t("libcase.r.health.20", { co }))
+      tParts.push(tIssues.length ? t("libcase.r.health.21", { co, n: tIssues.length, bad: tIssues.filter((i) => i.severity === "bad").length }) : t("libcase.r.health.22", { co }))
       // Google: sửa trigger/hành động chính TRƯỚC, đổi mục tiêu SAU.
       const silent = gIssues.filter((i) => i.id.startsWith("google_primary_silent_"))
       const goal = gIssues.find((i) => i.id === "google_goal_not_purchase")
-      for (const i of silent) fixes.push({ id: `${co}_${i.id}`, rank: "measurement", company: co, title: `${co} · ${i.title}`, why: "Hành động Mua hàng chính không ghi nhận → Google không có tín hiệu đơn thật.", suggestion: i.steps[0] ?? i.detail, href: "/do-luong?tab=tags", hrefLabel: "Chẩn đoán gắn thẻ" })
+      for (const i of silent) fixes.push({ id: `${co}_${i.id}`, rank: "measurement", company: co, title: `${co} · ${i.title}`, why: t("libcase.r.health.23"), suggestion: i.steps[0] ?? i.detail, href: "/do-luong?tab=tags", hrefLabel: t("libcase.r.health.24") })
       if (goal) fixes.push({
         id: `${co}_${goal.id}`, rank: "measurement", company: co, title: `${co} · ${goal.title}`,
-        why: "Mọi chiến dịch dùng mục tiêu tài khoản đang tối ưu để có người thêm giỏ/bắt đầu thanh toán, không phải người mua.",
-        suggestion: silent.length ? "Sửa lỗi hành động Mua hàng chính ở trên TRƯỚC; khi có số ổn định ≥ 7 ngày mới đổi mục tiêu (nút Sửa trên Google)." : "Đổi mục tiêu đặt giá sang Mua hàng (nút Sửa trên Google, có Kiểm trước và hoàn tác).",
-        href: "/do-luong?tab=tags", hrefLabel: "Sửa trên Google",
+        why: t("libcase.r.health.25"),
+        suggestion: silent.length ? t("libcase.r.health.26") : t("libcase.r.health.27"),
+        href: "/do-luong?tab=tags", hrefLabel: t("libcase.r.health.28"),
       })
-      for (const i of tIssues.filter((x) => x.severity === "bad").slice(0, 2)) fixes.push({ id: `${co}_${i.id}`, rank: "measurement", company: co, title: `${co} · ${i.title}`, why: i.detail, suggestion: i.steps[0] ?? "", href: "/do-luong?tab=tags", hrefLabel: "Chẩn đoán gắn thẻ" })
+      for (const i of tIssues.filter((x) => x.severity === "bad").slice(0, 2)) fixes.push({ id: `${co}_${i.id}`, rank: "measurement", company: co, title: `${co} · ${i.title}`, why: i.detail, suggestion: i.steps[0] ?? "", href: "/do-luong?tab=tags", hrefLabel: t("libcase.r.health.24") })
     }
-    cards.push({ id: "google", title: "Đo lường Google", tone: worst(gTones), text: gParts.join(" · "), href: "/do-luong?tab=google", error: err })
-    cards.push({ id: "tags", title: "Gắn thẻ", tone: worst(tTones), text: tParts.join(" · "), href: "/do-luong?tab=tags", error: err })
+    cards.push({ id: "google", title: t("libcase.r.health.29"), tone: worst(gTones), text: gParts.join(" · "), href: "/do-luong?tab=google", error: err })
+    cards.push({ id: "tags", title: t("libcase.r.health.30"), tone: worst(tTones), text: tParts.join(" · "), href: "/do-luong?tab=tags", error: err })
   }
 
   // ── Chiến dịch (Google + Facebook, chấm theo mục tiêu sản phẩm) ──
@@ -157,7 +162,7 @@ export function buildHealthOverview(input: {
     let judged = 0, noTarget = 0
     for (const co of cos) for (const pf of ["google", "facebook"]) {
       const r = input.campaigns[`${co}|${pf}`]
-      if (!r?.ok) { tones.push("unknown"); err = r?.error; parts.push(`${co} ${pf === "google" ? "Google" : "Facebook"}: không đọc được`); continue }
+      if (!r?.ok) { tones.push("unknown"); err = r?.error; parts.push(t("libcase.r.health.32", { co, pf: pf === "google" ? "Google" : "Facebook" })); continue }
       const red = r.value.filter((x) => x.verdict.status === "red")
       noTarget += r.value.filter((x) => x.verdict.status === "no_target").length
       judged += r.value.filter((x) => x.verdict.status !== "no_target").length
@@ -167,56 +172,56 @@ export function buildHealthOverview(input: {
     const over = reds.reduce((s, x) => s + (x.verdict.overCeiling ?? 0), 0)
     // Chưa đặt mục tiêu sản phẩm = KHÔNG chấm được — báo "ổn" lúc đó là sai (đo 27/09: prod chưa nhập mục tiêu).
     if (noTarget) tones.push("warn") // đọc được, chỉ là chưa có mục tiêu để chấm — không phải "không đọc được"
-    parts.unshift(reds.length ? `${reds.length} chiến dịch vượt trần · chi vượt ${vnd(over)} (30 ngày)`
-      : judged ? "Không chiến dịch nào vượt trần (30 ngày)" : "Chưa chấm được — chưa đặt mục tiêu sản phẩm")
-    if (noTarget) parts.push(`${noTarget} chiến dịch chưa có mục tiêu sản phẩm`)
-    cards.push({ id: "campaigns", title: "Chiến dịch", tone: worst(tones), text: parts.join(" · "), href: noTarget && !judged ? "/xu-ly/muc-tieu" : "/xu-ly", error: err })
+    parts.unshift(reds.length ? t("libcase.r.health.33", { n: reds.length, over: vnd(over) })
+      : judged ? t("libcase.r.health.34") : t("libcase.r.health.35"))
+    if (noTarget) parts.push(t("libcase.r.health.36", { n: noTarget }))
+    cards.push({ id: "campaigns", title: t("libcase.r.health.31"), tone: worst(tones), text: parts.join(" · "), href: noTarget && !judged ? "/xu-ly/muc-tieu" : "/xu-ly", error: err })
     if (noTarget) fixes.push({
       id: "set_targets", rank: "money", company: cos[0], money: 0,
-      title: `${noTarget} chiến dịch chưa có mục tiêu sản phẩm (chi phí/đơn hoặc ROAS)`,
-      why: "Không có mục tiêu thì tool không biết chiến dịch nào đang chi vượt — mọi thẻ “vượt trần” đều trống.",
-      suggestion: "Nhập mục tiêu + trần cho từng nhóm sản phẩm (cần quyền sửa ngưỡng).", href: "/xu-ly/muc-tieu", hrefLabel: "Đặt mục tiêu",
+      title: t("libcase.r.health.37", { n: noTarget }),
+      why: t("libcase.r.health.38"),
+      suggestion: t("libcase.r.health.39"), href: "/xu-ly/muc-tieu", hrefLabel: t("libcase.r.health.40"),
     })
     for (const x of reds.sort((a, b) => (b.verdict.overCeiling ?? 0) - (a.verdict.overCeiling ?? 0)).slice(0, 5)) {
       fixes.push({
         id: `money_${x.platform}_${x.campaignId}`, rank: "money", company: x.company, money: x.verdict.overCeiling ?? 0,
         title: `${x.company} · ${x.platform === "google" ? "Google" : "Facebook"} · ${x.name}`,
-        why: `${x.verdict.label} — chi vượt ${vnd(x.verdict.overCeiling ?? 0)} trong 30 ngày.`,
-        suggestion: x.latestCase ? "Tiếp tục phiên xử lý đang mở." : "Mở phiên xử lý để xem nguyên nhân và việc tool làm được.",
-        href: x.latestCase ? `/xu-ly/${x.latestCase.id}` : "/xu-ly", hrefLabel: x.latestCase ? "Mở phiên" : "Tổng quan xử lý",
+        why: t("libcase.r.health.41", { label: x.verdict.label, over: vnd(x.verdict.overCeiling ?? 0) }),
+        suggestion: x.latestCase ? t("libcase.r.health.42") : t("libcase.r.health.43"),
+        href: x.latestCase ? `/xu-ly/${x.latestCase.id}` : "/xu-ly", hrefLabel: x.latestCase ? t("libcase.r.health.44") : t("libcase.r.health.45"),
       })
     }
   }
 
   // ── Phiên xử lý ──
-  if (!input.board.ok) cards.push({ id: "cases", title: "Phiên xử lý", tone: "unknown", text: "Không đọc được", href: "/xu-ly/theo-doi", error: input.board.error })
+  if (!input.board.ok) cards.push({ id: "cases", title: t("libcase.r.health.46"), tone: "unknown", text: t("libcase.r.health.5"), href: "/xu-ly/theo-doi", error: input.board.error })
   else {
     const rows = input.board.value
     const n = (s: string) => rows.filter((r) => r.state === s).length
     const overdue = rows.reduce((s, r) => s + r.tasks.overdue, 0)
     const pending = rows.flatMap((r) => r.remeasure.filter((m) => m && !m.done).map((m) => m!.due)).sort()
     cards.push({
-      id: "cases", title: "Phiên xử lý", tone: n("reopened") || overdue ? "warn" : "ok", href: "/xu-ly/theo-doi",
-      text: `${n("working")} đang xử lý · ${n("waiting")} chờ đo lại${pending.length ? ` (gần nhất ${pending[0]})` : ""} · ${n("reopened")} mở lại · ${overdue} việc quá hạn`,
+      id: "cases", title: t("libcase.r.health.46"), tone: n("reopened") || overdue ? "warn" : "ok", href: "/xu-ly/theo-doi",
+      text: t("libcase.r.health.47", { open: n("working"), w: n("waiting"), near: pending.length ? t("libcase.r.health.48", { d: pending[0] }) : "", re: n("reopened"), od: overdue }),
     })
     for (const r of rows.filter((x) => x.tasks.overdue > 0)) {
-      fixes.push({ id: `overdue_${r.id}`, rank: "overdue", company: r.company, title: `${r.company} · ${r.campaignName}: ${r.tasks.overdue} việc giao người quá 3 ngày`, why: "Việc ngoài khả năng của tool chưa ai làm → nguyên nhân vẫn còn.", suggestion: "Giao người / đánh dấu xong trong phiên.", href: `/xu-ly/${r.id}`, hrefLabel: "Mở phiên" })
+      fixes.push({ id: `overdue_${r.id}`, rank: "overdue", company: r.company, title: t("libcase.r.health.49", { co: r.company, name: r.campaignName, n: r.tasks.overdue }), why: t("libcase.r.health.50"), suggestion: t("libcase.r.health.51"), href: `/xu-ly/${r.id}`, hrefLabel: t("libcase.r.health.44") })
     }
   }
 
   // ── Lưu ý khi đọc số (không phải lỗi) ──
   notes.unshift(
-    "Chiến dịch Facebook chấm theo số Meta tự báo — Meta thường báo cao hơn Odoo nhiều lần.",
-    "Odoo không lưu utm_source và utm_campaign dùng chung giữa Facebook và Google → doanh thu theo thẻ không tách được theo nền tảng.",
+    t("libcase.r.health.52"),
+    t("libcase.r.health.53"),
   )
-  notes.push(input.remindersOn ? "Nhắc việc giao người quá 3 ngày qua Microsoft Teams: ĐANG BẬT." : "Nhắc việc qua Microsoft Teams: CHƯA BẬT (đặt CASE_TASK_TEAMS_WEBHOOK).")
+  notes.push(input.remindersOn ? t("libcase.r.health.54") : t("libcase.r.health.55"))
 
   const order = { measurement: 0, money: 1, overdue: 2 }
   fixes.sort((a, b) => order[a.rank] - order[b.rank] || (b.money ?? 0) - (a.money ?? 0))
   return { companies: cos, generatedAt: (input.now ?? new Date()).toISOString(), cards, fixes, notes }
 }
 
-export async function healthOverview(companies: Company[], opts: { force?: boolean } = {}): Promise<HealthOverview> {
+export async function healthOverview(companies: Company[], opts: { force?: boolean; t?: TFunction } = {}): Promise<HealthOverview> {
   const range = lastDays(30)
   const meta: Record<string, Settled<MetaHealth>> = {}, tags: Record<string, Settled<TagDoctorReport>> = {}, campaigns: Record<string, Settled<OverviewRow[]>> = {}
   // Tuần tự theo công ty để không nện hạn mức Meta cùng lúc; trong một công ty chạy song song.
@@ -230,5 +235,5 @@ export async function healthOverview(companies: Company[], opts: { force?: boole
   const board = await settle(Promise.resolve(caseBoard(companies)))
   const pmax: Record<string, Settled<PmaxXray>> = {}
   for (const co of companies) pmax[co] = await settle(pmaxXray(co, lastDays(30)))
-  return buildHealthOverview({ companies, meta, tags, campaigns, board, remindersOn: remindersEnabled(), leadFlows: lastStatuses(), pmax })
+  return buildHealthOverview({ companies, meta, tags, campaigns, board, remindersOn: remindersEnabled(), leadFlows: lastStatuses(), pmax, t: opts.t })
 }

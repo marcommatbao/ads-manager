@@ -21,6 +21,9 @@
 // Pixel bắn về và như /{pixel_id}/stats trả ra, `actionTypes` là slug trong
 // insights `actions[].action_type`.
 
+import type { TFunction } from "@/lib/i18n/translate";
+import type { MessageKey } from "@/lib/i18n/messages";
+
 export interface StandardPixelEvent {
   /** Giá trị enum gửi lên Meta trong promoted_object.custom_event_type */
   enumValue: string;
@@ -79,8 +82,10 @@ export function normalizeStandardEvent(raw: string | undefined | null): string |
 }
 
 /** Nhãn tiếng Việt của một enum sự kiện tiêu chuẩn (fallback: chính enum đó). */
-export function labelForStandardEvent(enumValue: string): string {
-  return BY_ENUM.get(enumValue)?.labelVi ?? enumValue;
+export function labelForStandardEvent(enumValue: string, t?: TFunction): string {
+  const ev = BY_ENUM.get(enumValue);
+  if (ev && t) return t(`libmeta.pixel.ev.${ev.enumValue}` as MessageKey);
+  return ev?.labelVi ?? enumValue;
 }
 
 export function findStandardEvent(enumValue: string): StandardPixelEvent | undefined {

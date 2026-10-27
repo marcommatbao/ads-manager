@@ -6,6 +6,7 @@ import { tagDoctor } from "@/lib/measure/tag-doctor"
 import { CONFIRM_TEXT, listGoalFixes, needsNoSignalAck } from "@/lib/measure/google-goal-fix"
 import { GTM_CONFIRM_TEXT, MAX_GTM_FIXES, listGtmFixes } from "@/lib/measure/gtm-fix"
 import { gtmApiConfigured, gtmServiceEmail } from "@/lib/measure/gtm-api"
+import { getT } from "@/lib/i18n/server"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 120
@@ -23,7 +24,7 @@ export async function GET(request: NextRequest) {
     range = pr.range
   }
   try {
-    const report = await tagDoctor(co.value, { force: sp.get("force") === "1", range })
+    const report = await tagDoctor(co.value, { force: sp.get("force") === "1", range }, await getT())
     // Cờ cho giao diện: chọn riêng việc bật Mua hàng thì có cần xác nhận "mất tín hiệu" không.
     const ackIfAlone = Object.fromEntries(report.fixes.map((f) => [f.id, needsNoSignalAck(report, [f])]))
     // Tên trường "gtmFix" (không phải "gtm") — `report.gtm` (GtmContainer[], mục 2 "Thẻ Facebook Pixel

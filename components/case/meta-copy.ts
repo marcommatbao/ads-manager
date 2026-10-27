@@ -5,6 +5,9 @@
 // việc này) — đây chỉ là nhãn hiển thị, không phải nghiệp vụ.
 // ============================================================
 
+import type { TFunction } from "@/lib/i18n/translate";
+import type { MessageKey } from "@/lib/i18n/messages";
+
 /** Mục tiêu chiến dịch Meta (campaign.objective) → tiếng Việt. Không có trong bảng → giữ nguyên chuỗi gốc. */
 export const META_OBJECTIVE_LABEL: Record<string, string> = {
   OUTCOME_SALES: "Bán hàng",
@@ -22,7 +25,11 @@ export const META_OBJECTIVE_LABEL: Record<string, string> = {
   MESSAGES: "Tin nhắn",
 };
 
-export const metaObjectiveLabel = (objective: string): string => META_OBJECTIVE_LABEL[objective] ?? objective;
+/** `t` (tuỳ chọn, useT()) → nhãn theo ngôn ngữ; không truyền → tiếng Việt như cũ. */
+export const metaObjectiveLabel = (objective: string, t?: TFunction): string =>
+  t && objective in META_OBJECTIVE_LABEL
+    ? t(`common.meta.objective.${objective}` as MessageKey)
+    : META_OBJECTIVE_LABEL[objective] ?? objective;
 
 /** Nhãn trạng thái học của nhóm quảng cáo (learning_stage_info.status). */
 export const META_LEARNING_LABEL: Record<string, string> = {
@@ -47,3 +54,9 @@ export const META_EVENT_LABEL: Record<string, string> = {
   custom: "Sự kiện tự đặt (gộp)",
   landing_page_view: "Xem trang đích",
 };
+
+export const metaLearningLabel = (status: string, t?: TFunction): string | undefined =>
+  t && status in META_LEARNING_LABEL ? t(`common.meta.learning.${status}` as MessageKey) : META_LEARNING_LABEL[status];
+
+export const metaEventLabel = (event: string, t?: TFunction): string | undefined =>
+  t && event in META_EVENT_LABEL ? t(`common.meta.event.${event}` as MessageKey) : META_EVENT_LABEL[event];

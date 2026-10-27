@@ -105,6 +105,7 @@ function ChannelTable({ channels, totals, badNetworks }: {
   totals: { cost: number; convClick: number; convEngaged: number };
   badNetworks: Set<string>;
 }) {
+  const intlLoc = useIntlLocale();
   const t = useT();
   return (
     <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
@@ -127,25 +128,25 @@ function ChannelTable({ channels, totals, badNetworks }: {
               </td>
               <td className="px-3 py-2.5">
                 <div className="flex items-center gap-2">
-                  <span className="shrink-0 whitespace-nowrap tabular-nums text-slate-700">{vnd(c.cost)}</span>
+                  <span className="shrink-0 whitespace-nowrap tabular-nums text-slate-700">{vnd(c.cost, intlLoc)}</span>
                   <div className="h-1.5 max-w-[100px] min-w-[32px] flex-1 rounded-full bg-slate-100">
                     <div className="h-1.5 rounded-full bg-blue-500" style={{ width: `${Math.round(c.costShare * 100)}%` }} />
                   </div>
                   <span className="w-9 shrink-0 text-right tabular-nums text-slate-400">{Math.round(c.costShare * 100)}%</span>
                 </div>
               </td>
-              <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">{num(c.convClick, { maximumFractionDigits: 1 })}</td>
-              <td className="px-3 py-2.5 text-right tabular-nums text-slate-500">{num(c.convEngaged, { maximumFractionDigits: 1 })}</td>
-              <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">{vnd(c.cpaClick)}</td>
+              <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">{num(c.convClick, { maximumFractionDigits: 1 }, intlLoc)}</td>
+              <td className="px-3 py-2.5 text-right tabular-nums text-slate-500">{num(c.convEngaged, { maximumFractionDigits: 1 }, intlLoc)}</td>
+              <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">{vnd(c.cpaClick, intlLoc)}</td>
             </tr>
           ))}
         </tbody>
         <tfoot>
           <tr className="border-t border-slate-200 bg-slate-50 font-semibold text-slate-800">
             <td className="px-3 py-2.5">{t("google.pmaxXray.total")}</td>
-            <td className="px-3 py-2.5 tabular-nums">{vnd(totals.cost)}</td>
-            <td className="px-3 py-2.5 text-right tabular-nums">{num(totals.convClick, { maximumFractionDigits: 1 })}</td>
-            <td className="px-3 py-2.5 text-right tabular-nums">{num(totals.convEngaged, { maximumFractionDigits: 1 })}</td>
+            <td className="px-3 py-2.5 tabular-nums">{vnd(totals.cost, intlLoc)}</td>
+            <td className="px-3 py-2.5 text-right tabular-nums">{num(totals.convClick, { maximumFractionDigits: 1 }, intlLoc)}</td>
+            <td className="px-3 py-2.5 text-right tabular-nums">{num(totals.convEngaged, { maximumFractionDigits: 1 }, intlLoc)}</td>
             <td className="px-3 py-2.5 text-right text-slate-400">—</td>
           </tr>
         </tfoot>
@@ -163,6 +164,7 @@ const BIDDING_LABEL: Record<string, MessageKey> = {
 const biddingLabel = (v: string, t: (k: MessageKey) => string) => (BIDDING_LABEL[v] ? t(BIDDING_LABEL[v]) : v.replaceAll("_", " "));
 
 function CampaignXrayRow({ campaign }: { campaign: PmaxXray["campaigns"][number] }) {
+  const intlLoc = useIntlLocale();
   const t = useT();
   const [open, setOpen] = useState(false);
   const isOn = campaign.status === "ENABLED";
@@ -174,13 +176,13 @@ function CampaignXrayRow({ campaign }: { campaign: PmaxXray["campaigns"][number]
           <p className="truncate text-sm font-semibold text-slate-800" title={campaign.name}>{campaign.name}</p>
           <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400">
             <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", isOn ? "bg-emerald-500" : "bg-slate-300")} />
-            {CAMPAIGN_STATUS_LABEL[campaign.status] ? t(CAMPAIGN_STATUS_LABEL[campaign.status]) : campaign.status} · {biddingLabel(campaign.bidding, t)} · {t("google.pmaxXray.budgetDay", { budget: vnd(campaign.budget) })}
+            {CAMPAIGN_STATUS_LABEL[campaign.status] ? t(CAMPAIGN_STATUS_LABEL[campaign.status]) : campaign.status} · {biddingLabel(campaign.bidding, t)} · {t("google.pmaxXray.budgetDay", { budget: vnd(campaign.budget, intlLoc) })}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-3">
           <div className="text-right">
-            <p className="tabular-nums text-xs font-semibold text-slate-700">{vnd(campaign.cost)}</p>
-            <p className="tabular-nums text-[10px] text-slate-400">{t("google.pmaxXray.clickView", { a: num(campaign.convClick, { maximumFractionDigits: 1 }), b: num(campaign.convEngaged, { maximumFractionDigits: 1 }) })}</p>
+            <p className="tabular-nums text-xs font-semibold text-slate-700">{vnd(campaign.cost, intlLoc)}</p>
+            <p className="tabular-nums text-[10px] text-slate-400">{t("google.pmaxXray.clickView", { a: num(campaign.convClick, { maximumFractionDigits: 1 }, intlLoc), b: num(campaign.convEngaged, { maximumFractionDigits: 1 }, intlLoc) })}</p>
           </div>
           {campaign.warnings.length > 0 && <span className="text-xs font-bold text-red-500" title={t("google.pmaxXray.hasWarn")}>✕</span>}
           {open ? <ChevronUp className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" /> : <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />}
@@ -243,13 +245,14 @@ function ChannelSection({ account, campaigns }: { account: PmaxXray["account"]; 
 const HILITE_INTENT = new Set(["own_brand", "competitor"]);
 
 function IntentSection({ terms }: { terms: PmaxXray["terms"] }) {
+  const intlLoc = useIntlLocale();
   const t = useT();
   const [showNgrams, setShowNgrams] = useState(false);
   return (
     <section className="space-y-3">
       <div>
         <h3 className="text-sm font-bold text-slate-800">{t("google.pmaxXray.intentTitle")}</h3>
-        <p className="mt-0.5 text-xs text-slate-500">{t("google.pmaxXray.intentNote", { n: num(terms.total) })}</p>
+        <p className="mt-0.5 text-xs text-slate-500">{t("google.pmaxXray.intentNote", { n: num(terms.total, undefined, intlLoc) })}</p>
       </div>
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
         <table className="w-full text-xs">
@@ -269,9 +272,9 @@ function IntentSection({ terms }: { terms: PmaxXray["terms"] }) {
                   {HILITE_INTENT.has(it.intent) && <span className="mr-1 text-amber-600">⚠</span>}
                   {it.label}
                 </td>
-                <td className="px-3 py-2.5 text-right tabular-nums">{num(it.terms)}</td>
-                <td className="px-3 py-2.5 text-right tabular-nums">{num(it.clicks)}</td>
-                <td className="px-3 py-2.5 text-right tabular-nums">{num(it.conversions, { maximumFractionDigits: 1 })}</td>
+                <td className="px-3 py-2.5 text-right tabular-nums">{num(it.terms, undefined, intlLoc)}</td>
+                <td className="px-3 py-2.5 text-right tabular-nums">{num(it.clicks, undefined, intlLoc)}</td>
+                <td className="px-3 py-2.5 text-right tabular-nums">{num(it.conversions, { maximumFractionDigits: 1 }, intlLoc)}</td>
                 <td className="px-3 py-2.5">
                   <div className="flex flex-wrap gap-1">
                     {it.examples.slice(0, 5).map((ex) => (
@@ -307,9 +310,9 @@ function IntentSection({ terms }: { terms: PmaxXray["terms"] }) {
                   {terms.ngrams.map((g) => (
                     <tr key={g.gram} className="border-b border-slate-50 last:border-0">
                       <td className="px-3 py-2.5 text-slate-800">{g.gram}</td>
-                      <td className="px-3 py-2.5 text-right tabular-nums">{num(g.terms)}</td>
-                      <td className="px-3 py-2.5 text-right tabular-nums">{num(g.clicks)}</td>
-                      <td className="px-3 py-2.5 text-right tabular-nums">{num(g.conversions, { maximumFractionDigits: 1 })}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums">{num(g.terms, undefined, intlLoc)}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums">{num(g.clicks, undefined, intlLoc)}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums">{num(g.conversions, { maximumFractionDigits: 1 }, intlLoc)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -325,6 +328,7 @@ function IntentSection({ terms }: { terms: PmaxXray["terms"] }) {
 // ── Section 4: PMax ăn sang Search ──
 
 function CannibalizationSection({ c }: { c: Cannibalization }) {
+  const intlLoc = useIntlLocale();
   const t = useT();
   const badgeCls = c.brandShare >= 0.4 ? "bg-red-50 text-red-700 border-red-200" : c.brandShare >= 0.2 ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-emerald-50 text-emerald-700 border-emerald-200";
   const symbol = c.brandShare >= 0.4 ? "✕" : c.brandShare >= 0.2 ? "⚠" : "✓";
@@ -339,16 +343,16 @@ function CannibalizationSection({ c }: { c: Cannibalization }) {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div className="rounded-xl border border-slate-200 bg-white p-3">
           <p className="text-[10px] font-semibold uppercase text-slate-400">{t("google.pmaxXray.brandShare")}</p>
-          <Badge cls={cn("mt-1.5 text-sm", badgeCls)} symbol={symbol}>{pct(c.brandShare, 0)}</Badge>
+          <Badge cls={cn("mt-1.5 text-sm", badgeCls)} symbol={symbol}>{pct(c.brandShare, 0, intlLoc)}</Badge>
         </div>
         <div className="rounded-xl border border-slate-200 bg-white p-3">
           <p className="text-[10px] font-semibold uppercase text-slate-400">{t("google.pmaxXray.overlap")}</p>
-          <p className="mt-1 tabular-nums text-sm font-bold text-slate-800">{t("google.pmaxXray.overlapClicks", { a: num(c.overlapClicks), b: num(c.pmaxClicks) })}</p>
-          <p className="tabular-nums text-[10px] text-slate-400">{t("google.pmaxXray.overlapTerms", { a: num(c.overlapTerms), b: num(c.overlapConversions, { maximumFractionDigits: 1 }) })}</p>
+          <p className="mt-1 tabular-nums text-sm font-bold text-slate-800">{t("google.pmaxXray.overlapClicks", { a: num(c.overlapClicks, undefined, intlLoc), b: num(c.pmaxClicks, undefined, intlLoc) })}</p>
+          <p className="tabular-nums text-[10px] text-slate-400">{t("google.pmaxXray.overlapTerms", { a: num(c.overlapTerms, undefined, intlLoc), b: num(c.overlapConversions, { maximumFractionDigits: 1 }, intlLoc) })}</p>
         </div>
         <div className="rounded-xl border border-slate-200 bg-white p-3">
           <p className="text-[10px] font-semibold uppercase text-slate-400">{t("google.pmaxXray.brandClicks")}</p>
-          <p className="mt-1 tabular-nums text-sm font-bold text-slate-800">{num(c.brandClicks)}</p>
+          <p className="mt-1 tabular-nums text-sm font-bold text-slate-800">{num(c.brandClicks, undefined, intlLoc)}</p>
         </div>
       </div>
       {c.examples.length > 0 && (
@@ -365,7 +369,7 @@ function CannibalizationSection({ c }: { c: Cannibalization }) {
               {c.examples.map((ex) => (
                 <tr key={ex.term} className="border-b border-slate-50 last:border-0">
                   <td className="px-3 py-2.5 text-slate-800">{ex.term}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums">{num(ex.clicks)}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums">{num(ex.clicks, undefined, intlLoc)}</td>
                   <td className="px-3 py-2.5 text-slate-500">{ex.searchKeyword}</td>
                 </tr>
               ))}

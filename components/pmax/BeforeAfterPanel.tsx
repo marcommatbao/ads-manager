@@ -15,7 +15,7 @@
 import { useId, useState } from "react";
 import { ChevronDown, ChevronUp, Loader2, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import type { MessageKey } from "@/lib/i18n/messages";
 import { getJson, postJson, deleteJson, ApiError } from "@/components/case/api";
 import { vnd, num, pct, ddmmyyyy } from "@/components/case/format";
@@ -30,17 +30,18 @@ type Company = string;
 
 const todayVN = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Ho_Chi_Minh" }).format(new Date());
 
-const WINDOW_ROWS: { key: keyof WindowStats; label: MessageKey; fmt: (n: number) => string }[] = [
+const WINDOW_ROWS: { key: keyof WindowStats; label: MessageKey; fmt: (n: number, loc: string) => string }[] = [
   { key: "cost", label: "google.pmaxBeforeAfter.row.cost", fmt: vnd },
-  { key: "youtubeShare", label: "google.pmaxBeforeAfter.row.youtube", fmt: (n) => pct(n, 0) },
-  { key: "convClick", label: "google.pmaxBeforeAfter.row.convClick", fmt: (n) => num(n, { maximumFractionDigits: 1 }) },
-  { key: "convEngaged", label: "google.pmaxBeforeAfter.row.convEngaged", fmt: (n) => num(n, { maximumFractionDigits: 1 }) },
+  { key: "youtubeShare", label: "google.pmaxBeforeAfter.row.youtube", fmt: (n, loc) => pct(n, 0, loc) },
+  { key: "convClick", label: "google.pmaxBeforeAfter.row.convClick", fmt: (n, loc) => num(n, { maximumFractionDigits: 1 }, loc) },
+  { key: "convEngaged", label: "google.pmaxBeforeAfter.row.convEngaged", fmt: (n, loc) => num(n, { maximumFractionDigits: 1 }, loc) },
   { key: "cpaClick", label: "google.pmaxBeforeAfter.row.cpaClick", fmt: vnd },
-  { key: "searchConv", label: "google.pmaxBeforeAfter.row.searchConv", fmt: (n) => num(n, { maximumFractionDigits: 1 }) },
+  { key: "searchConv", label: "google.pmaxBeforeAfter.row.searchConv", fmt: (n, loc) => num(n, { maximumFractionDigits: 1 }, loc) },
 ];
 
 function BeforeAfterTable({ before, after }: { before: WindowStats; after: WindowStats }) {
   const t = useT();
+  const intl = useIntlLocale();
   return (
     <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
       <table className="w-full text-[11px]">
@@ -55,8 +56,8 @@ function BeforeAfterTable({ before, after }: { before: WindowStats; after: Windo
           {WINDOW_ROWS.map((r) => (
             <tr key={r.key} className="border-b border-slate-50 last:border-0">
               <td className="px-2.5 py-1.5 text-slate-600">{t(r.label)}</td>
-              <td className="px-2.5 py-1.5 text-right tabular-nums text-slate-700">{r.fmt(Number(before[r.key]) || 0)}</td>
-              <td className="px-2.5 py-1.5 text-right tabular-nums text-slate-700">{r.fmt(Number(after[r.key]) || 0)}</td>
+              <td className="px-2.5 py-1.5 text-right tabular-nums text-slate-700">{r.fmt(Number(before[r.key]) || 0, intl)}</td>
+              <td className="px-2.5 py-1.5 text-right tabular-nums text-slate-700">{r.fmt(Number(after[r.key]) || 0, intl)}</td>
             </tr>
           ))}
         </tbody>
@@ -66,6 +67,7 @@ function BeforeAfterTable({ before, after }: { before: WindowStats; after: Windo
 }
 
 function MarkRow({ mark, company, canEdit, onDeleted }: { mark: ChangeMark; company: Company; canEdit: boolean; onDeleted: () => void }) {
+  const intl = useIntlLocale();
   const t = useT();
   const [open, setOpen] = useState(false);
   const [result, setResult] = useState<BeforeAfter | null>(null);
@@ -106,7 +108,7 @@ function MarkRow({ mark, company, canEdit, onDeleted }: { mark: ChangeMark; comp
           {open ? <ChevronUp className="h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden="true" /> : <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden="true" />}
           <span className="min-w-0">
             <span className="block truncate text-xs font-semibold text-slate-800">{mark.label}</span>
-            <span className="block text-[10px] text-slate-400">{ddmmyyyy(mark.date)} · {mark.by}</span>
+            <span className="block text-[10px] text-slate-400">{ddmmyyyy(mark.date, intl)} · {mark.by}</span>
           </span>
         </button>
         {canEdit && (
@@ -134,7 +136,7 @@ function MarkRow({ mark, company, canEdit, onDeleted }: { mark: ChangeMark; comp
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="text-red-600">{t("google.pmaxBeforeAfter.deleteTitle")}</DialogTitle>
-            <DialogDescription>&quot;{mark.label}&quot; ({ddmmyyyy(mark.date)}) {t("google.pmaxBeforeAfter.deleteDesc")}</DialogDescription>
+            <DialogDescription>&quot;{mark.label}&quot; ({ddmmyyyy(mark.date, intl)}) {t("google.pmaxBeforeAfter.deleteDesc")}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <DialogClose render={<Button className="h-10" variant="outline" />}>{t("google.pmaxBeforeAfter.keep")}</DialogClose>

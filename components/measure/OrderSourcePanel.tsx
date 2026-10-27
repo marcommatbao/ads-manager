@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { datetimeVN, num, vnd } from "@/components/case/format";
 import { getJson, postJson, ApiError } from "@/components/case/api";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import type { Company } from "@/lib/case/types";
 import type { Coverage, OrderSourceId } from "@/lib/conversions/real-orders";
 
@@ -39,6 +39,7 @@ const sampleOf = (gclid: string) => `{"orders":[{"orderId":"WEB-1001","time":"20
 const CSV_HEAD = "order_id,paid_at,value,email,phone,gclid,fbc,utm_source,utm_campaign,status"
 
 export function OrderSourcePanel({ company, onChanged }: { company: Company; onChanged?: () => void }) {
+  const intl = useIntlLocale();
   const t = useT()
   const url = `/api/orders/source?company=${company}`
   const { data, mutate } = useSWR<SourceResponse>(url, getJson)
@@ -71,7 +72,7 @@ export function OrderSourcePanel({ company, onChanged }: { company: Company; onC
         <span className={cur ? "rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700" : "rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700"}>
           {cur ? t("meta.measure.os.using", { label: data.sources.find((s) => s.id === cur)?.label ?? "" }) : t("meta.measure.os.none")}
         </span>
-        {data.current?.at && <span className="text-xs text-slate-400">{t("meta.measure.os.changedAt", { time: datetimeVN(data.current.at), by: data.current.by ? ` · ${data.current.by}` : "" })}</span>}
+        {data.current?.at && <span className="text-xs text-slate-400">{t("meta.measure.os.changedAt", { time: datetimeVN(data.current.at, intl), by: data.current.by ? ` · ${data.current.by}` : "" })}</span>}
       </div>
       <p className="text-xs text-slate-500">{t("meta.measure.os.intro")}</p>
       {data.reason && <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">{data.reason}</p>}
@@ -100,8 +101,8 @@ export function OrderSourcePanel({ company, onChanged }: { company: Company; onC
               onClick={async () => { const r = await call("secret", { op: "secret", confirmText: rotateTyped.trim() }) as { secret?: string } | null; if (r?.secret) { setSecret(r.secret); setCopied(false); setRotateTyped("") } }}>
               {busy === "secret" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <KeyRound className="h-3.5 w-3.5" />} {data.current?.hasSecret ? t("meta.measure.os.wh.rotate") : t("meta.measure.os.wh.create")}
             </Button>
-            {data.current?.secretCreatedAt && <span className="text-slate-400">{t("meta.measure.os.wh.keyCreated", { time: datetimeVN(data.current.secretCreatedAt) })}</span>}
-            {data.current?.lastPushAt && <span className="text-slate-400">{t("meta.measure.os.wh.lastPush", { time: datetimeVN(data.current.lastPushAt) })}</span>}
+            {data.current?.secretCreatedAt && <span className="text-slate-400">{t("meta.measure.os.wh.keyCreated", { time: datetimeVN(data.current.secretCreatedAt, intl) })}</span>}
+            {data.current?.lastPushAt && <span className="text-slate-400">{t("meta.measure.os.wh.lastPush", { time: datetimeVN(data.current.lastPushAt, intl) })}</span>}
           </div>
           {secret && (
             <div className="space-y-1 rounded border border-amber-200 bg-amber-50 p-2">
@@ -128,7 +129,7 @@ export function OrderSourcePanel({ company, onChanged }: { company: Company; onC
             if (!f) return
             if (f.size > 2_000_000) { setMsg({ tone: "red", text: t("meta.measure.os.csv.tooBig") }); return }
             const r = await call("csv", { op: "csv", text: await f.text() }) as { rows?: number; accepted?: number; duplicates?: number; skipped?: number; errors?: string[] } | null
-            if (r) setMsg({ tone: r.errors?.length ? "red" : "green", text: t("meta.measure.os.csv.result", { rows: num(r.rows ?? 0), accepted: num(r.accepted ?? 0), dup: num(r.duplicates ?? 0), skipped: num(r.skipped ?? 0), errs: r.errors?.length ? t("meta.measure.os.csv.errs", { n: r.errors.length, list: r.errors.slice(0, 3).join(" · ") }) : "" }) })
+            if (r) setMsg({ tone: r.errors?.length ? "red" : "green", text: t("meta.measure.os.csv.result", { rows: num(r.rows ?? 0, undefined, intl), accepted: num(r.accepted ?? 0, undefined, intl), dup: num(r.duplicates ?? 0, undefined, intl), skipped: num(r.skipped ?? 0, undefined, intl), errs: r.errors?.length ? t("meta.measure.os.csv.errs", { n: r.errors.length, list: r.errors.slice(0, 3).join(" · ") }) : "" }) })
           }} />
           <Button type="button" size="sm" variant="outline" className="h-8" disabled={!data.canEdit || !!busy} onClick={() => fileRef.current?.click()}>
             {busy === "csv" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />} {t("meta.measure.os.csv.pick")}
@@ -143,7 +144,7 @@ export function OrderSourcePanel({ company, onChanged }: { company: Company; onC
           <p className="font-medium text-slate-500">{t("meta.measure.os.cov.title")}</p>
           {c.orders === 0
             ? <p className="mt-1 text-amber-700">{t("meta.measure.os.cov.none", { hint: cur === "webhook" ? t("meta.measure.os.cov.hintWebhook") : t("meta.measure.os.cov.hintCsv") })}</p>
-            : <p className="mt-1 text-slate-700">{rich(t("meta.measure.os.cov.line", { orders: num(c.orders), value: vnd(c.value), email: pct(c.withEmail, c.orders), phone: pct(c.withPhone, c.orders), gclid: pct(c.withClickId, c.orders), fbc: pct(c.withFbc, c.orders), utm: pct(c.withUtm, c.orders), matchable: pct(c.matchable, c.orders) }))}</p>}
+            : <p className="mt-1 text-slate-700">{rich(t("meta.measure.os.cov.line", { orders: num(c.orders, undefined, intl), value: vnd(c.value, intl), email: pct(c.withEmail, c.orders), phone: pct(c.withPhone, c.orders), gclid: pct(c.withClickId, c.orders), fbc: pct(c.withFbc, c.orders), utm: pct(c.withUtm, c.orders), matchable: pct(c.matchable, c.orders) }))}</p>}
         </div>
       )}
       {cur === "odoo" && <p className="text-xs text-slate-400">{t("meta.measure.os.odooNote")}</p>}
@@ -156,7 +157,7 @@ export function OrderSourcePanel({ company, onChanged }: { company: Company; onC
             <tbody>
               {data.recent.map((r) => (
                 <tr key={r.key} className="border-t border-slate-100">
-                  <td className="py-1 font-mono">{r.name}</td><td>{datetimeVN(r.time)}</td><td className="text-right tabular-nums">{vnd(r.value)}{r.currency !== "VND" ? ` ${r.currency}` : ""}</td>
+                  <td className="py-1 font-mono">{r.name}</td><td>{datetimeVN(r.time, intl)}</td><td className="text-right tabular-nums">{vnd(r.value, intl)}{r.currency !== "VND" ? ` ${r.currency}` : ""}</td>
                   <td className="pl-3 text-slate-500">{(Object.entries(r.has) as [string, boolean][]).filter(([, v]) => v).map(([k]) => k).join(" · ") || "—"}</td>
                 </tr>
               ))}

@@ -300,6 +300,7 @@ export default function DaLamPage() {
 }
 
 function WindowCell({ w, link, t, loc }: { w: WindowRow | undefined; link: string; t: TFunction; loc: string }) {
+  const intl = useIntlLocale();
   if (!w) return <span className="text-slate-300">—</span>;
 
   if (w.state === "done" && isWindowResult(w.result)) {
@@ -308,7 +309,7 @@ function WindowCell({ w, link, t, loc }: { w: WindowRow | undefined; link: strin
       <div className="space-y-1" title={w.note ?? r.note}>
         <Pill tone={VERDICT_TONE[r.verdict]}>{t(VERDICT_LABEL_KEY[r.verdict])}</Pill>
         <div className="tabular-nums text-xs text-slate-700">
-          {r.cpaBefore !== null ? vnd(r.cpaBefore) : t("overview.xuly.done.zeroOrders")} → {r.cpaAfter !== null ? vnd(r.cpaAfter) : t("overview.xuly.done.zeroOrders")}
+          {r.cpaBefore !== null ? vnd(r.cpaBefore, intl) : t("overview.xuly.done.zeroOrders")} → {r.cpaAfter !== null ? vnd(r.cpaAfter, intl) : t("overview.xuly.done.zeroOrders")}
         </div>
         {(w.note ?? r.note) && <div className="max-w-[240px] text-xs text-slate-400">{w.note ?? r.note}</div>}
       </div>
@@ -324,14 +325,14 @@ function WindowCell({ w, link, t, loc }: { w: WindowRow | undefined; link: strin
         {v === 1 && <span className="font-semibold text-emerald-600">{t("overview.xuly.done.caseGood")}</span>}
         {v === 0 && <span className="font-semibold text-amber-600">{t("overview.xuly.done.caseUnclear")}</span>}
         {v === -1 && <span className="font-semibold text-red-600">{t("overview.xuly.done.caseWorse")}</span>}
-        {typeof res?.cpa === "number" && <div className="tabular-nums text-slate-700">CPA {vnd(res.cpa)}</div>}
+        {typeof res?.cpa === "number" && <div className="tabular-nums text-slate-700">CPA {vnd(res.cpa, intl)}</div>}
         {typeof res?.roas === "number" && <div className="tabular-nums text-slate-700">ROAS {res.roas.toLocaleString(loc, { maximumFractionDigits: 2 })}</div>}
         <div><Link href={link} className="text-blue-600 hover:underline">{t("overview.xuly.done.viewCase")}</Link></div>
       </div>
     );
   }
 
-  if (w.state === "not_due") return <span className="text-xs text-slate-500">{t("overview.xuly.done.measureOn", { date: ddmmyyyy(w.dueOn) })}</span>;
+  if (w.state === "not_due") return <span className="text-xs text-slate-500">{t("overview.xuly.done.measureOn", { date: ddmmyyyy(w.dueOn, intl) })}</span>;
   if (w.state === "pending_job") return <span className="text-xs text-slate-500">{t("overview.xuly.done.pendingJob")}</span>;
   if (w.state === "skip") {
     return (

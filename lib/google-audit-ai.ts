@@ -28,10 +28,20 @@ function todayStr(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-function buildPrompt(result: AuditResult, company: string): string {
+function buildPrompt(result: AuditResult, company: string, lang: "vi" | "en" = "vi"): string {
   const lines = result.checks
     .map((c) => `- [${c.status}] ${c.name} (${c.score}/10): ${c.recommendation}`)
     .join("\n");
+
+  if (lang === "en") return `You are a Google Ads expert. Below are the audit results for account ${company} (overall score ${result.overallScore}/100, grade ${result.letterGrade}), made up of 14 criteria:
+
+${lines}
+
+Write a summary of about 150-200 words in English, containing:
+1. The 3 issues to fix first, ordered by impact on cost/performance — do not just list them again, synthesise and explain why they are prioritised.
+2. One sentence giving an overall verdict on the account's health.
+
+Note: this is an account-health summary (Audit), not a detailed prioritised action list (that lives on the separate Improvements page) — there is no need to list every step.`;
 
   return `Bạn là chuyên gia Google Ads. Dưới đây là kết quả audit tài khoản ${company} (điểm tổng ${result.overallScore}/100, hạng ${result.letterGrade}), gồm 14 tiêu chí:
 
@@ -46,7 +56,8 @@ Lưu ý: đây là tóm tắt sức khỏe tài khoản (Audit), không phải d
 
 export async function generateAuditInsight(
   result: AuditResult,
-  company: string
+  company: string,
+  lang: "vi" | "en" = "vi"
 ): Promise<string | null> {
   if (process.env.GOOGLE_AUDIT_AI_ENABLED === "false") return null;
 
@@ -54,11 +65,12 @@ export async function generateAuditInsight(
   if (!apiKey) return null;
 
   const today = todayStr();
-  const cached = _cache.get(company);
+  const cacheKey = lang === "vi" ? company : `${company}|${lang}`;
+  const cached = _cache.get(cacheKey);
   if (cached && cached.date === today) return cached.text;
 
   try {
-    const prompt = buildPrompt(result, company);
+    const prompt = buildPrompt(result, company, lang);
     // thinkingBudget: 0 is required — extended thinking của Gemini
     // otherwise consumes maxOutputTokens before emitting any visible text,
     // silently truncating the response (known gotcha, hit here in testing:
@@ -71,7 +83,7 @@ export async function generateAuditInsight(
       console.warn("[GoogleAuditAI] Gemini timed out or empty — no insight this run");
       return null;
     }
-    _cache.set(company, { date: today, text: geminiRes.text });
+    _cache.set(cacheKey, { date: today, text: geminiRes.text });
     return geminiRes.text;
   } catch (err) {
     console.warn("[GoogleAuditAI] Gemini call failed:", err instanceof Error ? err.message : err);

@@ -33,11 +33,11 @@ import { getJson, patchJson, postJson, ApiError } from "@/components/case/api";
 import { datetimeVN } from "@/components/case/format";
 import { PlaybookTable } from "@/components/playbook/PlaybookTable";
 import { PlaybookOutcomesSection, type OutcomesApiResponse } from "@/components/playbook/PlaybookOutcomesSection";
-import { PLATFORM_LABEL, KIND_GROUP, KIND_GROUP_OPTIONS, STATUS_OPTIONS } from "@/components/playbook/labels";
+import { PLATFORM_LABEL, KIND_GROUP, KIND_GROUP_OPTIONS, kindGroupLabel, statusOptions } from "@/components/playbook/labels";
 import type { PlaybookFile, PlaybookEntry, EntryStatus } from "@/lib/playbook/store";
 import type { Platform } from "@/lib/playbook/engine";
 import type { Company } from "@/lib/case/types";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import type { MessageKey } from "@/lib/i18n/messages";
 
 interface PlaybookApiResponse extends PlaybookFile {
@@ -53,6 +53,7 @@ const DECISION_TOAST: Record<"approved" | "rejected" | "suggested", MessageKey> 
 };
 
 export default function SoKinhNghiemPage() {
+  const intl = useIntlLocale();
   const { user } = useSession();
   const { toast } = useToast();
   const t = useT();
@@ -178,7 +179,7 @@ export default function SoKinhNghiemPage() {
           </p>
           <p className="mt-1 text-xs text-slate-400">
             {t("overview.experience.updatedLine")}{" "}
-            <b className="text-slate-500">{updatedAt ? datetimeVN(updatedAt) : t("overview.experience.neverRun")}</b>
+            <b className="text-slate-500">{updatedAt ? datetimeVN(updatedAt, intl) : t("overview.experience.neverRun")}</b>
           </p>
         </div>
         {canRunNow && (
@@ -314,12 +315,12 @@ export default function SoKinhNghiemPage() {
                 <div className="mb-1 text-xs font-medium text-slate-400">{t("overview.experience.fKind")}</div>
                 <Select value={kindFilter || "ALL"} onValueChange={(v) => setKindFilter(v && v !== "ALL" ? v : "")}>
                   <SelectTrigger aria-label={t("overview.experience.fKind")}>
-                    <SelectValue>{(v: string) => (v === "ALL" ? t("overview.experience.all") : v)}</SelectValue>
+                    <SelectValue>{(v: string) => (v === "ALL" ? t("overview.experience.all") : kindGroupLabel(v, t))}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="ALL">{t("overview.experience.all")}</SelectItem>
                     {KIND_GROUP_OPTIONS.map((k) => (
-                      <SelectItem key={k} value={k}>{k}</SelectItem>
+                      <SelectItem key={k} value={k}>{kindGroupLabel(k, t)}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -329,12 +330,12 @@ export default function SoKinhNghiemPage() {
                 <Select value={statusFilter || "ALL"} onValueChange={(v) => setStatusFilter((v && v !== "ALL" ? v : "") as EntryStatus | "")}>
                   <SelectTrigger aria-label={t("overview.experience.fStatus")}>
                     <SelectValue>
-                      {(v: string) => (v === "ALL" ? t("overview.experience.all") : STATUS_OPTIONS.find((s) => s.value === v)?.label ?? v)}
+                      {(v: string) => (v === "ALL" ? t("overview.experience.all") : statusOptions(t).find((s) => s.value === v)?.label ?? v)}
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="ALL">{t("overview.experience.all")}</SelectItem>
-                    {STATUS_OPTIONS.map((s) => (
+                    {statusOptions(t).map((s) => (
                       <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
                     ))}
                   </SelectContent>

@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogC
 import { vnd, num } from "./format";
 import { patchJson, ApiError } from "./api";
 import type { CampaignCase } from "@/lib/case/store";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 
 export function Step5Actions({
   c,
@@ -29,6 +29,7 @@ export function Step5Actions({
   onNext: () => void;
   busy?: boolean;
 }) {
+  const intl = useIntlLocale();
   const t = useT();
   const [savingId, setSavingId] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -122,7 +123,7 @@ export function Step5Actions({
               {a.type === "SET_CAMPAIGN_BUDGET" && (
                 <div className="mt-3 pl-7 text-sm text-slate-600">
                   <div>
-                    {t("overview.step5.beforeAfter")}: <span className="tabular-nums">{vnd(a.before)}</span> → <span className="tabular-nums font-semibold text-slate-900">{vnd(a.after)}</span>
+                    {t("overview.step5.beforeAfter")}: <span className="tabular-nums">{vnd(a.before, intl)}</span> → <span className="tabular-nums font-semibold text-slate-900">{vnd(a.after, intl)}</span>
                   </div>
                   <p className="mt-1 text-xs text-slate-500">{a.reason}</p>
                 </div>
@@ -135,7 +136,7 @@ export function Step5Actions({
               {a.type === "EXCLUDE_PLACEMENT" && (
                 <div className="mt-3 space-y-2 pl-7 text-sm">
                   <div className="text-slate-600">
-                    {t("overview.step5.placementCost")}: <b className="tabular-nums">{vnd(a.cost)}</b> · <span className="tabular-nums">{num(a.results)}</span> {a.resultLabel}
+                    {t("overview.step5.placementCost")}: <b className="tabular-nums">{vnd(a.cost, intl)}</b> · <span className="tabular-nums">{num(a.results, undefined, intl)}</span> {a.resultLabel}
                   </div>
                   {a.automatic && (
                     <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-medium text-slate-600">
@@ -159,7 +160,7 @@ export function Step5Actions({
                   <div className="rounded-lg bg-slate-50 p-2.5">
                     <div className="mb-1.5 text-xs font-semibold text-slate-700">{t("overview.step5.suggestedEvent")}</div>
                     <div className="text-slate-800">
-                      <b>{a.eventLabel}</b> — <span className="tabular-nums">{a.perWeek === null ? "—" : num(a.perWeek)}</span> {t("overview.step5.perWeekRecent")}
+                      <b>{a.eventLabel}</b> — <span className="tabular-nums">{a.perWeek === null ? "—" : num(a.perWeek, undefined, intl)}</span> {t("overview.step5.perWeekRecent")}
                     </div>
                     <label className="mt-2.5 block text-xs text-slate-500" htmlFor={`event-select-${a.id}`}>{t("overview.step5.otherEvent")}</label>
                     <Select
@@ -167,10 +168,10 @@ export function Step5Actions({
                       onValueChange={(v) => { if (v) changeEvent(a.id, a.selected, v); }}
                       disabled={savingId === a.id}
                     >
-                      <SelectTrigger id={`event-select-${a.id}`} aria-label={t("overview.step5.otherEvent.aria")} className="mt-1 w-full"><SelectValue>{(v: string) => { const alt = a.alternatives.find((x) => x.event === v); return alt ? `${alt.label} — ${num(alt.perWeek)} ${t("overview.step5.perWeek")}` : a.eventLabel; }}</SelectValue></SelectTrigger>
+                      <SelectTrigger id={`event-select-${a.id}`} aria-label={t("overview.step5.otherEvent.aria")} className="mt-1 w-full"><SelectValue>{(v: string) => { const alt = a.alternatives.find((x) => x.event === v); return alt ? `${alt.label} — ${num(alt.perWeek, undefined, intl)} ${t("overview.step5.perWeek")}` : a.eventLabel; }}</SelectValue></SelectTrigger>
                       <SelectContent>
                         {a.alternatives.map((alt) => (
-                          <SelectItem key={alt.event} value={alt.event}>{alt.label} — {num(alt.perWeek)} {t("overview.step5.perWeek")}</SelectItem>
+                          <SelectItem key={alt.event} value={alt.event}>{alt.label} — {num(alt.perWeek, undefined, intl)} {t("overview.step5.perWeek")}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -246,17 +247,17 @@ export function Step5Actions({
                   )}
                   {a.simulation && (
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                      <SimTile label={t("overview.step5.sim.blockedTerms")} value={num(a.simulation.blockedTerms)} />
-                      <SimTile label={t("overview.step5.sim.blockedCost")} value={vnd(a.simulation.blockedCost)} />
-                      <SimTile label={t("overview.step5.sim.lostOrders")} value={num(a.simulation.blockedConversions)} tone={a.simulation.blockedConversions === 0 ? "good" : "bad"} />
-                      <SimTile label={t("overview.step5.sim.lostSecondary")} value={num(a.simulation.blockedAllConversions, { maximumFractionDigits: 1 })} tone={a.simulation.blockedAllConversions === 0 ? "good" : "warn"} />
+                      <SimTile label={t("overview.step5.sim.blockedTerms")} value={num(a.simulation.blockedTerms, undefined, intl)} />
+                      <SimTile label={t("overview.step5.sim.blockedCost")} value={vnd(a.simulation.blockedCost, intl)} />
+                      <SimTile label={t("overview.step5.sim.lostOrders")} value={num(a.simulation.blockedConversions, undefined, intl)} tone={a.simulation.blockedConversions === 0 ? "good" : "bad"} />
+                      <SimTile label={t("overview.step5.sim.lostSecondary")} value={num(a.simulation.blockedAllConversions, { maximumFractionDigits: 1 }, intl)} tone={a.simulation.blockedAllConversions === 0 ? "good" : "warn"} />
                     </div>
                   )}
 
                   {a.simulation?.moved && a.simulation.moved.terms > 0 && (
                     <div className="rounded-lg border border-sky-200 bg-sky-50 p-2.5 text-xs text-sky-800">
                       <div className="font-semibold">
-                        {t("overview.step5.moved.title", { to: a.simulation.moved.to, terms: num(a.simulation.moved.terms), cost: vnd(a.simulation.moved.cost), orders: num(a.simulation.moved.conversions, { maximumFractionDigits: 1 }), secondary: num(a.simulation.moved.allConversions, { maximumFractionDigits: 1 }) })}
+                        {t("overview.step5.moved.title", { to: a.simulation.moved.to, terms: num(a.simulation.moved.terms, undefined, intl), cost: vnd(a.simulation.moved.cost, intl), orders: num(a.simulation.moved.conversions, { maximumFractionDigits: 1 }, intl), secondary: num(a.simulation.moved.allConversions, { maximumFractionDigits: 1 }, intl) })}
                       </div>
                       <div className="mt-0.5">
                         {a.simulation.moved.live
@@ -272,7 +273,7 @@ export function Step5Actions({
                       <ul className="space-y-0.5">
                         {a.simulation.withConversions.map((w, i) => (
                           <li key={i}>
-                            “{w.term}” · {vnd(w.cost)} · {t("overview.step5.termConv", { orders: num(w.conversions, { maximumFractionDigits: 1 }), secondary: num(w.allConversions, { maximumFractionDigits: 1 }) })}
+                            “{w.term}” · {vnd(w.cost, intl)} · {t("overview.step5.termConv", { orders: num(w.conversions, { maximumFractionDigits: 1 }, intl), secondary: num(w.allConversions, { maximumFractionDigits: 1 }, intl) })}
                             {w.movedTo && <span className="text-sky-700"> → {t("overview.step5.movedTo", { to: w.movedTo })}</span>}
                           </li>
                         ))}
@@ -286,7 +287,7 @@ export function Step5Actions({
                       <ul className="space-y-0.5">
                         {a.simulation.ownKeywordsBlocked.map((k, i) => (
                           <li key={i}>
-                            “{k.text}” ({k.match}) · {vnd(k.cost)} · {t("overview.step5.ownKwRow", { n: k.impressions, by: k.by })}
+                            “{k.text}” ({k.match}) · {vnd(k.cost, intl)} · {t("overview.step5.ownKwRow", { n: k.impressions, by: k.by })}
                           </li>
                         ))}
                       </ul>

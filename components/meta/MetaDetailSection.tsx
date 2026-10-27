@@ -11,7 +11,7 @@ import { useState } from "react";
 import { ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { vnd, num } from "@/components/case/format";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import type { MetaXray, Slice } from "@/lib/meta/xray";
 
 /** "facebook · feed" → "facebook · feed" nhưng bỏ gạch dưới cho dễ đọc (impression_device, publisher_platform trả nguyên dạng API). */
@@ -24,6 +24,7 @@ function hourLabel(key: string): string {
 }
 
 function SliceMiniTable({ slices, format }: { slices: Slice[]; format?: (key: string) => string }) {
+  const intl = useIntlLocale();
   const t = useT();
   if (slices.length === 0) return <p className="text-[11px] text-slate-400">{t("meta.xray.det.noData")}</p>;
   const maxSpend = Math.max(...slices.map((s) => s.spend), 1);
@@ -44,14 +45,14 @@ function SliceMiniTable({ slices, format }: { slices: Slice[]; format?: (key: st
               <td className="py-1 pr-2 text-slate-600">{format ? format(s.key) : s.key}</td>
               <td className="py-1 pr-2">
                 <div className="flex items-center gap-1.5">
-                  <span className="whitespace-nowrap tabular-nums text-slate-700">{vnd(s.spend)}</span>
+                  <span className="whitespace-nowrap tabular-nums text-slate-700">{vnd(s.spend, intl)}</span>
                   <div className="h-1 min-w-[20px] flex-1 rounded-full bg-slate-100">
                     <div className="h-1 rounded-full bg-indigo-500" style={{ width: `${Math.round((s.spend / maxSpend) * 100)}%` }} />
                   </div>
                 </div>
               </td>
-              <td className="py-1 text-right tabular-nums text-slate-600">{s.click === null ? "—" : num(s.click, { maximumFractionDigits: 1 })}</td>
-              <td className="py-1 pl-2 text-right tabular-nums text-slate-500">{s.view === null ? "—" : num(s.view, { maximumFractionDigits: 1 })}</td>
+              <td className="py-1 text-right tabular-nums text-slate-600">{s.click === null ? "—" : num(s.click, { maximumFractionDigits: 1 }, intl)}</td>
+              <td className="py-1 pl-2 text-right tabular-nums text-slate-500">{s.view === null ? "—" : num(s.view, { maximumFractionDigits: 1 }, intl)}</td>
             </tr>
           ))}
         </tbody>

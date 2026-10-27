@@ -22,7 +22,7 @@ import { useToast } from "@/components/Toast";
 import { vnd, num, datetimeVN } from "@/components/case/format";
 import { postJson, ApiError } from "@/components/case/api";
 import { cn } from "@/lib/utils";
-import { useT } from "@/lib/i18n/client";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import type { MessageKey } from "@/lib/i18n/messages";
 import type { OutcomeRecord } from "@/lib/playbook/outcomes";
 import type { Company } from "@/lib/case/types";
@@ -148,6 +148,7 @@ export function PlaybookOutcomesSection({
 }
 
 function UsageCard({ usage }: { usage: OutcomeUsage & { company: Company } }) {
+  const intl = useIntlLocale();
   const t = useT();
   const badge = PLATFORM_BADGE[usage.platform];
   return (
@@ -158,7 +159,7 @@ function UsageCard({ usage }: { usage: OutcomeUsage & { company: Company } }) {
           <div>
             <div className="font-semibold text-slate-900">{usage.campaignName}</div>
             <div className="mt-0.5 text-xs text-slate-400">
-              {t("overview.playbook.outcomes.createdAt", { company: usage.company, at: datetimeVN(usage.at) })}{usage.by ? t("overview.playbook.outcomes.createdBy", { by: usage.by }) : ""}
+              {t("overview.playbook.outcomes.createdAt", { company: usage.company, at: datetimeVN(usage.at, intl) })}{usage.by ? t("overview.playbook.outcomes.createdBy", { by: usage.by }) : ""}
             </div>
           </div>
         </div>
@@ -197,6 +198,7 @@ function CheckpointCard({ checkpoint }: { checkpoint: OutcomeCheckpoint }) {
 }
 
 function RecordDetail({ record }: { record: OutcomeRecord }) {
+  const intl = useIntlLocale();
   const t = useT();
   const v = VERDICT_STYLE[record.verdict];
   return (
@@ -204,12 +206,12 @@ function RecordDetail({ record }: { record: OutcomeRecord }) {
       <Pill tone={v.tone}>{t(v.text)}</Pill>
       <p className="text-xs text-slate-600">{record.why}</p>
       {record.cpr !== null && record.peerMedian !== null && (
-        <div className="text-xs tabular-nums text-slate-500">{t("overview.playbook.outcomes.cprVsMedian", { cpr: vnd(record.cpr), median: vnd(record.peerMedian) })}</div>
+        <div className="text-xs tabular-nums text-slate-500">{t("overview.playbook.outcomes.cprVsMedian", { cpr: vnd(record.cpr, intl), median: vnd(record.peerMedian, intl) })}</div>
       )}
       {record.odoo && (
         "orders" in record.odoo ? (
           <div className="text-xs tabular-nums text-slate-500">
-            {t("overview.playbook.outcomes.odooOrders", { n: num(record.odoo.orders), revenue: vnd(record.odoo.revenue) })}
+            {t("overview.playbook.outcomes.odooOrders", { n: num(record.odoo.orders, undefined, intl), revenue: vnd(record.odoo.revenue, intl) })}
             {record.odoo.tags.length > 0 && <span className="text-slate-400">{t("overview.playbook.outcomes.odooTags", { tags: record.odoo.tags.join(", ") })}</span>}
           </div>
         ) : (

@@ -15,6 +15,7 @@ import type { NegativeKw, SimulationResult } from "./simulate-negatives"
 import type { CaseEvidence, Company, Diagnosis } from "./types"
 import type { CaseBasis } from "./verdict"
 import { isCompany } from "@/lib/companies/registry";
+import { CaseError } from "./errors"
 
 const DIR = path.join(process.cwd(), "data", "cases")
 /** Phiên đóng quá 180 ngày thì dọn — kết quả đo lại đã có, tài khoản đã khác xa. */
@@ -208,7 +209,7 @@ export async function updateCase<T>(
 ): Promise<T> {
   return withFileLock(fileOf(id), async () => {
     const cur = readCase(id)
-    if (!cur) throw new Error("Không tìm thấy phiên")
+    if (!cur) throw new CaseError("Không tìm thấy phiên", 404, { key: "libcase.s.http.caseNotFound" })
     const { next, result } = await fn(cur)
     if (next) writeCase({ ...next, updatedAt: new Date().toISOString() })
     return result

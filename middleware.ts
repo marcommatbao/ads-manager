@@ -85,7 +85,8 @@ export function middleware(request: NextRequest) {
     loginUrl.pathname = "/login";
     // Only allow relative paths as callbackUrl (prevent open redirect)
     if (pathname.startsWith("/") && !pathname.startsWith("//")) {
-      loginUrl.searchParams.set("callbackUrl", pathname);
+      // /oauth/authorize phải giữ nguyên tham số (client_id, code_challenge…) để quay lại đúng lượt uỷ quyền sau khi đăng nhập.
+      loginUrl.searchParams.set("callbackUrl", pathname.startsWith("/oauth/") ? pathname + request.nextUrl.search : pathname);
     }
     return NextResponse.redirect(loginUrl);
   }

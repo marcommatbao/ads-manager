@@ -13,6 +13,7 @@
 // mọi sự kiện tự đặt dưới "offsite_conversion.fb_pixel_custom" nên số kết quả
 // theo vị trí là XẤP XỈ (ghi rõ ở optResultsApprox).
 
+import { CaseError } from "./errors"
 import { enrichPostAds } from "@/lib/meta/page-posts"
 import { detectCompany } from "@/lib/company-detect"
 import { labelForStandardEvent } from "@/lib/meta-pixel-events"
@@ -174,7 +175,7 @@ export async function collectMetaEvidence(company: Company, campaignId: string, 
       "ads.limit(100){creative{url_tags,effective_object_story_id,object_story_spec{link_data{link},video_data{call_to_action{value{link}}}},asset_feed_spec{link_urls}}}",
     ].join(","),
   })
-  if (detectCompany(String(c.name)) !== company) throw new Error("Chiến dịch này không thuộc công ty đang chọn")
+  if (detectCompany(String(c.name)) !== company) throw new CaseError("Chiến dịch này không thuộc công ty đang chọn", 500, { key: "libcase.s.ev.foreignCampaign" })
   const adsetRows: Row[] = c.adsets?.data ?? []
   sources.push({ id: "structure", label: "Chiến dịch + nhóm quảng cáo", status: "ok", rows: adsetRows.length })
 

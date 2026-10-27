@@ -8,6 +8,7 @@
 // Tên thương hiệu đối thủ là thông tin công khai nên có mặc định trong mã.
 
 import fs from "fs"
+import { makeT, type TFunction } from "@/lib/i18n/translate"
 import path from "path"
 import { writeFileAtomicSync } from "@/lib/fs-atomic"
 import { withFileLock } from "@/lib/file-lock"
@@ -67,23 +68,23 @@ export function targetFor(company: Company, group: ProductGroup): CaseTarget | n
   return hit ? { basis: hit.basis, target: hit.target, ceiling: hit.ceiling } : null
 }
 
-export function validateTarget(t: Partial<TargetRow>): string | null {
-  if (!isCompany(t.company)) return "Công ty không có ở bản cài này"
-  if (!t.group) return "Thiếu nhóm sản phẩm"
-  if (t.basis !== "cpa" && t.basis !== "roas") return "Cách chấm phải là cpa hoặc roas"
+export function validateTarget(t: Partial<TargetRow>, tr: TFunction = makeT("vi")): string | null {
+  if (!isCompany(t.company)) return tr("libcase.c.target.company")
+  if (!t.group) return tr("libcase.c.target.group")
+  if (t.basis !== "cpa" && t.basis !== "roas") return tr("libcase.c.target.basis")
   const target = Number(t.target), ceiling = Number(t.ceiling)
   // Đợt 23 (3a): CPL cho chiến dịch thu lead — tuỳ chọn, nhưng đã điền thì đủ cả hai và mục tiêu ≤ trần.
   const hasCpl = t.cplTarget != null || t.cplCeiling != null
   if (hasCpl) {
     const ct = Number(t.cplTarget), cc = Number(t.cplCeiling)
-    if (!(ct > 0) || !(cc > 0)) return "CPL mục tiêu và CPL trần phải cùng > 0"
-    if (ct > cc) return "CPL mục tiêu phải ≤ CPL trần"
+    if (!(ct > 0) || !(cc > 0)) return tr("libcase.c.target.cplPos")
+    if (ct > cc) return tr("libcase.c.target.cplOrder")
   }
   // Dòng chỉ đặt CPL (chưa có mục tiêu bán hàng) → hợp lệ.
   if (hasCpl && !(target > 0) && !(ceiling > 0)) return null
-  if (!(target > 0) || !(ceiling > 0)) return "Mục tiêu và trần phải > 0"
-  if (t.basis === "cpa" && target > ceiling) return "Chi phí/đơn mục tiêu phải ≤ trần"
-  if (t.basis === "roas" && target < ceiling) return "ROAS mục tiêu phải ≥ ROAS trần"
+  if (!(target > 0) || !(ceiling > 0)) return tr("libcase.c.target.pos")
+  if (t.basis === "cpa" && target > ceiling) return tr("libcase.c.target.cpaOrder")
+  if (t.basis === "roas" && target < ceiling) return tr("libcase.c.target.roasOrder")
   return null
 }
 

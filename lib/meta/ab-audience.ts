@@ -12,6 +12,7 @@ import { withFileLock } from "@/lib/file-lock"
 import { writeFileAtomicSync } from "@/lib/fs-atomic"
 import type { GoalKind } from "@/lib/case/goal-kind"
 import type { CompareGroup } from "./audience-compare"
+import { makeT, type TFunction } from "@/lib/i18n/translate"
 
 /** Ít nhất ngần này ngày mới coi kết quả là "kết luận" (qua giai đoạn học + đủ 1 vòng tuần). */
 export const AB_MIN_DAYS = 7
@@ -71,9 +72,9 @@ type T = Record<string, unknown>
 const isNum = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x)
 
 /** Kiểm biến thể "đổi tuổi/giới tính" — HÀM THUẦN. Trả câu lỗi hoặc null. */
-export function validateEdit(v: { ageMin: unknown; ageMax: unknown; genders: unknown }): string | null {
-  if (!isNum(v.ageMin) || !isNum(v.ageMax) || v.ageMin < 18 || v.ageMax > 65 || v.ageMin > v.ageMax) return "Tuổi phải trong 18–65 và tuổi nhỏ ≤ tuổi lớn"
-  if (!Array.isArray(v.genders) || !v.genders.every((g) => g === 1 || g === 2) || v.genders.length > 2) return "Giới tính: để trống (mọi giới), [1] nam hoặc [2] nữ"
+export function validateEdit(v: { ageMin: unknown; ageMax: unknown; genders: unknown }, t: TFunction = makeT("vi")): string | null {
+  if (!isNum(v.ageMin) || !isNum(v.ageMax) || v.ageMin < 18 || v.ageMax > 65 || v.ageMin > v.ageMax) return t("libmeta.ab.errAge")
+  if (!Array.isArray(v.genders) || !v.genders.every((g) => g === 1 || g === 2) || v.genders.length > 2) return t("libmeta.ab.errGender")
   return null
 }
 
@@ -88,22 +89,23 @@ export function variantTargeting(aTargeting: T, v: AbVariant, winningTargeting?:
 
 const norm = (t: T) => JSON.stringify(Object.keys(t).sort().map((k) => [k, t[k]]))
 /** Cảnh báo trước khi tạo — HÀM THUẦN. Trả { blockers, warnings }. */
-export function planWarnings(input: { aTargeting: T; bTargeting: T; overlapPct: number; campaignBudget: boolean; adsetDaily: number | null; adsetLifetime: number | null; aStatus: string; activeAds: number; skippedAds: number }): { blockers: string[]; warnings: string[] } {
+export function planWarnings(input: { aTargeting: T; bTargeting: T; overlapPct: number; campaignBudget: boolean; adsetDaily: number | null; adsetLifetime: number | null; aStatus: string; activeAds: number; skippedAds: number }, t: TFunction = makeT("vi")): { blockers: string[]; warnings: string[] } {
+  const nl = t("libmeta.numLocale")
   const blockers: string[] = [], warnings: string[] = []
-  if (input.aStatus !== "ACTIVE") blockers.push(`Nhóm A đang ${input.aStatus} — chọn nhóm đang chạy làm mốc so`)
-  if (input.campaignBudget) blockers.push("Chiến dịch dùng ngân sách cấp CHIẾN DỊCH (Advantage+ campaign budget): Meta tự dồn tiền cho nhóm nó thích → hai nhóm không được chi công bằng, thử nghiệm vô nghĩa. Chỉ chạy được với chiến dịch đặt ngân sách theo từng nhóm.")
-  if (input.adsetDaily === null && input.adsetLifetime === null && !input.campaignBudget) blockers.push("Nhóm A không có ngân sách riêng")
-  if (input.adsetDaily !== null && input.adsetDaily < AB_MIN_DAILY_BUDGET) blockers.push(`Ngân sách nhóm A ₫${input.adsetDaily.toLocaleString("vi-VN")}/ngày quá thấp (cần ≥ ₫${AB_MIN_DAILY_BUDGET.toLocaleString("vi-VN")}) — mỗi bên sẽ ra quá ít kết quả để kết luận`)
-  if (!input.activeAds) blockers.push("Nhóm A không có quảng cáo đang chạy để chép sang B")
-  if (norm(input.aTargeting) === norm(input.bTargeting)) blockers.push("Tệp B giống hệt tệp A — không có gì để thử")
-  if (input.adsetDaily !== null) warnings.push(`Nhóm B dùng CÙNG ngân sách với A (₫${input.adsetDaily.toLocaleString("vi-VN")}/ngày) → khi bắt đầu, chiến dịch chi thêm khoảng ngần đó mỗi ngày.`)
-  if (input.adsetLifetime !== null) warnings.push("Nhóm A dùng ngân sách trọn đời — B chép cùng mức và cùng ngày kết thúc; B bắt đầu muộn hơn nên Meta sẽ chi nhanh hơn mỗi ngày.")
-  warnings.push("Đây không phải công cụ A/B chia tách người của Meta: hai nhóm cùng chiến dịch, người thuộc cả hai tệp có thể thấy cả hai — kết quả chỉ chắc khi chênh lệch rõ.")
-  if (input.overlapPct >= 75) warnings.push(`Hai tệp gần trùng (${input.overlapPct}%) — hai nhóm sẽ tranh cùng người trong đấu giá, khó tách được tệp nào tốt hơn.`)
+  if (input.aStatus !== "ACTIVE") blockers.push(t("libmeta.ab.blkStatus", { status: input.aStatus }))
+  if (input.campaignBudget) blockers.push(t("libmeta.ab.blkCbo"))
+  if (input.adsetDaily === null && input.adsetLifetime === null && !input.campaignBudget) blockers.push(t("libmeta.ab.blkNoBudget"))
+  if (input.adsetDaily !== null && input.adsetDaily < AB_MIN_DAILY_BUDGET) blockers.push(t("libmeta.ab.blkLowBudget", { budget: input.adsetDaily.toLocaleString(nl), min: AB_MIN_DAILY_BUDGET.toLocaleString(nl) }))
+  if (!input.activeAds) blockers.push(t("libmeta.ab.blkNoAds"))
+  if (norm(input.aTargeting) === norm(input.bTargeting)) blockers.push(t("libmeta.ab.blkSame"))
+  if (input.adsetDaily !== null) warnings.push(t("libmeta.ab.warnSameBudget", { budget: input.adsetDaily.toLocaleString(nl) }))
+  if (input.adsetLifetime !== null) warnings.push(t("libmeta.ab.warnLifetime"))
+  warnings.push(t("libmeta.ab.warnNotSplit"))
+  if (input.overlapPct >= 75) warnings.push(t("libmeta.ab.warnOverlap", { pct: input.overlapPct }))
   const adv = (t: T) => (t.targeting_automation as { advantage_audience?: number } | undefined)?.advantage_audience === 1
-  if (adv(input.aTargeting) || adv(input.bTargeting)) warnings.push("Đang bật Advantage+ đối tượng: Meta được phép mở rộng ra ngoài tuổi/giới/sở thích đã đặt — tệp thật sự chạy có thể khác nhiều so với tệp khai báo.")
-  if (input.skippedAds > 0) warnings.push(`Nhóm A có nhiều quảng cáo đang chạy — chỉ chép ${input.activeAds} quảng cáo đầu sang B; ${input.skippedAds} còn lại phải thêm tay để hai bên cùng quảng cáo.`)
-  warnings.push("Nhóm B học lại từ đầu (3–7 ngày) — đừng kết luận trong tuần đầu.")
+  if (adv(input.aTargeting) || adv(input.bTargeting)) warnings.push(t("libmeta.ab.warnAdvantage"))
+  if (input.skippedAds > 0) warnings.push(t("libmeta.ab.warnSkipped", { n: input.activeAds, skipped: input.skippedAds }))
+  warnings.push(t("libmeta.ab.warnLearning"))
   return { blockers, warnings }
 }
 
@@ -113,12 +115,12 @@ export function daysRunning(startedAt: string, now = new Date()): number {
 }
 
 /** Lời kết luận của thử nghiệm từ kết quả so sánh — HÀM THUẦN. Chưa đủ ngày thì không bao giờ nói "kết luận". */
-export function abReading(t: Pick<AbAudienceTest, "a" | "b">, g: CompareGroup | null, days: number): { tone: "win_a" | "win_b" | "leaning" | "wait"; text: string } {
-  if (!g) return { tone: "wait", text: "Chưa có số liệu kể từ ngày bắt đầu." }
-  const who = (id: string | null) => (id === t.a.adsetId ? "A (tệp cũ)" : id === t.b.adsetId ? "B (tệp mới)" : "?")
+export function abReading(test: Pick<AbAudienceTest, "a" | "b">, g: CompareGroup | null, days: number, t: TFunction = makeT("vi")): { tone: "win_a" | "win_b" | "leaning" | "wait"; text: string } {
+  if (!g) return { tone: "wait", text: t("libmeta.ab.readNoData") }
+  const who = (id: string | null) => (id === test.a.adsetId ? t("libmeta.ab.whoA") : id === test.b.adsetId ? t("libmeta.ab.whoB") : "?")
   const early = days < AB_MIN_DAYS
-  if (g.verdict === "winner" && !early) return { tone: g.winnerId === t.a.adsetId ? "win_a" : "win_b", text: `Kết luận: ${who(g.winnerId)} tốt hơn rõ rệt. ${g.summary}` }
-  if (g.verdict === "winner") return { tone: "leaning", text: `Đang nghiêng về ${who(g.winnerId)} và số đã tách biệt, nhưng mới chạy ${days}/${AB_MIN_DAYS} ngày — chờ đủ ${AB_MIN_DAYS} ngày rồi chốt. ${g.summary}` }
-  if (g.verdict === "leaning") return { tone: "leaning", text: `Đang nghiêng về ${who(g.winnerId)} nhưng chưa chắc. ${g.summary}` }
-  return { tone: "wait", text: `${early ? `Mới chạy ${days}/${AB_MIN_DAYS} ngày. ` : ""}${g.summary}` }
+  if (g.verdict === "winner" && !early) return { tone: g.winnerId === test.a.adsetId ? "win_a" : "win_b", text: t("libmeta.ab.readWin", { who: who(g.winnerId), summary: g.summary }) }
+  if (g.verdict === "winner") return { tone: "leaning", text: t("libmeta.ab.readEarlyWin", { who: who(g.winnerId), days, min: AB_MIN_DAYS, summary: g.summary }) }
+  if (g.verdict === "leaning") return { tone: "leaning", text: t("libmeta.ab.readLean", { who: who(g.winnerId), summary: g.summary }) }
+  return { tone: "wait", text: `${early ? t("libmeta.ab.readEarly", { days, min: AB_MIN_DAYS }) : ""}${g.summary}` }
 }
