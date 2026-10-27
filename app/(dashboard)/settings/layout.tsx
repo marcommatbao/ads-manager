@@ -38,6 +38,7 @@ const tabs: { label: MessageKey; href: string; icon: typeof Shield }[] = [
   { label: "settings.tab.health",  href: "/settings/health",        icon: HeartPulse },
   { label: "settings.tab.automation",     href: "/settings/automation",    icon: Bot },
   { label: "settings.tab.ga4",            href: "/settings/ga4",           icon: LineChart },
+  { label: "settings.tab.claude",         href: "/settings/claude",        icon: Bot },
 ];
 
 export default function SettingsLayout({
