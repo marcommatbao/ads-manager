@@ -5,8 +5,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2, Eye, EyeOff, Zap } from "lucide-react";
 import { safeCallbackPath } from "@/lib/safe-redirect";
 import { brandText } from "@/lib/companies/brand-text";
+import { useT } from "@/lib/i18n/client";
+import { LanguageSwitch } from "@/components/LanguageSwitch";
 
 function LoginForm() {
+  const t = useT();
   const router = useRouter();
   const searchParams = useSearchParams();
   // Chỉ quay lại đường dẫn cùng trang — xem lib/safe-redirect.ts (chặn "/\\evil", "/<TAB>/evil", "//evil").
@@ -33,14 +36,14 @@ function LoginForm() {
       const json = await res.json();
 
       if (!json.success) {
-        setError(json.error || "Đăng nhập thất bại");
+        setError(json.error || t("auth.login.failed"));
         return;
       }
 
       router.push(callbackUrl);
       router.refresh();
     } catch {
-      setError("Lỗi kết nối server");
+      setError(t("auth.serverError"));
     } finally {
       setLoading(false);
     }
@@ -52,6 +55,10 @@ function LoginForm() {
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute -top-40 -right-40 w-80 h-80 rounded-full bg-amber-500/10 blur-3xl" />
         <div className="absolute -bottom-40 -left-40 w-80 h-80 rounded-full bg-violet-500/10 blur-3xl" />
+      </div>
+
+      <div className="absolute right-4 top-4 z-10">
+        <LanguageSwitch />
       </div>
 
       <div className="relative w-full max-w-md">
@@ -75,7 +82,7 @@ function LoginForm() {
           onSubmit={handleSubmit}
           className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-8 shadow-2xl"
         >
-          <h2 className="text-lg font-semibold text-white mb-6">Đăng nhập</h2>
+          <h2 className="text-lg font-semibold text-white mb-6">{t("auth.login.title")}</h2>
 
           {/* Error message */}
           {error && (
@@ -103,7 +110,7 @@ function LoginForm() {
           {/* Password */}
           <div className="mb-6">
             <label className="block text-sm font-medium text-slate-300 mb-1.5">
-              Mật khẩu
+              {t("auth.login.password")}
             </label>
             <div className="relative">
               <input
@@ -136,10 +143,10 @@ function LoginForm() {
           >
             {loading ? (
               <>
-                <Loader2 className="h-4 w-4 animate-spin" /> Đang xác thực...
+                <Loader2 className="h-4 w-4 animate-spin" /> {t("auth.login.submitting")}
               </>
             ) : (
-              "Đăng nhập →"
+              t("auth.login.submit")
             )}
           </button>
 
@@ -151,8 +158,8 @@ function LoginForm() {
         </p>
         {/* 15/10/2026: Google OAuth verification — trang chủ + chính sách xem được từ trang đăng nhập. */}
         <p className="text-center text-xs text-slate-500 mt-2 space-x-3">
-          <a href="/about" className="hover:text-slate-300 underline-offset-2 hover:underline">About</a>
-          <a href="/privacy" className="hover:text-slate-300 underline-offset-2 hover:underline">Privacy Policy</a>
+          <a href="/about" className="hover:text-slate-300 underline-offset-2 hover:underline">{t("auth.about")}</a>
+          <a href="/privacy" className="hover:text-slate-300 underline-offset-2 hover:underline">{t("auth.privacy")}</a>
         </p>
       </div>
     </div>

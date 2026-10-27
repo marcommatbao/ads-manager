@@ -9,24 +9,13 @@ import type { SessionUser } from "@/lib/auth"
 import { clearGatewayTokenCache, gatewayFetch } from "./gateway"
 import { backPage, connectError, connectGuard, NEXT_COOKIE, NONCE_COOKIE, publicOrigin } from "./route-kit"
 import type { ConnectProvider } from "./store"
+import { defaultLocale, isLocale, LOCALE_COOKIE } from "@/lib/i18n/config"
 
-const LABEL: Record<ConnectProvider, string> = { google: "Google", meta: "Meta" }
+// Mã lý do ổn định gửi qua ?connect_error_code= — ConnectCard (client) dịch theo ngôn ngữ đang chọn (key connect.reason.*).
+const REASON_CODES = ["cancelled", "access_denied", "scope_denied", "no_refresh_token", "session_mismatch", "install_inactive", "misconfigured", "provider_error"]
 
-function reasonText(provider: ConnectProvider, reason: string): string {
-  const who = LABEL[provider]
-  const map: Record<string, string> = {
-    cancelled: "Bạn đã huỷ kết nối.",
-    access_denied: `${who}: bạn chưa cho phép truy cập.`,
-    scope_denied: provider === "google"
-      ? "Bạn chưa tích quyền Google Ads trên màn hình Google — bấm kết nối lại và tích ô quản lý Google Ads."
-      : "Bạn chưa cấp quyền quản lý quảng cáo trên hộp thoại Facebook — bấm kết nối lại và giữ nguyên các quyền được đề nghị.",
-    no_refresh_token: "Google không trả quyền truy cập lâu dài — bấm kết nối lại.",
-    session_mismatch: "Phiên kết nối không khớp trình duyệt — bấm kết nối lại trên cùng trình duyệt.",
-    install_inactive: "Bản cài đang bị Mắt Bão tạm ngưng — liên hệ Mắt Bão.",
-    misconfigured: "Cổng kết nối Mắt Bão đang thiếu cấu hình — liên hệ Mắt Bão.",
-    provider_error: `${who} báo lỗi khi kết nối — thử lại sau ít phút.`,
-  }
-  return map[reason] ?? map.provider_error
+function reasonCode(reason: string): string {
+  return REASON_CODES.includes(reason) ? reason : "provider_error"
 }
 
 export async function startConnect(req: NextRequest, provider: ConnectProvider): Promise<NextResponse> {
@@ -39,6 +28,8 @@ export async function startConnect(req: NextRequest, provider: ConnectProvider):
         provider,
         returnPath: `/api/connect/${provider}/return`,
         createdBy: g.user.email,
+        // Song ngữ (#7135): trang trung gian của cổng + màn Google hiện đúng ngôn ngữ người bấm đang chọn (nút VI/EN).
+        lang: (() => { const v = req.cookies.get(LOCALE_COOKIE)?.value; return isLocale(v) ? v : defaultLocale() })(),
         nonceHash: crypto.createHash("sha256").update(nonce).digest("hex"),
       },
     })
@@ -71,10 +62,10 @@ export async function returnConnect(
     return res
   }
 
-  if (q.get("ok") !== "1") return back({ connect: provider, connect_error: reasonText(provider, q.get("reason") ?? "provider_error") })
+  if (q.get("ok") !== "1") return back({ connect: provider, connect_error_code: reasonCode(q.get("reason") ?? "provider_error") })
   const cid = q.get("cid") ?? ""
   const nonce = req.cookies.get(NONCE_COOKIE(provider))?.value
-  if (!/^c_[A-Za-z0-9_-]{12}$/.test(cid) || !nonce) return back({ connect: provider, connect_error: reasonText(provider, "session_mismatch") })
+  if (!/^c_[A-Za-z0-9_-]{12}$/.test(cid) || !nonce) return back({ connect: provider, connect_error_code: "session_mismatch" })
 
   try {
     await gatewayFetch(`/api/v1/connections/${cid}/confirm`, { body: { nonce } })

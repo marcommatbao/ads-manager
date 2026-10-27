@@ -52,6 +52,8 @@ import type { ModuleId } from "@/lib/companies/defaults";
 import { hasModule } from "@/lib/companies/registry";
 import { useSetupFlags } from "@/lib/setup/client";
 import { useCompaniesVersion } from "@/lib/companies/use-companies";
+import { useT } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/messages";
 
 export interface NavItem {
   label: string;
@@ -200,6 +202,35 @@ export const navItems: NavItem[] = ALL_NAV_ITEMS
     ? { ...item, children: item.children.filter(c => !isHiddenPage(c.href)) }
     : item);
 
+// Nhãn menu dịch theo href (dữ liệu navItems giữ nguyên tiếng Việt — test golden + mobile-nav dùng chung).
+// Khoá: shell.nav.<slug> / shell.navdesc.<slug> / shell.navc.<slug>; thiếu khoá → dùng nhãn gốc.
+export const navSlug = (href: string) => (href === "/" ? "dashboard" : href.replace(/^\/+/, "").replace(/\//g, "_"));
+export const SECTION_KEYS: Record<string, MessageKey> = {
+  "Hằng ngày": "shell.section.daily",
+  "Xử lý chiến dịch": "shell.section.handling",
+  "Google Ads": "shell.section.google",
+  "Facebook / Meta": "shell.section.meta",
+  "Đo lường & đơn thật": "shell.section.measure",
+  "Chiến dịch & Creative": "shell.section.campaigns",
+  "Tối ưu & Tự động": "shell.section.optimize",
+  "Báo cáo & chính sách": "shell.section.reports",
+};
+
+export function useNavT() {
+  const t = useT();
+  const pick = (key: string, fallback: string) => {
+    const s = t(key as MessageKey);
+    return s === key ? fallback : s;
+  };
+  return {
+    label: (item: { label: string; href: string }) => pick(`shell.nav.${navSlug(item.href)}`, item.label),
+    description: (item: { label: string; href: string; description?: string }) =>
+      item.description ? pick(`shell.navdesc.${navSlug(item.href)}`, item.description) : pick(`shell.nav.${navSlug(item.href)}`, item.label),
+    child: (c: { label: string; href: string }) => pick(`shell.navc.${navSlug(c.href)}`, c.label),
+    section: (s: string) => { const k = SECTION_KEYS[s]; return k ? t(k) : s; },
+  };
+}
+
 // ─────────────────────────────────────────────
 // Role badge
 // ─────────────────────────────────────────────
@@ -231,6 +262,8 @@ interface GoogleAccount {
 export default function Sidebar() {
   const pathname = usePathname();
   const { user, logout } = useSession();
+  const t = useT();
+  const nav = useNavT();
   // Keyed by item.href — generalized from the old settingsOpen/toolkitOpen
   // pair so any nav item with `children` (Creative AI, Automation, Toolkit,
   // Settings) gets independent expand/collapse state, not just the two
@@ -305,7 +338,7 @@ export default function Sidebar() {
           const showSectionHeader = !!item.section && item.section !== visibleItems[idx - 1]?.section;
           const sectionHeader = showSectionHeader ? (
             <p className="px-4 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/25 hidden lg:block">
-              {item.section}
+              {nav.section(item.section!)}
             </p>
           ) : null;
 
@@ -321,7 +354,7 @@ export default function Sidebar() {
               <div className="relative group">
                 <button
                   onClick={() => setOpen(!isOpen)}
-                  title={item.description ?? item.label}
+                  title={nav.description(item)}
                   className={cn(
                     "flex w-full items-center justify-center lg:justify-start gap-3 rounded-lg md:px-0 lg:px-4 py-3 text-sm font-medium transition-colors duration-150 relative",
                     isActive
@@ -330,7 +363,7 @@ export default function Sidebar() {
                   )}
                 >
                   <item.icon size={20} strokeWidth={1.8} className="shrink-0" />
-                  <span className="flex-1 text-left hidden lg:block">{item.label}</span>
+                  <span className="flex-1 text-left hidden lg:block">{nav.label(item)}</span>
                   {isOpen ? (
                     <ChevronDown className="h-3.5 w-3.5 text-sidebar-foreground/40 hidden lg:block" />
                   ) : (
@@ -339,7 +372,7 @@ export default function Sidebar() {
                 </button>
                 {/* Tooltip for tablet */}
                 <span className="absolute left-full top-1/2 -translate-y-1/2 ml-2 hidden group-hover:md:block lg:hidden rounded bg-slate-800 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity z-50 pointer-events-none whitespace-nowrap">
-                  {item.label}
+                  {nav.label(item)}
                 </span>
 
                 <div className={cn("mt-0.5 space-y-0.5 border-sidebar-border", isOpen ? "block" : "hidden")}>
@@ -358,7 +391,7 @@ export default function Sidebar() {
                             : "text-sidebar-foreground/50 hover:text-sidebar-foreground/80"
                         )}
                       >
-                        {item.href === "/settings" ? "Cài đặt chung" : `Tổng quan ${item.label}`}
+                        {item.href === "/settings" ? t("shell.nav.general_settings") : t("shell.nav.overview", { name: nav.label(item) })}
                       </Link>
                     )}
                     {(item.href === "/settings" && setup.enabled ? [{ label: "Thiết lập ban đầu", href: "/setup", roles: ["super_admin"] as Role[] }, ...item.children] : item.children).map((child) => {
@@ -375,7 +408,7 @@ export default function Sidebar() {
                               : "text-sidebar-foreground/50 hover:text-sidebar-foreground/80"
                           )}
                         >
-                          {child.label}
+                          {nav.child(child)}
                         </Link>
                       );
                     })}
@@ -397,7 +430,7 @@ export default function Sidebar() {
             {sectionHeader}
             <Link
               href={item.href}
-              title={item.description ?? item.label}
+              title={nav.description(item)}
               className={cn(
                 "group relative flex items-center justify-center lg:justify-start gap-3 rounded-lg md:px-0 lg:px-4 py-3 text-sm font-medium transition-colors duration-150",
                 isActive
@@ -406,7 +439,7 @@ export default function Sidebar() {
               )}
             >
               <item.icon size={20} strokeWidth={1.8} className="shrink-0" />
-              <span className="hidden lg:block">{item.label}</span>
+              <span className="hidden lg:block">{nav.label(item)}</span>
               {/* Badge for improvements count */}
               {item.badge === "improvements" && improvementsCount > 0 && (
                 <span className="ml-auto hidden lg:flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">
@@ -415,7 +448,7 @@ export default function Sidebar() {
               )}
               {/* Tooltip for tablet */}
               <span className="absolute left-full top-1/2 -translate-y-1/2 ml-2 hidden group-hover:md:block lg:hidden rounded bg-slate-800 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity z-50 pointer-events-none whitespace-nowrap">
-                {item.label}
+                {nav.label(item)}
               </span>
             </Link>
             </div>
@@ -426,20 +459,20 @@ export default function Sidebar() {
       {/* ---- Connection Status ---- */}
       <div className="shrink-0 border-t border-sidebar-border px-0 lg:px-5 py-3 space-y-4 lg:space-y-1.5 hidden md:block">
         <p className="text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/25 mb-1 hidden lg:block">
-          Connections
+          {t("shell.connections")}
         </p>
         <div className="flex items-center justify-center lg:justify-start gap-2" title="Facebook">
           <span className={cn("h-1.5 w-1.5 rounded-full", connections.facebook ? "bg-blue-500" : "bg-white/20")} />
           <span className="text-[11px] text-sidebar-foreground/40 hidden lg:block">Facebook</span>
           <span className="ml-auto text-[10px] hidden lg:block">
-            {connections.facebook ? <span className="text-blue-400">Connected</span> : <span className="text-sidebar-foreground/20">—</span>}
+            {connections.facebook ? <span className="text-blue-400">{t("shell.connected")}</span> : <span className="text-sidebar-foreground/20">—</span>}
           </span>
         </div>
         <div className="flex items-center justify-center lg:justify-start gap-2" title="Google Ads">
           <span className={cn("h-1.5 w-1.5 rounded-full", connections.google ? "bg-red-500" : "bg-white/20")} />
           <span className="text-[11px] text-sidebar-foreground/40 hidden lg:block">Google Ads</span>
           <span className="ml-auto text-[10px] hidden lg:block">
-            {connections.google ? <span className="text-green-400">Connected</span> : <span className="text-sidebar-foreground/20">—</span>}
+            {connections.google ? <span className="text-green-400">{t("shell.connected")}</span> : <span className="text-sidebar-foreground/20">—</span>}
           </span>
         </div>
       </div>
@@ -463,14 +496,14 @@ export default function Sidebar() {
             <Link
               href="/doi-mat-khau"
               className="flex h-7 w-7 items-center justify-center rounded-lg text-sidebar-foreground/30 hover:text-sidebar-foreground/70 hover:bg-sidebar-accent transition-colors"
-              title="Đổi mật khẩu"
+              title={t("shell.changePassword")}
             >
               <KeyRound size={14} />
             </Link>
             <button
               onClick={logout}
               className="flex h-7 w-7 items-center justify-center rounded-lg text-sidebar-foreground/30 hover:text-sidebar-foreground/70 hover:bg-sidebar-accent transition-colors"
-              title="Đăng xuất"
+              title={t("shell.logout")}
             >
               <LogOut size={14} />
             </button>

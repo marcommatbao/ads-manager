@@ -20,22 +20,24 @@ import {
 import { hasModule } from "@/lib/companies/registry";
 import { moduleOfPage } from "@/lib/companies/modules";
 import { useCompaniesVersion } from "@/lib/companies/use-companies";
+import { useT } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/messages";
 
-const tabs = [
-  { label: "API Keys",       href: "/settings",               icon: Shield },
-  { label: "Ngân sách",      href: "/settings/budget",        icon: Wallet },
-  { label: "Doanh Thu",      href: "/settings/revenue",       icon: DollarSign },
-  { label: "KPI",            href: "/settings/kpi",           icon: Target },
-  { label: "Hồ sơ doanh nghiệp", href: "/settings/brand-profile", icon: Building2 },
-  { label: "Chi phí kênh khác", href: "/settings/manual-spend", icon: Wallet },
-  { label: "Thông báo",      href: "/settings/notifications", icon: Bell },
-  { label: "Team",           href: "/settings/team",          icon: Users },
-  { label: "Quản lý Users",  href: "/settings/users",         icon: UserCog },
-  { label: "Tracking",       href: "/settings/tracking",      icon: Activity },
-  { label: "Cron Jobs",      href: "/settings/jobs",          icon: Timer },
-  { label: "Sức khoẻ tool",  href: "/settings/health",        icon: HeartPulse },
-  { label: "Auto-Apply",     href: "/settings/automation",    icon: Bot },
-  { label: "GA4",            href: "/settings/ga4",           icon: LineChart },
+const tabs: { label: MessageKey; href: string; icon: typeof Shield }[] = [
+  { label: "settings.tab.apiKeys",       href: "/settings",               icon: Shield },
+  { label: "settings.tab.budget",      href: "/settings/budget",        icon: Wallet },
+  { label: "settings.tab.revenue",      href: "/settings/revenue",       icon: DollarSign },
+  { label: "settings.tab.kpi",            href: "/settings/kpi",           icon: Target },
+  { label: "settings.tab.brandProfile", href: "/settings/brand-profile", icon: Building2 },
+  { label: "settings.tab.manualSpend", href: "/settings/manual-spend", icon: Wallet },
+  { label: "settings.tab.notifications",      href: "/settings/notifications", icon: Bell },
+  { label: "settings.tab.team",           href: "/settings/team",          icon: Users },
+  { label: "settings.tab.users",  href: "/settings/users",         icon: UserCog },
+  { label: "settings.tab.tracking",       href: "/settings/tracking",      icon: Activity },
+  { label: "settings.tab.jobs",      href: "/settings/jobs",          icon: Timer },
+  { label: "settings.tab.health",  href: "/settings/health",        icon: HeartPulse },
+  { label: "settings.tab.automation",     href: "/settings/automation",    icon: Bot },
+  { label: "settings.tab.ga4",            href: "/settings/ga4",           icon: LineChart },
 ];
 
 export default function SettingsLayout({
@@ -43,6 +45,7 @@ export default function SettingsLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const t = useT();
   const pathname = usePathname();
   useCompaniesVersion(); // Đợt 21 B: vẽ lại khi mô-đun của bản cài nạp xong
 
@@ -50,9 +53,9 @@ export default function SettingsLayout({
     <div className="space-y-6">
       {/* Page Header */}
       <div>
-        <h1 className="text-2xl font-bold text-slate-800">Settings</h1>
+        <h1 className="text-2xl font-bold text-slate-800">{t("settings.title")}</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Configure your API connections and preferences.
+          {t("settings.subtitle")}
         </p>
       </div>
 
@@ -76,7 +79,7 @@ export default function SettingsLayout({
               )}
             >
               <Icon className="h-4 w-4" />
-              {label}
+              {t(label)}
             </Link>
           );
         })}

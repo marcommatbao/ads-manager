@@ -14,6 +14,8 @@ import PlatformBadge from "@/components/PlatformBadge";
 import { cn, formatCurrency, CURRENCY_CONFIG } from "@/lib/utils";
 import { useAdsStore } from "@/store/useAdsStore";
 import { useToast } from "@/components/Toast";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
+import { makeT, type TFunction } from "@/lib/i18n/translate";
 // Ngưỡng sức khoẻ chiến dịch — NGUỒN DUY NHẤT.
 // Trước 23/09/2026 các con số dưới đây được gõ thẳng vào hàm
 // getCampaignHealthBadge, và lib/campaign-health.ts giữ một bản KHÁC, lệch
@@ -91,21 +93,27 @@ interface CampaignTableProps {
 // Currency-aware helpers
 // ─────────────────────────────────────────────
 
+/** Hậu tố nghìn tỷ/triệu theo ngôn ngữ: vi "T"/"Tr" (mặc định, như cũ), en "B"/"M". */
+function magSuffix(intlLocale: string) {
+  return intlLocale === "vi-VN" ? { b: "T", m: "Tr" } : { b: "B", m: "M" };
+}
+
 /**
  * Format a currency value for table cells.
  * For VND: ₫23,523,000 or ₫23.5Tr for large amounts
  * For USD: $1,234.56 or $1.5K for large amounts
  */
-export function fmtCurrency(v: number, currency = "USD") {
+export function fmtCurrency(v: number, currency = "USD", intlLocale = "vi-VN") {
+  const sfx = magSuffix(intlLocale);
   const config = CURRENCY_CONFIG[currency] || CURRENCY_CONFIG["USD"];
   const actualValue = v / config.divideBy;
 
   if (currency === "VND") {
     // VND: use Vietnamese-style abbreviations for large numbers
-    if (actualValue >= 1_000_000_000) return `₫${(actualValue / 1_000_000_000).toFixed(1)}T`;
-    if (actualValue >= 1_000_000) return `₫${(actualValue / 1_000_000).toFixed(1)}Tr`;
-    if (actualValue >= 1_000) return `₫${actualValue.toLocaleString("vi-VN", { maximumFractionDigits: 0 })}`;
-    return `₫${Math.round(actualValue).toLocaleString("vi-VN")}`;
+    if (actualValue >= 1_000_000_000) return `₫${(actualValue / 1_000_000_000).toFixed(1)}${sfx.b}`;
+    if (actualValue >= 1_000_000) return `₫${(actualValue / 1_000_000).toFixed(1)}${sfx.m}`;
+    if (actualValue >= 1_000) return `₫${actualValue.toLocaleString(intlLocale, { maximumFractionDigits: 0 })}`;
+    return `₫${Math.round(actualValue).toLocaleString(intlLocale)}`;
   }
 
   // USD and other currencies
@@ -118,14 +126,15 @@ export function fmtCurrency(v: number, currency = "USD") {
  * Format a value that is already in major currency units (e.g. spend from Meta API).
  * Use this for metrics.spend, metrics.cpc, etc. that are NOT in minor units.
  */
-export function fmtSpend(v: number, currency = "USD") {
+export function fmtSpend(v: number, currency = "USD", intlLocale = "vi-VN") {
+  const sfx = magSuffix(intlLocale);
   const config = CURRENCY_CONFIG[currency] || CURRENCY_CONFIG["USD"];
 
   if (currency === "VND") {
-    if (v >= 1_000_000_000) return `₫${(v / 1_000_000_000).toFixed(1)}T`;
-    if (v >= 1_000_000) return `₫${(v / 1_000_000).toFixed(1)}Tr`;
-    if (v >= 1_000) return `₫${v.toLocaleString("vi-VN", { maximumFractionDigits: 0 })}`;
-    return `₫${Math.round(v).toLocaleString("vi-VN")}`;
+    if (v >= 1_000_000_000) return `₫${(v / 1_000_000_000).toFixed(1)}${sfx.b}`;
+    if (v >= 1_000_000) return `₫${(v / 1_000_000).toFixed(1)}${sfx.m}`;
+    if (v >= 1_000) return `₫${v.toLocaleString(intlLocale, { maximumFractionDigits: 0 })}`;
+    return `₫${Math.round(v).toLocaleString(intlLocale)}`;
   }
 
   if (v >= 1_000_000) return `${config.symbol}${(v / 1_000_000).toFixed(1)}M`;
@@ -134,15 +143,16 @@ export function fmtSpend(v: number, currency = "USD") {
 }
 
 /** Số tiền ĐẦY ĐỦ (không rút gọn "Tr"/"K") — để đối chiếu từng đồng với cột cùng tên trong Ads Manager. */
-export function fmtMoneyFull(v: number, currency = "USD") {
-  if (currency === "VND") return `${Math.round(v).toLocaleString("vi-VN")} ₫`
+export function fmtMoneyFull(v: number, currency = "USD", intlLocale = "vi-VN") {
+  if (currency === "VND") return `${Math.round(v).toLocaleString(intlLocale)} ₫`
   const config = CURRENCY_CONFIG[currency] || CURRENCY_CONFIG["USD"]
   return `${config.symbol}${v.toLocaleString("en-US", { minimumFractionDigits: config.decimals, maximumFractionDigits: config.decimals })}`
 }
 
-export function fmtNumber(v: number) {
-  if (v >= 1_000_000_000) return `${(v / 1_000_000_000).toFixed(1)}T`;
-  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}Tr`;
+export function fmtNumber(v: number, intlLocale = "vi-VN") {
+  const sfx = magSuffix(intlLocale);
+  if (v >= 1_000_000_000) return `${(v / 1_000_000_000).toFixed(1)}${sfx.b}`;
+  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}${sfx.m}`;
   if (v >= 1_000) return `${(v / 1_000).toFixed(0)}K`;
   return `${v}`;
 }
@@ -157,7 +167,9 @@ export const STATUS_CFG: Record<CampaignStatus, { label: string; dot: string; te
 };
 
 export function StatusBadge({ status }: { status: CampaignStatus }) {
-  const { label, dot, text } = STATUS_CFG[status];
+  const t = useT();
+  const { label: _label, dot, text } = STATUS_CFG[status];
+  const label = t(status === "ACTIVE" ? "campaigns.status.active" : status === "PAUSED" ? "campaigns.status.paused" : "campaigns.status.archived");
   return (
     <span className={cn("inline-flex items-center gap-1.5 text-xs font-medium", text)}>
       <span className={cn("h-1.5 w-1.5 rounded-full", dot)} />
@@ -179,7 +191,7 @@ export interface HealthBadgeData {
   suggestion: string;
 }
 
-export function getCampaignHealthBadge(c: Campaign): HealthBadgeData {
+export function getCampaignHealthBadge(c: Campaign, t: TFunction = makeT("vi"), intlLocale = "vi-VN"): HealthBadgeData {
   const m = c.metrics;
   const ageMs = c.startDate ? Date.now() - new Date(c.startDate).getTime() : 0;
   const ageDays = ageMs / 86400000;
@@ -191,127 +203,127 @@ export function getCampaignHealthBadge(c: Campaign): HealthBadgeData {
     if (m.impressions === 0) {
       return {
         level: "info",
-        label: "▶ Đang chạy",
-        detail: "Campaign đang hoạt động. Dữ liệu metrics sẽ cập nhật sau.",
-        suggestion: "Chọn date range cụ thể để xem metrics chi tiết.",
+        label: t("campaigns.health.running.label"),
+        detail: t("campaigns.health.running.detail"),
+        suggestion: t("campaigns.health.running.suggestion"),
       };
     }
   }
   if (learning.phase === "new" && c.status === "ACTIVE" && c.platform !== "google") {
     const exitStr = learning.estimatedExitDate
-      ? `Automation sẽ bắt đầu sau: ${learning.estimatedExitDate.toLocaleDateString("vi-VN")}`
-      : "Chưa đủ data";
+      ? t("campaigns.health.new.exitDate", { date: learning.estimatedExitDate.toLocaleDateString(intlLocale) })
+      : t("campaigns.health.new.exitNoData");
     return {
       level: "learning",
-      label: `🆕 Mới (${learning.campaignAgeDays}d)`,
-      detail: `Campaign mới ${learning.campaignAgeDays} ngày tuổi — quá mới để đánh giá.`,
-      suggestion: `Không pause/sửa lúc này. Đợi ít nhất 3 ngày để có data cơ bản. ${exitStr}`,
+      label: t("campaigns.health.new.label", { days: learning.campaignAgeDays }),
+      detail: t("campaigns.health.new.detail", { days: learning.campaignAgeDays }),
+      suggestion: t("campaigns.health.new.suggestion", { exit: exitStr }),
     };
   }
   if (learning.phase === "learning" && c.status === "ACTIVE" && c.platform !== "google") {
     const conversionsNeeded = Math.max(0, 50 - learning.conversionsThisWeek);
     const exitStr = learning.estimatedExitDate
-      ? `Dự kiến thoát: ${learning.estimatedExitDate.toLocaleDateString("vi-VN")}`
-      : "Chưa đủ data để ước tính";
+      ? t("campaigns.health.learning.exitDate", { date: learning.estimatedExitDate.toLocaleDateString(intlLocale) })
+      : t("campaigns.health.learning.exitNoData");
     return {
       level: "learning",
-      label: `🎓 Đang học (${learning.campaignAgeDays}d)`,
-      detail: `Campaign mới ${learning.campaignAgeDays} ngày tuổi. Facebook đang trong learning phase.`,
-      suggestion: `Không nên pause hoặc sửa nhiều lúc này. Cần ~${conversionsNeeded} conversions nữa để ổn định. ${exitStr}`,
+      label: t("campaigns.health.learning.label", { days: learning.campaignAgeDays }),
+      detail: t("campaigns.health.learning.detail", { days: learning.campaignAgeDays }),
+      suggestion: t("campaigns.health.learning.suggestion", { needed: conversionsNeeded, exit: exitStr }),
     };
   }
   if (learning.phase === "learning_limited" && c.status === "ACTIVE" && c.platform !== "google") {
     return {
       level: "learning",
-      label: "⚡ Học hạn chế",
-      detail: `Campaign đã chạy ${learning.campaignAgeDays} ngày nhưng chỉ có ${learning.conversionsThisWeek} conversions/tuần (cần 50+).`,
-      suggestion: "Performance có thể không ổn định. Gợi ý: Mở rộng audience hoặc tăng budget.",
+      label: t("campaigns.health.limited.label"),
+      detail: t("campaigns.health.limited.detail", { days: learning.campaignAgeDays, conv: learning.conversionsThisWeek }),
+      suggestion: t("campaigns.health.limited.suggestion"),
     };
   }
 
   // 🔴 CRITICAL
   if (m.roas < ROAS_LOSING && m.spend > ROAS_MIN_SPEND_VND) {
     return {
-      level: "critical", label: "🔴 Đang lỗ",
-      detail: `ROAS ${m.roas.toFixed(2)}x với spend ₫${Math.round(m.spend).toLocaleString("vi-VN")}`,
-      suggestion: "Tạm dừng ngay và xem lại targeting/creative. ROAS dưới 0.5x là đang mất tiền.",
+      level: "critical", label: t("campaigns.health.losing.label"),
+      detail: t("campaigns.health.losing.detail", { roas: m.roas.toFixed(2), spend: Math.round(m.spend).toLocaleString(intlLocale) }),
+      suggestion: t("campaigns.health.losing.suggestion"),
     };
   }
   if (m.impressions === 0 && c.status === "ACTIVE" && ageDays > NO_DELIVERY_MIN_AGE_DAYS) {
     return {
-      level: "critical", label: "🔴 Không phân phối",
-      detail: `0 impression trong ${Math.round(ageDays)} ngày`,
-      suggestion: "Kiểm tra campaign có bị reject không, hoặc budget/bid quá thấp.",
+      level: "critical", label: t("campaigns.health.noDelivery.label"),
+      detail: t("campaigns.health.noDelivery.detail", { days: Math.round(ageDays) }),
+      suggestion: t("campaigns.health.noDelivery.suggestion"),
     };
   }
   if (((m as unknown as Record<string, number>).frequency ?? 0) > FREQUENCY_CRITICAL) {
     return {
-      level: "critical", label: "🔴 Bão hoà nặng",
-      detail: `Frequency ${((m as unknown as Record<string, number>).frequency ?? 0).toFixed(1)}x — quá cao`,
-      suggestion: "Cần refresh creative ngay và mở rộng audience. Frequency > 5 = audience đã xem quá nhiều.",
+      level: "critical", label: t("campaigns.health.freqCritical.label"),
+      detail: t("campaigns.health.freqCritical.detail", { freq: ((m as unknown as Record<string, number>).frequency ?? 0).toFixed(1) }),
+      suggestion: t("campaigns.health.freqCritical.suggestion"),
     };
   }
 
   // 🟡 WARNING
   if (m.ctr < CTR_LOW_PCT && m.impressions > CTR_MIN_IMPRESSIONS) {
     return {
-      level: "warning", label: `🟡 CTR thấp ${m.ctr.toFixed(2)}%`,
-      detail: `CTR ${m.ctr.toFixed(2)}% thấp hơn nhiều so với mốc ${CTR_BENCHMARK_PCT}% (ngưỡng nội bộ của tool)`,
-      suggestion: "Thử đổi creative hoặc thu hẹp audience. CTR < 0.5% thường do ad không hấp dẫn.",
+      level: "warning", label: t("campaigns.health.ctrLow.label", { ctr: m.ctr.toFixed(2) }),
+      detail: t("campaigns.health.ctrLow.detail", { ctr: m.ctr.toFixed(2), bench: CTR_BENCHMARK_PCT }),
+      suggestion: t("campaigns.health.ctrLow.suggestion"),
     };
   }
   if (((m as unknown as Record<string, number>).frequency ?? 0) > FREQUENCY_WARN) {
     return {
-      level: "warning", label: "🟡 Bão hoà",
-      detail: `Frequency ${((m as unknown as Record<string, number>).frequency ?? 0).toFixed(1)}x`,
-      suggestion: "Mở rộng audience hoặc thêm creative mới để giảm frequency.",
+      level: "warning", label: t("campaigns.health.freqWarn.label"),
+      detail: t("campaigns.health.freqWarn.detail", { freq: ((m as unknown as Record<string, number>).frequency ?? 0).toFixed(1) }),
+      suggestion: t("campaigns.health.freqWarn.suggestion"),
     };
   }
   if (m.cpc > CPC_HIGH_VND) {
     return {
-      level: "warning", label: "🟡 CPC cao",
-      detail: `CPC ₫${Math.round(m.cpc).toLocaleString("vi-VN")} vượt target ₫${(CPC_HIGH_VND/1000)}K`,
-      suggestion: "Thử mở rộng audience, hoặc đổi từ CPC sang CPM bidding.",
+      level: "warning", label: t("campaigns.health.cpcHigh.label"),
+      detail: t("campaigns.health.cpcHigh.detail", { cpc: Math.round(m.cpc).toLocaleString(intlLocale), target: CPC_HIGH_VND/1000 }),
+      suggestion: t("campaigns.health.cpcHigh.suggestion"),
     };
   }
 
   // ✅ GOOD
   if (m.ctr > CTR_EXCELLENT_PCT) {
     return {
-      level: "good", label: `✅ CTR ${m.ctr.toFixed(1)}%`,
-      detail: "CTR xuất sắc — gấp 1.5 lần mốc nội bộ",
-      suggestion: "Cân nhắc tăng budget để scale campaign này.",
+      level: "good", label: t("campaigns.health.ctrGood.label", { ctr: m.ctr.toFixed(1) }),
+      detail: t("campaigns.health.ctrExcellent.detail"),
+      suggestion: t("campaigns.health.ctrExcellent.suggestion"),
     };
   }
   if (m.ctr > CTR_GOOD_PCT) {
     return {
-      level: "good", label: `✅ CTR ${m.ctr.toFixed(1)}%`,
-      detail: "CTR tốt — đạt mốc nội bộ",
-      suggestion: "Campaign đang hoạt động tốt. Giữ nguyên chiến lược.",
+      level: "good", label: t("campaigns.health.ctrGood.label", { ctr: m.ctr.toFixed(1) }),
+      detail: t("campaigns.health.ctrGood.detail"),
+      suggestion: t("campaigns.health.ctrGood.suggestion"),
     };
   }
 
   // 📊 INFO
   if (c.status === "PAUSED" && ageDays > 7) {
     return {
-      level: "info", label: `💤 Tạm dừng ${Math.round(ageDays)}d`,
-      detail: `Đã tạm dừng ${Math.round(ageDays)} ngày`,
-      suggestion: "Xét kích hoạt lại hoặc xóa nếu không còn cần.",
+      level: "info", label: t("campaigns.health.pausedLong.label", { days: Math.round(ageDays) }),
+      detail: t("campaigns.health.pausedLong.detail", { days: Math.round(ageDays) }),
+      suggestion: t("campaigns.health.pausedLong.suggestion"),
     };
   }
   if (ageDays < 3 && ageDays > 0) {
     return {
-      level: "info", label: "🆕 Mới tạo",
-      detail: `Campaign mới ${Math.round(ageDays * 24)} giờ`,
-      suggestion: "Đợi 3-5 ngày để có đủ data rồi mới tối ưu.",
+      level: "info", label: t("campaigns.health.fresh.label"),
+      detail: t("campaigns.health.fresh.detail", { hours: Math.round(ageDays * 24) }),
+      suggestion: t("campaigns.health.fresh.suggestion"),
     };
   }
 
   // Default: neutral
   return {
-    level: "info", label: "➖ Bình thường",
-    detail: "Không có vấn đề nổi bật",
-    suggestion: "Tiếp tục theo dõi metrics hàng ngày.",
+    level: "info", label: t("campaigns.health.normal.label"),
+    detail: t("campaigns.health.normal.detail"),
+    suggestion: t("campaigns.health.normal.suggestion"),
   };
 }
 
@@ -468,15 +480,15 @@ function SkeletonRow() {
 // ─────────────────────────────────────────────
 // CPL Helper (Client-side sync fallback)
 // ─────────────────────────────────────────────
-function getCplBadge(cpl: number | null, company: string | null, cur: string) {
+function getCplBadge(cpl: number | null, company: string | null, cur: string, intlLocale = "vi-VN") {
   if (cpl === null || isNaN(cpl)) return { bg: "bg-slate-100", text: "text-slate-500", label: "⚪ —" };
   // Đợt 21: ngưỡng tĩnh này là của MBC / MBI. Công ty khác chưa có ngưỡng → chỉ hiện số, không tô xanh/đỏ (không đoán).
-  if (company !== null && company !== "MBC" && company !== "MBI") return { bg: "bg-slate-100", text: "text-slate-600", label: fmtSpend(cpl, cur) };
+  if (company !== null && company !== "MBC" && company !== "MBI") return { bg: "bg-slate-100", text: "text-slate-600", label: fmtSpend(cpl, cur, intlLocale) };
   const th = company === "MBI" ? { good: 150000, warning: 250000 } : { good: 60000, warning: 99000 };
   
-  if (cpl <= th.good) return { bg: "bg-emerald-100", text: "text-emerald-700", label: `🟢 ${fmtSpend(cpl, cur)}` };
-  if (cpl <= th.warning) return { bg: "bg-amber-100", text: "text-amber-700", label: `🟡 ${fmtSpend(cpl, cur)}` };
-  return { bg: "bg-red-100", text: "text-red-700", label: `🔴 ${fmtSpend(cpl, cur)}` };
+  if (cpl <= th.good) return { bg: "bg-emerald-100", text: "text-emerald-700", label: `🟢 ${fmtSpend(cpl, cur, intlLocale)}` };
+  if (cpl <= th.warning) return { bg: "bg-amber-100", text: "text-amber-700", label: `🟡 ${fmtSpend(cpl, cur, intlLocale)}` };
+  return { bg: "bg-red-100", text: "text-red-700", label: `🔴 ${fmtSpend(cpl, cur, intlLocale)}` };
 }
 
 // ─────────────────────────────────────────────
@@ -507,6 +519,8 @@ export default function CampaignTable({ campaigns, isLoading = false, currency =
   const router = useRouter();
   const { updateCampaignStatus, updateCampaignBudget } = useAdsStore();
   const { toast } = useToast();
+  const t = useT();
+  const intl = useIntlLocale();
 
   const [search,         setSearch]         = useState("");
   const [platform,       setPlatform]       = useState<Platform | "all">("all");
@@ -560,7 +574,7 @@ export default function CampaignTable({ campaigns, isLoading = false, currency =
       if (data.success) {
         updateCampaignStatus(campaign.id, data.newStatus ?? expectedStatus);
         toast({
-          title: data.message ?? (action === "PAUSE" ? "⏸ Đã tạm dừng" : "▶ Đã kích hoạt"),
+          title: data.message ?? (action === "PAUSE" ? t("campaigns.toast.paused") : t("campaigns.toast.activated")),
           description: campaign.name
         });
       } else {
@@ -570,7 +584,7 @@ export default function CampaignTable({ campaigns, isLoading = false, currency =
         });
       }
     } catch (err: unknown) {
-      toast({ title: "❌ Fetch error", variant: "error" });
+      toast({ title: t("campaigns.toast.fetchError"), variant: "error" });
     } finally {
       setPausingId(null);
     }
@@ -620,7 +634,7 @@ export default function CampaignTable({ campaigns, isLoading = false, currency =
     setBulkLoading(false);
     setSelectedIds(new Set());
     toast({
-      title: `${action === "PAUSE" ? "⏸ Đã tạm dừng" : "▶ Đã kích hoạt"} ${successCount}/${ids.length} campaigns`,
+      title: t("campaigns.toast.bulkDone", { status: action === "PAUSE" ? t("campaigns.toast.paused") : t("campaigns.toast.activated"), done: successCount, total: ids.length }),
     });
   }
 
@@ -643,14 +657,14 @@ export default function CampaignTable({ campaigns, isLoading = false, currency =
       if (c.status === "PAUSED") { paused++; continue; }
       if (c.status !== "ACTIVE") continue;
       active++;
-      const h = getCampaignHealthBadge(c);
+      const h = getCampaignHealthBadge(c, t, intl);
       if (h.level === "learning") learning++;
       else if (h.level === "critical" || h.level === "warning") critical++;
       else if (h.level === "good") good++;
       // "info" (Google active without metrics) already counted in active
     }
     return { critical, good, paused, learning, active };
-  }, [campaigns]);
+  }, [campaigns, t, intl]);
 
   // ── Company counts (for company filter pills) ──
   const companyCounts = useMemo(() => {
@@ -663,7 +677,7 @@ export default function CampaignTable({ campaigns, isLoading = false, currency =
   }, [campaigns]);
 
   function fmtSpendShort(v: number) {
-    if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}Tr`;
+    if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}${magSuffix(intl).m}`;
     if (v >= 1_000) return `${(v / 1_000).toFixed(0)}K`;
     return `${Math.round(v)}`;
   }
@@ -679,7 +693,7 @@ export default function CampaignTable({ campaigns, isLoading = false, currency =
       if (healthFilter !== "all") {
         if (healthFilter === "paused") return c.status === "PAUSED";
         if (healthFilter === "active") return c.status === "ACTIVE";
-        const h = getCampaignHealthBadge(c);
+        const h = getCampaignHealthBadge(c, t, intl);
         if (healthFilter === "learning") return h.level === "learning";
         if (healthFilter === "critical") return h.level === "critical" || h.level === "warning";
         if (healthFilter === "good") return h.level === "good";
@@ -707,7 +721,7 @@ export default function CampaignTable({ campaigns, isLoading = false, currency =
       });
     }
     return list;
-  }, [campaigns, search, platform, sortKey, sortDir, healthFilter, companyFilter]);
+  }, [campaigns, search, platform, sortKey, sortDir, healthFilter, companyFilter, t, intl]);
 
   // Reset về trang 1 khi filter/sort thay đổi
   useEffect(() => { setPage(1); }, [search, platform, healthFilter, companyFilter, sortKey, sortDir]);
@@ -735,7 +749,7 @@ export default function CampaignTable({ campaigns, isLoading = false, currency =
         <div className="relative min-w-[220px] flex-1">
           <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
           <Input
-            placeholder="Search campaigns…"
+            placeholder={t("campaigns.search.placeholder")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-8 h-9 rounded-lg border-slate-200 text-sm"
@@ -744,7 +758,7 @@ export default function CampaignTable({ campaigns, isLoading = false, currency =
 
         {/* Platform pills */}
         <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 p-0.5">
-          {PLATFORM_PILLS.map(({ label, value }) => (
+          {PLATFORM_PILLS.map(({ label: pillLabel, value }) => (
             <button
               key={value}
               onClick={() => setPlatform(value)}
@@ -755,13 +769,13 @@ export default function CampaignTable({ campaigns, isLoading = false, currency =
                   : "text-slate-500 hover:text-slate-700"
               )}
             >
-              {label}
+              {value === "all" ? t("campaigns.platform.all") : pillLabel}
             </button>
           ))}
         </div>
 
         <span className="text-xs text-slate-400">
-          {rows.length} campaign{rows.length !== 1 ? "s" : ""}
+          {t(rows.length !== 1 ? "campaigns.count.many" : "campaigns.count.one", { n: rows.length })}
         </span>
       </div>
 
@@ -772,32 +786,32 @@ export default function CampaignTable({ campaigns, isLoading = false, currency =
             onClick={() => setHealthFilter("all")}
             className={cn("rounded-full px-3 py-1 text-[11px] font-semibold transition-colors",
               healthFilter === "all" ? "bg-slate-700 text-white shadow-sm" : "text-slate-400 hover:text-slate-600")}
-          >Tất cả</button>
+          >{t("campaigns.filter.all")}</button>
           <button
             onClick={() => setHealthFilter("active")}
             className={cn("rounded-full px-3 py-1 text-[11px] font-semibold transition-colors",
               healthFilter === "active" ? "bg-green-600 text-white shadow-sm" : "text-slate-400 hover:text-slate-600")}
-          >▶ Đang chạy ({healthCounts.active})</button>
+          >{t("campaigns.filter.active", { n: healthCounts.active })}</button>
           <button
             onClick={() => setHealthFilter("critical")}
             className={cn("rounded-full px-3 py-1 text-[11px] font-semibold transition-colors",
               healthFilter === "critical" ? "bg-red-600 text-white shadow-sm" : "text-slate-400 hover:text-slate-600")}
-          >🔴 Cần xử lý ({healthCounts.critical})</button>
+          >{t("campaigns.filter.critical", { n: healthCounts.critical })}</button>
           <button
             onClick={() => setHealthFilter("good")}
             className={cn("rounded-full px-3 py-1 text-[11px] font-semibold transition-colors",
               healthFilter === "good" ? "bg-emerald-600 text-white shadow-sm" : "text-slate-400 hover:text-slate-600")}
-          >✅ Đang tốt ({healthCounts.good})</button>
+          >{t("campaigns.filter.good", { n: healthCounts.good })}</button>
           <button
             onClick={() => setHealthFilter("learning")}
             className={cn("rounded-full px-3 py-1 text-[11px] font-semibold transition-colors",
               healthFilter === "learning" ? "bg-blue-500 text-white shadow-sm" : "text-slate-400 hover:text-slate-600")}
-          >🎓 Đang học ({healthCounts.learning})</button>
+          >{t("campaigns.filter.learning", { n: healthCounts.learning })}</button>
           <button
             onClick={() => setHealthFilter("paused")}
             className={cn("rounded-full px-3 py-1 text-[11px] font-semibold transition-colors",
               healthFilter === "paused" ? "bg-slate-500 text-white shadow-sm" : "text-slate-400 hover:text-slate-600")}
-          >💤 Tạm dừng ({healthCounts.paused})</button>
+          >{t("campaigns.filter.paused", { n: healthCounts.paused })}</button>
         </div>
 
         {/* Company filter pills */}
@@ -806,7 +820,7 @@ export default function CampaignTable({ campaigns, isLoading = false, currency =
             onClick={() => setCompanyFilter("all")}
             className={cn("rounded-full px-3 py-1 text-[11px] font-semibold transition-colors",
               companyFilter === "all" ? "bg-slate-700 text-white shadow-sm" : "text-slate-400 hover:text-slate-600")}
-          >Tất cả</button>
+          >{t("campaigns.filter.all")}</button>
           {companyIds().map((co) => (
             <button
               key={co}
@@ -814,7 +828,7 @@ export default function CampaignTable({ campaigns, isLoading = false, currency =
               className={cn("rounded-full px-3 py-1 text-[11px] font-semibold transition-colors",
                 companyFilter === co ? `${co === "MBC" ? "bg-blue-600" : co === "MBI" ? "bg-purple-600" : "bg-slate-700"} text-white shadow-sm` : "text-slate-400 hover:text-slate-600")}
             >
-              🏢 {co === "MBC" || co === "MBI" ? co : companyLabel(co)} ({companyCounts[co]?.count ?? 0} · ₫{fmtSpendShort(companyCounts[co]?.spend ?? 0)})
+              {t("campaigns.filter.company", { name: co === "MBC" || co === "MBI" ? co : companyLabel(co), count: companyCounts[co]?.count ?? 0, spend: fmtSpendShort(companyCounts[co]?.spend ?? 0) })}
             </button>
           ))}
         </div>
@@ -831,7 +845,7 @@ export default function CampaignTable({ campaigns, isLoading = false, currency =
                   <button
                     onClick={toggleAll}
                     className="flex items-center justify-center text-slate-400 hover:text-slate-600"
-                    title={selectedIds.size === rows.length && rows.length > 0 ? "Bỏ chọn tất cả" : "Chọn tất cả"}
+                    title={selectedIds.size === rows.length && rows.length > 0 ? t("campaigns.col.deselectAll") : t("campaigns.col.selectAll")}
                   >
                     {selectedIds.size === rows.length && rows.length > 0
                       ? <CheckSquare className="h-4 w-4 text-blue-500" />
@@ -840,13 +854,13 @@ export default function CampaignTable({ campaigns, isLoading = false, currency =
                 </TableHead>
                 {/* Sortable */}
                 <TableHead className="min-w-[180px]" aria-sort={ariaSort("name")}>
-                  <ThSort col="name" label="Campaign" />
+                  <ThSort col="name" label={t("campaigns.col.campaign")} />
                 </TableHead>
-                <TableHead className="w-[50px] text-xs font-semibold uppercase tracking-wider text-slate-500">Co.</TableHead>
-                <TableHead className="w-[110px] text-xs font-semibold uppercase tracking-wider text-slate-500">Platform</TableHead>
-                <TableHead className="w-[90px] text-xs font-semibold uppercase tracking-wider text-slate-500">Status</TableHead>
-                <TableHead className="w-[130px] text-xs font-semibold uppercase tracking-wider text-slate-500">Health</TableHead>
-                <TableHead className="w-[110px] text-xs font-semibold uppercase tracking-wider text-slate-500">Thời gian chạy</TableHead>
+                <TableHead className="w-[50px] text-xs font-semibold uppercase tracking-wider text-slate-500">{t("campaigns.col.co")}</TableHead>
+                <TableHead className="w-[110px] text-xs font-semibold uppercase tracking-wider text-slate-500">{t("campaigns.col.platform")}</TableHead>
+                <TableHead className="w-[90px] text-xs font-semibold uppercase tracking-wider text-slate-500">{t("campaigns.col.status")}</TableHead>
+                <TableHead className="w-[130px] text-xs font-semibold uppercase tracking-wider text-slate-500">{t("campaigns.col.health")}</TableHead>
+                <TableHead className="w-[110px] text-xs font-semibold uppercase tracking-wider text-slate-500">{t("campaigns.col.runTime")}</TableHead>
                 {/* ── Cột số liệu ──
                     Bộ cột Google xếp theo cách đọc của Google Ads: tiền trước
                     (Cost → Conv. → Cost/conv) rồi mới tới lưu lượng. Bảng
@@ -855,42 +869,42 @@ export default function CampaignTable({ campaigns, isLoading = false, currency =
                 {googleView ? (
                   <>
                     <TableHead className="w-[110px] text-right" aria-sort={ariaSort("spend")}>
-                      <ThSort col="spend" label="Cost" />
+                      <ThSort col="spend" label={t("campaigns.col.cost")} />
                     </TableHead>
-                    <TableHead className="w-[90px] text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Conv.</TableHead>
-                    <TableHead className="w-[110px] text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Cost/conv</TableHead>
-                    <TableHead className="w-[80px] text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Clicks</TableHead>
-                    <TableHead className="w-[80px] text-right text-xs font-semibold uppercase tracking-wider text-slate-500">CTR</TableHead>
-                    <TableHead className="w-[80px] text-right text-xs font-semibold uppercase tracking-wider text-slate-500">CPC</TableHead>
-                    <TableHead className="w-[100px] text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Impr.</TableHead>
+                    <TableHead className="w-[90px] text-right text-xs font-semibold uppercase tracking-wider text-slate-500">{t("campaigns.col.conv")}</TableHead>
+                    <TableHead className="w-[110px] text-right text-xs font-semibold uppercase tracking-wider text-slate-500">{t("campaigns.col.costPerConv")}</TableHead>
+                    <TableHead className="w-[80px] text-right text-xs font-semibold uppercase tracking-wider text-slate-500">{t("campaigns.col.clicks")}</TableHead>
+                    <TableHead className="w-[80px] text-right text-xs font-semibold uppercase tracking-wider text-slate-500">{t("campaigns.col.ctr")}</TableHead>
+                    <TableHead className="w-[80px] text-right text-xs font-semibold uppercase tracking-wider text-slate-500">{t("campaigns.col.cpc")}</TableHead>
+                    <TableHead className="w-[100px] text-right text-xs font-semibold uppercase tracking-wider text-slate-500">{t("campaigns.col.impr")}</TableHead>
                     <TableHead
                       className="w-[110px] text-right text-xs font-semibold uppercase tracking-wider text-slate-500"
                       title={uniqueUsersError
-                        ? `Không lấy được: ${uniqueUsersError}`
-                        : "Số người dùng duy nhất. Google chỉ trả cho chiến dịch Video/Display; Search và PMax không có nên hiện gạch ngang."}
+                        ? t("campaigns.col.uniqueUsersFail", { error: uniqueUsersError })
+                        : t("campaigns.col.uniqueUsersTip")}
                     >
-                      Người dùng
+                      {t("campaigns.col.uniqueUsers")}
                     </TableHead>
                   </>
                 ) : (
                   <>
-                    <TableHead className="w-[100px] text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Impr.</TableHead>
-                    <TableHead className="w-[80px] text-right text-xs font-semibold uppercase tracking-wider text-slate-500">CTR</TableHead>
-                    <TableHead className="w-[80px] text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Clicks</TableHead>
-                    <TableHead className="w-[80px] text-right text-xs font-semibold uppercase tracking-wider text-slate-500">CPC</TableHead>
+                    <TableHead className="w-[100px] text-right text-xs font-semibold uppercase tracking-wider text-slate-500">{t("campaigns.col.impr")}</TableHead>
+                    <TableHead className="w-[80px] text-right text-xs font-semibold uppercase tracking-wider text-slate-500">{t("campaigns.col.ctr")}</TableHead>
+                    <TableHead className="w-[80px] text-right text-xs font-semibold uppercase tracking-wider text-slate-500">{t("campaigns.col.clicks")}</TableHead>
+                    <TableHead className="w-[80px] text-right text-xs font-semibold uppercase tracking-wider text-slate-500">{t("campaigns.col.cpc")}</TableHead>
                     {/* Như Ads Manager: Kết quả → Chi phí/kết quả (CPL) → ROAS kết quả → Giá trị kết quả.
                         Kết quả / giá trị lấy theo ĐÚNG loại kết quả chiến dịch đang tối ưu (app/api/meta/campaigns). */}
                     <TableHead className="w-[90px] text-right" aria-sort={ariaSort("results")}>
-                      <ThSort col="results" label="Kết quả" />
+                      <ThSort col="results" label={t("campaigns.col.results")} />
                     </TableHead>
                     <TableHead className="w-[100px] text-right" aria-sort={ariaSort("cpl")}>
-                      <ThSort col="cpl" label="CPL" />
+                      <ThSort col="cpl" label={t("campaigns.col.cpl")} />
                     </TableHead>
-                    <TableHead className="w-[90px] text-right" aria-sort={ariaSort("resultRoas")} title="Giá trị kết quả ÷ chi tiêu — như cột “ROAS kết quả” trong Trình quản lý quảng cáo Meta">
-                      <ThSort col="resultRoas" label="ROAS kết quả" />
+                    <TableHead className="w-[90px] text-right" aria-sort={ariaSort("resultRoas")} title={t("campaigns.col.resultRoasTip")}>
+                      <ThSort col="resultRoas" label={t("campaigns.col.resultRoas")} />
                     </TableHead>
-                    <TableHead className="w-[120px] text-right" aria-sort={ariaSort("resultValue")} title="Giá trị chuyển đổi của đúng loại kết quả — như cột “Giá trị kết quả” trong Trình quản lý quảng cáo Meta">
-                      <ThSort col="resultValue" label="Giá trị kết quả" />
+                    <TableHead className="w-[120px] text-right" aria-sort={ariaSort("resultValue")} title={t("campaigns.col.resultValueTip")}>
+                      <ThSort col="resultValue" label={t("campaigns.col.resultValue")} />
                     </TableHead>
                   </>
                 )}
@@ -912,7 +926,7 @@ export default function CampaignTable({ campaigns, isLoading = false, currency =
                     </TableHead>
                     <TableHead className="w-[90px] text-right align-bottom">
                       <div className="flex flex-col items-end">
-                        <span className="text-[10px] font-bold text-amber-500 uppercase tracking-wider mb-0.5">GA4 Thật</span>
+                        <span className="text-[10px] font-bold text-amber-500 uppercase tracking-wider mb-0.5">{t("campaigns.ga4.actual")}</span>
                         <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">CVR</span>
                       </div>
                     </TableHead>
@@ -935,10 +949,10 @@ export default function CampaignTable({ campaigns, isLoading = false, currency =
                     cho khỏi hai cột trùng nhau. */}
                 {!googleView && (
                   <TableHead className="w-[100px] text-right" aria-sort={ariaSort("spend")}>
-                    <ThSort col="spend" label="Spend" />
+                    <ThSort col="spend" label={t("campaigns.col.spend")} />
                   </TableHead>
                 )}
-                <TableHead className="w-[80px] text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Actions</TableHead>
+                <TableHead className="w-[80px] text-right text-xs font-semibold uppercase tracking-wider text-slate-500">{t("campaigns.col.actions")}</TableHead>
               </TableRow>
             </TableHeader>
 
@@ -954,11 +968,11 @@ export default function CampaignTable({ campaigns, isLoading = false, currency =
                       <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100">
                         <Inbox className="h-6 w-6 text-slate-400" />
                       </div>
-                      <p className="text-sm font-medium text-slate-600">No campaigns found</p>
+                      <p className="text-sm font-medium text-slate-600">{t("campaigns.empty.title")}</p>
                       <p className="mt-1 text-xs text-slate-400">
                         {search || platform !== "all"
-                          ? "Try adjusting your filters"
-                          : "Connect your ad accounts in Settings to sync campaigns"}
+                          ? t("campaigns.empty.adjustFilters")
+                          : t("campaigns.empty.connectAccounts")}
                       </p>
                     </div>
                   </TableCell>
@@ -1052,7 +1066,7 @@ export default function CampaignTable({ campaigns, isLoading = false, currency =
 
                       {/* Health */}
                       <TableCell>
-                        <HealthBadge badge={getCampaignHealthBadge(c)} />
+                        <HealthBadge badge={getCampaignHealthBadge(c, t, intl)} />
                       </TableCell>
 
                       {/* Thời gian chạy */}
@@ -1075,7 +1089,7 @@ export default function CampaignTable({ campaigns, isLoading = false, currency =
                         <>
                           {/* Cost — chính là spend, đã ở đơn vị đồng */}
                           <TableCell className="text-right text-sm font-semibold text-slate-800 tabular-nums">
-                            {fmtSpend(m.spend, currency)}
+                            {fmtSpend(m.spend, currency, intl)}
                           </TableCell>
 
                           {/* Conversions — Google trả số lẻ (0,5 chuyển đổi là
@@ -1087,7 +1101,7 @@ export default function CampaignTable({ campaigns, isLoading = false, currency =
                               // đó không set conversions — .toFixed trên undefined
                               // là màn hình trắng, không phải một ô trống.
                               const conv = Number(m.conversions ?? 0);
-                              return Number.isInteger(conv) ? fmtNumber(conv) : conv.toFixed(2);
+                              return Number.isInteger(conv) ? fmtNumber(conv, intl) : conv.toFixed(2);
                             })()}
                           </TableCell>
 
@@ -1096,13 +1110,13 @@ export default function CampaignTable({ campaigns, isLoading = false, currency =
                               hiện 0đ (0đ đọc như "được chuyển đổi miễn phí"). */}
                           <TableCell className="text-right text-sm text-slate-600 tabular-nums">
                             {Number(m.conversions ?? 0) > 0
-                              ? fmtSpend(m.spend / Number(m.conversions), currency)
+                              ? fmtSpend(m.spend / Number(m.conversions), currency, intl)
                               : <span className="text-slate-300">—</span>}
                           </TableCell>
 
                           {/* Clicks */}
                           <TableCell className="text-right text-sm text-slate-700 tabular-nums">
-                            {fmtNumber(m.clicks)}
+                            {fmtNumber(m.clicks, intl)}
                           </TableCell>
 
                           {/* CTR */}
@@ -1112,27 +1126,27 @@ export default function CampaignTable({ campaigns, isLoading = false, currency =
 
                           {/* CPC */}
                           <TableCell className="text-right text-sm text-slate-600 tabular-nums">
-                            {fmtSpend(m.cpc, currency)}
+                            {fmtSpend(m.cpc, currency, intl)}
                           </TableCell>
 
                           {/* Impressions */}
                           <TableCell className="text-right text-sm text-slate-600 tabular-nums">
-                            {fmtNumber(m.impressions)}
+                            {fmtNumber(m.impressions, intl)}
                           </TableCell>
 
                           {/* Người dùng duy nhất — null nghĩa là Google không
                               trả cho loại chiến dịch này, KHÁC hẳn 0 người. */}
                           <TableCell className="text-right text-sm text-slate-600 tabular-nums">
                             {typeof m.uniqueUsers === "number"
-                              ? fmtNumber(m.uniqueUsers)
-                              : <span className="text-slate-300" title={uniqueUsersError ?? "Google không trả chỉ số này cho loại chiến dịch này"}>—</span>}
+                              ? fmtNumber(m.uniqueUsers, intl)
+                              : <span className="text-slate-300" title={uniqueUsersError ?? t("campaigns.cell.noUniqueUsers")}>—</span>}
                           </TableCell>
                         </>
                       ) : (
                         <>
                           {/* Impressions */}
                           <TableCell className="text-right text-sm text-slate-600 tabular-nums">
-                            {fmtNumber(m.impressions)}
+                            {fmtNumber(m.impressions, intl)}
                           </TableCell>
 
                           {/* CTR */}
@@ -1142,26 +1156,26 @@ export default function CampaignTable({ campaigns, isLoading = false, currency =
 
                           {/* Clicks */}
                           <TableCell className="text-right text-sm text-slate-700 tabular-nums">
-                            {fmtNumber(m.clicks)}
+                            {fmtNumber(m.clicks, intl)}
                           </TableCell>
 
                           {/* CPC — already in major units from API */}
                           <TableCell className="text-right text-sm text-slate-600 tabular-nums">
-                            {fmtSpend(m.cpc, currency)}
+                            {fmtSpend(m.cpc, currency, intl)}
                           </TableCell>
 
                           {/* Kết quả */}
                           <TableCell className="text-right text-sm text-slate-700 tabular-nums">
-                            {c.platform === "facebook" ? m.conversions.toLocaleString("vi-VN") : <span className="text-slate-300">—</span>}
+                            {c.platform === "facebook" ? m.conversions.toLocaleString(intl) : <span className="text-slate-300">—</span>}
                           </TableCell>
 
                           {/* CPL */}
                           <TableCell className="text-right">
                             {(() => {
                                const cplVal = m.conversions > 0 ? m.spend / m.conversions : null;
-                               const b = getCplBadge(cplVal, companyOfCampaign(c.name), currency);
+                               const b = getCplBadge(cplVal, companyOfCampaign(c.name), currency, intl);
                                return (
-                                 <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold", b.bg, b.text)} title="Pixel only">
+                                 <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold", b.bg, b.text)} title={t("campaigns.cell.pixelOnly")}>
                                    {b.label}
                                  </span>
                                );
@@ -1171,13 +1185,13 @@ export default function CampaignTable({ campaigns, isLoading = false, currency =
                           {/* ROAS kết quả — "—" khi Meta không có giá trị cho loại kết quả (như Ads Manager) */}
                           <TableCell className="text-right text-sm text-slate-700 tabular-nums">
                             {m.resultRoas != null
-                              ? m.resultRoas.toLocaleString("vi-VN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                              ? m.resultRoas.toLocaleString(intl, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
                               : <span className="text-slate-300">—</span>}
                           </TableCell>
 
                           {/* Giá trị kết quả */}
                           <TableCell className="text-right text-sm text-slate-700 tabular-nums">
-                            {m.resultValue != null ? fmtMoneyFull(m.resultValue, currency) : <span className="text-slate-300">—</span>}
+                            {m.resultValue != null ? fmtMoneyFull(m.resultValue, currency, intl) : <span className="text-slate-300">—</span>}
                           </TableCell>
                         </>
                       )}
@@ -1257,7 +1271,7 @@ export default function CampaignTable({ campaigns, isLoading = false, currency =
                                   {Math.abs(disc) >= 20 && (
                                     <span 
                                       className={cn("text-[9px] px-1.5 py-0.5 rounded flex items-center font-bold tracking-tight", disc > 0 ? "bg-red-100 text-red-600" : "bg-blue-100 text-blue-600")}
-                                      title={`Platform báo: ${pConv} | GA4 thật: ${c.ga4.conversions} (chênh lệch ${disc.toFixed(0)}%)`}
+                                      title={t("campaigns.ga4.discrepancyTip", { platform: pConv, ga4: c.ga4.conversions, pct: disc.toFixed(0) })}
                                     >
                                       {disc > 0 ? "+" : ""}{disc.toFixed(0)}%
                                     </span>
@@ -1276,9 +1290,9 @@ export default function CampaignTable({ campaigns, isLoading = false, currency =
                                 c.ga4.engagementRate * 30 +
                                 Math.min(c.ga4.avgSessionDuration / 180, 1) * 30
                               );
-                              const label = score >= 70 ? { text: "Tốt", bg: "bg-emerald-500", txt: "text-emerald-700" } :
-                                            score >= 40 ? { text: "Thường", bg: "bg-amber-400", txt: "text-amber-700" } :
-                                                          { text: "Kém", bg: "bg-red-500", txt: "text-red-700" };
+                              const label = score >= 70 ? { text: t("campaigns.ga4.good"), bg: "bg-emerald-500", txt: "text-emerald-700" } :
+                                            score >= 40 ? { text: t("campaigns.ga4.average"), bg: "bg-amber-400", txt: "text-amber-700" } :
+                                                          { text: t("campaigns.ga4.poor"), bg: "bg-red-500", txt: "text-red-700" };
                               
                               return (
                                 <div className="flex flex-col items-center gap-1 w-full px-2">
@@ -1299,7 +1313,7 @@ export default function CampaignTable({ campaigns, isLoading = false, currency =
                           trước, không lặp lại. */}
                       {!googleView && (
                         <TableCell className="text-right text-sm font-semibold text-slate-800 tabular-nums">
-                          {fmtSpend(m.spend, currency)}
+                          {fmtSpend(m.spend, currency, intl)}
                         </TableCell>
                       )}
 
@@ -1308,14 +1322,14 @@ export default function CampaignTable({ campaigns, isLoading = false, currency =
                         <div className="flex items-center justify-end gap-1">
                           <button
                             className="flex h-7 w-7 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
-                            title="Edit"
+                            title={t("campaigns.action.edit")}
                             onClick={() => setEditingBudgetCampaign(c)}
                           >
                             <Pencil className="h-3.5 w-3.5" />
                           </button>
                           <button
                             className="flex h-7 w-7 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 disabled:opacity-50"
-                            title={c.status === "ACTIVE" ? "Tạm dừng" : "Kích hoạt lại"}
+                            title={c.status === "ACTIVE" ? t("campaigns.action.pause") : t("campaigns.action.reactivate")}
                             onClick={() => setConfirmToggleData(c)}
                             disabled={pausingId === c.id}
                           >
@@ -1329,7 +1343,7 @@ export default function CampaignTable({ campaigns, isLoading = false, currency =
                           </button>
                           <button
                             className="flex h-7 w-7 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-amber-50 hover:text-amber-700"
-                            title="Clone campaign → tạo mới từ campaign này"
+                            title={t("campaigns.action.cloneTip")}
                             onClick={() => router.push(
                               `/creative?clone=${encodeURIComponent(c.id)}&cloneName=${encodeURIComponent(c.name)}&cloneObj=${encodeURIComponent(c.objective ?? "")}`
                             )}
@@ -1350,9 +1364,9 @@ export default function CampaignTable({ campaigns, isLoading = false, currency =
       {totalPages > 1 && (
         <div className="flex items-center justify-between px-1">
           <span className="text-xs text-slate-400">
-            Trang <span className="font-semibold text-slate-600">{page}</span>/{totalPages}
+            {t("campaigns.page.page")} <span className="font-semibold text-slate-600">{page}</span>/{totalPages}
             <span className="mx-1.5">·</span>
-            {rows.length} chiến dịch
+            {t("campaigns.page.total", { n: rows.length })}
           </span>
           <div className="flex items-center gap-1">
             <button
@@ -1395,7 +1409,7 @@ export default function CampaignTable({ campaigns, isLoading = false, currency =
       {selectedIds.size > 0 && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-3 shadow-2xl">
           <span className="text-sm font-semibold text-slate-700">
-            {selectedIds.size} campaign đã chọn
+            {t("campaigns.bulk.selected", { n: selectedIds.size })}
           </span>
           <div className="h-4 w-px bg-slate-200" />
           <button
@@ -1404,7 +1418,7 @@ export default function CampaignTable({ campaigns, isLoading = false, currency =
             className="flex items-center gap-1.5 rounded-lg bg-amber-100 px-3 py-1.5 text-sm font-semibold text-amber-700 hover:bg-amber-200 transition-colors disabled:opacity-50"
           >
             {bulkLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PauseCircle className="h-3.5 w-3.5" />}
-            Tạm dừng
+            {t("campaigns.action.pause")}
           </button>
           <button
             disabled={bulkLoading}
@@ -1412,7 +1426,7 @@ export default function CampaignTable({ campaigns, isLoading = false, currency =
             className="flex items-center gap-1.5 rounded-lg bg-emerald-100 px-3 py-1.5 text-sm font-semibold text-emerald-700 hover:bg-emerald-200 transition-colors disabled:opacity-50"
           >
             {bulkLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PlayCircle className="h-3.5 w-3.5" />}
-            Kích hoạt
+            {t("campaigns.action.activate")}
           </button>
           <button
             onClick={() => setSelectedIds(new Set())}
@@ -1427,13 +1441,13 @@ export default function CampaignTable({ campaigns, isLoading = false, currency =
       {confirmToggleData && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
           <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl">
-            <h3 className="mb-2 text-lg font-bold text-slate-900">Xác nhận</h3>
+            <h3 className="mb-2 text-lg font-bold text-slate-900">{t("campaigns.confirm.title")}</h3>
             <p className="mb-6 text-sm text-slate-600">
-              Bạn chắc chắn muốn {confirmToggleData.status === "ACTIVE" ? "tạm dừng" : "kích hoạt"} chiến dịch <strong>{confirmToggleData.name}</strong>?
+              {t("campaigns.confirm.lead", { action: confirmToggleData.status === "ACTIVE" ? t("campaigns.confirm.actionPause") : t("campaigns.confirm.actionActivate") })} <strong>{confirmToggleData.name}</strong>{t("campaigns.confirm.tail")}
             </p>
             <div className="flex justify-end gap-3">
               <Button variant="outline" onClick={() => setConfirmToggleData(null)}>
-                Huỷ
+                {t("common.cancel")}
               </Button>
               <Button 
                 variant={confirmToggleData.status === "ACTIVE" ? "destructive" : "default"}
@@ -1442,7 +1456,7 @@ export default function CampaignTable({ campaigns, isLoading = false, currency =
                   setConfirmToggleData(null);
                 }}
               >
-                {confirmToggleData.status === "ACTIVE" ? "Tạm dừng" : "Kích hoạt"}
+                {confirmToggleData.status === "ACTIVE" ? t("campaigns.action.pause") : t("campaigns.action.activate")}
               </Button>
             </div>
           </div>

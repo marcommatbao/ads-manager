@@ -10,6 +10,7 @@ import {
   ArrowRight, ExternalLink, BarChart3, Copy,
   GraduationCap, FileText, FileSpreadsheet, Plus, ChevronRight, AlertTriangle } from "lucide-react";
 import { useToast } from "@/components/Toast";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import { cn, formatCurrency } from "@/lib/utils";
 import { DateRangePicker } from "@/components/DateRangePicker";
 import { getLearningPhaseStatus } from "@/lib/campaign-utils";
@@ -61,6 +62,8 @@ interface CompareResult {
 export default function CampaignsPage() {
   const { campaigns, isLoading, setLoading, currency, setCampaigns, dateRange, selectedPlatform, selectedCompany, setSelectedCompany, ga4Data } = useAdsStore();
   const { toast } = useToast();
+  const t = useT();
+  const intl = useIntlLocale();
   const router = useRouter();
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSynced, setLastSynced] = useState<string | null>(null);
@@ -113,9 +116,9 @@ export default function CampaignsPage() {
       a.download = `Campaigns-${format === "pdf" ? "Report" : "Data"}.${format === "pdf" ? "pdf" : "xlsx"}`;
       a.click();
       URL.revokeObjectURL(url);
-      toast({ title: `✅ Đã xuất báo cáo ${format.toUpperCase()}` });
+      toast({ title: t("campaigns.page.toast.exportOk", { format: format.toUpperCase() }) });
     } catch {
-      toast({ title: "❌ Lỗi khi xuất báo cáo" });
+      toast({ title: t("campaigns.page.toast.exportFail") });
     } finally {
       setter(false);
     }
@@ -245,7 +248,7 @@ export default function CampaignsPage() {
       if (isManualSync) {
         if (syncErrors.length > 0) {
           toast({
-            title: "⚠️ Đồng bộ gặp lỗi",
+            title: t("campaigns.page.toast.syncErrors"),
             description: syncErrors.join(" · "),
             variant: "error",
           });
@@ -253,13 +256,13 @@ export default function CampaignsPage() {
           const metaCount = (metaActiveData.success ? metaActiveData.data.length : 0) + (metaPausedData.success ? metaPausedData.data.length : 0);
           const googleCount = googleCampaigns.length;
           toast({
-            title: "✅ Đồng bộ thành công",
-            description: `Meta: ${metaCount} · Google: ${googleCount} chiến dịch`
+            title: t("campaigns.page.toast.syncOk"),
+            description: t("campaigns.page.toast.syncCounts", { meta: metaCount, google: googleCount })
           });
         }
       }
     } catch {
-      if (isManualSync) toast({ title: "❌ Lỗi đồng bộ", variant: "error" });
+      if (isManualSync) toast({ title: t("campaigns.page.toast.syncFail"), variant: "error" });
     } finally {
       setIsSyncing(false);
       if (!isManualSync) setLoading(false);
@@ -268,18 +271,18 @@ export default function CampaignsPage() {
 
   const handleExport = () => {
     if (!filteredCampaigns.length) {
-      toast({ title: "Không có dữ liệu để xuất", variant: "error" });
+      toast({ title: t("campaigns.page.toast.noData"), variant: "error" });
       return;
     }
 
     const headers = [
-      "Chiến dịch", "Nền tảng", "Tài khoản", "Trạng thái",
-      "Ngân sách/ngày", "Lượt hiển thị", "CTR", "CPC", "ROAS", "Chi tiêu",
-      "Kết quả (Meta)", "ROAS kết quả (Meta)", "Giá trị kết quả (Meta)", "Ngày bắt đầu"
+      t("campaigns.csv.campaign"), t("campaigns.csv.platform"), t("campaigns.csv.account"), t("campaigns.csv.status"),
+      t("campaigns.csv.dailyBudget"), t("campaigns.csv.impressions"), "CTR", "CPC", "ROAS", t("campaigns.csv.spend"),
+      t("campaigns.csv.results"), t("campaigns.csv.resultRoas"), t("campaigns.csv.resultValue"), t("campaigns.csv.startDate")
     ];
 
     const statusMap: Record<string, string> = {
-      ACTIVE: "Đang chạy", PAUSED: "Tạm dừng", ARCHIVED: "Đã lưu trữ"
+      ACTIVE: t("campaigns.csv.statusActive"), PAUSED: t("campaigns.csv.statusPaused"), ARCHIVED: t("campaigns.csv.statusArchived")
     };
 
     const rows = filteredCampaigns.map(c => {
@@ -312,7 +315,7 @@ export default function CampaignsPage() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-    toast({ title: `✅ Đã xuất ${filteredCampaigns.length} chiến dịch ra file CSV` });
+    toast({ title: t("campaigns.page.toast.csvOk", { n: filteredCampaigns.length }) });
   };
 
   // Compare handler
@@ -338,10 +341,10 @@ export default function CampaignsPage() {
       if (json.success) {
         setCompareResult(json.data);
       } else {
-        setCompareError(json.error ?? "So sánh thất bại");
+        setCompareError(json.error ?? t("campaigns.compare.failed"));
       }
     } catch (err) {
-      setCompareError(err instanceof Error ? err.message : "Lỗi kết nối");
+      setCompareError(err instanceof Error ? err.message : t("campaigns.compare.connError"));
     } finally {
       setCompareLoading(false);
     }
@@ -444,7 +447,7 @@ export default function CampaignsPage() {
 
 
   const fmtK = (v: number) => {
-    if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}Tr`;
+    if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}${intl === "vi-VN" ? "Tr" : "M"}`;
     if (v >= 1_000) return `${(v / 1_000).toFixed(0)}K`;
     return `${Math.round(v)}`;
   };
@@ -455,14 +458,14 @@ export default function CampaignsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Campaigns</h1>
+          <h1 className="text-2xl font-bold text-slate-800">{t("campaigns.page.title")}</h1>
           <p className="mt-0.5 text-sm text-slate-500">
-            Manage and monitor your ad campaigns across all platforms.
+            {t("campaigns.page.subtitle")}
           </p>
         </div>
         <div className="flex items-center gap-3">
           {lastSynced && (
-            <span className="text-xs text-slate-400">Cập nhật lúc {lastSynced}</span>
+            <span className="text-xs text-slate-400">{t("campaigns.page.updatedAt", { time: lastSynced })}</span>
           )}
           <DateRangePicker />
           <Button
@@ -471,7 +474,7 @@ export default function CampaignsPage() {
             onClick={() => fetchCampaigns(true)} disabled={isSyncing}
           >
             <RefreshCw className={cn("h-3.5 w-3.5", isSyncing && "animate-spin")} />
-            {isSyncing ? "Đang đồng bộ..." : "Sync"}
+            {isSyncing ? t("campaigns.page.syncing") : t("campaigns.page.sync")}
           </Button>
           <Button
             variant="outline" size="sm"
@@ -504,11 +507,11 @@ export default function CampaignsPage() {
           not the silent "not configured" case */}
       {syncError && (
         <div className="flex items-start gap-2 rounded-lg border-2 border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          <span className="flex-1">⚠️ Đồng bộ dữ liệu gặp lỗi: {syncError}</span>
+          <span className="flex-1">{t("campaigns.page.syncBanner", { error: syncError })}</span>
           <button
             onClick={() => setSyncError(null)}
             className="text-red-400 hover:text-red-600"
-            aria-label="Đóng thông báo lỗi"
+            aria-label={t("campaigns.page.closeError")}
           >
             ✕
           </button>
@@ -526,7 +529,7 @@ export default function CampaignsPage() {
                   : "bg-slate-700 text-white shadow-sm"
                 : "text-slate-500 hover:text-slate-700")}
           >
-            {c === "all" ? "Tất cả" : `🏢 ${c === "MBC" || c === "MBI" ? c : companyLabel(c)}`}
+            {c === "all" ? t("campaigns.filter.all") : `🏢 ${c === "MBC" || c === "MBI" ? c : companyLabel(c)}`}
           </button>
         ))}
       </div>
@@ -541,10 +544,10 @@ export default function CampaignsPage() {
               ? "bg-blue-600 text-white border-blue-600"
               : "bg-white text-slate-600 border-slate-200 hover:border-blue-300 hover:text-blue-600"
           )}
-          title="Filter campaigns đang trong learning phase"
+          title={t("campaigns.page.learningTip")}
         >
           <GraduationCap className="h-3.5 w-3.5" />
-          Đang học ({learningCount})
+          {t("campaigns.page.learning", { n: learningCount })}
         </button>
       )}
 
@@ -562,7 +565,7 @@ export default function CampaignsPage() {
       {/* ── Active Filter UI ── */}
       {activeFilter.objective && (
         <div className="flex items-center gap-2 mb-3">
-          <span className="text-xs text-slate-500">Đang lọc theo mục tiêu:</span>
+          <span className="text-xs text-slate-500">{t("campaigns.page.filteringByObjective")}</span>
           <span className="flex items-center gap-1.5 text-xs font-medium bg-amber-100 text-amber-800 px-3 py-1 rounded-full border border-amber-200 shadow-sm">
             {activeFilter.platform === "FACEBOOK" ? "FB" : "GG"} — {activeFilter.objective}
             <button
@@ -573,7 +576,7 @@ export default function CampaignsPage() {
             </button>
           </span>
           <span className="text-xs text-slate-500">
-            ({filteredCampaigns.length} campaigns)
+            {t("campaigns.page.filteredCount", { n: filteredCampaigns.length })}
           </span>
         </div>
       )}
@@ -634,7 +637,7 @@ export default function CampaignsPage() {
                     </p>
                   </div>
                   <div className="text-center">
-                    <p className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Conversions <span className="font-normal normal-case">(thật)</span></p>
+                    <p className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Conversions <span className="font-normal normal-case">{t("campaigns.ga4.real")}</span></p>
                     <p className="text-sm font-bold tabular-nums text-emerald-600">
                       {conversions.toLocaleString()}
                     </p>
@@ -680,7 +683,7 @@ export default function CampaignsPage() {
                     "w-2 h-2 rounded-full",
                     showGA4 ? "bg-white shadow-sm ring-2 ring-white/20 animate-pulse" : "bg-slate-300",
                   )} />
-                  {showGA4 ? "GA4 Đang bật" : "Bật GA4"}
+                  {showGA4 ? t("campaigns.ga4.on") : t("campaigns.ga4.turnOn")}
                 </button>
               </div>
             </div>
@@ -711,13 +714,13 @@ export default function CampaignsPage() {
                   </span>
                 </div>
                 <span className="text-[10px] text-slate-400 shrink-0">
-                  {new Date(rel.created_at).toLocaleDateString("vi-VN")}
+                  {new Date(rel.created_at).toLocaleDateString(intl)}
                 </span>
                 <Button size="sm"
                   className="gap-1 text-[10px] bg-blue-600 text-white hover:bg-blue-700 h-7 px-3 shrink-0"
                   onClick={() => openCompare(i)}
                 >
-                  <BarChart3 className="h-3 w-3" /> 📊 So sánh
+                  <BarChart3 className="h-3 w-3" /> {t("campaigns.compare.button")}
                 </Button>
               </div>
             ))}
@@ -729,9 +732,7 @@ export default function CampaignsPage() {
         <div className="mb-3 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
           <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
           <span>
-            Lần tải này không lấy được <strong>mục tiêu chuyển đổi</strong> của các chiến dịch Facebook,
-            nên cột <strong>Kết quả</strong> và <strong>CPL</strong> đang đếm theo sự kiện mua hàng cho mọi
-            chiến dịch — số của chiến dịch chạy lead có thể sai. Bấm làm mới để thử lại.
+            {t("campaigns.goals.a")}<strong>{t("campaigns.goals.goalBold")}</strong>{t("campaigns.goals.b")}<strong>{t("campaigns.goals.resultsBold")}</strong>{t("campaigns.goals.c")}<strong>{t("campaigns.goals.cplBold")}</strong>{t("campaigns.goals.d")}
           </span>
         </div>
       )}
@@ -754,7 +755,7 @@ export default function CampaignsPage() {
         ))}
         {filteredCampaigns.length === 0 && !isLoading && (
           <div className="p-8 text-center text-slate-500 bg-white rounded-xl border border-slate-200">
-            Không có chiến dịch nào
+            {t("campaigns.page.noCampaigns")}
           </div>
         )}
       </div>
@@ -763,7 +764,7 @@ export default function CampaignsPage() {
       {filteredCampaigns.length > PAGE_SIZE && (
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-5 py-3">
           <p className="text-xs text-slate-500">
-            Hiển thị <b className="text-slate-800">{Math.min(currentPage * PAGE_SIZE, filteredCampaigns.length)}</b> / <b className="text-slate-800">{filteredCampaigns.length}</b> chiến dịch
+            {t("campaigns.page.showing")} <b className="text-slate-800">{Math.min(currentPage * PAGE_SIZE, filteredCampaigns.length)}</b> / <b className="text-slate-800">{filteredCampaigns.length}</b> {t("campaigns.page.campaignsWord")}
           </p>
           <div className="flex items-center gap-2">
             {hasMore && (
@@ -772,7 +773,7 @@ export default function CampaignsPage() {
                 className="gap-1.5 rounded-lg border-blue-200 text-blue-600 hover:bg-blue-50"
                 onClick={() => setCurrentPage(p => p + 1)}
               >
-                Xem thêm {PAGE_SIZE} <ChevronRight className="h-3.5 w-3.5" />
+                {t("campaigns.page.loadMore", { n: PAGE_SIZE })} <ChevronRight className="h-3.5 w-3.5" />
               </Button>
             )}
             {currentPage > 1 && (
@@ -781,7 +782,7 @@ export default function CampaignsPage() {
                 className="gap-1.5 rounded-lg border-slate-200 text-slate-600 hover:bg-slate-50"
                 onClick={() => setCurrentPage(1)}
               >
-                Thu gọn
+                {t("campaigns.page.collapse")}
               </Button>
             )}
           </div>
@@ -809,8 +810,8 @@ export default function CampaignsPage() {
                   <BarChart3 className="h-4 w-4 text-blue-600" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-slate-800">📊 A/B Comparison</h3>
-                  <p className="text-[10px] text-slate-400">Last 7 days performance</p>
+                  <h3 className="text-base font-bold text-slate-800">{t("campaigns.compare.title")}</h3>
+                  <p className="text-[10px] text-slate-400">{t("campaigns.compare.subtitle")}</p>
                 </div>
               </div>
               <button onClick={() => setShowCompare(false)} className="p-1 rounded-lg hover:bg-slate-100 text-slate-400">
@@ -822,8 +823,8 @@ export default function CampaignsPage() {
               {compareLoading && (
                 <div className="text-center py-8">
                   <Loader2 className="h-8 w-8 animate-spin text-blue-400 mx-auto mb-3" />
-                  <p className="text-sm font-semibold text-blue-700">Đang lấy dữ liệu từ Facebook...</p>
-                  <p className="text-[10px] text-slate-400 mt-1">So sánh insights 7 ngày gần nhất</p>
+                  <p className="text-sm font-semibold text-blue-700">{t("campaigns.compare.loading")}</p>
+                  <p className="text-[10px] text-slate-400 mt-1">{t("campaigns.compare.loadingSub")}</p>
                 </div>
               )}
 
@@ -840,12 +841,12 @@ export default function CampaignsPage() {
                     {/* Campaign names */}
                     <div className="grid grid-cols-2 gap-3">
                       <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5">
-                        <span className="inline-flex items-center rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-600 mb-1">v1 — Gốc</span>
+                        <span className="inline-flex items-center rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-600 mb-1">{t("campaigns.compare.v1Original")}</span>
                         <p className="text-sm font-bold text-slate-700 truncate">{v1.name}</p>
                         <p className="text-[10px] text-slate-400">{v1.status}</p>
                       </div>
                       <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5">
-                        <span className="inline-flex items-center rounded-full bg-blue-200 px-2 py-0.5 text-[10px] font-bold text-blue-700 mb-1">v2 — Optimized</span>
+                        <span className="inline-flex items-center rounded-full bg-blue-200 px-2 py-0.5 text-[10px] font-bold text-blue-700 mb-1">{t("campaigns.compare.v2Optimized")}</span>
                         <p className="text-sm font-bold text-blue-700 truncate">{v2.name}</p>
                         <p className="text-[10px] text-blue-400">{v2.status}</p>
                       </div>
@@ -857,7 +858,7 @@ export default function CampaignsPage() {
                         <thead>
                           <tr className="bg-slate-50 border-b border-slate-200">
                             <th className="px-3 py-2 text-left text-[10px] font-bold text-slate-400 uppercase w-24">Metric</th>
-                            <th className="px-3 py-2 text-right text-[10px] font-bold text-slate-400 uppercase">v1 (Gốc)</th>
+                            <th className="px-3 py-2 text-right text-[10px] font-bold text-slate-400 uppercase">{t("campaigns.compare.v1Col")}</th>
                             <th className="px-3 py-2 text-right text-[10px] font-bold text-blue-500 uppercase">v2 (Opt)</th>
                             <th className="px-3 py-2 text-right text-[10px] font-bold text-slate-400 uppercase w-20">Delta</th>
                           </tr>
@@ -909,7 +910,7 @@ export default function CampaignsPage() {
 
             <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/50 flex justify-end shrink-0">
               <Button onClick={() => setShowCompare(false)} className="gap-2 bg-slate-700 text-white hover:bg-slate-800 text-sm h-9">
-                Đóng
+                {t("common.close")}
               </Button>
             </div>
           </div>
@@ -930,7 +931,7 @@ export default function CampaignsPage() {
       {/* Mobile FAB */}
       <button 
         className="md:hidden fixed bottom-24 right-4 z-40 bg-amber-500 text-amber-950 rounded-full p-4 shadow-lg hover:bg-amber-600 transition-colors"
-        onClick={() => toast({ title: "Tạo chiến dịch mới", description: "Tính năng đang phát triển" })}
+        onClick={() => toast({ title: t("campaigns.page.fabTitle"), description: t("campaigns.page.fabDesc") })}
       >
         <Plus className="w-6 h-6" />
       </button>

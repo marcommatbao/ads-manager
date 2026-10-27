@@ -13,14 +13,17 @@ import { ChevronDown, LogOut, User } from "lucide-react";
 import type { Platform } from "@/types/ads.types";
 import { cn } from "@/lib/utils";
 import { CompaniesBoot } from "@/components/CompaniesBoot";
+import { LanguageSwitch } from "@/components/LanguageSwitch";
+import { useT } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/messages";
 
-const PAGE_TITLES: Record<string, string> = {
-  "/":           "Dashboard",
-  "/campaigns":  "Campaigns",
-  "/creative":   "Creative AI",
-  "/automation": "Automation Rules",
-  "/reports":    "Reports",
-  "/settings":   "Settings",
+const PAGE_TITLES: Record<string, MessageKey> = {
+  "/":           "shell.page.dashboard",
+  "/campaigns":  "shell.page.campaigns",
+  "/creative":   "shell.page.creative",
+  "/automation": "shell.page.automation",
+  "/reports":    "shell.page.reports",
+  "/settings":   "shell.page.settings",
 };
 
 interface GoogleAccount {
@@ -31,6 +34,7 @@ interface GoogleAccount {
 
 function AvatarMenu() {
   const { user, logout } = useSession();
+  const t = useT();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -52,7 +56,7 @@ function AvatarMenu() {
         onClick={() => setOpen(o => !o)}
         className="flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold text-white hover:opacity-80 transition-opacity cursor-pointer"
         style={{ backgroundColor: "#0F172A" }}
-        title={user?.name || "User"}
+        title={user?.name || t("shell.user")}
       >
         {initials}
       </button>
@@ -66,7 +70,7 @@ function AvatarMenu() {
                 {initials}
               </div>
               <div className="min-w-0">
-                <p className="text-xs font-semibold text-slate-800 truncate">{user?.name || "User"}</p>
+                <p className="text-xs font-semibold text-slate-800 truncate">{user?.name || t("shell.user")}</p>
                 <p className="text-[10px] text-slate-400 truncate">{user?.email || ""}</p>
               </div>
             </div>
@@ -78,7 +82,7 @@ function AvatarMenu() {
             onClick={() => { setOpen(false); window.location.href = "/settings"; }}
           >
             <User className="h-3.5 w-3.5 text-slate-400" />
-            Cài đặt tài khoản
+            {t("shell.accountSettings")}
           </button>
 
           {/* Logout */}
@@ -87,7 +91,7 @@ function AvatarMenu() {
             onClick={() => { setOpen(false); logout(); }}
           >
             <LogOut className="h-3.5 w-3.5" />
-            Đăng xuất
+            {t("shell.logout")}
           </button>
         </div>
       )}
@@ -97,6 +101,7 @@ function AvatarMenu() {
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const t = useT();
   const { user } = useSession();
   const { selectedPlatform, setSelectedPlatform, selectedGoogleAccount, setSelectedGoogleAccount } = useAdsStore();
 
@@ -124,7 +129,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
-  const pageTitle = PAGE_TITLES[pathname] ?? "AdsCommand";
+  const pageTitle = PAGE_TITLES[pathname] ? t(PAGE_TITLES[pathname]) : "AdsCommand";
 
   const handlePlatformClick = (value: Platform) => {
     if (value === "google" && googleAccounts.length > 0) {
@@ -189,7 +194,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                   : "text-slate-500 hover:text-slate-700"
               )}
             >
-              All
+              {t("shell.platform.all")}
             </button>
 
             {/* Facebook */}
@@ -234,7 +239,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                         : "text-slate-700"
                     )}
                   >
-                    Tất cả Google Ads
+                    {t("shell.allGoogleAds")}
                   </button>
                   <div className="border-t border-slate-100 my-0.5" />
                   {googleAccounts.map(account => (
@@ -259,6 +264,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
           {/* Right: notification bell + avatar */}
           <div className="flex items-center gap-3">
+            <LanguageSwitch />
             <NotificationBell />
 
             {/* Avatar with dropdown */}

@@ -1,0 +1,33 @@
+import type { Translation } from "../../types"
+import type { auth as vi } from "../vi/auth"
+
+export const auth: Translation<typeof vi> = {
+  "auth.login.title": "Sign in",
+  "auth.login.email": "Email",
+  "auth.login.password": "Password",
+  "auth.login.submit": "Sign in →",
+  "auth.login.submitting": "Signing in...",
+  "auth.login.failed": "Sign-in failed",
+  "auth.serverError": "Server connection error",
+  "auth.about": "About",
+  "auth.privacy": "Privacy Policy",
+  "auth.cp.title": "Change password",
+  "auth.cp.back": "← Back",
+  "auth.cp.mustChange": "This is your first sign-in (or your password was just reset by an administrator). Please set your own new password before continuing.",
+  "auth.cp.account": "Account:",
+  "auth.cp.success": "Password changed. Other devices have been signed out.",
+  "auth.cp.current": "Current password",
+  "auth.cp.hide": "Hide password",
+  "auth.cp.show": "Show password",
+  "auth.cp.new": "New password",
+  "auth.cp.hint": "At least 12 characters. Use a long phrase that is easy for you to remember and hard for others to guess.",
+  "auth.cp.confirm": "Confirm new password",
+  "auth.cp.submit": "Change password",
+  "auth.cp.submitting": "Changing password...",
+  "auth.cp.failed": "Failed to change password",
+  "auth.cp.errMin": "The new password must be at least {min} characters.",
+  "auth.cp.errMax": "The new password must be at most {max} characters.",
+  "auth.cp.errSame": "The new password must be different from the current password.",
+  "auth.cp.errMismatch": "The passwords do not match.",
+  "auth.cp.logout": "Sign out",
+}

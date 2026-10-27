@@ -7,7 +7,9 @@ import { usePathname } from "next/navigation";
 import { useSession } from "@/components/SessionProvider";
 import { Menu, Bell, LayoutDashboard, Megaphone, Target, Zap, BarChart2, Settings, X, LogOut, MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { navItems } from "@/components/Sidebar";
+import { navItems, useNavT } from "@/components/Sidebar";
+import { LanguageSwitch } from "@/components/LanguageSwitch";
+import { useT } from "@/lib/i18n/client";
 import type { Role } from "@/lib/permissions";
 import { hasModule } from "@/lib/companies/registry";
 
@@ -65,6 +67,7 @@ export function MobileTopbar({ onOpenDrawer }: { onOpenDrawer: () => void }) {
       </div>
 
       <div className="flex items-center gap-3">
+        <LanguageSwitch />
         <Link href="/notifications" className="relative p-2 text-slate-600 hover:text-slate-900">
           <Bell className="h-5 w-5" />
           {unreadCount > 0 && (
@@ -86,6 +89,8 @@ export function MobileTopbar({ onOpenDrawer }: { onOpenDrawer: () => void }) {
 
 export function MobileDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const { user, logout } = useSession();
+  const t = useT();
+  const nav = useNavT();
   const pathname = usePathname();
   const userRole = user?.role || "super_admin";
 
@@ -153,7 +158,7 @@ export function MobileDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: ()
                   )}
                 >
                   <item.icon className={cn("h-5 w-5", isActive ? "text-amber-700" : "text-slate-500")} strokeWidth={isActive ? 2.2 : 1.8} />
-                  <span className="flex-1">{item.label}</span>
+                  <span className="flex-1">{nav.label(item)}</span>
                 </Link>
 
                 {/* Always expand settings on mobile for simplicity if active or has children */}
@@ -174,7 +179,7 @@ export function MobileDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: ()
                               : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
                           )}
                         >
-                          {child.label}
+                          {nav.child(child)}
                         </Link>
                       );
                     })}
@@ -203,7 +208,7 @@ export function MobileDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: ()
             onClick={() => { onClose(); logout(); }}
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors"
           >
-            <LogOut className="h-4 w-4 text-slate-500" /> Đăng xuất
+            <LogOut className="h-4 w-4 text-slate-500" /> {t("shell.logout")}
           </button>
         </div>
       </div>
@@ -212,15 +217,16 @@ export function MobileDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: ()
 }
 
 export function BottomTabBar() {
+  const t = useT();
   const pathname = usePathname();
   const unreadCount = useNotificationCount();
 
   const tabs = [
-    { label: "Home", href: "/", icon: LayoutDashboard },
-    { label: "Campaigns", href: "/campaigns", icon: Megaphone },
-    { label: "CPL", href: "/cpl", icon: Target },
-    { label: "Alerts", href: "/notifications", icon: Bell, badge: unreadCount },
-    { label: "More", href: "/options", icon: MoreHorizontal, isMenuTrigger: true },
+    { label: t("shell.tab.home"), href: "/", icon: LayoutDashboard },
+    { label: t("shell.tab.campaigns"), href: "/campaigns", icon: Megaphone },
+    { label: t("shell.tab.cpl"), href: "/cpl", icon: Target },
+    { label: t("shell.tab.alerts"), href: "/notifications", icon: Bell, badge: unreadCount },
+    { label: t("shell.tab.more"), href: "/options", icon: MoreHorizontal, isMenuTrigger: true },
   ];
 
   return (

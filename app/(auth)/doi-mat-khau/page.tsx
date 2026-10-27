@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Loader2, Eye, EyeOff, Zap } from "lucide-react";
 import { brandText } from "@/lib/companies/brand-text";
+import { useT } from "@/lib/i18n/client";
+import { LanguageSwitch } from "@/components/LanguageSwitch";
 
 interface SessionResponse {
   authenticated?: boolean;
@@ -23,6 +25,7 @@ const inputClass =
 const labelClass = "block text-sm font-medium text-slate-300 mb-1.5";
 
 export default function ChangePasswordPage() {
+  const t = useT();
   const [ready, setReady] = useState(false);
   const [email, setEmail] = useState("");
   const [mustChange, setMustChange] = useState(false);
@@ -50,7 +53,7 @@ export default function ChangePasswordPage() {
         setMustChange(json.user.mustChangePassword === true);
         setReady(true);
       } catch {
-        if (!cancelled) setError("Lỗi kết nối server");
+        if (!cancelled) setError(t("auth.serverError"));
         if (!cancelled) setReady(true);
       }
     })();
@@ -63,10 +66,10 @@ export default function ChangePasswordPage() {
     e.preventDefault();
     setError(null);
     const errs: { next?: string; confirm?: string } = {};
-    if (next.length < MIN_LEN) errs.next = `Mật khẩu mới phải có tối thiểu ${MIN_LEN} ký tự.`;
-    else if (next.length > MAX_LEN) errs.next = `Mật khẩu mới tối đa ${MAX_LEN} ký tự.`;
-    else if (next === current) errs.next = "Mật khẩu mới phải khác mật khẩu hiện tại.";
-    if (next !== confirm) errs.confirm = "Mật khẩu nhập lại không khớp.";
+    if (next.length < MIN_LEN) errs.next = t("auth.cp.errMin", { min: MIN_LEN });
+    else if (next.length > MAX_LEN) errs.next = t("auth.cp.errMax", { max: MAX_LEN });
+    else if (next === current) errs.next = t("auth.cp.errSame");
+    if (next !== confirm) errs.confirm = t("auth.cp.errMismatch");
     setFieldErrors(errs);
     if (errs.next || errs.confirm) return;
 
@@ -85,7 +88,7 @@ export default function ChangePasswordPage() {
         /* body không phải JSON */
       }
       if (!res.ok || !json.success) {
-        setError(json.error || "Đổi mật khẩu thất bại");
+        setError(json.error || t("auth.cp.failed"));
         return;
       }
       setSuccess(true);
@@ -93,7 +96,7 @@ export default function ChangePasswordPage() {
         window.location.href = "/";
       }, 1200);
     } catch {
-      setError("Lỗi kết nối server");
+      setError(t("auth.serverError"));
     } finally {
       setLoading(false);
     }
@@ -114,6 +117,10 @@ export default function ChangePasswordPage() {
         <div className="absolute -bottom-40 -left-40 w-80 h-80 rounded-full bg-violet-500/10 blur-3xl" />
       </div>
 
+      <div className="absolute right-4 top-4 z-10">
+        <LanguageSwitch />
+      </div>
+
       <div className="relative w-full max-w-md">
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 mb-3">
@@ -130,23 +137,23 @@ export default function ChangePasswordPage() {
           className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 sm:p-8 shadow-2xl"
         >
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-white">Đổi mật khẩu</h2>
+            <h2 className="text-lg font-semibold text-white">{t("auth.cp.title")}</h2>
             {ready && !mustChange && (
               <Link href="/" className="text-xs text-slate-400 hover:text-slate-300 transition-colors">
-                ← Quay lại
+                {t("auth.cp.back")}
               </Link>
             )}
           </div>
 
           {mustChange && (
             <div className="mb-4 rounded-lg bg-amber-500/10 border border-amber-500/30 px-4 py-3 text-sm text-amber-300">
-              Đây là lần đăng nhập đầu tiên (hoặc mật khẩu vừa được quản trị viên đặt lại). Vui lòng đặt mật khẩu mới của riêng bạn trước khi tiếp tục.
+              {t("auth.cp.mustChange")}
             </div>
           )}
 
           {email && (
             <p className="mb-4 text-sm text-slate-400">
-              Tài khoản: <span className="text-slate-200 break-all">{email}</span>
+              {t("auth.cp.account")} <span className="text-slate-200 break-all">{email}</span>
             </p>
           )}
 
@@ -159,12 +166,12 @@ export default function ChangePasswordPage() {
 
           {success && (
             <div role="status" className="mb-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-4 py-3 text-sm text-emerald-400">
-              Đã đổi mật khẩu. Các thiết bị khác đã được đăng xuất.
+              {t("auth.cp.success")}
             </div>
           )}
 
           <div className="mb-4">
-            <label htmlFor="cur" className={labelClass}>Mật khẩu hiện tại</label>
+            <label htmlFor="cur" className={labelClass}>{t("auth.cp.current")}</label>
             <div className="relative">
               <input
                 id="cur"
@@ -178,7 +185,7 @@ export default function ChangePasswordPage() {
               <button
                 type="button"
                 onClick={() => setShow(!show)}
-                aria-label={show ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+                aria-label={show ? t("auth.cp.hide") : t("auth.cp.show")}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-300 transition-colors"
               >
                 {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -187,7 +194,7 @@ export default function ChangePasswordPage() {
           </div>
 
           <div className="mb-4">
-            <label htmlFor="new" className={labelClass}>Mật khẩu mới</label>
+            <label htmlFor="new" className={labelClass}>{t("auth.cp.new")}</label>
             <input
               id="new"
               type={show ? "text" : "password"}
@@ -199,13 +206,13 @@ export default function ChangePasswordPage() {
               className={inputClass}
             />
             <p className="mt-1.5 text-xs text-slate-500">
-              Tối thiểu 12 ký tự. Nên dùng cụm từ dài, dễ nhớ với bạn, khó đoán với người khác.
+              {t("auth.cp.hint")}
             </p>
             {fieldErrors.next && <p className="mt-1 text-xs text-red-400">{fieldErrors.next}</p>}
           </div>
 
           <div className="mb-6">
-            <label htmlFor="conf" className={labelClass}>Nhập lại mật khẩu mới</label>
+            <label htmlFor="conf" className={labelClass}>{t("auth.cp.confirm")}</label>
             <input
               id="conf"
               type={show ? "text" : "password"}
@@ -226,10 +233,10 @@ export default function ChangePasswordPage() {
           >
             {loading ? (
               <>
-                <Loader2 className="h-4 w-4 animate-spin" /> Đang đổi mật khẩu...
+                <Loader2 className="h-4 w-4 animate-spin" /> {t("auth.cp.submitting")}
               </>
             ) : (
-              "Đổi mật khẩu"
+              t("auth.cp.submit")
             )}
           </button>
 
@@ -239,7 +246,7 @@ export default function ChangePasswordPage() {
               onClick={handleLogout}
               className="text-xs text-slate-400 hover:text-slate-300 underline-offset-2 hover:underline transition-colors"
             >
-              Đăng xuất
+              {t("auth.cp.logout")}
             </button>
           </div>
         </form>

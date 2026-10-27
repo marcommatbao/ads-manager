@@ -39,116 +39,62 @@ import { ConnectorHealth } from "@/components/settings/ConnectorHealth";
 import { ExtraConnections } from "@/components/settings/ExtraConnections";
 import { ServiceKeys } from "@/components/settings/ServiceKeys";
 import { ConnectCard } from "@/components/settings/ConnectCard";
+import { useT } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/messages";
 
 interface ApiSection {
-  title: string;
-  description: string;
+  title: MessageKey;
+  description: MessageKey;
   platform: string;
   color: string;
-  fields: { key: string; label: string; placeholder: string }[];
+  fields: { key: string; label: MessageKey; placeholder?: MessageKey; placeholderRaw?: string }[];
 }
 
 const apiSections: ApiSection[] = [
   {
-    title: "Meta (Facebook) Ads",
-    description: "Connect your Meta Business account to sync Facebook & Instagram campaigns.",
+    title: "connect.section.meta.title",
+    description: "connect.section.meta.description",
     platform: "meta",
     color: "bg-blue-500",
     fields: [
-      {
-        key: "metaAccessToken",
-        label: "Access Token",
-        placeholder: "Your Meta Marketing API access token",
-      },
-      {
-        key: "metaAdAccountId",
-        label: "Ad Account ID",
-        placeholder: "act_123456789",
-      },
-      {
-        key: "metaAppId",
-        label: "App ID",
-        placeholder: "Your Meta App ID",
-      },
-      {
-        key: "metaAppSecret",
-        label: "App Secret",
-        placeholder: "Your Meta App Secret",
-      },
+      { key: "metaAccessToken", label: "settings.field.metaAccessToken.label", placeholder: "settings.field.metaAccessToken.placeholder" },
+      { key: "metaAdAccountId", label: "settings.field.metaAdAccountId.label", placeholderRaw: "act_123456789" },
+      { key: "metaAppId", label: "settings.field.metaAppId.label", placeholder: "settings.field.metaAppId.placeholder" },
+      { key: "metaAppSecret", label: "settings.field.metaAppSecret.label", placeholder: "settings.field.metaAppSecret.placeholder" },
     ],
   },
   {
-    title: "Google Ads",
-    description: "Connect your Google Ads account to sync search, display & video campaigns.",
+    title: "connect.section.google.title",
+    description: "connect.section.google.description",
     platform: "google",
     color: "bg-amber-500",
     fields: [
-      {
-        key: "googleDeveloperToken",
-        label: "Developer Token (không bắt buộc)",
-        placeholder: "Để trống — Google đã bỏ developer token từ 09/2026",
-      },
-      {
-        key: "googleClientId",
-        label: "Client ID",
-        placeholder: "Your OAuth2 client ID",
-      },
-      {
-        key: "googleClientSecret",
-        label: "Client Secret",
-        placeholder: "Your OAuth2 client secret",
-      },
-      {
-        key: "googleRefreshToken",
-        label: "Refresh Token",
-        placeholder: "Your OAuth2 refresh token",
-      },
-      {
-        key: "googleLoginCustomerId",
-        label: "Login Customer ID (MCC)",
-        placeholder: "Manager account ID (e.g. 7892146980)",
-      },
-      {
-        key: "googleCustomerIdMBC",
-        label: "Customer ID — Mắt Bão Cloud (MBC)",
-        placeholder: "e.g. 2190685994",
-      },
-      {
-        key: "googleCustomerIdMBI",
-        label: "Customer ID — MIFI (MBI)",
-        placeholder: "e.g. 2275457986",
-      },
+      { key: "googleDeveloperToken", label: "settings.field.googleDeveloperToken.label", placeholder: "settings.field.googleDeveloperToken.placeholder" },
+      { key: "googleClientId", label: "settings.field.googleClientId.label", placeholder: "settings.field.googleClientId.placeholder" },
+      { key: "googleClientSecret", label: "settings.field.googleClientSecret.label", placeholder: "settings.field.googleClientSecret.placeholder" },
+      { key: "googleRefreshToken", label: "settings.field.googleRefreshToken.label", placeholder: "settings.field.googleRefreshToken.placeholder" },
+      { key: "googleLoginCustomerId", label: "settings.field.googleLoginCustomerId.label", placeholder: "settings.field.googleLoginCustomerId.placeholder" },
+      { key: "googleCustomerIdMBC", label: "settings.field.googleCustomerIdMBC.label", placeholder: "settings.field.googleCustomerIdMBC.placeholder" },
+      { key: "googleCustomerIdMBI", label: "settings.field.googleCustomerIdMBI.label", placeholder: "settings.field.googleCustomerIdMBI.placeholder" },
     ],
   },
   {
-    title: "Google Gemini AI",
-    description: "Enable AI-powered creative generation for your ad campaigns.",
+    title: "settings.section.gemini.title",
+    description: "settings.section.gemini.description",
     platform: "gemini",
     color: "bg-purple-500",
     fields: [
-      {
-        key: "geminiApiKey",
-        label: "API Key",
-        placeholder: "Your Gemini API key",
-      },
+      { key: "geminiApiKey", label: "settings.field.geminiApiKey.label", placeholder: "settings.field.geminiApiKey.placeholder" },
     ],
   },
   {
-    title: "Telegram Alerts",
-    description: "Connect a Telegram Bot to receive real-time anomaly and fatigue alerts.",
+    title: "settings.section.telegram.title",
+    description: "settings.section.telegram.description",
     platform: "telegram",
     color: "bg-sky-500",
     fields: [
-      {
-        key: "telegramBotToken",
-        label: "Bot Token",
-        placeholder: "123456789:ABCdefGHIjklMNO...",
-      },
-      {
-        key: "telegramChatId",
-        label: "Chat ID",
-        placeholder: "-100123456789 (Group) or 123456 (User)",
-      },
+      { key: "telegramBotToken", label: "settings.field.telegramBotToken.label", placeholderRaw: "123456789:ABCdefGHIjklMNO..." },
+      { key: "telegramChatId", label: "settings.field.telegramChatId.label", placeholder: "settings.field.telegramChatId.placeholder" },
     ],
   },
 ];
@@ -159,12 +105,13 @@ import { COMPANY_CONFIG } from "@/lib/company-config";
 const LEGACY_COMPANY_FIELD: Record<string, string> = { googleCustomerIdMBC: "MBC", googleCustomerIdMBI: "MBI" };
 
 function CompanyMappingTable() {
+  const t = useT();
   return (
     <div className="rounded-xl border border-slate-200 overflow-hidden bg-white shadow-sm mt-6">
       <div className="px-5 py-4 bg-slate-50 border-b border-slate-200">
-        <p className="text-[15px] font-bold text-slate-800">Company → Analytics Mapping</p>
+        <p className="text-[15px] font-bold text-slate-800">{t("settings.map.title")}</p>
         <p className="text-[13px] text-slate-500 mt-1">
-          GA4 và Pixel đúng sẽ được dùng tự động theo cột CO. của campaign
+          {t("settings.map.description")}
         </p>
       </div>
       <div className="overflow-x-auto">
@@ -172,22 +119,22 @@ function CompanyMappingTable() {
           <thead>
             <tr className="border-b border-slate-200 bg-white">
               <th className="text-left px-5 py-3 text-[12px] text-slate-500 font-semibold uppercase tracking-wider">
-                Công ty
+                {t("settings.map.col0")}
               </th>
               <th className="text-left px-5 py-3 text-[12px] text-slate-500 font-semibold uppercase tracking-wider">
-                Domain
+                {t("settings.map.col1")}
               </th>
               <th className="text-left px-5 py-3 text-[12px] text-slate-500 font-semibold uppercase tracking-wider">
-                GA4 Property
+                {t("settings.map.col2")}
               </th>
               <th className="text-left px-5 py-3 text-[12px] text-slate-500 font-semibold uppercase tracking-wider">
-                Measurement ID
+                {t("settings.map.col3")}
               </th>
               <th className="text-left px-5 py-3 text-[12px] text-slate-500 font-semibold uppercase tracking-wider">
-                FB Pixel
+                {t("settings.map.col4")}
               </th>
               <th className="text-center px-5 py-3 text-[12px] text-slate-500 font-semibold uppercase tracking-wider">
-                Status
+                {t("settings.map.col5")}
               </th>
             </tr>
           </thead>
@@ -223,7 +170,7 @@ function CompanyMappingTable() {
                   <span className="flex items-center justify-center gap-1.5 bg-emerald-50 text-emerald-700 py-1 px-2 rounded-md w-fit mx-auto">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                     <span className="text-[11px] font-bold tracking-wide uppercase">
-                      Active
+                      {t("settings.map.active")}
                     </span>
                   </span>
                 </td>
@@ -240,6 +187,7 @@ function CompanyMappingTable() {
 type TestResult = { ok: boolean; message: string };
 
 function SettingsContent() {
+  const t = useT();
   const searchParams = useSearchParams();
   const perms = useSettingsPermission();
   const [values, setValues] = useState<Record<string, string>>({});
@@ -282,12 +230,12 @@ function SettingsContent() {
 
     const googleError = searchParams.get("google_error");
     if (googleError) {
-      setGoogleResult({ ok: false, message: `OAuth error: ${googleError}` });
+      setGoogleResult({ ok: false, message: t("settings.google.oauthError", { error: googleError }) });
     }
     if (searchParams.get("google_connected") === "true") {
-      setGoogleResult({ ok: true, message: "Google Ads authorized successfully." });
+      setGoogleResult({ ok: true, message: t("settings.google.authorized") });
     }
-  }, [searchParams]);
+  }, [searchParams, t]);
 
   // Pre-populate Meta credentials
   useEffect(() => {
@@ -386,14 +334,14 @@ function SettingsContent() {
       const res = await fetch(`/api/settings/meta/test`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(Object.fromEntries(params)) });
       const data = await res.json() as { ok: boolean; userName?: string; accountName?: string; error?: string };
       if (data.ok) {
-        setMetaResult({ ok: true, message: `Connected as ${data.userName}${data.accountName ? ` · ${data.accountName}` : ""}` });
+        setMetaResult({ ok: true, message: t("settings.meta.connectedAs", { user: data.userName ?? "", account: data.accountName ? ` · ${data.accountName}` : "" }) });
         setStatus((s) => ({ ...s, facebook: true }));
       } else {
-        setMetaResult({ ok: false, message: data.error ?? "Connection failed" });
+        setMetaResult({ ok: false, message: data.error ?? t("settings.err.connectionFailed") });
         setStatus((s) => ({ ...s, facebook: false }));
       }
     } catch {
-      setMetaResult({ ok: false, message: "Network error" });
+      setMetaResult({ ok: false, message: t("settings.err.network") });
     }
     setMetaTesting(false);
   };
@@ -415,15 +363,15 @@ function SettingsContent() {
       });
       const text = await res.text();
       let data: { ok: boolean; message?: string; error?: string };
-      try { data = JSON.parse(text); } catch { throw new Error(`Server error (${res.status}): ${text.slice(0, 120)}`); }
+      try { data = JSON.parse(text); } catch { throw new Error(t("settings.err.server", { status: res.status, text: text.slice(0, 120) })); }
       if (data.ok) {
         setStatus((s) => ({ ...s, facebook: true }));
-        setMetaResult({ ok: true, message: "Đã lưu! Credentials sẽ được dùng ngay cho các tính năng." });
+        setMetaResult({ ok: true, message: t("settings.meta.saved") });
       } else {
-        setMetaResult({ ok: false, message: data.error ?? data.message ?? "Save failed" });
+        setMetaResult({ ok: false, message: data.error ?? data.message ?? t("settings.err.saveFailed") });
       }
     } catch (e) {
-      setMetaResult({ ok: false, message: e instanceof Error ? e.message : "Save failed" });
+      setMetaResult({ ok: false, message: e instanceof Error ? e.message : t("settings.err.saveFailed") });
     }
     setMetaSaving(false);
   };
@@ -445,14 +393,14 @@ function SettingsContent() {
       const data = await res.json() as { ok: boolean; accounts?: { id: string; name: string }[]; error?: string };
       if (data.ok) {
         const names = data.accounts?.map((a) => a.name).join(", ") || "";
-        setGoogleResult({ ok: true, message: `Connected · ${names}` });
+        setGoogleResult({ ok: true, message: t("settings.google.connected", { names }) });
         setStatus((s) => ({ ...s, google: true }));
       } else {
-        setGoogleResult({ ok: false, message: data.error ?? "Connection failed" });
+        setGoogleResult({ ok: false, message: data.error ?? t("settings.err.connectionFailed") });
         setStatus((s) => ({ ...s, google: false }));
       }
     } catch {
-      setGoogleResult({ ok: false, message: "Network error" });
+      setGoogleResult({ ok: false, message: t("settings.err.network") });
     }
     setGoogleTesting(false);
   };
@@ -475,15 +423,15 @@ function SettingsContent() {
       });
       const text = await res.text();
       let data: { ok: boolean; message?: string; error?: string };
-      try { data = JSON.parse(text); } catch { throw new Error(`Server error (${res.status}): ${text.slice(0, 120)}`); }
+      try { data = JSON.parse(text); } catch { throw new Error(t("settings.err.server", { status: res.status, text: text.slice(0, 120) })); }
       if (data.ok) {
         setStatus((s) => ({ ...s, google: true }));
-        setGoogleResult({ ok: true, message: "Đã lưu! Google Ads credentials sẽ được dùng ngay." });
+        setGoogleResult({ ok: true, message: t("settings.google.saved") });
       } else {
-        setGoogleResult({ ok: false, message: data.error ?? data.message ?? "Save failed" });
+        setGoogleResult({ ok: false, message: data.error ?? data.message ?? t("settings.err.saveFailed") });
       }
     } catch (e) {
-      setGoogleResult({ ok: false, message: e instanceof Error ? e.message : "Save failed" });
+      setGoogleResult({ ok: false, message: e instanceof Error ? e.message : t("settings.err.saveFailed") });
     }
     setGoogleSaving(false);
   };
@@ -498,14 +446,14 @@ function SettingsContent() {
       const res = await fetch(`/api/settings/gemini/test`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(Object.fromEntries(params)) });
       const data = await res.json() as { ok: boolean; modelCount?: number; error?: string };
       if (data.ok) {
-        setGeminiResult({ ok: true, message: `Connected · ${data.modelCount ?? 0} models available` });
+        setGeminiResult({ ok: true, message: t("settings.gemini.connected", { n: data.modelCount ?? 0 }) });
         setStatus((s) => ({ ...s, gemini: true }));
       } else {
-        setGeminiResult({ ok: false, message: data.error ?? "Connection failed" });
+        setGeminiResult({ ok: false, message: data.error ?? t("settings.err.connectionFailed") });
         setStatus((s) => ({ ...s, gemini: false }));
       }
     } catch {
-      setGeminiResult({ ok: false, message: "Network error" });
+      setGeminiResult({ ok: false, message: t("settings.err.network") });
     }
     setGeminiTesting(false);
   };
@@ -522,15 +470,15 @@ function SettingsContent() {
       });
       const text = await res.text();
       let data: { ok: boolean; message?: string; error?: string };
-      try { data = JSON.parse(text); } catch { throw new Error(`Server error (${res.status}): ${text.slice(0, 120)}`); }
+      try { data = JSON.parse(text); } catch { throw new Error(t("settings.err.server", { status: res.status, text: text.slice(0, 120) })); }
       if (data.ok) {
         setStatus((s) => ({ ...s, gemini: true }));
-        setGeminiResult({ ok: true, message: "Đã lưu! Gemini API key sẽ được dùng ngay." });
+        setGeminiResult({ ok: true, message: t("settings.gemini.saved") });
       } else {
-        setGeminiResult({ ok: false, message: data.error ?? data.message ?? "Save failed" });
+        setGeminiResult({ ok: false, message: data.error ?? data.message ?? t("settings.err.saveFailed") });
       }
     } catch (e) {
-      setGeminiResult({ ok: false, message: e instanceof Error ? e.message : "Save failed" });
+      setGeminiResult({ ok: false, message: e instanceof Error ? e.message : t("settings.err.saveFailed") });
     }
     setGeminiSaving(false);
   };
@@ -541,7 +489,7 @@ function SettingsContent() {
     const botToken = values["telegramBotToken"];
     const chatId = values["telegramChatId"];
     if (!botToken || !chatId) {
-      setTelegramResult({ ok: false, message: "Cần nhập Bot Token và Chat ID trước khi test" });
+      setTelegramResult({ ok: false, message: t("settings.telegram.needFields") });
       setTelegramTesting(false);
       return;
     }
@@ -553,14 +501,14 @@ function SettingsContent() {
       });
       const data = await res.json() as { success: boolean; botName?: string; error?: string; hint?: string };
       if (data.success) {
-        setTelegramResult({ ok: true, message: `Đã gửi test message tới @${data.botName ?? "bot"}` });
+        setTelegramResult({ ok: true, message: t("settings.telegram.testSent", { bot: data.botName ?? "bot" }) });
         setStatus((s) => ({ ...s, telegram: true }));
       } else {
-        setTelegramResult({ ok: false, message: [data.error, data.hint].filter(Boolean).join(" — ") || "Connection failed" });
+        setTelegramResult({ ok: false, message: [data.error, data.hint].filter(Boolean).join(" — ") || t("settings.err.connectionFailed") });
         setStatus((s) => ({ ...s, telegram: false }));
       }
     } catch {
-      setTelegramResult({ ok: false, message: "Network error" });
+      setTelegramResult({ ok: false, message: t("settings.err.network") });
     }
     setTelegramTesting(false);
   };
@@ -578,15 +526,15 @@ function SettingsContent() {
       });
       const text = await res.text();
       let data: { ok: boolean; message?: string; error?: string };
-      try { data = JSON.parse(text); } catch { throw new Error(`Server error (${res.status}): ${text.slice(0, 120)}`); }
+      try { data = JSON.parse(text); } catch { throw new Error(t("settings.err.server", { status: res.status, text: text.slice(0, 120) })); }
       if (data.ok) {
         setStatus((s) => ({ ...s, telegram: !!(botToken && chatId) }));
-        setTelegramResult({ ok: true, message: "Đã lưu! Telegram config sẽ được dùng ngay." });
+        setTelegramResult({ ok: true, message: t("settings.telegram.saved") });
       } else {
-        setTelegramResult({ ok: false, message: data.error ?? data.message ?? "Save failed" });
+        setTelegramResult({ ok: false, message: data.error ?? data.message ?? t("settings.err.saveFailed") });
       }
     } catch (e) {
-      setTelegramResult({ ok: false, message: e instanceof Error ? e.message : "Save failed" });
+      setTelegramResult({ ok: false, message: e instanceof Error ? e.message : t("settings.err.saveFailed") });
     }
     setTelegramSaving(false);
   };
@@ -595,7 +543,7 @@ function SettingsContent() {
   if (!perms.isLoading && !perms.canViewCredentials) {
     return (
       <div className="max-w-3xl space-y-4">
-        <ReadOnlyBanner message="Bạn không có quyền xem trang cài đặt kết nối API. Liên hệ Super Admin để được cấp quyền." />
+        <ReadOnlyBanner message={t("settings.keys.noViewAccess")} />
       </div>
     );
   }
@@ -604,18 +552,17 @@ function SettingsContent() {
     <div className="space-y-6 animate-fade-in max-w-3xl">
       {/* Read-only banner for admins who can view but not edit */}
       {!perms.isLoading && perms.canViewCredentials && !perms.canEditCredentials && (
-        <ReadOnlyBanner message="Bạn có thể xem thông tin kết nối API nhưng không có quyền lưu thay đổi. Chỉ Super Admin mới được cập nhật credentials." />
+        <ReadOnlyBanner message={t("settings.keys.readOnly")} />
       )}
       {/* Security Notice */}
       <div className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50/50 p-4">
         <Shield className="mt-0.5 h-5 w-5 text-blue-500 shrink-0" />
         <div>
           <p className="text-sm font-medium text-blue-800">
-            Your API keys are encrypted and stored securely
+            {t("settings.keys.secureTitle")}
           </p>
           <p className="mt-0.5 text-xs text-blue-600">
-            Keys are stored server-side and never exposed to the client.
-            Environment variables are used for all API communications.
+            {t("settings.keys.secureBody")}
           </p>
         </div>
       </div>
@@ -635,14 +582,14 @@ function SettingsContent() {
                 className={`flex h-3 w-3 rounded-full ${section.color}`}
               />
               <CardTitle className="text-lg font-semibold text-slate-800">
-                {section.title}
+                {t(section.title)}
               </CardTitle>
               {!statusLoaded ? (
                 <Badge
                   variant="outline"
                   className="ml-auto border-slate-200 text-xs text-slate-400"
                 >
-                  Đang kiểm tra…
+                  {t("connect.section.checking")}
                 </Badge>
               ) : status[(section.platform === "meta" ? "facebook" : section.platform) as keyof typeof status] ? (
                 <Badge
@@ -650,26 +597,26 @@ function SettingsContent() {
                   className="ml-auto border-green-200 bg-green-50 text-xs text-green-700 font-semibold"
                 >
                   <span className="mr-1 h-1.5 w-1.5 rounded-full bg-green-500 inline-block" />
-                  Connected
+                  {t("settings.connected")}
                 </Badge>
               ) : (
                 <Badge
                   variant="outline"
                   className="ml-auto border-slate-200 text-xs text-slate-500"
                 >
-                  Not connected
+                  {t("settings.notConnected")}
                 </Badge>
               )}
             </div>
             <CardDescription className="text-sm text-slate-500 mt-1">
-              {section.description}
+              {t(section.description)}
             </CardDescription>
             {(section.platform === "meta" || section.platform === "google") && (
               <a
                 href={section.platform === "meta" ? "/guide/ket-noi#meta-ads" : "/guide/ket-noi#google-ads"}
                 className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline mt-1 w-fit"
               >
-                Hướng dẫn <ArrowRight className="h-3 w-3" />
+                {t("connect.section.guide")} <ArrowRight className="h-3 w-3" />
               </a>
             )}
           </CardHeader>
@@ -681,10 +628,10 @@ function SettingsContent() {
             {statusLoaded && section.platform === "meta" && !status.facebook && (
               <div className="mb-2 rounded-xl border border-amber-100 bg-amber-50 p-4 space-y-2">
                 <p className="text-sm text-amber-800 font-medium">
-                  Facebook chưa kết nối hoặc token đã hết hạn.
+                  {t("settings.fb.notConnected")}
                 </p>
                 <p className="text-xs text-amber-700">
-                  Lấy token mới tại Meta Business Suite → Settings → Business Settings → System Users → Generate Token.
+                  {t("settings.fb.getToken")}
                 </p>
                 <a
                   href="https://business.facebook.com/settings/system-users"
@@ -692,7 +639,7 @@ function SettingsContent() {
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700 underline underline-offset-2"
                 >
-                  Mở Meta Business Settings
+                  {t("settings.fb.openSettings")}
                   <ExternalLink className="h-3 w-3" />
                 </a>
               </div>
@@ -701,16 +648,16 @@ function SettingsContent() {
             {statusLoaded && section.platform === "google" && !status.google && (
               <div className="mb-2 rounded-xl border border-amber-100 bg-amber-50 p-4 space-y-2">
                 <p className="text-sm text-amber-800 font-medium">
-                  Google Ads chưa kết nối. Nhập credentials bên dưới và nhấn Lưu.
+                  {t("settings.google.notConnected")}
                 </p>
                 <p className="text-xs text-amber-700">
-                  Hoặc dùng OAuth nếu chưa có Refresh Token:
+                  {t("settings.google.orOAuth")}
                 </p>
                 <a
                   href="/api/google/auth"
                   className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700 underline underline-offset-2"
                 >
-                  Authorize via OAuth
+                  {t("settings.google.authorizeOAuth")}
                   <ExternalLink className="h-3 w-3" />
                 </a>
               </div>
@@ -719,12 +666,12 @@ function SettingsContent() {
             {section.fields.filter((field) => !LEGACY_COMPANY_FIELD[field.key] || isCompany(LEGACY_COMPANY_FIELD[field.key])).map((field) => (
               <div key={field.key} className="space-y-1.5">
                 <label className="text-sm font-medium text-slate-700">
-                  {field.label}
+                  {t(field.label)}
                 </label>
                 <div className="relative">
                   <Input
                     type={showKeys[field.key] ? "text" : "password"}
-                    placeholder={field.placeholder}
+                    placeholder={field.placeholder ? t(field.placeholder) : field.placeholderRaw}
                     value={values[field.key] ?? ""}
                     onChange={(e) =>
                       handleChange(field.key, e.target.value)
@@ -772,19 +719,19 @@ function SettingsContent() {
                     {metaTesting
                       ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       : <RefreshCw className="h-3.5 w-3.5" />}
-                    Test Connection
+                    {t("settings.testConnection")}
                   </Button>
                   <Button
                     size="sm"
                     onClick={handleSaveMeta}
                     disabled={metaSaving || !values["metaAccessToken"] || !perms.canEditCredentials}
-                    title={!perms.canEditCredentials ? "Chỉ Super Admin mới được lưu credentials" : undefined}
+                    title={!perms.canEditCredentials ? t("settings.keys.superAdminOnlySave") : undefined}
                     className="gap-1.5 bg-amber-500 text-amber-950 hover:bg-amber-600 disabled:opacity-40"
                   >
                     {metaSaving
                       ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       : <Save className="h-3.5 w-3.5" />}
-                    Lưu & Kết nối lại
+                    {t("settings.saveReconnect")}
                   </Button>
                 </div>
               </div>
@@ -816,19 +763,19 @@ function SettingsContent() {
                     {googleTesting
                       ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       : <RefreshCw className="h-3.5 w-3.5" />}
-                    Test Connection
+                    {t("settings.testConnection")}
                   </Button>
                   <Button
                     size="sm"
                     onClick={handleSaveGoogle}
                     disabled={googleSaving || !perms.canEditCredentials}
-                    title={!perms.canEditCredentials ? "Chỉ Super Admin mới được lưu credentials" : undefined}
+                    title={!perms.canEditCredentials ? t("settings.keys.superAdminOnlySave") : undefined}
                     className="gap-1.5 bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-40"
                   >
                     {googleSaving
                       ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       : <Save className="h-3.5 w-3.5" />}
-                    Lưu & Kết nối lại
+                    {t("settings.saveReconnect")}
                   </Button>
                 </div>
               </div>
@@ -860,19 +807,19 @@ function SettingsContent() {
                     {geminiTesting
                       ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       : <RefreshCw className="h-3.5 w-3.5" />}
-                    Test Connection
+                    {t("settings.testConnection")}
                   </Button>
                   <Button
                     size="sm"
                     onClick={handleSaveGemini}
                     disabled={geminiSaving || !values["geminiApiKey"] || !perms.canEditCredentials}
-                    title={!perms.canEditCredentials ? "Chỉ Super Admin mới được lưu credentials" : undefined}
+                    title={!perms.canEditCredentials ? t("settings.keys.superAdminOnlySave") : undefined}
                     className="gap-1.5 bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-40"
                   >
                     {geminiSaving
                       ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       : <Save className="h-3.5 w-3.5" />}
-                    Lưu & Kết nối lại
+                    {t("settings.saveReconnect")}
                   </Button>
                 </div>
               </div>
@@ -904,19 +851,19 @@ function SettingsContent() {
                     {telegramTesting
                       ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       : <RefreshCw className="h-3.5 w-3.5" />}
-                    Test Connection
+                    {t("settings.testConnection")}
                   </Button>
                   <Button
                     size="sm"
                     onClick={handleSaveTelegram}
                     disabled={telegramSaving || (!values["telegramBotToken"] && !values["telegramChatId"]) || !perms.canEditCredentials}
-                    title={!perms.canEditCredentials ? "Chỉ Super Admin mới được lưu credentials" : undefined}
+                    title={!perms.canEditCredentials ? t("settings.keys.superAdminOnlySave") : undefined}
                     className="gap-1.5 bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-40"
                   >
                     {telegramSaving
                       ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       : <Save className="h-3.5 w-3.5" />}
-                    Lưu & Kết nối lại
+                    {t("settings.saveReconnect")}
                   </Button>
                 </div>
               </div>
@@ -952,18 +899,18 @@ function SettingsContent() {
             await handleSaveTelegram();
           }}
           disabled={metaSaving || googleSaving || geminiSaving || telegramSaving || !perms.canEditCredentials}
-          title={!perms.canEditCredentials ? "Chỉ Super Admin mới được lưu credentials" : undefined}
+          title={!perms.canEditCredentials ? t("settings.keys.superAdminOnlySave") : undefined}
           className="gap-2 rounded-lg bg-amber-500 text-amber-950 hover:bg-amber-600 disabled:opacity-40"
         >
           {(metaSaving || googleSaving || geminiSaving || telegramSaving) ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
-              Saving…
+              {t("settings.saving")}
             </>
           ) : (
             <>
               <Save className="h-4 w-4" />
-              Save All Settings
+              {t("settings.saveAll")}
             </>
           )}
         </Button>
