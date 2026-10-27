@@ -7,15 +7,17 @@
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CampaignCase, CaseStep } from "@/lib/case/store";
+import { useT } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/messages";
 
-export const STEP_LABELS: Record<CaseStep, string> = {
-  1: "Phân tích",
-  2: "Thu thập",
-  3: "Mục tiêu",
-  4: "Nguyên nhân",
-  5: "Hướng xử lý",
-  6: "Duyệt & làm",
-  7: "Hoàn thành",
+export const STEP_LABELS: Record<CaseStep, MessageKey> = {
+  1: "overview.stepper.s1",
+  2: "overview.stepper.s2",
+  3: "overview.stepper.s3",
+  4: "overview.stepper.s4",
+  5: "overview.stepper.s5",
+  6: "overview.stepper.s6",
+  7: "overview.stepper.s7",
 };
 
 /** Bản sao NHẸ của luật `reachable()` ở app/api/cases/[id]/route.ts — chỉ để
@@ -37,9 +39,10 @@ export function StepStepper({
   onGoTo: (step: CaseStep) => void;
   busy?: boolean;
 }) {
+  const t = useT();
   const steps = [1, 2, 3, 4, 5, 6, 7] as CaseStep[];
   return (
-    <ol aria-label="Các bước xử lý" className="mb-5 flex items-stretch gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1.5 sm:gap-2">
+    <ol aria-label={t("overview.stepper.aria")} className="mb-5 flex items-stretch gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1.5 sm:gap-2">
       {steps.map((step) => {
         const done = step < c.step;
         const cur = step === c.step;
@@ -51,7 +54,7 @@ export function StepStepper({
               disabled={busy || (!reach && !done && !cur)}
               onClick={() => onGoTo(step)}
               aria-current={cur ? "step" : undefined}
-              title={STEP_LABELS[step]}
+              title={t(STEP_LABELS[step])}
               className={cn(
                 "flex w-full items-center justify-center gap-1.5 rounded-lg px-1.5 py-1.5 text-xs font-medium transition-colors sm:justify-start sm:px-2.5",
                 cur ? "bg-blue-600 text-white" : done ? "text-emerald-700 hover:bg-emerald-50" : "text-slate-500 hover:bg-slate-50",
@@ -67,7 +70,7 @@ export function StepStepper({
                 {done ? <Check className="h-3 w-3" aria-hidden="true" /> : step}
               </span>
               {/* Di động: chỉ số hiện number, riêng bước ĐANG LÀM vẫn hiện tên — người dùng luôn biết đang ở đâu. */}
-              <span className={cn("truncate", cur ? "inline" : "hidden sm:inline")}>{STEP_LABELS[step]}</span>
+              <span className={cn("truncate", cur ? "inline" : "hidden sm:inline")}>{t(STEP_LABELS[step])}</span>
             </button>
           </li>
         );

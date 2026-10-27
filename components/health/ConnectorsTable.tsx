@@ -4,21 +4,23 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@
 import type { HealthConnector } from "./types";
 import { Badge, CONNECTOR_STATUS_META } from "./badges";
 import { absTime } from "./format";
+import { useT } from "@/lib/i18n/client";
 
 export function ConnectorsTable({ connectors }: { connectors: HealthConnector[] }) {
+  const t = useT();
   return (
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-4 space-y-3">
-      <p className="text-sm font-semibold text-slate-800">Kết nối</p>
+      <p className="text-sm font-semibold text-slate-800">{t("overview.health.connectors.title")}</p>
       {connectors.length === 0 ? (
-        <p className="text-sm text-slate-400">Chưa đọc được danh sách kết nối.</p>
+        <p className="text-sm text-slate-400">{t("overview.health.connectors.empty")}</p>
       ) : (
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Kết nối</TableHead>
-              <TableHead>Trạng thái</TableHead>
-              <TableHead>Lý do</TableHead>
-              <TableHead>Kiểm lần cuối</TableHead>
+              <TableHead>{t("overview.health.connectors.title")}</TableHead>
+              <TableHead>{t("overview.health.connectors.th.status")}</TableHead>
+              <TableHead>{t("overview.health.connectors.th.reason")}</TableHead>
+              <TableHead>{t("overview.health.connectors.th.lastChecked")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -27,7 +29,7 @@ export function ConnectorsTable({ connectors }: { connectors: HealthConnector[] 
               return (
                 <TableRow key={c.id}>
                   <TableCell className="font-mono text-xs text-slate-700">{c.id}</TableCell>
-                  <TableCell><Badge cls={meta.cls}>{meta.label}</Badge></TableCell>
+                  <TableCell><Badge cls={meta.cls}>{t(meta.label)}</Badge></TableCell>
                   <TableCell className="whitespace-normal max-w-[280px] text-xs text-slate-500">{c.reason ?? "—"}</TableCell>
                   <TableCell className="text-xs text-slate-500">{absTime(c.lastChecked)}</TableCell>
                 </TableRow>

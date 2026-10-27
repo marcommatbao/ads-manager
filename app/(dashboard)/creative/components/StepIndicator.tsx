@@ -2,6 +2,7 @@
 
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 // ─────────────────────────────────────────────
 // StepIndicator
@@ -23,12 +24,13 @@ export function StepIndicator({
   // hoặc /pmax). Trước đây thanh bước luôn in đủ 4 ô, nên người chạy Google
   // nhìn thấy một bước "Launch Campaign" mà không có đường nào bấm tới —
   // vừa tưởng mình làm thiếu, vừa đi tìm một cái nút không tồn tại.
+  const t = useT();
   const isGoogleOnly = platform === "google";
   const steps = [
-    { num: 1, label: "Sản phẩm & Mục tiêu" },
-    { num: 2, label: "Phân tích đối tượng" },
-    { num: 3, label: isGoogleOnly ? "Tạo & Khởi chạy" : "Tạo Creative" },
-    ...(isGoogleOnly ? [] : [{ num: 4, label: "Launch Campaign" }]),
+    { num: 1, label: t("creative.wizard.step1") },
+    { num: 2, label: t("creative.wizard.step2") },
+    { num: 3, label: isGoogleOnly ? t("creative.wizard.step3Google") : t("creative.wizard.step3") },
+    ...(isGoogleOnly ? [] : [{ num: 4, label: t("creative.wizard.step4") }]),
   ];
   return (
     <div className="flex items-center gap-2 mb-6">

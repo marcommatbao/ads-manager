@@ -13,6 +13,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Loader2, Link2, RefreshCw, Trash2, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { orderedCompanyIds, companyLabel } from "@/lib/companies/registry";
+import { useIntlLocale, useT } from "@/lib/i18n/client";
 
 // Đợt 25: công ty theo bản cài (bản Mắt Bão y như cũ)
 const coText = (id: string) => (id === "MBC" || id === "MBI" ? id : companyLabel(id));
@@ -42,6 +43,8 @@ interface PropertyOption {
 }
 
 export default function GA4SettingsPage() {
+  const t = useT();
+  const loc = useIntlLocale();
   const [oauth, setOauth] = useState<OAuthState>({ connected: false });
   const [connections, setConnections] = useState<Connection[]>([]);
   const [properties, setProperties] = useState<PropertyOption[]>([]);
@@ -57,13 +60,13 @@ export default function GA4SettingsPage() {
   // Surface the redirect result from /api/google/callback (state=ga4).
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
-    if (q.get("ga4_connected")) setNotice("Đã kết nối Google Analytics.");
+    if (q.get("ga4_connected")) setNotice(t("creative.settingsGa4.notice.connected"));
     const e = q.get("ga4_error");
     if (e) setError(e);
     if (q.get("ga4_connected") || e) {
       window.history.replaceState({}, "", window.location.pathname);
     }
-  }, []);
+  }, [t]);
 
   const loadStatus = useCallback(async () => {
     setLoading(true);
@@ -74,11 +77,11 @@ export default function GA4SettingsPage() {
       setOauth(json.data.oauth ?? { connected: false });
       setConnections(json.data.connections ?? []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Không tải được trạng thái GA4");
+      setError(err instanceof Error ? err.message : t("creative.settingsGa4.err.status"));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   const loadProperties = useCallback(async () => {
     setPropsLoading(true);
@@ -90,11 +93,11 @@ export default function GA4SettingsPage() {
       setProperties(json.properties ?? []);
     } catch (err) {
       setProperties([]);
-      setError(err instanceof Error ? err.message : "Không lấy được danh sách property");
+      setError(err instanceof Error ? err.message : t("creative.settingsGa4.err.properties"));
     } finally {
       setPropsLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { void loadStatus(); }, [loadStatus]);
   useEffect(() => { if (oauth.connected) void loadProperties(); }, [oauth.connected, loadProperties]);
@@ -114,7 +117,7 @@ export default function GA4SettingsPage() {
       await loadStatus();
       return json;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Thao tác thất bại");
+      setError(err instanceof Error ? err.message : t("creative.settingsGa4.err.action"));
       return null;
     } finally {
       setBusy(false);
@@ -131,13 +134,13 @@ export default function GA4SettingsPage() {
     });
     if (ok) {
       setSelectedProperty("");
-      setNotice("Đã thêm property.");
+      setNotice(t("creative.settingsGa4.notice.added"));
     }
   }
 
   async function fetchData() {
     const json = await post("fetch");
-    if (json) setNotice(`Đã tải ${json.data?.count ?? 0} dòng dữ liệu chiến dịch từ GA4.`);
+    if (json) setNotice(t("creative.settingsGa4.notice.fetched", { count: json.data?.count ?? 0 }));
   }
 
   const alreadyConnected = new Set(connections.map((c) => c.propertyId));
@@ -154,9 +157,9 @@ export default function GA4SettingsPage() {
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-lg font-bold text-slate-800">Google Analytics 4</h2>
+        <h2 className="text-lg font-bold text-slate-800">{t("creative.settingsGa4.title")}</h2>
         <p className="text-sm text-slate-500">
-          Kết nối GA4 để đối chiếu phiên truy cập và chuyển đổi với dữ liệu quảng cáo.
+          {t("creative.settingsGa4.subtitle")}
         </p>
       </div>
 
@@ -178,16 +181,16 @@ export default function GA4SettingsPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-sm font-semibold text-slate-800">
-              {oauth.connected ? "Đã cấp quyền Google Analytics" : "Chưa cấp quyền Google Analytics"}
+              {oauth.connected ? t("creative.settingsGa4.oauth.granted") : t("creative.settingsGa4.oauth.notGranted")}
             </p>
             <p className="mt-0.5 text-xs text-slate-500">
               {oauth.connected ? (
                 <>
-                  Kết nối bởi {oauth.connectedBy}
-                  {oauth.connectedAt && <> · {new Date(oauth.connectedAt).toLocaleString("vi-VN")}</>}
+                  {t("creative.settingsGa4.oauth.by", { user: oauth.connectedBy ?? "" })}
+                  {oauth.connectedAt && <> · {new Date(oauth.connectedAt).toLocaleString(loc)}</>}
                 </>
               ) : (
-                <>Dùng chung OAuth client với Google Ads — không cần thêm khoá mới.</>
+                <>{t("creative.settingsGa4.oauth.shared")}</>
               )}
             </p>
           </div>
@@ -197,7 +200,7 @@ export default function GA4SettingsPage() {
               className="flex items-center gap-1.5 rounded-xl bg-amber-500 px-4 py-2 text-sm font-medium text-amber-950 hover:bg-amber-600"
             >
               <Link2 className="h-4 w-4" />
-              {oauth.connected ? "Kết nối lại" : "Kết nối Google Analytics"}
+              {oauth.connected ? t("creative.settingsGa4.oauth.reconnect") : t("creative.settingsGa4.oauth.connect")}
             </a>
             {oauth.connected && (
               <button
@@ -205,7 +208,7 @@ export default function GA4SettingsPage() {
                 disabled={busy}
                 className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
               >
-                Ngắt kết nối
+                {t("creative.settingsGa4.oauth.disconnect")}
               </button>
             )}
           </div>
@@ -216,35 +219,35 @@ export default function GA4SettingsPage() {
       {oauth.connected && (
         <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
           <div className="mb-3 flex items-center justify-between">
-            <p className="text-sm font-semibold text-slate-800">Thêm property</p>
+            <p className="text-sm font-semibold text-slate-800">{t("creative.settingsGa4.add.title")}</p>
             <button
               onClick={loadProperties}
               disabled={propsLoading}
               className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 disabled:opacity-50"
             >
               <RefreshCw className={cn("h-3.5 w-3.5", propsLoading && "animate-spin")} />
-              Tải lại danh sách
+              {t("creative.settingsGa4.add.reload")}
             </button>
           </div>
 
           {propsLoading ? (
-            <p className="text-sm text-slate-400">Đang lấy danh sách property…</p>
+            <p className="text-sm text-slate-400">{t("creative.settingsGa4.add.loading")}</p>
           ) : available.length === 0 ? (
             <p className="text-sm text-slate-500">
               {properties.length === 0
-                ? "Tài khoản Google này không có property GA4 nào đọc được."
-                : "Tất cả property khả dụng đã được kết nối."}
+                ? t("creative.settingsGa4.add.none")
+                : t("creative.settingsGa4.add.allConnected")}
             </p>
           ) : (
             <div className="flex flex-wrap items-end gap-3">
               <label className="flex-1 min-w-[240px] text-xs text-slate-500">
-                Property
+                {t("creative.settingsGa4.add.property")}
                 <select
                   value={selectedProperty}
                   onChange={(e) => setSelectedProperty(e.target.value)}
                   className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800"
                 >
-                  <option value="">— Chọn property —</option>
+                  <option value="">{t("creative.settingsGa4.add.choose")}</option>
                   {available.map((p) => (
                     <option key={p.propertyId} value={p.propertyId}>
                       {p.displayName}{p.accountName ? ` (${p.accountName})` : ""}
@@ -253,13 +256,13 @@ export default function GA4SettingsPage() {
                 </select>
               </label>
               <label className="text-xs text-slate-500">
-                Gán cho
+                {t("creative.settingsGa4.add.assign")}
                 <select
                   value={selectedCompany}
                   onChange={(e) => setSelectedCompany(e.target.value as Company)}
                   className="mt-1 block rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800"
                 >
-                  <option value="ALL">Cả hai</option>
+                  <option value="ALL">{t("creative.settingsGa4.add.both")}</option>
                   {orderedCompanyIds(["MBC", "MBI"]).map((c) => (
                     <option key={c} value={c}>{coText(c)}</option>
                   ))}
@@ -270,7 +273,7 @@ export default function GA4SettingsPage() {
                 disabled={busy || !selectedProperty}
                 className="rounded-xl bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-slate-900 disabled:opacity-50"
               >
-                Thêm
+                {t("creative.settingsGa4.add.btn")}
               </button>
             </div>
           )}
@@ -280,7 +283,7 @@ export default function GA4SettingsPage() {
       {/* ── Connected properties ── */}
       <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
         <div className="mb-3 flex items-center justify-between">
-          <p className="text-sm font-semibold text-slate-800">Property đang kết nối</p>
+          <p className="text-sm font-semibold text-slate-800">{t("creative.settingsGa4.conn.title")}</p>
           {connections.length > 0 && (
             <button
               onClick={fetchData}
@@ -288,13 +291,13 @@ export default function GA4SettingsPage() {
               className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
             >
               <RefreshCw className={cn("h-3.5 w-3.5", busy && "animate-spin")} />
-              Tải dữ liệu 30 ngày
+              {t("creative.settingsGa4.conn.fetch")}
             </button>
           )}
         </div>
 
         {connections.length === 0 ? (
-          <p className="text-sm text-slate-500">Chưa có property nào được kết nối.</p>
+          <p className="text-sm text-slate-500">{t("creative.settingsGa4.conn.empty")}</p>
         ) : (
           <div className="space-y-2">
             {connections.map((c) => (
@@ -307,7 +310,7 @@ export default function GA4SettingsPage() {
                   <p className="font-mono text-[11px] text-slate-400">{c.propertyId}</p>
                   {!c.hasRefreshToken && (
                     <p className="mt-0.5 text-[11px] text-amber-600">
-                      Thiếu quyền OAuth — bấm “Kết nối lại” ở trên.
+                      {t("creative.settingsGa4.conn.missingOauth")}
                     </p>
                   )}
                 </div>
@@ -318,7 +321,7 @@ export default function GA4SettingsPage() {
                     disabled={busy}
                     className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs text-slate-700"
                   >
-                    <option value="ALL">Cả hai</option>
+                    <option value="ALL">{t("creative.settingsGa4.add.both")}</option>
                     {orderedCompanyIds(["MBC", "MBI"]).map((c) => (
                       <option key={c} value={c}>{coText(c)}</option>
                     ))}
@@ -326,7 +329,7 @@ export default function GA4SettingsPage() {
                   <button
                     onClick={() => post("disconnect_property", { id: c.id })}
                     disabled={busy}
-                    aria-label={`Gỡ ${c.propertyName}`}
+                    aria-label={t("creative.settingsGa4.conn.removeAria", { name: c.propertyName })}
                     className="text-slate-300 transition-colors hover:text-red-500 disabled:opacity-50"
                   >
                     <Trash2 className="h-4 w-4" />

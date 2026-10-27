@@ -7,8 +7,10 @@
 import { useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
-export function CopyButton({ text, label = "Sao chép", className }: { text: string; label?: string; className?: string }) {
+export function CopyButton({ text, label, className }: { text: string; label?: string; className?: string }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
   return (
     <button
@@ -20,7 +22,7 @@ export function CopyButton({ text, label = "Sao chép", className }: { text: str
       )}
     >
       {copied ? <Check className="h-3 w-3 text-emerald-600" aria-hidden="true" /> : <Copy className="h-3 w-3" aria-hidden="true" />}
-      {copied ? "Đã sao chép" : label}
+      {copied ? t("google.pmaxCopy.copied") : (label ?? t("google.pmaxCopy.copy"))}
     </button>
   );
 }

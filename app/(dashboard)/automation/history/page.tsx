@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { History } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useIntlLocale, useT } from "@/lib/i18n/client";
 
 interface ChangeEntry {
   campaignName: string;
@@ -29,6 +30,8 @@ function CompanyBadge({ company }: { company: string }) {
 }
 
 export default function HistoryPage() {
+  const t = useT();
+  const loc = useIntlLocale();
   const [logs, setLogs] = useState<ChangeEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -59,10 +62,10 @@ export default function HistoryPage() {
           <div className="rounded-xl bg-gradient-to-br from-slate-500 to-slate-700 p-2.5 shadow-lg shadow-slate-200">
             <History className="h-5 w-5 text-white" />
           </div>
-          Lịch sử thay đổi
+          {t("creative.autoHistory.title")}
         </h1>
         <p className="text-sm text-slate-500 mt-1">
-          Toàn bộ thao tác tự động đã thực hiện
+          {t("creative.autoHistory.subtitle")}
         </p>
       </div>
 
@@ -87,10 +90,10 @@ export default function HistoryPage() {
         <div className="flex flex-col items-center justify-center py-20 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/50">
           <History className="h-12 w-12 text-slate-300 mb-4" />
           <p className="text-sm font-semibold text-slate-500">
-            Chưa có lịch sử thay đổi
+            {t("creative.autoHistory.emptyTitle")}
           </p>
           <p className="text-xs text-slate-400 mt-1">
-            Các thao tác tự động sẽ được ghi lại tại đây.
+            {t("creative.autoHistory.emptyHint")}
           </p>
         </div>
       ) : (
@@ -104,7 +107,7 @@ export default function HistoryPage() {
                 <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
                   <CompanyBadge company={entry.company} />
                   <span className="text-[10px] text-slate-400">
-                    {new Date(entry.appliedAt).toLocaleString("vi-VN")}
+                    {new Date(entry.appliedAt).toLocaleString(loc)}
                   </span>
                 </div>
                 <p className="text-sm font-bold text-slate-800 mb-1">

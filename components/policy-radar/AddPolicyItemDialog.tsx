@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { ToastMessage } from "@/components/Toast";
 import { CATEGORY_LABELS, CHANGE_TYPE_LABELS } from "@/lib/policy-radar/labels";
+import { useT } from "@/lib/i18n/client";
 import type {
   PolicyCategory,
   PolicyChangeType,
@@ -42,6 +43,7 @@ const EMPTY_FORM = {
 };
 
 export function AddPolicyItemDialog({ open, onOpenChange, onCreated, onToast }: AddPolicyItemDialogProps) {
+  const t = useT();
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
 
@@ -62,7 +64,7 @@ export function AddPolicyItemDialog({ open, onOpenChange, onCreated, onToast }: 
       });
       const json = await res.json();
       if (json.success) {
-        onToast({ title: "✅ Đã thêm mục Policy Radar" });
+        onToast({ title: t("meta.policy.add.toastAdded") });
         onCreated(json.data);
         setForm(EMPTY_FORM);
         onOpenChange(false);
@@ -70,7 +72,7 @@ export function AddPolicyItemDialog({ open, onOpenChange, onCreated, onToast }: 
         onToast({ title: `❌ ${json.error}`, variant: "error" });
       }
     } catch {
-      onToast({ title: "❌ Lỗi kết nối API", variant: "error" });
+      onToast({ title: t("meta.policy.apiError"), variant: "error" });
     } finally {
       setSaving(false);
     }
@@ -80,23 +82,23 @@ export function AddPolicyItemDialog({ open, onOpenChange, onCreated, onToast }: 
     <Dialog open={open} onOpenChange={(o) => !saving && onOpenChange(o)}>
       <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Thêm mục Policy Radar</DialogTitle>
+          <DialogTitle>{t("meta.policy.add.title")}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-medium text-slate-500 mb-1 block">Nền tảng</label>
+              <label className="text-xs font-medium text-slate-500 mb-1 block">{t("meta.policy.add.platform")}</label>
               <select className={selectClass} value={form.platform} onChange={(e) => setForm({ ...form, platform: e.target.value as PolicyPlatform })}>
                 <option value="google_ads">Google Ads</option>
                 <option value="meta">Meta</option>
               </select>
             </div>
             <div>
-              <label className="text-xs font-medium text-slate-500 mb-1 block">Danh mục</label>
+              <label className="text-xs font-medium text-slate-500 mb-1 block">{t("meta.policy.add.category")}</label>
               <select className={selectClass} value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value as PolicyCategory })}>
-                {Object.entries(CATEGORY_LABELS).map(([key, label]) => (
-                  <option key={key} value={key}>{label}</option>
+                {(Object.keys(CATEGORY_LABELS) as PolicyCategory[]).map((key) => (
+                  <option key={key} value={key}>{t(`meta.policy.cat.${key}`)}</option>
                 ))}
               </select>
             </div>
@@ -104,63 +106,63 @@ export function AddPolicyItemDialog({ open, onOpenChange, onCreated, onToast }: 
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-medium text-slate-500 mb-1 block">Loại thay đổi</label>
+              <label className="text-xs font-medium text-slate-500 mb-1 block">{t("meta.policy.add.changeType")}</label>
               <select className={selectClass} value={form.changeType} onChange={(e) => setForm({ ...form, changeType: e.target.value as PolicyChangeType })}>
-                {Object.entries(CHANGE_TYPE_LABELS).map(([key, label]) => (
-                  <option key={key} value={key}>{label}</option>
+                {(Object.keys(CHANGE_TYPE_LABELS) as PolicyChangeType[]).map((key) => (
+                  <option key={key} value={key}>{t(`meta.policy.change.${key}`)}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="text-xs font-medium text-slate-500 mb-1 block">Ngày hiệu lực (nếu biết)</label>
+              <label className="text-xs font-medium text-slate-500 mb-1 block">{t("meta.policy.add.effectiveDate")}</label>
               <Input type="date" value={form.publishedAt} onChange={(e) => setForm({ ...form, publishedAt: e.target.value })} />
             </div>
           </div>
 
           <div>
-            <label className="text-xs font-medium text-slate-500 mb-1 block">Tiêu đề *</label>
-            <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="VD: Cập nhật chính sách quảng cáo tài chính" />
+            <label className="text-xs font-medium text-slate-500 mb-1 block">{t("meta.policy.add.titleLabel")}</label>
+            <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder={t("meta.policy.add.titlePh")} />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-medium text-slate-500 mb-1 block">Link nguồn *</label>
+              <label className="text-xs font-medium text-slate-500 mb-1 block">{t("meta.policy.add.sourceUrl")}</label>
               <Input value={form.sourceUrl} onChange={(e) => setForm({ ...form, sourceUrl: e.target.value })} placeholder="https://support.google.com/..." />
             </div>
             <div>
-              <label className="text-xs font-medium text-slate-500 mb-1 block">Tên nguồn</label>
-              <Input value={form.sourceLabel} onChange={(e) => setForm({ ...form, sourceLabel: e.target.value })} placeholder="VD: Google Ads Policy Help" />
+              <label className="text-xs font-medium text-slate-500 mb-1 block">{t("meta.policy.add.sourceName")}</label>
+              <Input value={form.sourceLabel} onChange={(e) => setForm({ ...form, sourceLabel: e.target.value })} placeholder={t("meta.policy.add.sourceNamePh")} />
             </div>
           </div>
 
           <label className="flex items-center gap-2 text-sm text-slate-600">
             <Checkbox checked={form.official} onCheckedChange={(c) => setForm({ ...form, official: c })} />
-            Đây là nguồn chính thức (trang của Google/Meta)
+            {t("meta.policy.add.official")}
           </label>
 
           <div>
-            <label className="text-xs font-medium text-slate-500 mb-1 block">Tóm tắt ngắn *</label>
-            <Textarea value={form.summaryShort} onChange={(e) => setForm({ ...form, summaryShort: e.target.value })} placeholder="1 câu, ngôn ngữ nghiệp vụ" />
+            <label className="text-xs font-medium text-slate-500 mb-1 block">{t("meta.policy.add.summary")}</label>
+            <Textarea value={form.summaryShort} onChange={(e) => setForm({ ...form, summaryShort: e.target.value })} placeholder={t("meta.policy.add.summaryPh")} />
           </div>
 
           <div>
-            <label className="text-xs font-medium text-slate-500 mb-1 block">Vì sao quan trọng</label>
-            <Textarea value={form.whyItMatters} onChange={(e) => setForm({ ...form, whyItMatters: e.target.value })} placeholder="1-3 câu, giải thích tác động thực tế" />
+            <label className="text-xs font-medium text-slate-500 mb-1 block">{t("meta.policy.add.why")}</label>
+            <Textarea value={form.whyItMatters} onChange={(e) => setForm({ ...form, whyItMatters: e.target.value })} placeholder={t("meta.policy.add.whyPh")} />
           </div>
 
           <div>
-            <label className="text-xs font-medium text-slate-500 mb-1 block">Tags (phân cách bằng dấu phẩy)</label>
+            <label className="text-xs font-medium text-slate-500 mb-1 block">{t("meta.policy.add.tags")}</label>
             <Input value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} placeholder="ai-disclosure, targeting" />
           </div>
 
           <p className="text-xs text-slate-400">
-            Mức độ ảnh hưởng và việc cần làm sẽ được gợi ý tự động theo danh mục — có thể chỉnh lại trong màn chi tiết sau khi tạo.
+            {t("meta.policy.add.hint")}
           </p>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Hủy</Button>
-          <Button onClick={handleSubmit} disabled={!canSubmit || saving}>{saving ? "Đang lưu..." : "Thêm mục"}</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>{t("meta.policy.add.cancel")}</Button>
+          <Button onClick={handleSubmit} disabled={!canSubmit || saving}>{saving ? t("meta.policy.add.saving") : t("meta.policy.add.submit")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

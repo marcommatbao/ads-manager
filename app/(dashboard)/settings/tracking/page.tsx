@@ -14,6 +14,7 @@ import { Loader2, AlertTriangle, Info, Activity, RefreshCw } from "lucide-react"
 import { cn } from "@/lib/utils";
 import { COMPANY_CONFIG } from "@/lib/company-config";
 import { companyIds } from "@/lib/companies/registry";
+import { useT } from "@/lib/i18n/client";
 
 // ─────────────────────────────────────────────
 // Types
@@ -42,18 +43,19 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json());
 // ─────────────────────────────────────────────
 
 function ConnectionBadge({ connected }: { connected: boolean }) {
+  const t = useT();
   if (connected) {
     return (
       <span className="inline-flex items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
         <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-        Đã kết nối
+        {t("creative.settingsTracking.badge.connected")}
       </span>
     );
   }
   return (
     <span className="inline-flex items-center gap-1.5 rounded-md border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-600">
       <span className="h-1.5 w-1.5 rounded-full bg-red-400" />
-      Chưa kết nối
+      {t("creative.settingsTracking.badge.disconnected")}
     </span>
   );
 }
@@ -78,6 +80,7 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 // ─────────────────────────────────────────────
 
 function GA4Section({ statusData }: { statusData: StatusData | undefined }) {
+  const t = useT();
   const { data: ga4Data, isLoading, mutate } = useSWR<GA4Data>("/api/ga4", fetcher, {
     revalidateOnFocus: false,
   });
@@ -113,7 +116,7 @@ function GA4Section({ statusData }: { statusData: StatusData | undefined }) {
           </div>
         </div>
         <CardDescription className="text-sm text-slate-500 mt-1">
-          Property và Stream ID được dùng tự động theo cột CO. của campaign.
+          {t("creative.settingsTracking.ga4.desc")}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
@@ -154,6 +157,7 @@ function GA4Section({ statusData }: { statusData: StatusData | undefined }) {
 // ─────────────────────────────────────────────
 
 function FacebookPixelSection({ connected }: { connected: boolean }) {
+  const t = useT();
   return (
     <Card className="border border-slate-200 bg-white shadow-sm rounded-xl">
       <CardHeader className="pb-3">
@@ -167,7 +171,7 @@ function FacebookPixelSection({ connected }: { connected: boolean }) {
           <ConnectionBadge connected={connected} />
         </div>
         <CardDescription className="text-sm text-slate-500 mt-1">
-          Pixel ID dùng để tracking chuyển đổi Facebook Ads theo từng công ty.
+          {t("creative.settingsTracking.pixel.desc")}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
@@ -201,6 +205,7 @@ function FacebookPixelSection({ connected }: { connected: boolean }) {
 // ─────────────────────────────────────────────
 
 function GoogleAdsSection({ statusData }: { statusData: StatusData | undefined }) {
+  const t = useT();
   const accounts = statusData?.googleAccounts ?? [];
   const isConnected = statusData?.google === true;
 
@@ -223,13 +228,13 @@ function GoogleAdsSection({ statusData }: { statusData: StatusData | undefined }
           <ConnectionBadge connected={isConnected} />
         </div>
         <CardDescription className="text-sm text-slate-500 mt-1">
-          Customer ID dùng để kéo dữ liệu campaigns từ Google Ads API.
+          {t("creative.settingsTracking.gads.desc")}
         </CardDescription>
       </CardHeader>
       <CardContent>
         {accounts.length === 0 ? (
           <div className="rounded-lg border border-slate-100 bg-slate-50 p-4 text-center">
-            <p className="text-sm text-slate-400">Chưa cấu hình Customer ID.</p>
+            <p className="text-sm text-slate-400">{t("creative.settingsTracking.gads.empty")}</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -272,6 +277,7 @@ function GoogleAdsSection({ statusData }: { statusData: StatusData | undefined }
 // ─────────────────────────────────────────────
 
 export default function TrackingSettingsPage() {
+  const t = useT();
   const { data: statusData, isLoading: statusLoading, error: statusError } =
     useSWR<StatusData>("/api/status", fetcher, { revalidateOnFocus: false });
 
@@ -282,11 +288,10 @@ export default function TrackingSettingsPage() {
         <Info className="mt-0.5 h-5 w-5 text-slate-400 shrink-0" />
         <div>
           <p className="text-sm font-medium text-slate-700">
-            Cấu hình Tracking &amp; Analytics (chỉ đọc)
+            {t("creative.settingsTracking.note.title")}
           </p>
           <p className="mt-0.5 text-xs text-slate-500">
-            Để thay đổi tracking IDs, vui lòng cập nhật trong Coolify Environment Variables và
-            liên hệ admin.
+            {t("creative.settingsTracking.note.body")}
           </p>
         </div>
       </div>
@@ -295,14 +300,14 @@ export default function TrackingSettingsPage() {
       {statusLoading && (
         <div className="flex items-center justify-center gap-2 py-6 text-slate-400">
           <Loader2 className="h-5 w-5 animate-spin" />
-          <span className="text-sm">Đang kiểm tra kết nối...</span>
+          <span className="text-sm">{t("creative.settingsTracking.checking")}</span>
         </div>
       )}
 
       {statusError && (
         <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
           <AlertTriangle className="h-4 w-4 shrink-0 text-red-500" />
-          <p className="text-sm text-red-600">Không thể tải trạng thái kết nối.</p>
+          <p className="text-sm text-red-600">{t("creative.settingsTracking.err.status")}</p>
         </div>
       )}
 
@@ -322,7 +327,7 @@ export default function TrackingSettingsPage() {
             <div className="flex items-center gap-3">
               <Activity className="h-4 w-4 text-blue-600" />
               <CardTitle className="text-base font-semibold text-slate-800">
-                Tổng quan kết nối
+                {t("creative.settingsTracking.summary")}
               </CardTitle>
             </div>
           </CardHeader>

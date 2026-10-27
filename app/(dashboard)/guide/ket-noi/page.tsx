@@ -11,8 +11,10 @@ import {
   CheckCircle2, ShieldCheck, Clock, User,
 } from "lucide-react";
 import { CONNECTION_GUIDES } from "@/lib/guides/connections";
+import { getT } from "@/lib/i18n/server";
 
-export default function GuideKetNoiPage() {
+export default async function GuideKetNoiPage() {
+  const t = await getT();
   return (
     <div className="space-y-8 max-w-4xl mx-auto">
       {/* ── Header ── */}
@@ -22,19 +24,18 @@ export default function GuideKetNoiPage() {
             <BookOpen className="h-6 w-6 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold">Hướng dẫn kết nối</h1>
-            <p className="text-sm text-white/60">Meta, Trang Facebook, Google Tag Manager, Google Ads, Microsoft Teams</p>
+            <h1 className="text-2xl font-bold">{t("creative.guideConnect.title")}</h1>
+            <p className="text-sm text-white/60">{t("creative.guideConnect.subtitle")}</p>
           </div>
         </div>
         <p className="text-sm text-white/70 leading-relaxed max-w-2xl">
-          Mỗi kết nối bên dưới: làm theo từng bước, dán kết quả vào đúng ô trong <b>Cài đặt</b>, rồi bấm <b>Kiểm tra</b>.
-          Không cần làm hết một lần — chỉ cần kết nối nào bạn đang thiếu.
+          {t("creative.guideConnect.intro1")}<b>{t("creative.guideConnect.introSettings")}</b>{t("creative.guideConnect.intro2")}<b>{t("creative.guideConnect.introCheck")}</b>{t("creative.guideConnect.intro3")}
         </p>
       </div>
 
       {/* ── Table of contents ── */}
       <div>
-        <p className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-3">Mục lục</p>
+        <p className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-3">{t("creative.guideConnect.toc")}</p>
         <div className="flex flex-wrap gap-2">
           {CONNECTION_GUIDES.map((g) => (
             <a
@@ -59,14 +60,14 @@ export default function GuideKetNoiPage() {
                 <h2 className="text-lg font-bold text-slate-900">{guide.title}</h2>
                 <p className="text-sm text-slate-600 leading-relaxed">{guide.purpose}</p>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-500">
-                  <span className="flex items-center gap-1.5"><User size={13} className="text-slate-400" aria-hidden="true" /> Ai làm: {guide.who}</span>
-                  <span className="flex items-center gap-1.5"><Clock size={13} className="text-slate-400" aria-hidden="true" /> ~{guide.minutes} phút</span>
+                  <span className="flex items-center gap-1.5"><User size={13} className="text-slate-400" aria-hidden="true" /> {t("creative.guideConnect.who", { who: guide.who })}</span>
+                  <span className="flex items-center gap-1.5"><Clock size={13} className="text-slate-400" aria-hidden="true" /> {t("creative.guideConnect.minutes", { n: guide.minutes })}</span>
                 </div>
                 <Link
                   href={guide.pasteInto.href}
                   className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white hover:bg-slate-700 transition-colors"
                 >
-                  Dán vào: {guide.pasteInto.label} <ArrowRight size={12} aria-hidden="true" />
+                  {t("creative.guideConnect.pasteInto", { label: guide.pasteInto.label })} <ArrowRight size={12} aria-hidden="true" />
                 </Link>
               </div>
 
@@ -115,7 +116,7 @@ export default function GuideKetNoiPage() {
 
               {/* Verify */}
               <div className="border-t border-slate-100 p-5 sm:p-6 space-y-1.5">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Kiểm tra đã xong</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">{t("creative.guideConnect.verify")}</p>
                 {guide.verify.map((v, i) => (
                   <div key={i} className="flex gap-2 rounded-lg bg-emerald-50 border border-emerald-100 px-3 py-2 text-xs text-emerald-700">
                     <CheckCircle2 size={13} className="shrink-0 mt-0.5 text-emerald-500" aria-hidden="true" />
@@ -126,7 +127,7 @@ export default function GuideKetNoiPage() {
 
               {/* Errors */}
               <div className="border-t border-slate-100 p-5 sm:p-6">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Lỗi thường gặp</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">{t("creative.guideConnect.errors")}</p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {guide.errors.map((e, i) => (
                     <div key={i} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
@@ -139,7 +140,7 @@ export default function GuideKetNoiPage() {
 
               {/* Security */}
               <div className="border-t border-slate-100 p-5 sm:p-6 space-y-1.5">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">An toàn</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">{t("creative.guideConnect.security")}</p>
                 {guide.security.map((s, i) => (
                   <div key={i} className="flex gap-2 rounded-lg bg-blue-50 border border-blue-100 px-3 py-2 text-xs text-blue-700">
                     <ShieldCheck size={13} className="shrink-0 mt-0.5 text-blue-500" aria-hidden="true" />

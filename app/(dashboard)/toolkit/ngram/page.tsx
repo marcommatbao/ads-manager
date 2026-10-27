@@ -15,6 +15,8 @@ import { useSession } from "@/components/SessionProvider";
 import { useToast } from "@/components/Toast";
 import { useGuardedWrite, type GuardedCall } from "@/components/ConfirmWriteDialog";
 import { orderedCompanyIds } from "@/lib/companies/registry";
+import { useT } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/messages";
 
 // ============================================================
 // N-Gram Finder — wired to the real GAQL-backed API
@@ -73,13 +75,13 @@ interface PhraseSearchResponse {
   error?: string;
 }
 
-function phraseRecLabel(rec: PhraseRecommendation) {
+function phraseRecLabel(rec: PhraseRecommendation): MessageKey {
   switch (rec) {
-    case "ADD_KEYWORD": return "Nên thêm từ khóa";
-    case "ADD_NEGATIVE": return "Nên phủ định";
-    case "MONITOR": return "Theo dõi thêm";
-    case "EXISTS_KEYWORD": return "Đã có từ khóa";
-    case "EXISTS_NEGATIVE": return "Đã phủ định";
+    case "ADD_KEYWORD": return "google.ngram.recAddKeyword";
+    case "ADD_NEGATIVE": return "google.ngram.recAddNegative";
+    case "MONITOR": return "google.ngram.recMonitor";
+    case "EXISTS_KEYWORD": return "google.ngram.recExistsKeyword";
+    case "EXISTS_NEGATIVE": return "google.ngram.recExistsNegative";
   }
 }
 
@@ -97,10 +99,10 @@ function phraseRecColor(rec: PhraseRecommendation) {
 // no LAST_90_DAYS/LAST_180_DAYS (the original, never-actually-called
 // backend route defaulted to "LAST_90_DAYS", an invalid literal that
 // only surfaced once this page started calling it for real).
-const RANGE_OPTIONS = [
-  { value: "LAST_7_DAYS", label: "7 ngày qua" },
-  { value: "LAST_14_DAYS", label: "14 ngày qua" },
-  { value: "LAST_30_DAYS", label: "30 ngày qua" },
+const RANGE_OPTIONS: { value: string; label: MessageKey }[] = [
+  { value: "LAST_7_DAYS", label: "google.ngram.range7" },
+  { value: "LAST_14_DAYS", label: "google.ngram.range14" },
+  { value: "LAST_30_DAYS", label: "google.ngram.range30" },
 ];
 
 function formatVND(v: number) {
@@ -128,6 +130,7 @@ function NGramColumn({
   selected: Set<string>;
   onToggle: (ngram: string) => void;
 }) {
+  const t = useT();
   if (rows.length === 0) {
     return (
       <Card className="border border-slate-200 bg-white shadow-sm rounded-xl">
@@ -135,7 +138,7 @@ function NGramColumn({
           <CardTitle className="text-sm font-semibold text-slate-700">{title}</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-xs text-slate-400 text-center py-4">Không có n-gram nào đủ ngưỡng (chi &gt; ₫50K, ≥5 clicks)</p>
+          <p className="text-xs text-slate-400 text-center py-4">{t("google.ngram.noneOverThreshold")}</p>
         </CardContent>
       </Card>
     );
@@ -169,14 +172,14 @@ function NGramColumn({
               </div>
               <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-slate-400">
                 <span>{formatVND(g.cost)}</span>
-                <span>{g.clicks} clicks</span>
-                <span>{g.conversions} conv</span>
+                <span>{t("google.ngram.clicks", { n: g.clicks })}</span>
+                <span>{t("google.ngram.conv", { n: g.conversions })}</span>
                 {g.cpa !== null && g.cpa > 0 && <span>CPA {formatVND(g.cpa)} ({(g.vsAvgPct ?? 0) > 0 ? "+" : ""}{g.vsAvgPct ?? 0}%)</span>}
-                {g.potentialSavings > 0 && <span className="text-red-500 font-medium">Tiết kiệm {formatVND(g.potentialSavings)}</span>}
+                {g.potentialSavings > 0 && <span className="text-red-500 font-medium">{t("google.ngram.savings", { amount: formatVND(g.potentialSavings) })}</span>}
               </div>
               {g.confidence === "low" && (
                 <p className="mt-0.5 text-[9px] text-amber-500 italic">
-                  ⚠️ Ít dữ liệu ({g.clicks} clicks) — điểm số có thể chưa chính xác, theo dõi thêm trước khi chặn.
+                  {t("google.ngram.lowData", { n: g.clicks })}
                 </p>
               )}
             </div>
@@ -188,6 +191,7 @@ function NGramColumn({
 }
 
 export default function NgramPage() {
+  const t = useT();
   const [company, setCompany] = useState<string>(() => orderedCompanyIds(["MBC"])[0] ?? "MBC") // Đợt 25: công ty theo bản cài (bản Mắt Bão y như cũ);
   // Chỉ hiện công ty người này được xem. Trước đây nút bấm cứng cả MBC lẫn MBI,
   // nên người chỉ có quyền một bên vẫn thấy nút bên kia và bấm vào là nhận 403.
@@ -240,7 +244,7 @@ export default function NgramPage() {
       if (json.error) throw new Error(json.error);
       setPhraseResult(json);
     } catch (e: unknown) {
-      setPhraseError(e instanceof Error ? e.message : "Không thể phân tích cụm từ");
+      setPhraseError(e instanceof Error ? e.message : t("google.ngram.phraseFailed"));
       setPhraseResult(null);
     } finally {
       setPhraseLoading(false);
@@ -279,14 +283,14 @@ export default function NgramPage() {
             adGroupId: r.topAdGroupId,
           })),
         },
-        label: `Thêm từ khoá "${phrase}" vào ${toAddKeyword.length} campaign: ${toAddKeyword.map((r) => r.campaignName).join(", ")}`,
+        label: t("google.ngram.addKeywordLabel", { phrase, n: toAddKeyword.length, names: toAddKeyword.map((r) => r.campaignName).join(", ") }),
       });
     }
     for (const r of toAddNegative) {
       calls.push({
         url: "/api/google/toolkit/ngram",
         payload: { company, scope: "CAMPAIGN", campaignId: r.campaignId, ngrams: [{ ngram: phrase, matchType: phraseMatchType }] },
-        label: `Thêm negative "${phrase}" vào campaign: ${r.campaignName}`,
+        label: t("google.ngram.addNegativeLabel", { phrase, name: r.campaignName }),
       });
     }
     if (!calls.length) return;
@@ -296,15 +300,15 @@ export default function NgramPage() {
     try {
       await guard.run(
         calls,
-        { title: `Áp dụng đề xuất "${phrase}" cho ${rows.length} campaign?`, company },
+        { title: t("google.ngram.applyPhraseTitle", { phrase, n: rows.length }), company },
         {
           onValidateFail: (message) => setPhraseApplyMsg(`⚠️ ${message}`),
           onSuccess: (results) => {
-            setPhraseApplyMsg(`✅ Đã áp dụng cho ${results.length} campaign.`);
+            setPhraseApplyMsg(t("google.ngram.appliedMsg", { n: results.length }));
             setPhraseSelected(new Set());
             const writeIds = results.map((r) => r.writeId);
             toast({
-              title: `✅ Đã áp dụng "${phrase}" cho ${results.length} campaign`,
+              title: t("google.ngram.appliedToast", { phrase, n: results.length }),
               variant: "success",
               action: guard.undoAction(company, writeIds),
             });
@@ -313,9 +317,9 @@ export default function NgramPage() {
           onFailure: (results) => {
             const ok = results.filter((r) => r.success);
             const failed = results.filter((r) => !r.success);
-            setPhraseApplyMsg(`⚠️ ${ok.length} thành công, ${failed.length} lỗi — ${failed[0]?.error ?? ""}`);
+            setPhraseApplyMsg(t("google.ngram.partialMsg", { ok: ok.length, failed: failed.length, error: failed[0]?.error ?? "" }));
             toast({
-              title: `⚠️ ${ok.length}/${results.length} campaign ghi được`,
+              title: t("google.ngram.partialToast", { ok: ok.length, total: results.length }),
               description: failed.map((r) => `${r.label}: ${r.error}`).join("; "),
               variant: "error",
               action: guard.undoAction(company, ok.map((r) => r.writeId)),
@@ -346,16 +350,16 @@ export default function NgramPage() {
       ].filter((x) => x.r?.error);
       if (failed.length > 0) {
         throw new Error(
-          `Không tải được ${failed.map((f) => `${f.n}-gram`).join(", ")}: ${failed[0].r.error}`,
+          t("google.ngram.nGramLoadFailed", { list: failed.map((f) => `${f.n}-gram`).join(", "), error: failed[0].r.error }),
         );
       }
       setData({ uni, bi, tri });
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Không thể tải dữ liệu");
+      setError(e instanceof Error ? e.message : t("google.ngram.loadFailed"));
     } finally {
       setLoading(false);
     }
-  }, [company, campaignId, range]);
+  }, [company, campaignId, range, t]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
   useEffect(() => { setSelected(new Set()); }, [company, campaignId, range]);
@@ -385,10 +389,10 @@ export default function NgramPage() {
   async function applyNegatives(scope: "ACCOUNT" | "CAMPAIGN") {
     if (selected.size === 0) return;
     if (scope === "CAMPAIGN" && campaignId === "ALL") {
-      setApplyMsg("Chọn 1 campaign cụ thể trước khi thêm negative keyword ở phạm vi Campaign.");
+      setApplyMsg(t("google.ngram.pickCampaign"));
       return;
     }
-    const scopeLabel = scope === "ACCOUNT" ? "Shared Negative List (toàn tài khoản)" : "campaign đang chọn";
+    const scopeLabel = scope === "ACCOUNT" ? t("google.ngram.scopeAccount") : t("google.ngram.scopeCampaign");
     const ngrams = Array.from(selected);
 
     setApplying(true);
@@ -398,24 +402,24 @@ export default function NgramPage() {
         [{
           url: "/api/google/toolkit/ngram",
           payload: { company, scope, campaignId: scope === "CAMPAIGN" ? campaignId : undefined, ngrams: ngrams.map((ngram) => ({ ngram, matchType: "BROAD" })) },
-          label: `Thêm ${ngrams.length} negative keyword vào ${scopeLabel}: ${ngrams.slice(0, 5).join(", ")}${ngrams.length > 5 ? "…" : ""}`,
+          label: t("google.ngram.addNegsLabel", { n: ngrams.length, scope: scopeLabel, list: ngrams.slice(0, 5).join(", ") + (ngrams.length > 5 ? "…" : "") }),
         }],
-        { title: `Thêm ${ngrams.length} negative keyword vào ${scopeLabel}?`, company },
+        { title: t("google.ngram.addNegsTitle", { n: ngrams.length, scope: scopeLabel }), company },
         {
           onValidateFail: (message) => setApplyMsg(`⚠️ ${message}`),
           onSuccess: (results) => {
             const json = results[0].raw;
             const applied = (json.appliedCount as number | undefined) ?? 0;
-            setApplyMsg(`✅ Đã thêm ${applied} negative keyword.`);
+            setApplyMsg(t("google.ngram.addedMsg", { n: applied }));
             setSelected(new Set());
-            toast({ title: `✅ Đã thêm ${applied} negative keyword`, variant: "success", action: guard.undoAction(company, [results[0].writeId]) });
+            toast({ title: t("google.ngram.addedToast", { n: applied }), variant: "success", action: guard.undoAction(company, [results[0].writeId]) });
             fetchData();
           },
           onFailure: (results) => {
             // Nguyên văn lỗi từ server — errors[].error mang thông báo thật của
             // Google Ads (hoặc lời giải thích rõ cho ca "chưa có shared list").
             setApplyMsg(`⚠️ ${results[0].error}`);
-            toast({ title: "❌ Không thêm được negative keyword", description: results[0].error, variant: "error" });
+            toast({ title: t("google.ngram.addFailedToast"), description: results[0].error, variant: "error" });
             fetchData();
           },
         }
@@ -438,7 +442,7 @@ export default function NgramPage() {
           </div>
           <div>
             <h1 className="text-xl font-semibold text-slate-800">N-Gram Finder</h1>
-            <p className="text-sm text-slate-500">Cụm từ tốn ngân sách nhất trong Search Terms thật — dữ liệu trực tiếp từ Google Ads</p>
+            <p className="text-sm text-slate-500">{t("google.ngram.subtitle")}</p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -459,14 +463,14 @@ export default function NgramPage() {
             onChange={(e) => setRange(e.target.value)}
             className="h-9 rounded-lg border-2 border-slate-200 bg-white px-3 text-sm text-slate-700"
           >
-            {RANGE_OPTIONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+            {RANGE_OPTIONS.map((r) => <option key={r.value} value={r.value}>{t(r.label)}</option>)}
           </select>
           <select
             value={campaignId}
             onChange={(e) => setCampaignId(e.target.value)}
             className="h-9 max-w-[220px] rounded-lg border-2 border-slate-200 bg-white px-3 text-sm text-slate-700"
           >
-            <option value="ALL">Tất cả campaign</option>
+            <option value="ALL">{t("google.ngram.allCampaigns")}</option>
             {campaigns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </div>
@@ -475,16 +479,16 @@ export default function NgramPage() {
       <div className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50/50 p-4">
         <Info className="mt-0.5 h-5 w-5 text-blue-500 shrink-0" />
         <div className="text-xs text-blue-600">
-          <p className="font-medium text-blue-800">CPA trung bình tài khoản: {avgCPA > 0 ? formatVND(avgCPA) : "—"}</p>
-          <p className="mt-0.5">Tick chọn cụm từ → nhấn &ldquo;Thêm negative&rdquo; để loại khỏi campaign hoặc toàn tài khoản. Ngưỡng hiển thị: chi &gt; ₫50K và ≥5 clicks.</p>
+          <p className="font-medium text-blue-800">{t("google.ngram.avgCpa")} {avgCPA > 0 ? formatVND(avgCPA) : "—"}</p>
+          <p className="mt-0.5">{t("google.ngram.help")}</p>
         </div>
       </div>
 
       <Card className="border border-slate-200 bg-white shadow-sm rounded-xl">
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-semibold text-slate-700">Tìm theo cụm từ khóa</CardTitle>
+          <CardTitle className="text-sm font-semibold text-slate-700">{t("google.ngram.phraseTitle")}</CardTitle>
           <p className="text-xs text-slate-400">
-            Nhập một cụm từ khóa bất kỳ (khách hàng tìm bằng cụm này) — công cụ sẽ đánh giá theo từng campaign đang chạy: campaign nào nên thêm làm từ khóa, campaign nào nên phủ định.
+            {t("google.ngram.phraseDesc")}
           </p>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -494,21 +498,21 @@ export default function NgramPage() {
               value={phraseInput}
               onChange={(e) => setPhraseInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && searchPhrase()}
-              placeholder="VD: dịch vụ seo tổng thể"
+              placeholder={t("google.ngram.phrasePlaceholder")}
               className="h-9 min-w-[240px] flex-1 rounded-lg border-2 border-slate-200 bg-white px-3 text-sm text-slate-700"
             />
             <select
               value={phraseMatchType}
               onChange={(e) => setPhraseMatchType(e.target.value as "EXACT" | "PHRASE" | "BROAD")}
               className="h-9 rounded-lg border-2 border-slate-200 bg-white px-2 text-sm text-slate-700"
-              title="Match type khi áp dụng"
+              title={t("google.ngram.matchTypeTitle")}
             >
               <option value="EXACT">Exact</option>
               <option value="PHRASE">Phrase</option>
               <option value="BROAD">Broad</option>
             </select>
             <Button size="sm" onClick={searchPhrase} disabled={phraseLoading || !phraseInput.trim()}>
-              {phraseLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />} Phân tích
+              {phraseLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />} {t("google.ngram.analyze")}
             </Button>
           </div>
 
@@ -519,12 +523,12 @@ export default function NgramPage() {
           {phraseResult && !phraseError && (
             phraseResult.campaigns.length === 0 ? (
               <p className="text-xs text-slate-400 py-2">
-                Không tìm thấy search term nào chứa &ldquo;{phraseResult.phrase}&rdquo; trong khoảng thời gian đã chọn.
+                {t("google.ngram.noMatches", { phrase: phraseResult.phrase })}
               </p>
             ) : (
               <>
                 <p className="text-xs text-slate-400">
-                  {phraseResult.matchedTermCount} search term khớp · CPA TB tài khoản {phraseResult.avgCPA > 0 ? formatVND(phraseResult.avgCPA) : "—"}
+                  {t("google.ngram.matchedLine", { n: phraseResult.matchedTermCount, cpa: phraseResult.avgCPA > 0 ? formatVND(phraseResult.avgCPA) : "—" })}
                 </p>
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs">
@@ -532,12 +536,12 @@ export default function NgramPage() {
                       <tr className="border-b border-slate-200 text-left text-slate-400">
                         <th className="py-1.5 pr-2"></th>
                         <th className="py-1.5 pr-2">Campaign</th>
-                        <th className="py-1.5 pr-2">Chi phí</th>
+                        <th className="py-1.5 pr-2">{t("google.ngram.thCost")}</th>
                         <th className="py-1.5 pr-2">Clicks</th>
                         <th className="py-1.5 pr-2">Conv</th>
                         <th className="py-1.5 pr-2">CPA</th>
-                        <th className="py-1.5 pr-2">Đề xuất</th>
-                        <th className="py-1.5 pr-2">Lý do</th>
+                        <th className="py-1.5 pr-2">{t("google.ngram.thRec")}</th>
+                        <th className="py-1.5 pr-2">{t("google.ngram.thReason")}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -563,7 +567,7 @@ export default function NgramPage() {
                             </td>
                             <td className="py-1.5 pr-2">
                               <span className={cn("rounded border px-1.5 py-0.5 text-[9px] font-bold uppercase whitespace-nowrap", phraseRecColor(c.recommendation))}>
-                                {phraseRecLabel(c.recommendation)}
+                                {t(phraseRecLabel(c.recommendation))}
                               </span>
                             </td>
                             <td className="py-1.5 pr-2 text-slate-400 max-w-[280px]">{c.reason}</td>
@@ -576,9 +580,9 @@ export default function NgramPage() {
 
                 {phraseSelected.size > 0 && (
                   <div className="flex items-center gap-2 pt-1">
-                    <span className="text-xs font-semibold text-slate-700">{phraseSelected.size} campaign đã chọn</span>
+                    <span className="text-xs font-semibold text-slate-700">{t("google.ngram.campaignsSelected", { n: phraseSelected.size })}</span>
                     <Button size="sm" onClick={applyPhraseRecommendations} disabled={phraseApplying} className="ml-auto">
-                      {phraseApplying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PlusCircle className="h-3.5 w-3.5" />} Áp dụng đề xuất
+                      {phraseApplying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PlusCircle className="h-3.5 w-3.5" />} {t("google.ngram.applyRecs")}
                     </Button>
                   </div>
                 )}
@@ -604,16 +608,16 @@ export default function NgramPage() {
       ) : data ? (
         <>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <NGramColumn title={`Unigram (1 từ) — ${data.uni.ngramCount}`} rows={data.uni.ngrams} selected={selected} onToggle={toggle} />
-            <NGramColumn title={`Bigram (2 từ) — ${data.bi.ngramCount}`} rows={data.bi.ngrams} selected={selected} onToggle={toggle} />
-            <NGramColumn title={`Trigram (3 từ) — ${data.tri.ngramCount}`} rows={data.tri.ngrams} selected={selected} onToggle={toggle} />
+            <NGramColumn title={t("google.ngram.unigram", { n: data.uni.ngramCount })} rows={data.uni.ngrams} selected={selected} onToggle={toggle} />
+            <NGramColumn title={t("google.ngram.bigram", { n: data.bi.ngramCount })} rows={data.bi.ngrams} selected={selected} onToggle={toggle} />
+            <NGramColumn title={t("google.ngram.trigram", { n: data.tri.ngramCount })} rows={data.tri.ngrams} selected={selected} onToggle={toggle} />
           </div>
 
           {totalSavings > 0 && (
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 flex flex-wrap items-center justify-between gap-3">
-              <p className="text-sm font-semibold text-amber-800">Tiềm năng tiết kiệm nếu loại các n-gram &ldquo;NEGATIVE&rdquo;: {formatVND(totalSavings)}/kỳ</p>
+              <p className="text-sm font-semibold text-amber-800">{t("google.ngram.potentialSavings", { amount: formatVND(totalSavings) })}</p>
               <Button variant="outline" size="sm" onClick={selectAllNegative} className="gap-1.5 text-xs border-amber-300 text-amber-800 hover:bg-amber-100">
-                <ShieldOff className="h-3.5 w-3.5" /> Chọn tất cả NEGATIVE
+                <ShieldOff className="h-3.5 w-3.5" /> {t("google.ngram.selectAllNegative")}
               </Button>
             </div>
           )}
@@ -622,13 +626,13 @@ export default function NgramPage() {
 
       {selected.size > 0 && (
         <div className="sticky bottom-4 z-30 mx-auto flex w-full max-w-xl flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-lg">
-          <span className="text-sm font-semibold text-slate-700">{selected.size} đã chọn</span>
+          <span className="text-sm font-semibold text-slate-700">{t("google.ngram.selectedCount", { n: selected.size })}</span>
           <div className="ml-auto flex flex-wrap items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => applyNegatives("CAMPAIGN")} disabled={applying}>
-              {applying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldOff className="h-3.5 w-3.5" />} Negative — Campaign
+              {applying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldOff className="h-3.5 w-3.5" />} {t("google.ngram.negCampaign")}
             </Button>
             <Button variant="default" size="sm" onClick={() => applyNegatives("ACCOUNT")} disabled={applying}>
-              {applying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldOff className="h-3.5 w-3.5" />} Negative — Toàn tài khoản
+              {applying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldOff className="h-3.5 w-3.5" />} {t("google.ngram.negAccount")}
             </Button>
           </div>
         </div>

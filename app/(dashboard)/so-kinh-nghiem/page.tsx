@@ -37,6 +37,8 @@ import { PLATFORM_LABEL, KIND_GROUP, KIND_GROUP_OPTIONS, STATUS_OPTIONS } from "
 import type { PlaybookFile, PlaybookEntry, EntryStatus } from "@/lib/playbook/store";
 import type { Platform } from "@/lib/playbook/engine";
 import type { Company } from "@/lib/case/types";
+import { useT } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/messages";
 
 interface PlaybookApiResponse extends PlaybookFile {
   metaCoverage: { have: number; need: number };
@@ -44,15 +46,16 @@ interface PlaybookApiResponse extends PlaybookFile {
   canRunNow: boolean;
 }
 
-const DECISION_TOAST: Record<"approved" | "rejected" | "suggested", string> = {
-  approved: "Đã duyệt — dùng như độ tin cậy Cao ở lần tạo chiến dịch tiếp theo",
-  rejected: "Đã bỏ — sẽ không dùng/gợi ý lại trừ khi bằng chứng tăng gấp đôi",
-  suggested: "Đã trả về Gợi ý",
+const DECISION_TOAST: Record<"approved" | "rejected" | "suggested", MessageKey> = {
+  approved: "overview.experience.toastApproved",
+  rejected: "overview.experience.toastRejected",
+  suggested: "overview.experience.toastSuggested",
 };
 
 export default function SoKinhNghiemPage() {
   const { user } = useSession();
   const { toast } = useToast();
+  const t = useT();
 
   const allowedCompanies = useMemo(
     () => resolveCompanyScope(user?.companies, user?.role),
@@ -119,11 +122,11 @@ export default function SoKinhNghiemPage() {
     try {
       await patchJson("/api/playbook/entry", { company: entry.company, id: entry.id, decision });
       await mutate();
-      toast({ title: DECISION_TOAST[decision], variant: "success" });
+      toast({ title: t(DECISION_TOAST[decision]), variant: "success" });
     } catch (e) {
       toast({
-        title: "Không lưu được quyết định",
-        description: e instanceof ApiError ? e.message : "Có lỗi xảy ra, thử lại.",
+        title: t("overview.experience.errSaveDecision"),
+        description: e instanceof ApiError ? e.message : t("overview.experience.errGeneric"),
         variant: "error",
       });
     } finally {
@@ -137,17 +140,17 @@ export default function SoKinhNghiemPage() {
       const res = await postJson(`/api/jobs/${jobId}/trigger`);
       await mutate();
       toast({
-        title: res?.success ? "Đã chạy xong" : "Job báo lỗi — xem chi tiết ở /settings/jobs",
+        title: res?.success ? t("overview.experience.jobDone") : t("overview.experience.jobFailed"),
         description:
           jobId === "playbook_extract"
-            ? "Sổ kinh nghiệm đã chấm/bóc lại 180 ngày gần nhất."
-            : "Đã tải thêm một khoảng 15 ngày số Meta.",
+            ? t("overview.experience.jobExtractDone")
+            : t("overview.experience.jobMetaDone"),
         variant: res?.success ? "success" : "error",
       });
     } catch (e) {
       toast({
-        title: "Không chạy được job",
-        description: e instanceof ApiError ? e.message : "Có lỗi xảy ra, thử lại.",
+        title: t("overview.experience.errRunJob"),
+        description: e instanceof ApiError ? e.message : t("overview.experience.errGeneric"),
         variant: "error",
       });
     } finally {
@@ -168,14 +171,14 @@ export default function SoKinhNghiemPage() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="flex items-center gap-2 text-xl font-bold text-slate-900">
-            <BookOpenCheck className="h-5 w-5 text-blue-600" aria-hidden="true" /> Sổ kinh nghiệm
+            <BookOpenCheck className="h-5 w-5 text-blue-600" aria-hidden="true" /> {t("overview.experience.title")}
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-slate-500">
-            Học từ những gì đã thắng — dùng khi tạo chiến dịch mới.
+            {t("overview.experience.subtitle")}
           </p>
           <p className="mt-1 text-xs text-slate-400">
-            Cập nhật mỗi thứ Hai 04:00 · đọc 180 ngày · lần cuối{" "}
-            <b className="text-slate-500">{updatedAt ? datetimeVN(updatedAt) : "Chưa chạy lần nào"}</b>
+            {t("overview.experience.updatedLine")}{" "}
+            <b className="text-slate-500">{updatedAt ? datetimeVN(updatedAt) : t("overview.experience.neverRun")}</b>
           </p>
         </div>
         {canRunNow && (
@@ -186,7 +189,7 @@ export default function SoKinhNghiemPage() {
               ) : (
                 <CloudDownload className="h-3.5 w-3.5" aria-hidden="true" />
               )}
-              Tải thêm số Meta
+              {t("overview.experience.loadMeta")}
             </Button>
             <Button size="sm" onClick={() => runJob("playbook_extract")} disabled={!!running}>
               {running === "playbook_extract" ? (
@@ -194,7 +197,7 @@ export default function SoKinhNghiemPage() {
               ) : (
                 <Play className="h-3.5 w-3.5" aria-hidden="true" />
               )}
-              Chạy lại bây giờ
+              {t("overview.experience.runNow")}
             </Button>
           </div>
         )}
@@ -202,8 +205,7 @@ export default function SoKinhNghiemPage() {
 
       {metaCoverage.have < metaCoverage.need && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">
-          ⚠ Meta đang tải dần: {metaCoverage.have}/{metaCoverage.need} khoảng — kinh nghiệm Meta dựa trên{" "}
-          {metaCoverage.have * 15} ngày.
+          {t("overview.experience.metaCoverage", { have: metaCoverage.have, need: metaCoverage.need, days: metaCoverage.have * 15 })}
         </div>
       )}
 
@@ -224,11 +226,11 @@ export default function SoKinhNghiemPage() {
       {error && !isLoading && (
         <EmptyState
           icon={AlertCircle}
-          title="Chưa tải được Sổ kinh nghiệm"
-          description={error instanceof ApiError ? error.message : "Không kết nối được API."}
+          title={t("overview.experience.errLoadTitle")}
+          description={error instanceof ApiError ? error.message : t("overview.experience.errNoApi")}
           action={
             <Button variant="outline" size="sm" onClick={() => mutate()}>
-              <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" /> Thử lại
+              <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" /> {t("overview.experience.retry")}
             </Button>
           }
         />
@@ -237,8 +239,8 @@ export default function SoKinhNghiemPage() {
       {!isLoading && !error && neverRan && (
         <EmptyState
           icon={BookOpenCheck}
-          title="Chưa chạy lần nào — job chạy thứ Hai 04:00"
-          description="Đợi đến kỳ chạy tự động, hoặc bấm chạy tay nếu bạn là Super Admin."
+          title={t("overview.experience.neverRanTitle")}
+          description={t("overview.experience.neverRanDesc")}
           action={
             canRunNow ? (
               <Button size="sm" onClick={() => runJob("playbook_extract")} disabled={!!running}>
@@ -247,7 +249,7 @@ export default function SoKinhNghiemPage() {
                 ) : (
                   <Play className="h-3.5 w-3.5" aria-hidden="true" />
                 )}
-                Chạy lại bây giờ
+                {t("overview.experience.runNow")}
               </Button>
             ) : undefined
           }
@@ -257,12 +259,12 @@ export default function SoKinhNghiemPage() {
       {!isLoading && !error && !neverRan && (
         <>
           <div>
-            <h2 className="mb-1 text-sm font-semibold text-slate-700">Lọc</h2>
+            <h2 className="mb-1 text-sm font-semibold text-slate-700">{t("overview.experience.filterTitle")}</h2>
             <div className="flex flex-wrap gap-3">
               {allowedCompanies.length > 1 && (
                 <div>
-                  <div className="mb-1 text-xs font-medium text-slate-400">Công ty</div>
-                  <div role="tablist" aria-label="Công ty" className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
+                  <div className="mb-1 text-xs font-medium text-slate-400">{t("overview.experience.fCompany")}</div>
+                  <div role="tablist" aria-label={t("overview.experience.fCompany")} className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
                     {(["", ...allowedCompanies] as (Company | "")[]).map((c) => (
                       <button
                         key={c || "all"}
@@ -275,33 +277,33 @@ export default function SoKinhNghiemPage() {
                             : "rounded-md px-3 py-1.5 text-sm font-semibold text-slate-600 hover:bg-slate-50"
                         }
                       >
-                        {c || "Tất cả"}
+                        {c || t("overview.experience.all")}
                       </button>
                     ))}
                   </div>
                 </div>
               )}
               <div className="min-w-[150px]">
-                <div className="mb-1 text-xs font-medium text-slate-400">Nền tảng</div>
+                <div className="mb-1 text-xs font-medium text-slate-400">{t("overview.experience.fPlatform")}</div>
                 <Select value={platformFilter || "ALL"} onValueChange={(v) => setPlatformFilter((v && v !== "ALL" ? v : "") as Platform | "")}>
-                  <SelectTrigger aria-label="Nền tảng">
-                    <SelectValue>{(v: string) => (v === "ALL" ? "Tất cả" : PLATFORM_LABEL[v as Platform] ?? v)}</SelectValue>
+                  <SelectTrigger aria-label={t("overview.experience.fPlatform")}>
+                    <SelectValue>{(v: string) => (v === "ALL" ? t("overview.experience.all") : PLATFORM_LABEL[v as Platform] ?? v)}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ALL">Tất cả</SelectItem>
+                    <SelectItem value="ALL">{t("overview.experience.all")}</SelectItem>
                     <SelectItem value="facebook">Facebook</SelectItem>
                     <SelectItem value="google">Google</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="min-w-[200px]">
-                <div className="mb-1 text-xs font-medium text-slate-400">Sản phẩm</div>
+                <div className="mb-1 text-xs font-medium text-slate-400">{t("overview.experience.fProduct")}</div>
                 <Select value={productFilter || "ALL"} onValueChange={(v) => setProductFilter(v && v !== "ALL" ? v : "")}>
-                  <SelectTrigger aria-label="Sản phẩm">
-                    <SelectValue>{(v: string) => (v === "ALL" ? "Tất cả" : v)}</SelectValue>
+                  <SelectTrigger aria-label={t("overview.experience.fProduct")}>
+                    <SelectValue>{(v: string) => (v === "ALL" ? t("overview.experience.all") : v)}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ALL">Tất cả</SelectItem>
+                    <SelectItem value="ALL">{t("overview.experience.all")}</SelectItem>
                     {productOptions.map((p) => (
                       <SelectItem key={p} value={p}>{p}</SelectItem>
                     ))}
@@ -309,13 +311,13 @@ export default function SoKinhNghiemPage() {
                 </Select>
               </div>
               <div className="min-w-[210px]">
-                <div className="mb-1 text-xs font-medium text-slate-400">Loại</div>
+                <div className="mb-1 text-xs font-medium text-slate-400">{t("overview.experience.fKind")}</div>
                 <Select value={kindFilter || "ALL"} onValueChange={(v) => setKindFilter(v && v !== "ALL" ? v : "")}>
-                  <SelectTrigger aria-label="Loại">
-                    <SelectValue>{(v: string) => (v === "ALL" ? "Tất cả" : v)}</SelectValue>
+                  <SelectTrigger aria-label={t("overview.experience.fKind")}>
+                    <SelectValue>{(v: string) => (v === "ALL" ? t("overview.experience.all") : v)}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ALL">Tất cả</SelectItem>
+                    <SelectItem value="ALL">{t("overview.experience.all")}</SelectItem>
                     {KIND_GROUP_OPTIONS.map((k) => (
                       <SelectItem key={k} value={k}>{k}</SelectItem>
                     ))}
@@ -323,15 +325,15 @@ export default function SoKinhNghiemPage() {
                 </Select>
               </div>
               <div className="min-w-[160px]">
-                <div className="mb-1 text-xs font-medium text-slate-400">Trạng thái</div>
+                <div className="mb-1 text-xs font-medium text-slate-400">{t("overview.experience.fStatus")}</div>
                 <Select value={statusFilter || "ALL"} onValueChange={(v) => setStatusFilter((v && v !== "ALL" ? v : "") as EntryStatus | "")}>
-                  <SelectTrigger aria-label="Trạng thái">
+                  <SelectTrigger aria-label={t("overview.experience.fStatus")}>
                     <SelectValue>
-                      {(v: string) => (v === "ALL" ? "Tất cả" : STATUS_OPTIONS.find((s) => s.value === v)?.label ?? v)}
+                      {(v: string) => (v === "ALL" ? t("overview.experience.all") : STATUS_OPTIONS.find((s) => s.value === v)?.label ?? v)}
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ALL">Tất cả</SelectItem>
+                    <SelectItem value="ALL">{t("overview.experience.all")}</SelectItem>
                     {STATUS_OPTIONS.map((s) => (
                       <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
                     ))}
@@ -340,38 +342,38 @@ export default function SoKinhNghiemPage() {
               </div>
               {hasActiveFilters && (
                 <div className="flex items-end">
-                  <Button variant="outline" size="sm" onClick={resetFilters}>Xoá bộ lọc</Button>
+                  <Button variant="outline" size="sm" onClick={resetFilters}>{t("overview.experience.clearFilters")}</Button>
                 </div>
               )}
             </div>
           </div>
 
           <PlaybookTable
-            title="Nên dùng"
-            description="Đặc điểm lặp lại ở nhiều đơn vị thắng — bấm “Bằng chứng” để xem chiến dịch/nhóm cụ thể."
+            title={t("overview.experience.useTitle")}
+            description={t("overview.experience.useDesc")}
             entries={useEntries}
             accent="use"
             canDecide={canDecide}
             actingId={actingId}
             onDecide={decide}
-            emptyTitle="Chưa đủ dữ liệu cho lựa chọn này — cần ≥ 2 đơn vị thắng"
+            emptyTitle={t("overview.experience.useEmptyTitle")}
             emptyDescription={
               hasAnyEntry
-                ? "Đổi lại bộ lọc ở trên, hoặc chờ Sổ kinh nghiệm cập nhật thêm vào thứ Hai tới."
-                : "Sản phẩm/công ty này chưa có đủ số lượng nhóm/chiến dịch thắng độc lập để ghi kinh nghiệm. Tiếp tục chạy quảng cáo — Sổ kinh nghiệm cập nhật mỗi thứ Hai 04:00."
+                ? t("overview.experience.useEmptyFiltered")
+                : t("overview.experience.useEmptyNone")
             }
           />
 
           <PlaybookTable
-            title="Nên tránh"
-            description="Đặc điểm có nhiều đơn vị thua, tiêu tiền mà 0 kết quả — cảnh báo khi chọn đúng điều này lúc tạo chiến dịch mới."
+            title={t("overview.experience.avoidTitle")}
+            description={t("overview.experience.avoidDesc")}
             entries={avoidEntries}
             accent="avoid"
             canDecide={canDecide}
             actingId={actingId}
             onDecide={decide}
-            emptyTitle="Chưa có đặc điểm nào bị đánh dấu nên tránh trong bộ lọc này"
-            emptyDescription="Đổi lại bộ lọc ở trên để xem nhóm khác, hoặc đây là tin tốt — chưa phát hiện đặc điểm nào đáng tránh."
+            emptyTitle={t("overview.experience.avoidEmptyTitle")}
+            emptyDescription={t("overview.experience.avoidEmptyDesc")}
           />
 
           <PlaybookOutcomesSection
@@ -382,8 +384,8 @@ export default function SoKinhNghiemPage() {
           />
 
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500">
-            <span>Dùng kinh nghiệm này khi tạo chiến dịch mới:</span>
-            <Button render={<Link href="/creative" />}>Tạo chiến dịch Meta →</Button>
+            <span>{t("overview.experience.footerHint")}</span>
+            <Button render={<Link href="/creative" />}>{t("overview.experience.createMeta")}</Button>
           </div>
         </>
       )}

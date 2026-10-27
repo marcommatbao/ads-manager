@@ -19,29 +19,32 @@ import {
   type CheckInterval, type ActionType, type RuleExecutionResult,
 } from "@/lib/automation-shared";
 import type { SimulationResult, SimulationItem, SimulationStatus } from "@/lib/automation-sim/types";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
+import type { TFunction } from "@/lib/i18n/translate";
+import type { MessageKey } from "@/lib/i18n/messages";
 
 // ─────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────
 
-function fmtTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+function fmtTime(iso: string, loc: string): string {
+  return new Date(iso).toLocaleTimeString(loc, { hour: "2-digit", minute: "2-digit" });
 }
 
-function fmtRelative(iso: string): string {
+function fmtRelative(iso: string, t: TFunction): string {
   const diff = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "vừa xong";
-  if (mins < 60) return `${mins} phút trước`;
+  if (mins < 1) return t("creative.automation.rel.now");
+  if (mins < 60) return t("creative.automation.rel.minutes", { n: mins });
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours} giờ trước`;
+  if (hours < 24) return t("creative.automation.rel.hours", { n: hours });
   const days = Math.floor(hours / 24);
-  if (days === 1) return "hôm qua";
-  return `${days} ngày trước`;
+  if (days === 1) return t("creative.automation.rel.yesterday");
+  return t("creative.automation.rel.days", { n: days });
 }
 
-function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
+function fmtDate(iso: string, loc: string): string {
+  return new Date(iso).toLocaleDateString(loc, { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
 const RULE_ICONS: Record<string, string> = {
@@ -59,16 +62,12 @@ const RULE_ICONS: Record<string, string> = {
 
 const TEMPLATE_ICONS = ["🛑", "📈", "😴", "📊", "⚡", "🌅", "😓", "🔄", "🔥", "😓"];
 
-// Vietnamese labels for conditions
-const VN_OPERATORS: Record<ConditionOperator, string> = {
-  ">": ">",
-  "<": "<",
-  ">=": "≥",
-  "<=": "≤",
-  "==": "=",
-  "increased_by_pct": "tăng >",
-  "decreased_by_pct": "giảm >",
-};
+// Labels for condition operators
+function fmtOperator(op: ConditionOperator, t: TFunction): string {
+  if (op === "increased_by_pct") return t("creative.automation.op.increasedBy");
+  if (op === "decreased_by_pct") return t("creative.automation.op.decreasedBy");
+  return ({ ">": ">", "<": "<", ">=": "≥", "<=": "≤", "==": "=" } as Record<string, string>)[op];
+}
 
 // Đơn vị hiển thị phải theo TOÁN TỬ trước, rồi mới tới chỉ số. Với
 // increased_by_pct/decreased_by_pct thì `value` là PHẦN TRĂM, không phải giá trị
@@ -76,7 +75,7 @@ const VN_OPERATORS: Record<ConditionOperator, string> = {
 // (CPC tăng hơn 40%) hiện ra là "CPC tăng > ₫40", trông như ngưỡng 40 đồng.
 // Nguy ở chỗ: người đọc thấy ₫40 vô lý sẽ sửa thành ₫40.000, thành ra đặt ngưỡng
 // "tăng 40.000%" — một rule không bao giờ chạy mà nhìn vẫn như đang canh.
-function fmtMetricValue(metric: MetricKey, value: number, operator?: ConditionOperator): string {
+function fmtMetricValue(metric: MetricKey, value: number, operator: ConditionOperator | undefined, loc: string): string {
   if (operator === "increased_by_pct" || operator === "decreased_by_pct") {
     return `${value}%`;
   }
@@ -84,11 +83,11 @@ function fmtMetricValue(metric: MetricKey, value: number, operator?: ConditionOp
     case "roas": return `${value}x`;
     case "ctr":
     case "budget_used_pct": return `${value}%`;
-    case "spend": return `₫${value.toLocaleString("vi-VN")}`;
+    case "spend": return `₫${value.toLocaleString(loc)}`;
     case "cpc":
-    case "cpm": return `₫${value.toLocaleString("vi-VN")}`;
+    case "cpm": return `₫${value.toLocaleString(loc)}`;
     case "frequency": return `${value}x`;
-    default: return value.toLocaleString("vi-VN");
+    default: return value.toLocaleString(loc);
   }
 }
 
@@ -100,15 +99,16 @@ function OnboardingBanner({ onQuickEnable, onDismiss }: {
   onQuickEnable: () => void;
   onDismiss: () => void;
 }) {
+  const t = useT();
   return (
     <div className="rounded-2xl border-2 border-indigo-200 bg-gradient-to-br from-indigo-50 via-white to-violet-50 p-6 shadow-sm">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-base font-bold text-indigo-800 flex items-center gap-2">
           <Zap className="h-5 w-5 text-indigo-500" />
-          ⚡ Bắt đầu tự động hoá — 3 bước đơn giản
+          {t("creative.automation.onb.title")}
         </h3>
         <button onClick={onDismiss} className="text-xs text-slate-400 hover:text-slate-600 font-medium">
-          Bỏ qua hướng dẫn
+          {t("creative.automation.onb.dismiss")}
         </button>
       </div>
 
@@ -116,27 +116,27 @@ function OnboardingBanner({ onQuickEnable, onDismiss }: {
         <div className="flex items-start gap-3 rounded-xl border border-indigo-100 bg-white p-4">
           <span className="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-100 text-sm font-bold text-indigo-600 shrink-0">1</span>
           <div className="flex-1">
-            <p className="text-sm font-semibold text-slate-700">Bật rule "Cảnh báo bão hoà" — an toàn nhất</p>
-            <p className="text-xs text-slate-400 mt-0.5">Chỉ gửi thông báo, không tự động thay đổi campaign</p>
+            <p className="text-sm font-semibold text-slate-700">{t("creative.automation.onb.s1Title")}</p>
+            <p className="text-xs text-slate-400 mt-0.5">{t("creative.automation.onb.s1Desc")}</p>
           </div>
           <Button size="sm" className="gap-1 text-xs bg-indigo-600 text-white hover:bg-indigo-700 shrink-0" onClick={onQuickEnable}>
-            <Play className="h-3 w-3" /> Bật ngay
+            <Play className="h-3 w-3" /> {t("creative.automation.onb.enableNow")}
           </Button>
         </div>
 
         <div className="flex items-start gap-3 rounded-xl border border-slate-100 bg-white/60 p-4">
           <span className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-sm font-bold text-slate-500 shrink-0">2</span>
           <div>
-            <p className="text-sm font-semibold text-slate-600">Test với data thật trước khi bật rule mạnh</p>
-            <p className="text-xs text-slate-400 mt-0.5">Bấm ▶ Test trên mỗi rule để xem sẽ khớp bao nhiêu campaign</p>
+            <p className="text-sm font-semibold text-slate-600">{t("creative.automation.onb.s2Title")}</p>
+            <p className="text-xs text-slate-400 mt-0.5">{t("creative.automation.onb.s2Desc")}</p>
           </div>
         </div>
 
         <div className="flex items-start gap-3 rounded-xl border border-slate-100 bg-white/60 p-4">
           <span className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-sm font-bold text-slate-500 shrink-0">3</span>
           <div>
-            <p className="text-sm font-semibold text-slate-600">Xem lịch sử để tin tưởng engine</p>
-            <p className="text-xs text-slate-400 mt-0.5">Mỗi action được ghi lại chi tiết để bạn kiểm tra</p>
+            <p className="text-sm font-semibold text-slate-600">{t("creative.automation.onb.s3Title")}</p>
+            <p className="text-xs text-slate-400 mt-0.5">{t("creative.automation.onb.s3Desc")}</p>
           </div>
         </div>
       </div>
@@ -152,16 +152,17 @@ function OnboardingBanner({ onQuickEnable, onDismiss }: {
 // Simulation Result Modal (4-bucket outcome)
 // ─────────────────────────────────────────────
 
-const STATUS_CFG: Record<SimulationStatus, { label: string; cls: string; badge: string; icon: React.ReactNode }> = {
-  safe_for_auto_apply:    { label: "An toàn tự áp",      cls: "border-emerald-200 bg-emerald-50",  badge: "bg-emerald-100 text-emerald-700", icon: <ShieldCheck className="h-3 w-3" /> },
-  manual_review_required: { label: "Cần duyệt thủ công", cls: "border-amber-200 bg-amber-50",     badge: "bg-amber-100 text-amber-700",    icon: <AlertTriangle className="h-3 w-3" /> },
-  blocked:                { label: "Bị chặn",             cls: "border-red-200 bg-red-50",         badge: "bg-red-100 text-red-700",        icon: <X className="h-3 w-3" /> },
-  simulate_only:          { label: "Chỉ xem",             cls: "border-slate-200 bg-slate-50",     badge: "bg-slate-100 text-slate-600",    icon: <Info className="h-3 w-3" /> },
+const STATUS_CFG: Record<SimulationStatus, { labelKey: MessageKey; cls: string; badge: string; icon: React.ReactNode }> = {
+  safe_for_auto_apply:    { labelKey: "creative.automation.status.safe",      cls: "border-emerald-200 bg-emerald-50",  badge: "bg-emerald-100 text-emerald-700", icon: <ShieldCheck className="h-3 w-3" /> },
+  manual_review_required: { labelKey: "creative.automation.status.review", cls: "border-amber-200 bg-amber-50",     badge: "bg-amber-100 text-amber-700",    icon: <AlertTriangle className="h-3 w-3" /> },
+  blocked:                { labelKey: "creative.automation.status.blocked",             cls: "border-red-200 bg-red-50",         badge: "bg-red-100 text-red-700",        icon: <X className="h-3 w-3" /> },
+  simulate_only:          { labelKey: "creative.automation.status.viewOnly",             cls: "border-slate-200 bg-slate-50",     badge: "bg-slate-100 text-slate-600",    icon: <Info className="h-3 w-3" /> },
 };
 
 const BAND_CLS: Record<string, string> = { high: "text-red-600", medium: "text-amber-600", low: "text-emerald-600" };
 
 function SimItemRow({ item }: { item: SimulationItem }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const cfg = STATUS_CFG[item.simulationStatus];
   return (
@@ -172,16 +173,16 @@ function SimItemRow({ item }: { item: SimulationItem }) {
           <p className="text-[10px] text-slate-500 mt-0.5">{item.impactSummary}</p>
         </div>
         <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap flex-shrink-0", cfg.badge)}>
-          {cfg.icon} {cfg.label}
+          {cfg.icon} {t(cfg.labelKey)}
         </span>
       </div>
 
       {/* Risk band + scores */}
       <div className="flex items-center gap-3 text-[10px] text-slate-400">
-        <span>Rủi ro: <b className={BAND_CLS[item.risk.band]}>{item.risk.band.toUpperCase()}</b></span>
-        <span>Score: {item.riskScore}</span>
-        <span>Safety: {item.safetyScore}</span>
-        <span>Conf: {item.confidenceScore}%</span>
+        <span>{t("creative.automation.sim.risk")} <b className={BAND_CLS[item.risk.band]}>{item.risk.band.toUpperCase()}</b></span>
+        <span>{t("creative.automation.sim.score", { v: item.riskScore })}</span>
+        <span>{t("creative.automation.sim.safety", { v: item.safetyScore })}</span>
+        <span>{t("creative.automation.sim.conf", { v: item.confidenceScore })}</span>
       </div>
 
       {/* Blockers */}
@@ -206,14 +207,14 @@ function SimItemRow({ item }: { item: SimulationItem }) {
       {item.matchedConditions.length > 0 && (
         <button onClick={() => setOpen(p => !p)} className="text-[10px] text-indigo-500 hover:underline flex items-center gap-1">
           {open ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-          {item.matchedConditions.length} điều kiện
+          {t("creative.automation.sim.conditions", { n: item.matchedConditions.length })}
         </button>
       )}
       {open && (
         <div className="pl-3 space-y-0.5 border-l border-indigo-100">
           {item.matchedConditions.map((c, i) => (
             <p key={i} className={cn("text-[10px]", c.passed ? "text-emerald-600" : "text-slate-400")}>
-              {c.passed ? "✓" : "✗"} {c.metric} {c.operator} {c.threshold} (thực tế: {c.actual})
+              {c.passed ? "✓" : "✗"} {c.metric} {c.operator} {c.threshold} {t("creative.automation.sim.actual", { actual: c.actual })}
             </p>
           ))}
         </div>
@@ -228,14 +229,16 @@ function SimResultModal({ result, rule, onClose, onEnable }: {
   onClose: () => void;
   onEnable: () => void;
 }) {
+  const t = useT();
+  const loc = useIntlLocale();
   const icon = RULE_ICONS[result.ruleName] ?? "⚙️";
   const counts = result.counts.byStatus;
 
   const BUCKETS: { status: SimulationStatus; label: string }[] = [
-    { status: "safe_for_auto_apply",    label: "An toàn" },
-    { status: "manual_review_required", label: "Cần duyệt" },
-    { status: "blocked",                label: "Chặn" },
-    { status: "simulate_only",          label: "Chỉ xem" },
+    { status: "safe_for_auto_apply",    label: t("creative.automation.bucket.safe") },
+    { status: "manual_review_required", label: t("creative.automation.bucket.review") },
+    { status: "blocked",                label: t("creative.automation.bucket.blocked") },
+    { status: "simulate_only",          label: t("creative.automation.bucket.viewOnly") },
   ];
 
   return (
@@ -244,9 +247,9 @@ function SimResultModal({ result, rule, onClose, onEnable }: {
         {/* Header */}
         <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between flex-shrink-0">
           <div>
-            <h3 className="text-sm font-bold text-slate-800">▶ Mô phỏng: {icon} {result.ruleName}</h3>
+            <h3 className="text-sm font-bold text-slate-800">{t("creative.automation.sim.title", { icon, name: result.ruleName })}</h3>
             <p className="text-[10px] text-slate-400 mt-0.5">
-              Policy: <b>{result.policy}</b> · {result.counts.evaluated} campaigns được đánh giá · {result.counts.matched} khớp
+              {t("creative.automation.sim.policy")} <b>{result.policy}</b> {t("creative.automation.sim.evalSummary", { evaluated: result.counts.evaluated, matched: result.counts.matched })}
             </p>
           </div>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400">
@@ -272,8 +275,8 @@ function SimResultModal({ result, rule, onClose, onEnable }: {
         <div className="flex-1 overflow-y-auto px-5 py-3 space-y-2">
           {result.items.length === 0 ? (
             <div className="text-center py-10">
-              <p className="text-sm text-slate-400">Không có campaign nào khớp điều kiện</p>
-              <p className="text-xs text-slate-300 mt-1">Campaigns đang hoạt động tốt — rule sẽ nằm chờ đến khi có vấn đề.</p>
+              <p className="text-sm text-slate-400">{t("creative.automation.sim.empty")}</p>
+              <p className="text-xs text-slate-300 mt-1">{t("creative.automation.sim.emptyDesc")}</p>
             </div>
           ) : (
             result.items.map(item => <SimItemRow key={item.entityId} item={item} />)
@@ -283,13 +286,13 @@ function SimResultModal({ result, rule, onClose, onEnable }: {
         {/* Footer */}
         <div className="px-5 py-3 border-t border-slate-100 flex items-center justify-between flex-shrink-0">
           <p className="text-[10px] text-slate-400">
-            Tiết kiệm ước tính: ₫{Math.round(result.estTotalImpactVnd).toLocaleString("vi-VN")}/kỳ
+            {t("creative.automation.sim.estSaving", { amount: Math.round(result.estTotalImpactVnd).toLocaleString(loc) })}
           </p>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={onClose} className="text-xs">Đóng</Button>
+            <Button variant="outline" size="sm" onClick={onClose} className="text-xs">{t("creative.automation.close")}</Button>
             {!rule.isActive && counts.safe_for_auto_apply + counts.manual_review_required > 0 && (
               <Button size="sm" className="gap-1 text-xs bg-emerald-600 text-white hover:bg-emerald-700" onClick={onEnable}>
-                <Check className="h-3 w-3" /> Bật rule này
+                <Check className="h-3 w-3" /> {t("creative.automation.sim.enableRule")}
               </Button>
             )}
           </div>
@@ -319,6 +322,8 @@ export default function AutomationPage() {
   const [simRule, setSimRule] = useState<AutomationRule | null>(null);
   const [automationTab, setAutomationTab] = useState<"facebook" | "google">("facebook");
   const { campaigns } = useAdsStore();
+  const t = useT();
+  const loc = useIntlLocale();
 
   // ── Fetch ──
   const fetchRules = useCallback(async () => {
@@ -433,7 +438,7 @@ export default function AutomationPage() {
       && d.getFullYear() === now.getFullYear();
   }).length;
   const lastRun = executionLog.length > 0
-    ? fmtTime(executionLog[executionLog.length - 1].triggeredAt)
+    ? fmtTime(executionLog[executionLog.length - 1].triggeredAt, loc)
     : "—";
 
   // ── Loading ──
@@ -445,7 +450,7 @@ export default function AutomationPage() {
             <div className="absolute inset-0 rounded-full border-4 border-indigo-100" />
             <div className="absolute inset-0 rounded-full border-4 border-indigo-500 border-t-transparent animate-spin" />
           </div>
-          <p className="text-sm text-slate-500">Đang tải automation rules...</p>
+          <p className="text-sm text-slate-500">{t("creative.automation.page.loading")}</p>
         </div>
       </div>
     );
@@ -462,10 +467,10 @@ export default function AutomationPage() {
             <div className="rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 p-2.5 shadow-lg shadow-indigo-200">
               <Zap className="h-5 w-5 text-white" />
             </div>
-            ⚡ Automation
+            {t("creative.automation.page.title")}
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            Tự động hoá quản lý campaign — hoạt động 24/7
+            {t("creative.automation.page.subtitle")}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -477,9 +482,9 @@ export default function AutomationPage() {
             disabled={isRunning || activeCount === 0}
           >
             {isRunning ? (
-              <><RefreshCw className="h-3.5 w-3.5 animate-spin" /> Đang chạy...</>
+              <><RefreshCw className="h-3.5 w-3.5 animate-spin" /> {t("creative.automation.page.running")}</>
             ) : (
-              <><Play className="h-3.5 w-3.5" /> Chạy Engine ngay</>
+              <><Play className="h-3.5 w-3.5" /> {t("creative.automation.page.runNow")}</>
             )}
           </Button>
           <Button
@@ -488,7 +493,7 @@ export default function AutomationPage() {
             onClick={() => setShowCreator(true)}
           >
             <Plus className="h-3.5 w-3.5" />
-            Tạo quy tắc mới
+            {t("creative.automation.createRule")}
           </Button>
         </div>
       </div>
@@ -534,37 +539,37 @@ export default function AutomationPage() {
         <div className="rounded-xl border border-indigo-200 bg-gradient-to-br from-indigo-50 to-white p-4 shadow-sm">
           <div className="flex items-center gap-2 mb-1">
             <Zap className="h-4 w-4 text-indigo-500" />
-            <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-400">Rules hoạt động</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-400">{t("creative.automation.stat.activeRules")}</span>
           </div>
           <p className="text-2xl font-bold text-indigo-700">{activeCount}</p>
-          <p className="text-[10px] text-indigo-400 mt-0.5">trên tổng {rules.length} rules</p>
+          <p className="text-[10px] text-indigo-400 mt-0.5">{t("creative.automation.stat.activeOf", { n: rules.length })}</p>
         </div>
 
         <div className="rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50 to-white p-4 shadow-sm">
           <div className="flex items-center gap-2 mb-1">
             <RefreshCw className="h-4 w-4 text-blue-500" />
-            <span className="text-[10px] font-bold uppercase tracking-wider text-blue-400">Lần chạy cuối</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-blue-400">{t("creative.automation.stat.lastRun")}</span>
           </div>
           <p className="text-2xl font-bold text-blue-700">{lastRun}</p>
-          <p className="text-[10px] text-blue-400 mt-0.5">auto engine</p>
+          <p className="text-[10px] text-blue-400 mt-0.5">{t("creative.automation.stat.autoEngine")}</p>
         </div>
 
         <div className="rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-4 shadow-sm">
           <div className="flex items-center gap-2 mb-1">
             <Check className="h-4 w-4 text-emerald-500" />
-            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">Actions hôm nay</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">{t("creative.automation.stat.actionsToday")}</span>
           </div>
           <p className="text-2xl font-bold text-emerald-700">{todayActions}</p>
-          <p className="text-[10px] text-emerald-400 mt-0.5">đã thực thi</p>
+          <p className="text-[10px] text-emerald-400 mt-0.5">{t("creative.automation.stat.executed")}</p>
         </div>
 
         <div className="rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50 to-white p-4 shadow-sm">
           <div className="flex items-center gap-2 mb-1">
             <Clock className="h-4 w-4 text-amber-500" />
-            <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400">Engine interval</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400">{t("creative.automation.stat.interval")}</span>
           </div>
           <p className="text-2xl font-bold text-amber-700">6</p>
-          <p className="text-[10px] text-amber-400 mt-0.5">giờ / lần kiểm tra (cron), hoặc bấm &quot;Chạy Engine ngay&quot;</p>
+          <p className="text-[10px] text-amber-400 mt-0.5">{t("creative.automation.stat.intervalNote")}</p>
         </div>
       </div>
 
@@ -608,8 +613,8 @@ export default function AutomationPage() {
       {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-bold text-slate-800">Quy tắc tự động</h2>
-          <span className="text-[10px] text-slate-400">{rules.length} rules</span>
+          <h2 className="text-sm font-bold text-slate-800">{t("creative.automation.list.title")}</h2>
+          <span className="text-[10px] text-slate-400">{t("creative.automation.list.count", { n: rules.length })}</span>
         </div>
 
         <div className="space-y-3">
@@ -628,8 +633,8 @@ export default function AutomationPage() {
         {rules.length === 0 && (
           <div className="text-center py-16 rounded-xl border border-dashed border-slate-200">
             <Zap className="h-10 w-10 text-slate-200 mx-auto mb-3" />
-            <p className="text-sm text-slate-400">Chưa có quy tắc nào.</p>
-            <p className="text-xs text-slate-300 mt-1">Bấm &ldquo;Tạo quy tắc mới&rdquo; để bắt đầu</p>
+            <p className="text-sm text-slate-400">{t("creative.automation.list.empty")}</p>
+            <p className="text-xs text-slate-300 mt-1">{t("creative.automation.list.emptyHint")}</p>
           </div>
         )}
       </div>
@@ -642,14 +647,14 @@ export default function AutomationPage() {
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
               <Activity className="h-4 w-4 text-slate-400" />
-              Lịch sử thực thi
+              {t("creative.automation.log.title")}
             </h2>
             {executionLog.length > 5 && (
               <button
                 onClick={() => setShowFullLog(!showFullLog)}
                 className="text-xs text-indigo-500 hover:text-indigo-700 font-medium flex items-center gap-1"
               >
-                {showFullLog ? "Thu gọn" : "Xem lịch sử đầy đủ"} <ArrowRight className="h-3 w-3" />
+                {showFullLog ? t("creative.automation.log.collapse") : t("creative.automation.log.expand")} <ArrowRight className="h-3 w-3" />
               </button>
             )}
           </div>
@@ -663,7 +668,7 @@ export default function AutomationPage() {
                 <div key={i} className="flex items-center gap-3 px-5 py-3 hover:bg-slate-50/50 transition-colors">
                   {/* Time */}
                   <span className="text-xs font-mono text-slate-400 w-12 shrink-0">
-                    {fmtTime(log.triggeredAt)}
+                    {fmtTime(log.triggeredAt, loc)}
                   </span>
 
                   {/* Action icon */}
@@ -686,21 +691,21 @@ export default function AutomationPage() {
                         không có giá trị purchase). Nói thẳng thay vì ẩn đi —
                         ẩn thì người đọc tưởng ROAS bằng 0. */}
                     {log.metricsSnapshot.roas === null ? (
-                      <span className="text-slate-400">ROAS: <b>chưa đo được</b></span>
+                      <span className="text-slate-400">ROAS: <b>{t("creative.automation.log.notMeasured")}</b></span>
                     ) : log.metricsSnapshot.roas > 0 ? (
                       <span>ROAS: <b className="text-slate-600">{log.metricsSnapshot.roas.toFixed(1)}x</b></span>
                     ) : null}
                     {log.metricsSnapshot.frequency > 0 && (
-                      <span>Freq: <b className="text-slate-600">{log.metricsSnapshot.frequency.toFixed(1)}x</b></span>
+                      <span>{t("creative.automation.log.freq")} <b className="text-slate-600">{log.metricsSnapshot.frequency.toFixed(1)}x</b></span>
                     )}
                     {log.metricsSnapshot.spend > 0 && (
-                      <span>Spend: <b className="text-slate-600">₫{Math.round(log.metricsSnapshot.spend).toLocaleString("vi-VN")}</b></span>
+                      <span>{t("creative.automation.log.spend")} <b className="text-slate-600">₫{Math.round(log.metricsSnapshot.spend).toLocaleString(loc)}</b></span>
                     )}
                   </div>
 
                   {/* Relative time */}
                   <span className="text-[10px] text-slate-300 shrink-0">
-                    {fmtRelative(log.triggeredAt)}
+                    {fmtRelative(log.triggeredAt, t)}
                   </span>
                 </div>
               ))}
@@ -726,6 +731,8 @@ function RuleCard({ rule, onToggle, onDelete, onTest, testLoading }: {
 }) {
   const [expanded, setExpanded] = useState(false);
   const icon = RULE_ICONS[rule.name] ?? "⚙️";
+  const t = useT();
+  const loc = useIntlLocale();
 
   return (
     <div className={cn(
@@ -743,7 +750,7 @@ function RuleCard({ rule, onToggle, onDelete, onTest, testLoading }: {
             <button
               onClick={onToggle}
               className="mt-1 shrink-0"
-              title={rule.isActive ? "Đang hoạt động — bấm để tắt" : "Đã tắt — bấm để bật"}
+              title={rule.isActive ? t("creative.automation.card.statusOn") : t("creative.automation.card.statusOff")}
             >
               <div className={cn(
                 "h-3 w-3 rounded-full border-2 transition-colors",
@@ -764,7 +771,7 @@ function RuleCard({ rule, onToggle, onDelete, onTest, testLoading }: {
                 {rule.conditions.map((c, i) => (
                   <div key={i} className="flex items-center gap-1.5 text-xs">
                     {i === 0 ? (
-                      <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold text-blue-600 w-8 text-center shrink-0">NẾU</span>
+                      <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold text-blue-600 w-8 text-center shrink-0">{t("creative.automation.card.if")}</span>
                     ) : (
                       <span className={cn(
                         "rounded px-1.5 py-0.5 text-[10px] font-bold w-8 text-center shrink-0",
@@ -772,13 +779,13 @@ function RuleCard({ rule, onToggle, onDelete, onTest, testLoading }: {
                           ? "bg-blue-50 text-blue-500"
                           : "bg-amber-50 text-amber-500"
                       )}>
-                        {rule.conditionLogic === "AND" ? "VÀ" : "HOẶC"}
+                        {rule.conditionLogic === "AND" ? t("creative.automation.card.and") : t("creative.automation.card.or")}
                       </span>
                     )}
                     <span className="text-slate-700">
                       <b>{METRIC_LABELS[c.metric]}</b>{" "}
-                      {VN_OPERATORS[c.operator]}{" "}
-                      <b className="text-indigo-600">{fmtMetricValue(c.metric, c.value, c.operator)}</b>
+                      {fmtOperator(c.operator, t)}{" "}
+                      <b className="text-indigo-600">{fmtMetricValue(c.metric, c.value, c.operator, loc)}</b>
                     </span>
                     <span className="text-slate-300">({TIME_WINDOW_LABELS[c.timeWindow]})</span>
                   </div>
@@ -790,7 +797,7 @@ function RuleCard({ rule, onToggle, onDelete, onTest, testLoading }: {
                 {rule.actions.map((a, i) => (
                   <div key={i} className="flex items-center gap-1.5 text-xs">
                     {i === 0 ? (
-                      <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-600 w-8 text-center shrink-0">THÌ</span>
+                      <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-600 w-8 text-center shrink-0">{t("creative.automation.card.then")}</span>
                     ) : (
                       <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-400 w-8 text-center shrink-0">+</span>
                     )}
@@ -805,10 +812,10 @@ function RuleCard({ rule, onToggle, onDelete, onTest, testLoading }: {
               {/* Loại chiến dịch Google — chỉ hiện khi rule có áp Google và đã giới hạn loại (rỗng = mọi loại, không cần nhắc) */}
               {rule.platform !== "facebook" && !!rule.googleChannelTypes?.length && (
                 <div className="mt-2 flex flex-wrap items-center gap-1">
-                  <span className="text-[10px] text-slate-400">Loại chiến dịch Google:</span>
-                  {rule.googleChannelTypes.map(t => (
-                    <span key={t} className="rounded-full border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700">
-                      {GOOGLE_CHANNEL_TYPE_LABEL[t] ?? t}
+                  <span className="text-[10px] text-slate-400">{t("creative.automation.card.googleTypes")}</span>
+                  {rule.googleChannelTypes.map(ct => (
+                    <span key={ct} className="rounded-full border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700">
+                      {GOOGLE_CHANNEL_TYPE_LABEL[ct] ?? ct}
                     </span>
                   ))}
                 </div>
@@ -817,15 +824,15 @@ function RuleCard({ rule, onToggle, onDelete, onTest, testLoading }: {
               {/* Footer meta */}
               <div className="flex items-center gap-3 mt-3 text-[10px] text-slate-400">
                 <span className="flex items-center gap-0.5">
-                  <Clock className="h-2.5 w-2.5" /> Kiểm tra mỗi: {INTERVAL_LABELS[rule.checkInterval]}
+                  <Clock className="h-2.5 w-2.5" /> {t("creative.automation.card.checkEvery", { interval: INTERVAL_LABELS[rule.checkInterval] })}
                 </span>
                 {rule.triggerCount > 0 && (
                   <span className="text-amber-500 font-semibold">
-                    ✅ Đã kích hoạt {rule.triggerCount} lần
+                    {t("creative.automation.card.triggered", { n: rule.triggerCount })}
                   </span>
                 )}
                 {rule.lastTriggered && (
-                  <span>• Lần cuối: {fmtRelative(rule.lastTriggered)}</span>
+                  <span>{t("creative.automation.card.lastRun", { time: fmtRelative(rule.lastTriggered, t) })}</span>
                 )}
               </div>
             </div>
@@ -840,7 +847,7 @@ function RuleCard({ rule, onToggle, onDelete, onTest, testLoading }: {
                 "relative w-10 h-[22px] rounded-full transition-colors shrink-0",
                 rule.isActive ? "bg-indigo-500" : "bg-slate-300"
               )}
-              title={rule.isActive ? "Tắt rule" : "Bật rule"}
+              title={t(rule.isActive ? "creative.automation.card.turnOff" : "creative.automation.card.turnOn")}
             >
               <div className={cn(
                 "absolute top-[3px] w-4 h-4 rounded-full bg-white shadow-sm transition-transform",
@@ -855,7 +862,7 @@ function RuleCard({ rule, onToggle, onDelete, onTest, testLoading }: {
                 "p-1.5 rounded-lg text-slate-400",
                 testLoading ? "opacity-50 cursor-wait" : "hover:bg-indigo-50 hover:text-indigo-600"
               )}
-              title="Mô phỏng rule với data thật"
+              title={t("creative.automation.card.simulate")}
             >
               {testLoading
                 ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
@@ -865,7 +872,7 @@ function RuleCard({ rule, onToggle, onDelete, onTest, testLoading }: {
             <button
               onClick={() => setExpanded(!expanded)}
               className="p-1.5 rounded-lg hover:bg-slate-50 text-slate-400"
-              title="Chi tiết"
+              title={t("creative.automation.card.details")}
             >
               <Settings className="h-3.5 w-3.5" />
             </button>
@@ -873,7 +880,7 @@ function RuleCard({ rule, onToggle, onDelete, onTest, testLoading }: {
             <button
               onClick={onDelete}
               className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500"
-              title="Xoá rule"
+              title={t("creative.automation.card.delete")}
             >
               <Trash2 className="h-3.5 w-3.5" />
             </button>
@@ -886,20 +893,20 @@ function RuleCard({ rule, onToggle, onDelete, onTest, testLoading }: {
         <div className="border-t border-slate-100 px-5 py-3 bg-slate-50/50">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-[10px] text-slate-500">
             <div>
-              <p className="font-bold text-slate-400 uppercase tracking-wider">Platform</p>
-              <p className="text-slate-700 mt-0.5">{rule.platform === "all" ? "Tất cả" : rule.platform === "facebook" ? "Facebook" : "Google"}</p>
+              <p className="font-bold text-slate-400 uppercase tracking-wider">{t("creative.automation.card.platform")}</p>
+              <p className="text-slate-700 mt-0.5">{rule.platform === "all" ? t("creative.automation.card.platformAll") : rule.platform === "facebook" ? "Facebook" : "Google"}</p>
             </div>
             <div>
-              <p className="font-bold text-slate-400 uppercase tracking-wider">Cooldown</p>
-              <p className="text-slate-700 mt-0.5">{rule.cooldown} giờ</p>
+              <p className="font-bold text-slate-400 uppercase tracking-wider">{t("creative.automation.card.cooldown")}</p>
+              <p className="text-slate-700 mt-0.5">{t("creative.automation.card.hours", { n: rule.cooldown })}</p>
             </div>
             <div>
-              <p className="font-bold text-slate-400 uppercase tracking-wider">Ngày tạo</p>
-              <p className="text-slate-700 mt-0.5">{fmtDate(rule.createdAt)}</p>
+              <p className="font-bold text-slate-400 uppercase tracking-wider">{t("creative.automation.card.created")}</p>
+              <p className="text-slate-700 mt-0.5">{fmtDate(rule.createdAt, loc)}</p>
             </div>
             <div>
-              <p className="font-bold text-slate-400 uppercase tracking-wider">Logic</p>
-              <p className="text-slate-700 mt-0.5">{rule.conditionLogic === "AND" ? "Tất cả điều kiện (AND)" : "Ít nhất 1 (OR)"}</p>
+              <p className="font-bold text-slate-400 uppercase tracking-wider">{t("creative.automation.card.logic")}</p>
+              <p className="text-slate-700 mt-0.5">{rule.conditionLogic === "AND" ? t("creative.automation.card.logicAll") : t("creative.automation.card.logicAny")}</p>
             </div>
           </div>
           {/* Action messages */}
@@ -924,6 +931,8 @@ function RuleCreatorModal({ onClose, onCreated }: {
   onClose: () => void;
   onCreated: (rule: AutomationRule) => void;
 }) {
+  const t = useT();
+  const loc = useIntlLocale();
   const [step, setStep] = useState(1);
   const [selectedTemplate, setSelectedTemplate] = useState<number | null>(null);
 
@@ -947,15 +956,15 @@ function RuleCreatorModal({ onClose, onCreated }: {
   const selectTemplate = (idx: number | null) => {
     setSelectedTemplate(idx);
     if (idx !== null) {
-      const t = PREBUILT_RULES[idx];
-      setName(t.name);
-      setPlatform(t.platform);
-      setGoogleChannelTypes(t.googleChannelTypes ?? []);
-      setCheckInterval(t.checkInterval);
-      setConditionLogic(t.conditionLogic);
-      setConditions([...t.conditions]);
-      setActions([...t.actions]);
-      setCooldown(t.cooldown);
+      const tpl = PREBUILT_RULES[idx];
+      setName(tpl.name);
+      setPlatform(tpl.platform);
+      setGoogleChannelTypes(tpl.googleChannelTypes ?? []);
+      setCheckInterval(tpl.checkInterval);
+      setConditionLogic(tpl.conditionLogic);
+      setConditions([...tpl.conditions]);
+      setActions([...tpl.actions]);
+      setCooldown(tpl.cooldown);
     } else {
       // From scratch
       setName("");
@@ -1018,10 +1027,10 @@ function RuleCreatorModal({ onClose, onCreated }: {
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 sticky top-0 bg-white rounded-t-2xl z-10">
           <div>
             <h2 className="text-base font-bold text-slate-800">
-              {step === 1 ? "Tạo quy tắc mới" : "Cấu hình quy tắc"}
+              {step === 1 ? t("creative.automation.createRule") : t("creative.automation.creator.configure")}
             </h2>
             <p className="text-[10px] text-slate-400">
-              {step === 1 ? "Bước 1: Chọn template hoặc tạo từ đầu" : "Bước 2: Cấu hình điều kiện và hành động"}
+              {step === 1 ? t("creative.automation.creator.step1") : t("creative.automation.creator.step2")}
             </p>
           </div>
           <button onClick={onClose} className="p-2 rounded-lg hover:bg-slate-100 text-slate-400">
@@ -1033,9 +1042,9 @@ function RuleCreatorModal({ onClose, onCreated }: {
           {/* ── Step 1: Template selection ── */}
           {step === 1 && (
             <div className="space-y-3">
-              <p className="text-xs font-semibold text-slate-600 mb-3">Chọn template có sẵn:</p>
+              <p className="text-xs font-semibold text-slate-600 mb-3">{t("creative.automation.creator.pickTemplate")}</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {PREBUILT_RULES.map((t, i) => (
+                {PREBUILT_RULES.map((tpl, i) => (
                   <button
                     key={i}
                     onClick={() => selectTemplate(i)}
@@ -1043,9 +1052,9 @@ function RuleCreatorModal({ onClose, onCreated }: {
                   >
                     <span className="text-xl">{TEMPLATE_ICONS[i]}</span>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-slate-700 group-hover:text-indigo-700">{t.name}</p>
+                      <p className="text-sm font-semibold text-slate-700 group-hover:text-indigo-700">{tpl.name}</p>
                       <p className="text-[10px] text-slate-400 truncate">
-                        {t.conditions.map(c => `${METRIC_LABELS[c.metric]} ${VN_OPERATORS[c.operator]} ${fmtMetricValue(c.metric, c.value, c.operator)}`).join(" & ")}
+                        {tpl.conditions.map(c => `${METRIC_LABELS[c.metric]} ${fmtOperator(c.operator, t)} ${fmtMetricValue(c.metric, c.value, c.operator, loc)}`).join(" & ")}
                       </p>
                     </div>
                     <ArrowRight className="h-3.5 w-3.5 text-slate-300 group-hover:text-indigo-400" />
@@ -1059,8 +1068,8 @@ function RuleCreatorModal({ onClose, onCreated }: {
                 >
                   <span className="text-xl">⚡</span>
                   <div>
-                    <p className="text-sm font-semibold text-slate-500 group-hover:text-indigo-600">Tạo từ đầu</p>
-                    <p className="text-[10px] text-slate-400">Custom rule</p>
+                    <p className="text-sm font-semibold text-slate-500 group-hover:text-indigo-600">{t("creative.automation.creator.fromScratch")}</p>
+                    <p className="text-[10px] text-slate-400">{t("creative.automation.creator.customRule")}</p>
                   </div>
                 </button>
               </div>
@@ -1072,24 +1081,24 @@ function RuleCreatorModal({ onClose, onCreated }: {
             <div className="space-y-5">
               {/* Back button */}
               <button onClick={() => setStep(1)} className="text-xs text-indigo-500 hover:text-indigo-700 font-medium flex items-center gap-1">
-                ← Quay lại chọn template
+                {t("creative.automation.creator.back")}
               </button>
 
               {/* Rule name */}
               <div>
-                <label className="text-xs font-semibold text-slate-700 mb-1.5 block">Tên quy tắc</label>
+                <label className="text-xs font-semibold text-slate-700 mb-1.5 block">{t("creative.automation.creator.name")}</label>
                 <input
                   type="text"
                   value={name}
                   onChange={e => setName(e.target.value)}
-                  placeholder="VD: Tắt campaign kém hiệu quả"
+                  placeholder={t("creative.automation.creator.namePlaceholder")}
                   className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
                 />
               </div>
 
               {/* Platform selector */}
               <div>
-                <label className="text-xs font-semibold text-slate-700 mb-1.5 block">Platform</label>
+                <label className="text-xs font-semibold text-slate-700 mb-1.5 block">{t("creative.automation.card.platform")}</label>
                 <div className="flex gap-2">
                   {(["facebook", "google", "all"] as const).map(p => (
                     <button
@@ -1102,7 +1111,7 @@ function RuleCreatorModal({ onClose, onCreated }: {
                           : "border-slate-200 text-slate-500 hover:border-slate-300"
                       )}
                     >
-                      {p === "facebook" ? "Facebook" : p === "google" ? "Google" : "Cả hai"}
+                      {p === "facebook" ? "Facebook" : p === "google" ? "Google" : t("creative.automation.creator.both")}
                     </button>
                   ))}
                 </div>
@@ -1111,7 +1120,7 @@ function RuleCreatorModal({ onClose, onCreated }: {
               {/* Loại chiến dịch Google — chỉ áp dụng khi rule có chạm Google Ads */}
               {platform !== "facebook" && (
                 <div>
-                  <label className="text-xs font-semibold text-slate-700 mb-1.5 block">Loại chiến dịch Google</label>
+                  <label className="text-xs font-semibold text-slate-700 mb-1.5 block">{t("creative.automation.creator.googleTypes")}</label>
                   <div className="flex flex-wrap gap-2">
                     {GOOGLE_CHANNEL_TYPE_OPTIONS.map(({ value, label }) => (
                       <button
@@ -1131,7 +1140,7 @@ function RuleCreatorModal({ onClose, onCreated }: {
                     ))}
                   </div>
                   <p className="text-[10px] text-slate-400 mt-1">
-                    {googleChannelTypes.length === 0 ? "Chưa chọn = áp cho mọi loại chiến dịch Google." : `Chỉ áp cho: ${googleChannelTypes.map(v => GOOGLE_CHANNEL_TYPE_LABEL[v] ?? v).join(", ")}.`}
+                    {googleChannelTypes.length === 0 ? t("creative.automation.creator.googleNone") : t("creative.automation.creator.googleOnly", { list: googleChannelTypes.map(v => GOOGLE_CHANNEL_TYPE_LABEL[v] ?? v).join(", ") })}
                   </p>
                 </div>
               )}
@@ -1140,20 +1149,20 @@ function RuleCreatorModal({ onClose, onCreated }: {
               <div className="rounded-xl border border-blue-200 bg-blue-50/30 p-4">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-xs font-bold text-blue-700 flex items-center gap-1.5">
-                    <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold text-blue-600">IF</span>
-                    Điều kiện
+                    <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold text-blue-600">{t("creative.automation.creator.if")}</span>
+                    {t("creative.automation.creator.conditions")}
                   </p>
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-blue-400">Logic:</span>
+                    <span className="text-[10px] text-blue-400">{t("creative.automation.creator.logicLabel")}</span>
                     <div className="flex rounded-lg border border-blue-200 overflow-hidden">
                       <button
                         onClick={() => setConditionLogic("AND")}
                         className={cn("px-2.5 py-1 text-[10px] font-bold", conditionLogic === "AND" ? "bg-blue-500 text-white" : "bg-white text-blue-400")}
-                      >VÀ</button>
+                      >{t("creative.automation.card.and")}</button>
                       <button
                         onClick={() => setConditionLogic("OR")}
                         className={cn("px-2.5 py-1 text-[10px] font-bold", conditionLogic === "OR" ? "bg-amber-500 text-white" : "bg-white text-amber-400")}
-                      >HOẶC</button>
+                      >{t("creative.automation.card.or")}</button>
                     </div>
                   </div>
                 </div>
@@ -1177,7 +1186,7 @@ function RuleCreatorModal({ onClose, onCreated }: {
                         {WINDOWS.map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                       </select>
                       {conditions.length > 1 && (
-                        <button onClick={() => removeCondition(i)} className="text-red-400 hover:text-red-600 shrink-0" title="Xoá điều kiện">
+                        <button onClick={() => removeCondition(i)} className="text-red-400 hover:text-red-600 shrink-0" title={t("creative.automation.creator.removeCondition")}>
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       )}
@@ -1186,7 +1195,7 @@ function RuleCreatorModal({ onClose, onCreated }: {
                 </div>
 
                 <button onClick={addCondition} className="mt-2 text-[10px] text-blue-500 hover:text-blue-700 font-semibold">
-                  + Thêm điều kiện
+                  {t("creative.automation.creator.addCondition")}
                 </button>
               </div>
 
@@ -1194,8 +1203,8 @@ function RuleCreatorModal({ onClose, onCreated }: {
               <div className="rounded-xl border border-emerald-200 bg-emerald-50/30 p-4">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-xs font-bold text-emerald-700 flex items-center gap-1.5">
-                    <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-600">THEN</span>
-                    Hành động
+                    <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-600">{t("creative.automation.creator.then")}</span>
+                    {t("creative.automation.creator.actions")}
                   </p>
                 </div>
 
@@ -1229,7 +1238,7 @@ function RuleCreatorModal({ onClose, onCreated }: {
                           type="text"
                           value={a.message ?? ""}
                           onChange={e => updateAction(i, { message: e.target.value })}
-                          placeholder='Nội dung: "Campaign {name} ROAS {roas}"'
+                          placeholder={t("creative.automation.creator.messagePlaceholder")}
                           className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs bg-white placeholder:text-slate-300"
                         />
                       )}
@@ -1238,14 +1247,14 @@ function RuleCreatorModal({ onClose, onCreated }: {
                 </div>
 
                 <button onClick={addAction} className="mt-2 text-[10px] text-emerald-500 hover:text-emerald-700 font-semibold">
-                  + Thêm hành động
+                  {t("creative.automation.creator.addAction")}
                 </button>
               </div>
 
               {/* Cooldown + Interval */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-xs font-semibold text-slate-700 mb-1.5 block">Cooldown</label>
+                  <label className="text-xs font-semibold text-slate-700 mb-1.5 block">{t("creative.automation.card.cooldown")}</label>
                   <div className="flex items-center gap-2">
                     <input
                       type="number"
@@ -1254,30 +1263,30 @@ function RuleCreatorModal({ onClose, onCreated }: {
                       min={1} max={168}
                       className="rounded-lg border border-slate-200 px-3 py-2 text-sm w-20"
                     />
-                    <span className="text-xs text-slate-400">giờ trước khi chạy lại</span>
+                    <span className="text-xs text-slate-400">{t("creative.automation.creator.cooldownSuffix")}</span>
                   </div>
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-700 mb-1.5 block">Kiểm tra mỗi</label>
+                  <label className="text-xs font-semibold text-slate-700 mb-1.5 block">{t("creative.automation.creator.checkEvery")}</label>
                   <select value={checkInterval} onChange={e => setCheckInterval(e.target.value as CheckInterval)} className="rounded-lg border border-slate-200 px-3 py-2 text-sm w-full">
                     {Object.entries(INTERVAL_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                   </select>
-                  <p className="text-[10px] text-slate-400 mt-1">Tối thiểu giữa 2 lần kiểm tra — nhưng engine tự động chỉ chạy mỗi 6 giờ (cron), nên interval ngắn hơn 6h sẽ bị giới hạn bởi tần suất đó trừ khi bấm &quot;Chạy Engine ngay&quot;.</p>
+                  <p className="text-[10px] text-slate-400 mt-1">{t("creative.automation.creator.intervalNote")}</p>
                 </div>
               </div>
 
               {/* Footer buttons */}
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
-                <Button variant="outline" onClick={onClose} className="text-xs">Huỷ</Button>
+                <Button variant="outline" onClick={onClose} className="text-xs">{t("creative.automation.creator.cancel")}</Button>
                 <Button
                   onClick={handleSave}
                   disabled={!name.trim() || conditions.length === 0 || actions.length === 0 || saving}
                   className="gap-1.5 text-xs bg-amber-500 text-amber-950 hover:bg-amber-600 disabled:opacity-50 shadow-sm shadow-amber-200"
                 >
                   {saving ? (
-                    <><RefreshCw className="h-3.5 w-3.5 animate-spin" /> Đang lưu...</>
+                    <><RefreshCw className="h-3.5 w-3.5 animate-spin" /> {t("creative.automation.creator.saving")}</>
                   ) : (
-                    <><Check className="h-3.5 w-3.5" /> 💾 Lưu quy tắc</>
+                    <><Check className="h-3.5 w-3.5" /> {t("creative.automation.creator.save")}</>
                   )}
                 </Button>
               </div>

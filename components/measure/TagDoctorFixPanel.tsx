@@ -19,13 +19,16 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { datetimeVN } from "@/components/case/format";
 import { postJson, ApiError } from "@/components/case/api";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
+import type { TFunction } from "@/lib/i18n/translate";
 import type { Company } from "@/lib/case/types";
 import type { GoogleFixProposal } from "@/lib/measure/tag-doctor";
 import type { GoalFixExecution } from "@/lib/measure/google-goal-fix";
 
 /** "Trước → Sau" theo loại việc — không import yesNo() của lib (đó là giá trị, không phải kiểu). */
-function beforeAfterText(f: GoogleFixProposal, v: boolean): string {
-  return f.kind === "goal_biddable" ? (v ? "Đặt giá" : "Không đặt giá") : v ? "Chính" : "Phụ";
+const rich = (s: string) => s.split(/<(b|code)>(.*?)<\/\1>/).map((part, i, a) => (i % 3 === 2 ? (a[i - 1] === "b" ? <b key={i}>{part}</b> : <code key={i}>{part}</code>) : i % 3 === 1 ? null : part));
+function beforeAfterText(f: GoogleFixProposal, v: boolean, t: TFunction): string {
+  return f.kind === "goal_biddable" ? (v ? t("meta.measure.fx.ba.bid") : t("meta.measure.fx.ba.noBid")) : v ? t("meta.measure.fx.ba.primary") : t("meta.measure.fx.ba.secondary");
 }
 
 export function TagDoctorFixPanel({
@@ -45,6 +48,7 @@ export function TagDoctorFixPanel({
   highlightIds: string[] | null;
   onChanged: (force?: boolean) => void | Promise<void>;
 }) {
+  const t = useT();
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [validating, setValidating] = useState(false);
   const [validateResult, setValidateResult] = useState<GoalFixExecution | null>(null);
@@ -75,7 +79,7 @@ export function TagDoctorFixPanel({
       const json: { execution: GoalFixExecution } = await postJson("/api/measure/google-fix", { company, fixIds: selectedIds, validateOnly: true });
       setValidateResult(json.execution);
     } catch (e) {
-      setErr(e instanceof ApiError ? e.message : "Không kiểm được — thử lại sau");
+      setErr(e instanceof ApiError ? e.message : t("meta.measure.fx.validateFail"));
     } finally {
       setValidating(false);
     }
@@ -100,7 +104,7 @@ export function TagDoctorFixPanel({
       setSelected({});
       await onChanged(true);
     } catch (e) {
-      setErr(e instanceof ApiError ? e.message : "Không ghi được — thử lại sau");
+      setErr(e instanceof ApiError ? e.message : t("meta.measure.fx.writeFail"));
     } finally {
       setWriting(false);
     }
@@ -110,7 +114,7 @@ export function TagDoctorFixPanel({
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-slate-500">Không có việc nào được chọn sẵn — tự chọn từng việc muốn ghi.</p>
+      <p className="text-sm text-slate-500">{t("meta.measure.fx.hint")}</p>
 
       <div className="space-y-2">
         {fixes.map((f) => (
@@ -129,7 +133,7 @@ export function TagDoctorFixPanel({
             <div className="text-sm">
               <div className="font-semibold text-slate-800">{f.label}</div>
               <div className="mt-1 text-slate-500">
-                Trước: <span className="font-medium text-slate-700">{beforeAfterText(f, f.before)}</span> → Sau: <span className="font-medium text-slate-700">{beforeAfterText(f, f.after)}</span>
+                {t("meta.measure.fx.beforeAfter", { before: beforeAfterText(f, f.before, t), after: beforeAfterText(f, f.after, t) }).split(/<b>(.*?)<\/b>/).map((part, i) => (i % 2 ? <span key={i} className="font-medium text-slate-700">{part}</span> : part))}
               </div>
             </div>
           </div>
@@ -137,13 +141,13 @@ export function TagDoctorFixPanel({
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
-        <span className="text-xs text-slate-500">{!canEdit && "Cần quyền chỉnh sửa"}</span>
+        <span className="text-xs text-slate-500">{!canEdit && t("meta.measure.fx.needEdit")}</span>
         <div className="flex flex-wrap gap-2">
           <Button className="h-10" variant="outline" size="sm" onClick={runValidate} disabled={!canEdit || validating || writing || selectedIds.length === 0}>
-            {validating && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} Kiểm trước (không ghi)
+            {validating && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} {t("meta.measure.fx.validateBtn")}
           </Button>
           <Button className="h-10" size="sm" onClick={openConfirm} disabled={!canEdit || validating || writing || selectedIds.length === 0}>
-            Xác nhận ghi
+            {t("meta.measure.fx.confirmBtn")}
           </Button>
         </div>
       </div>
@@ -152,39 +156,39 @@ export function TagDoctorFixPanel({
 
       {validateResult && (
         <div>
-          <div className="mb-1.5 text-sm font-semibold text-slate-800">Kết quả kiểm trước (chưa ghi)</div>
-          <ExecutionCard exec={validateResult} title={validateResult.status === "done" ? "Google chấp nhận — CHƯA ghi gì lên tài khoản" : "Google từ chối khi kiểm — chưa ghi gì"} />
+          <div className="mb-1.5 text-sm font-semibold text-slate-800">{t("meta.measure.fx.vr.title")}</div>
+          <ExecutionCard exec={validateResult} title={validateResult.status === "done" ? t("meta.measure.fx.vr.ok") : t("meta.measure.fx.vr.fail")} />
         </div>
       )}
 
       {writeResult && (
         <div>
-          <div className="mb-1.5 text-sm font-semibold text-slate-800">Kết quả ghi</div>
-          <ExecutionCard exec={writeResult} title={writeResult.status === "done" ? "Đã ghi và đọc lại khớp" : "Ghi thất bại — xem lỗi bên dưới"} />
+          <div className="mb-1.5 text-sm font-semibold text-slate-800">{t("meta.measure.fx.wr.title")}</div>
+          <ExecutionCard exec={writeResult} title={writeResult.status === "done" ? t("meta.measure.fx.wr.ok") : t("meta.measure.fx.wr.fail")} />
         </div>
       )}
 
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle className="text-red-600">Ghi lên tài khoản thật?</DialogTitle>
+            <DialogTitle className="text-red-600">{t("meta.measure.fx.dlg.title")}</DialogTitle>
             <DialogDescription>
-              Đổi mục tiêu cấp tài khoản tác động <b>NGAY</b> lên mọi chiến dịch dùng mục tiêu tài khoản. {selectedIds.length} việc sẽ được ghi lên Google Ads {company}. Có thể hoàn tác.
+              {rich(t("meta.measure.fx.dlg.desc", { n: selectedIds.length, company }))}
             </DialogDescription>
           </DialogHeader>
 
           {needsAck && (
             <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-              <div className="font-semibold">⚠ Sau thay đổi, không hành động Mua hàng CHÍNH nào có lượt trong 7 ngày.</div>
+              <div className="font-semibold">{t("meta.measure.fx.dlg.warn")}</div>
               <div className="mt-2 flex items-start gap-2">
-                <Checkbox id="tag-doctor-ack" aria-label="Tôi hiểu Google sẽ mất tín hiệu đặt giá tới khi Purchase bắn lại" checked={ackChecked} onCheckedChange={setAckChecked} className="mt-0.5" />
-                <span>Tôi hiểu Google sẽ mất tín hiệu đặt giá tới khi Purchase bắn lại</span>
+                <Checkbox id="tag-doctor-ack" aria-label={t("meta.measure.fx.dlg.ack")} checked={ackChecked} onCheckedChange={setAckChecked} className="mt-0.5" />
+                <span>{t("meta.measure.fx.dlg.ack")}</span>
               </div>
             </div>
           )}
 
           <div>
-            <label htmlFor="tag-doctor-confirm-input" className="text-xs font-medium text-slate-600">Gõ <code>{confirmText}</code> để xác nhận</label>
+            <label htmlFor="tag-doctor-confirm-input" className="text-xs font-medium text-slate-600">{rich(t("meta.measure.fx.dlg.type", { confirm: confirmText }))}</label>
             <input
               id="tag-doctor-confirm-input"
               className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
@@ -196,9 +200,9 @@ export function TagDoctorFixPanel({
           </div>
 
           <DialogFooter>
-            <DialogClose render={<Button className="h-10" variant="outline" />}>Huỷ</DialogClose>
+            <DialogClose render={<Button className="h-10" variant="outline" />}>{t("meta.measure.fx.dlg.cancel")}</DialogClose>
             <Button className="h-10" variant="destructive" onClick={runWrite} disabled={!canWrite || writing}>
-              {writing && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} Ghi lên tài khoản thật
+              {writing && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} {t("meta.measure.fx.dlg.write")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -209,6 +213,7 @@ export function TagDoctorFixPanel({
 
 /** Thẻ hiển thị kết quả 1 lần validate/write/lịch sử — dùng chung ở đây + TagDoctorView (lịch sử). */
 export function ExecutionCard({ exec, title }: { exec: GoalFixExecution; title: string }) {
+  const t = useT();
   const ok = exec.status === "done";
   const validate = exec.mode === "validate";
   return (
@@ -231,10 +236,10 @@ export function ExecutionCard({ exec, title }: { exec: GoalFixExecution; title: 
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b border-slate-100 text-left text-slate-500">
-                <th className="px-2.5 py-1.5 font-medium">Kiểm tra</th>
-                <th className="px-2.5 py-1.5 font-medium">Trước</th>
-                <th className="px-2.5 py-1.5 font-medium">Sau</th>
-                <th className="px-2.5 py-1.5 font-medium">Dự kiến</th>
+                <th className="px-2.5 py-1.5 font-medium">{t("meta.measure.fx.ex.check")}</th>
+                <th className="px-2.5 py-1.5 font-medium">{t("meta.measure.fx.ex.before")}</th>
+                <th className="px-2.5 py-1.5 font-medium">{t("meta.measure.fx.ex.after")}</th>
+                <th className="px-2.5 py-1.5 font-medium">{t("meta.measure.fx.ex.expected")}</th>
                 <th className="px-2.5 py-1.5 font-medium"></th>
               </tr>
             </thead>

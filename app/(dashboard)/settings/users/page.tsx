@@ -4,7 +4,8 @@ import { companyIds, companyLabel as companyName, hasModule } from "@/lib/compan
 import { useState, useMemo, useCallback } from "react";
 import useSWR from "swr";
 import { formatDistanceToNow } from "date-fns";
-import { vi } from "date-fns/locale";
+import { vi, enUS } from "date-fns/locale";
+import type { Locale as DfLocale } from "date-fns";
 import {
   UserCog,
   UserPlus,
@@ -22,6 +23,8 @@ import {
   Building2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useLocale, useT } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/messages";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -87,11 +90,11 @@ const fetcher = (url: string) =>
 // Helpers
 // ─────────────────────────────────────────────
 
-function formatRelativeTime(isoString: string): string {
+function formatRelativeTime(isoString: string, dfLocale: DfLocale): string {
   try {
     return formatDistanceToNow(new Date(isoString), {
       addSuffix: true,
-      locale: vi,
+      locale: dfLocale,
     });
   } catch {
     return isoString;
@@ -114,12 +117,12 @@ function getInitials(name: string): string {
 }
 
 // Permission chips config — maps to RolePermissions keys
-const PERM_CHIPS: { key: PermissionKey; short: string }[] = [
-  { key: "can_edit",            short: "Chỉnh sửa" },
-  { key: "can_manage_budget",   short: "Ngân sách" },
-  { key: "can_view_cpl",        short: "CPL" },
-  { key: "can_input_offline",   short: "Offline" },
-  { key: "can_edit_thresholds", short: "Ngưỡng CPL" },
+const PERM_CHIPS: { key: PermissionKey; short: MessageKey }[] = [
+  { key: "can_edit",            short: "creative.settingsUsers.chip.edit" },
+  { key: "can_manage_budget",   short: "creative.settingsUsers.chip.budget" },
+  { key: "can_view_cpl",        short: "creative.settingsUsers.chip.cpl" },
+  { key: "can_input_offline",   short: "creative.settingsUsers.chip.offline" },
+  { key: "can_edit_thresholds", short: "creative.settingsUsers.chip.cplThreshold" },
 ];
 
 // ─────────────────────────────────────────────
@@ -175,21 +178,23 @@ function RoleBadge({ role }: { role: Role }) {
 }
 
 function StatusBadge({ status }: { status: MemberStatus }) {
-  const map: Record<MemberStatus, { label: string; classes: string; dot: string }> = {
-    active:   { label: "Hoạt động",  classes: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-500" },
-    pending:  { label: "Chờ duyệt",  classes: "bg-amber-50 text-amber-700 border-amber-200",       dot: "bg-amber-500" },
-    disabled: { label: "Vô hiệu",    classes: "bg-red-50 text-red-600 border-red-200",             dot: "bg-red-500" },
+  const t = useT();
+  const map: Record<MemberStatus, { label: MessageKey; classes: string; dot: string }> = {
+    active:   { label: "creative.settingsUsers.status.active",  classes: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-500" },
+    pending:  { label: "creative.settingsUsers.status.pending",  classes: "bg-amber-50 text-amber-700 border-amber-200",       dot: "bg-amber-500" },
+    disabled: { label: "creative.settingsUsers.status.disabled",    classes: "bg-red-50 text-red-600 border-red-200",             dot: "bg-red-500" },
   };
   const s = map[status];
   return (
     <span className={cn("inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs font-semibold", s.classes)}>
       <span className={cn("h-1.5 w-1.5 rounded-full", s.dot)} />
-      {s.label}
+      {t(s.label)}
     </span>
   );
 }
 
 function PermissionChips({ role }: { role: Role }) {
+  const t = useT();
   const perms = getPermissions(role);
   return (
     <div className="flex flex-wrap gap-1">
@@ -204,7 +209,7 @@ function PermissionChips({ role }: { role: Role }) {
               : "bg-slate-100 text-slate-400"
           )}
         >
-          {short}
+          {t(short)}
         </span>
       ))}
     </div>
@@ -216,6 +221,7 @@ function PermissionChips({ role }: { role: Role }) {
 // ─────────────────────────────────────────────
 
 function StatsRow({ users }: { users: SafeUser[] }) {
+  const t = useT();
   const total = users.length;
   const active = users.filter((u) => u.status === "active").length;
   const admins = users.filter((u) =>
@@ -226,10 +232,10 @@ function StatsRow({ users }: { users: SafeUser[] }) {
   ).length;
 
   const stats = [
-    { label: "Tổng users",   value: total,   icon: Users,       color: "text-blue-600",   bg: "bg-blue-50"   },
-    { label: "Đang hoạt động", value: active, icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-50" },
-    { label: "Admins",        value: admins,  icon: ShieldCheck,  color: "text-amber-600",  bg: "bg-amber-50"  },
-    { label: "Viewers",       value: viewers, icon: Eye,          color: "text-violet-600", bg: "bg-violet-50" },
+    { label: t("creative.settingsUsers.stats.total"),   value: total,   icon: Users,       color: "text-blue-600",   bg: "bg-blue-50"   },
+    { label: t("creative.settingsUsers.stats.active"), value: active, icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-50" },
+    { label: t("creative.settingsUsers.stats.admins"),        value: admins,  icon: ShieldCheck,  color: "text-amber-600",  bg: "bg-amber-50"  },
+    { label: t("creative.settingsUsers.stats.viewers"),       value: viewers, icon: Eye,          color: "text-violet-600", bg: "bg-violet-50" },
   ];
 
   return (
@@ -295,6 +301,7 @@ interface UserFormProps {
 }
 
 function UserForm({ data, onChange, isEdit, onResetPassword, submitting }: UserFormProps) {
+  const t = useT();
   const selectedCfg = ROLE_CONFIG[data.role];
   const isSuperAdmin = data.role === "super_admin";
   // Đợt 21 A5: ô tích theo công ty của bản cài (trước đây cố định MBC / MBI).
@@ -323,7 +330,7 @@ function UserForm({ data, onChange, isEdit, onResetPassword, submitting }: UserF
         </label>
         <Input
           type="email"
-          placeholder="ten@matbao.com"
+          placeholder={t("creative.settingsUsers.form.emailPlaceholder")}
           value={data.email}
           onChange={(e) => onChange({ email: e.target.value })}
           disabled={isEdit || submitting}
@@ -334,11 +341,11 @@ function UserForm({ data, onChange, isEdit, onResetPassword, submitting }: UserF
       {/* Full name */}
       <div className="space-y-1.5">
         <label className="text-sm font-medium text-slate-700">
-          Họ và tên <span className="text-red-500">*</span>
+          {t("creative.settingsUsers.form.fullName")} <span className="text-red-500">*</span>
         </label>
         <Input
           type="text"
-          placeholder="Nguyễn Văn A"
+          placeholder={t("creative.settingsUsers.form.namePlaceholder")}
           value={data.name}
           onChange={(e) => onChange({ name: e.target.value })}
           disabled={submitting}
@@ -357,7 +364,7 @@ function UserForm({ data, onChange, isEdit, onResetPassword, submitting }: UserF
           disabled={submitting}
         >
           <SelectTrigger className="w-full border-slate-200">
-            <SelectValue placeholder="Chọn role">{(v: string) => ROLE_CONFIG[v as keyof typeof ROLE_CONFIG]?.label ?? v}</SelectValue>
+            <SelectValue placeholder={t("creative.settingsUsers.form.selectRole")}>{(v: string) => ROLE_CONFIG[v as keyof typeof ROLE_CONFIG]?.label ?? v}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             {visibleRoles().map((r) => {
@@ -403,7 +410,7 @@ function UserForm({ data, onChange, isEdit, onResetPassword, submitting }: UserF
       {/* Company Access */}
       <div className="space-y-1.5">
         <label className="text-sm font-medium text-slate-700">
-          Công ty truy cập <span className="text-red-500">*</span>
+          {t("creative.settingsUsers.form.companyAccess")} <span className="text-red-500">*</span>
         </label>
         <div className="flex flex-wrap gap-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
           {ids.map((co) => (
@@ -427,21 +434,21 @@ function UserForm({ data, onChange, isEdit, onResetPassword, submitting }: UserF
           ))}
         </div>
         {isSuperAdmin ? (
-          <p className="text-[11px] text-slate-400">Super Admin luôn có quyền truy cập mọi công ty.</p>
+          <p className="text-[11px] text-slate-400">{t("creative.settingsUsers.form.superAdminNote")}</p>
         ) : (
-          <p className="text-[11px] text-slate-400">Chọn các công ty mà nhân viên này quản lý (vai trò Admin / Viewer áp theo đúng danh sách này).</p>
+          <p className="text-[11px] text-slate-400">{t("creative.settingsUsers.form.companyHint")}</p>
         )}
       </div>
 
       {/* Password */}
       <div className="space-y-1.5">
         <label className="text-sm font-medium text-slate-700">
-          {isEdit ? "Mật khẩu mới (để trống nếu không đổi)" : <>Mật khẩu <span className="text-red-500">*</span></>}
+          {isEdit ? t("creative.settingsUsers.form.passwordNew") : <>{t("creative.settingsUsers.form.password")} <span className="text-red-500">*</span></>}
         </label>
         <div className="flex gap-2">
           <Input
             type="password"
-            placeholder={isEdit ? "••••••••" : "Nhập mật khẩu"}
+            placeholder={isEdit ? "••••••••" : t("creative.settingsUsers.form.passwordPlaceholder")}
             value={data.password}
             onChange={(e) => onChange({ password: e.target.value })}
             disabled={submitting}
@@ -466,7 +473,7 @@ function UserForm({ data, onChange, isEdit, onResetPassword, submitting }: UserF
       {/* Telegram */}
       <div className="space-y-1.5">
         <label className="text-sm font-medium text-slate-700">
-          Telegram Chat ID <span className="text-slate-400 font-normal">(tuỳ chọn)</span>
+          Telegram Chat ID <span className="text-slate-400 font-normal">{t("creative.settingsUsers.form.optional")}</span>
         </label>
         <Input
           type="text"
@@ -481,32 +488,32 @@ function UserForm({ data, onChange, isEdit, onResetPassword, submitting }: UserF
       {/* Status (edit only) */}
       {isEdit && (
         <div className="space-y-1.5">
-          <label className="text-sm font-medium text-slate-700">Trạng thái</label>
+          <label className="text-sm font-medium text-slate-700">{t("creative.settingsUsers.status")}</label>
           <Select
             value={data.status}
             onValueChange={(v) => onChange({ status: v as MemberStatus })}
             disabled={submitting}
           >
             <SelectTrigger className="w-full border-slate-200">
-              <SelectValue>{(v: string) => ({ active: "Hoạt động", pending: "Chờ duyệt", disabled: "Vô hiệu" } as Record<string, string>)[v] ?? v}</SelectValue>
+              <SelectValue>{(v: string) => ({ active: t("creative.settingsUsers.status.active"), pending: t("creative.settingsUsers.status.pending"), disabled: t("creative.settingsUsers.status.disabled") } as Record<string, string>)[v] ?? v}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="active">
                 <span className="flex items-center gap-2">
                   <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                  Hoạt động
+                  {t("creative.settingsUsers.status.active")}
                 </span>
               </SelectItem>
               <SelectItem value="pending">
                 <span className="flex items-center gap-2">
                   <span className="h-2 w-2 rounded-full bg-amber-500" />
-                  Chờ duyệt
+                  {t("creative.settingsUsers.status.pending")}
                 </span>
               </SelectItem>
               <SelectItem value="disabled">
                 <span className="flex items-center gap-2">
                   <span className="h-2 w-2 rounded-full bg-red-500" />
-                  Vô hiệu
+                  {t("creative.settingsUsers.status.disabled")}
                 </span>
               </SelectItem>
             </SelectContent>
@@ -522,6 +529,7 @@ function UserForm({ data, onChange, isEdit, onResetPassword, submitting }: UserF
 // ─────────────────────────────────────────────
 
 function PermissionMatrix() {
+  const t = useT();
   const PERM_KEYS: PermissionKey[] = [
     "can_edit",
     "can_manage_budget",
@@ -534,15 +542,15 @@ function PermissionMatrix() {
   return (
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
       <div className="border-b border-slate-200 bg-slate-50 px-5 py-4">
-        <p className="text-sm font-bold text-slate-800">Ma trận quyền theo Role</p>
-        <p className="mt-0.5 text-xs text-slate-500">Tham khảo: mỗi role có quyền gì trong hệ thống</p>
+        <p className="text-sm font-bold text-slate-800">{t("creative.settingsUsers.matrix.title")}</p>
+        <p className="mt-0.5 text-xs text-slate-500">{t("creative.settingsUsers.matrix.sub")}</p>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50/50">
               <th className="py-3 pl-5 pr-4 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                Quyền
+                {t("creative.settingsUsers.perms")}
               </th>
               {visibleRoles().map((r) => {
                 const cfg = ROLE_CONFIG[r];
@@ -595,6 +603,8 @@ function PermissionMatrix() {
 // ─────────────────────────────────────────────
 
 export default function UsersPage() {
+  const t = useT();
+  const dfLocale = useLocale() === "en" ? enUS : vi;
   const { data: users = [], error, isLoading, mutate } = useSWR<SafeUser[]>(
     "/api/settings/users",
     fetcher
@@ -647,7 +657,7 @@ export default function UsersPage() {
   const handleAdd = async () => {
     setFormError(null);
     if (!addForm.email || !addForm.name || !addForm.password) {
-      setFormError("Vui lòng điền đầy đủ email, tên và mật khẩu.");
+      setFormError(t("creative.settingsUsers.err.fillAll"));
       return;
     }
     setSubmitting(true);
@@ -669,7 +679,7 @@ export default function UsersPage() {
       await mutate();
       setAddOpen(false);
     } catch (e: unknown) {
-      setFormError(e instanceof Error ? e.message : "Tạo user thất bại");
+      setFormError(e instanceof Error ? e.message : t("creative.settingsUsers.err.create"));
     } finally {
       setSubmitting(false);
     }
@@ -701,7 +711,7 @@ export default function UsersPage() {
       await mutate();
       setEditUser(null);
     } catch (e: unknown) {
-      setFormError(e instanceof Error ? e.message : "Cập nhật thất bại");
+      setFormError(e instanceof Error ? e.message : t("creative.settingsUsers.err.update"));
     } finally {
       setSubmitting(false);
     }
@@ -720,7 +730,7 @@ export default function UsersPage() {
       await mutate();
       setDeleteUser(null);
     } catch (e: unknown) {
-      setFormError(e instanceof Error ? e.message : "Xóa thất bại");
+      setFormError(e instanceof Error ? e.message : t("creative.settingsUsers.err.delete"));
     } finally {
       setSubmitting(false);
     }
@@ -730,7 +740,7 @@ export default function UsersPage() {
   const handleResetPasswordHint = () => {
     const generated = Math.random().toString(36).slice(2, 10);
     setEditForm((prev) => ({ ...prev, password: generated }));
-    setFormSuccess(`Mật khẩu mới gợi ý: ${generated} — hãy sao chép trước khi lưu.`);
+    setFormSuccess(t("creative.settingsUsers.resetHint", { pw: generated }));
   };
 
   return (
@@ -740,10 +750,10 @@ export default function UsersPage() {
         <div>
           <h2 className="flex items-center gap-2 text-xl font-bold text-slate-800">
             <UserCog className="h-5 w-5 text-blue-600" />
-            Quản lý Users
+            {t("creative.settingsUsers.title")}
           </h2>
           <p className="mt-0.5 text-sm text-slate-500">
-            Thêm, chỉnh sửa và phân quyền thành viên trong hệ thống AdsCommand.
+            {t("creative.settingsUsers.subtitle")}
           </p>
         </div>
         <Button
@@ -751,7 +761,7 @@ export default function UsersPage() {
           className="gap-2 bg-amber-500 text-amber-950 hover:bg-amber-600"
         >
           <UserPlus className="h-4 w-4" />
-          Thêm nhân viên
+          {t("creative.settingsUsers.add")}
         </Button>
       </div>
 
@@ -762,14 +772,14 @@ export default function UsersPage() {
       <Card className="border border-slate-200 bg-white shadow-sm">
         <CardHeader className="border-b border-slate-200 pb-4">
           <CardTitle className="text-base font-semibold text-slate-800">
-            Danh sách nhân viên
+            {t("creative.settingsUsers.listTitle")}
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           {isLoading && (
             <div className="flex items-center justify-center gap-2 py-16 text-slate-400">
               <Loader2 className="h-5 w-5 animate-spin" />
-              <span className="text-sm">Đang tải...</span>
+              <span className="text-sm">{t("creative.settingsUsers.loading")}</span>
             </div>
           )}
 
@@ -783,8 +793,8 @@ export default function UsersPage() {
           {!isLoading && !error && users.length === 0 && (
             <div className="flex flex-col items-center justify-center py-16 text-slate-400">
               <Users className="mb-3 h-10 w-10 text-slate-200" />
-              <p className="text-sm font-medium">Chưa có nhân viên nào</p>
-              <p className="mt-1 text-xs">Nhấn &quot;Thêm nhân viên&quot; để bắt đầu.</p>
+              <p className="text-sm font-medium">{t("creative.settingsUsers.empty")}</p>
+              <p className="mt-1 text-xs">{t("creative.settingsUsers.emptyHint")}</p>
             </div>
           )}
 
@@ -793,21 +803,21 @@ export default function UsersPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50/50">
-                    {[
-                      "Nhân viên",
-                      "Email",
-                      "Role",
-                      "Công ty",
-                      "Quyền",
-                      "Trạng thái",
-                      "Hoạt động lần cuối",
+                    {([
+                      "creative.settingsUsers.th.employee",
+                      "creative.settingsUsers.th.email",
+                      "creative.settingsUsers.th.role",
+                      "creative.settingsUsers.th.company",
+                      "creative.settingsUsers.perms",
+                      "creative.settingsUsers.status",
+                      "creative.settingsUsers.th.lastActive",
                       "",
-                    ].map((h) => (
+                    ] as const).map((h) => (
                       <th
                         key={h}
                         className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 last:text-right"
                       >
-                        {h}
+                        {h ? t(h) : ""}
                       </th>
                     ))}
                   </tr>
@@ -842,7 +852,7 @@ export default function UsersPage() {
                       <td className="px-4 py-3">
                         <span className="flex items-center gap-1 text-xs text-slate-400">
                           <Clock className="h-3 w-3 shrink-0" />
-                          {formatRelativeTime(user.last_active)}
+                          {formatRelativeTime(user.last_active, dfLocale)}
                         </span>
                       </td>
                       <td className="px-4 py-3">
@@ -852,7 +862,7 @@ export default function UsersPage() {
                             size="icon-sm"
                             onClick={() => openEdit(user)}
                             className="text-slate-400 hover:text-amber-700"
-                            title="Chỉnh sửa"
+                            title={t("creative.settingsUsers.edit")}
                           >
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
@@ -864,7 +874,7 @@ export default function UsersPage() {
                               setDeleteUser(user);
                             }}
                             className="text-slate-400 hover:text-red-500"
-                            title="Xóa"
+                            title={t("creative.settingsUsers.del")}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
@@ -890,7 +900,7 @@ export default function UsersPage() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-slate-800">
               <UserPlus className="h-4 w-4 text-blue-600" />
-              Thêm nhân viên mới
+              {t("creative.settingsUsers.modal.addTitle")}
             </DialogTitle>
           </DialogHeader>
 
@@ -915,7 +925,7 @@ export default function UsersPage() {
               className="gap-2 bg-amber-500 text-amber-950 hover:bg-amber-600"
             >
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
-              Tạo tài khoản
+              {t("creative.settingsUsers.modal.create")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -929,7 +939,7 @@ export default function UsersPage() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-slate-800">
               <Pencil className="h-4 w-4 text-blue-600" />
-              Chỉnh sửa: {editUser?.name}
+              {t("creative.settingsUsers.modal.editTitle", { name: editUser?.name ?? "" })}
             </DialogTitle>
           </DialogHeader>
 
@@ -962,7 +972,7 @@ export default function UsersPage() {
               className="gap-2 bg-amber-500 text-amber-950 hover:bg-amber-600"
             >
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-              Lưu thay đổi
+              {t("creative.settingsUsers.modal.save")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -976,7 +986,7 @@ export default function UsersPage() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-red-600">
               <AlertTriangle className="h-4 w-4" />
-              Xác nhận xóa người dùng
+              {t("creative.settingsUsers.modal.deleteTitle")}
             </DialogTitle>
           </DialogHeader>
 
@@ -988,11 +998,11 @@ export default function UsersPage() {
               </div>
             )}
             <p className="text-sm text-slate-600">
-              Bạn có chắc muốn xóa tài khoản{" "}
+              {t("creative.settingsUsers.modal.deleteAsk")}{" "}
               <strong className="text-slate-800">{deleteUser?.name}</strong> (
               {deleteUser?.email})?
             </p>
-            <p className="text-xs text-slate-400">Hành động này không thể hoàn tác.</p>
+            <p className="text-xs text-slate-400">{t("creative.settingsUsers.modal.irreversible")}</p>
           </div>
 
           <DialogFooter showCloseButton>
@@ -1003,7 +1013,7 @@ export default function UsersPage() {
               className="gap-2"
             >
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-              Xóa tài khoản
+              {t("creative.settingsUsers.modal.deleteBtn")}
             </Button>
           </DialogFooter>
         </DialogContent>

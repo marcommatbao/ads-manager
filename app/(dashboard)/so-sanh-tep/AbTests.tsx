@@ -13,6 +13,8 @@ import { cn } from "@/lib/utils";
 import { Pill, type PillTone } from "@/components/measure/Pill";
 import { vnd, num, datetimeVN } from "@/components/case/format";
 import { getJson, postJson, ApiError } from "@/components/case/api";
+import { useT } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/messages";
 import type { CompareGroup, RankedAdset } from "@/lib/meta/audience-compare";
 import type { AbAudienceTest } from "@/lib/meta/ab-audience";
 import type { WinningAudience } from "@/lib/meta/winning-audiences";
@@ -37,11 +39,13 @@ type Plan = {
 const abKey = (company: string) => `/api/meta/ab-audience?company=${company}`;
 const errMsg = (e: unknown, fallback: string) => (e instanceof ApiError ? e.message : fallback);
 
-const STATUS_UI: Record<AbAudienceTest["status"], { tone: PillTone; label: string }> = {
-  draft: { tone: "grey", label: "Nháp — chưa chạy" },
-  running: { tone: "blue", label: "Đang chạy" },
-  ended: { tone: "green", label: "Đã kết thúc" },
-  discarded: { tone: "grey", label: "Đã huỷ" },
+const rich = (s: string) => s.split(/<b>(.*?)<\/b>/).map((part, i) => (i % 2 ? <b key={i}>{part}</b> : part));
+
+const STATUS_UI: Record<AbAudienceTest["status"], { tone: PillTone; label: MessageKey }> = {
+  draft: { tone: "grey", label: "meta.ab.st.draft" },
+  running: { tone: "blue", label: "meta.ab.st.running" },
+  ended: { tone: "green", label: "meta.ab.st.ended" },
+  discarded: { tone: "grey", label: "meta.ab.st.discarded" },
 };
 
 const READING_BOX: Record<Reading["tone"], string> = {
@@ -60,6 +64,7 @@ export function AbCreateForm({ company, source, saved, onClose, onCreated }: {
   onClose: () => void;
   onCreated: (text: string) => void;
 }) {
+  const t = useT();
   const options = saved.filter((w) => w.goalKind === source.goalKind);
   const [mode, setMode] = useState<"winning" | "edit">(options.length > 0 ? "winning" : "edit");
   const [winningId, setWinningId] = useState(options[0]?.id ?? "");
@@ -91,10 +96,10 @@ export function AbCreateForm({ company, source, saved, onClose, onCreated }: {
       if (action === "plan") setPlan(res.plan as Plan);
       else {
         await globalMutate(abKey(company));
-        onCreated(`Đã tạo nhóm B cho “${source.name}” ở trạng thái tạm dừng. Bấm “Bắt đầu thử nghiệm” ở mục A/B test tệp bên dưới khi sẵn sàng.`);
+        onCreated(t("meta.ab.form.created", { name: source.name }));
       }
     } catch (e) {
-      setErr(errMsg(e, action === "plan" ? "Không kiểm tra được với Meta." : "Không tạo được nhóm B."));
+      setErr(errMsg(e, action === "plan" ? t("meta.ab.form.planFail") : t("meta.ab.form.createFail")));
     } finally {
       setBusy(null);
     }
@@ -104,19 +109,19 @@ export function AbCreateForm({ company, source, saved, onClose, onCreated }: {
 
   return (
     <div className="mt-2 max-w-2xl space-y-3 rounded-lg border border-slate-200 bg-white p-3 text-sm">
-      <div className="font-semibold text-slate-800">🧪 A/B test tệp cho “{source.name}” (nhóm A)</div>
+      <div className="font-semibold text-slate-800">{t("meta.ab.form.title", { name: source.name })}</div>
       <fieldset className="space-y-2">
-        <legend className="text-xs font-medium text-slate-500">Nhóm B dùng tệp nào?</legend>
+        <legend className="text-xs font-medium text-slate-500">{t("meta.ab.form.which")}</legend>
         <label className={cn("flex items-start gap-2", options.length === 0 && "opacity-60")}>
           <input type="radio" className="mt-1 h-4 w-4" name={`ab-mode-${source.id}`} checked={mode === "winning"} disabled={options.length === 0} onChange={() => { setMode("winning"); touch(); }} />
           <span>
-            Dùng tệp thắng đã lưu
-            {options.length === 0 && <span className="block text-xs text-slate-500">Chưa có tệp thắng đã lưu cùng loại mục tiêu ({source.goalKind === "leads" ? "thu lead" : "bán hàng"}).</span>}
+            {t("meta.ab.form.useWinning")}
+            {options.length === 0 && <span className="block text-xs text-slate-500">{t("meta.ab.form.noWinning", { kind: source.goalKind === "leads" ? t("meta.ab.form.kindLeads") : t("meta.ab.form.kindSales") })}</span>}
           </span>
         </label>
         {mode === "winning" && options.length > 0 && (
           <label className="block pl-6 text-xs font-medium text-slate-500">
-            Tệp thắng
+            {t("meta.ab.form.winning")}
             <select className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-2 text-sm text-slate-800" value={winningId} onChange={(e) => { setWinningId(e.target.value); touch(); }}>
               {options.map((o) => <option key={o.id} value={o.id}>{o.name} — {o.summary}</option>)}
             </select>
@@ -124,27 +129,27 @@ export function AbCreateForm({ company, source, saved, onClose, onCreated }: {
         )}
         <label className="flex items-start gap-2">
           <input type="radio" className="mt-1 h-4 w-4" name={`ab-mode-${source.id}`} checked={mode === "edit"} onChange={() => { setMode("edit"); touch(); }} />
-          <span>Đổi tuổi / giới tính</span>
+          <span>{t("meta.ab.form.editAge")}</span>
         </label>
         {mode === "edit" && (
           <div className="grid gap-2 pl-6 sm:grid-cols-3">
             <label className="block text-xs font-medium text-slate-500">
-              Tuổi từ (18–65)
+              {t("meta.ab.form.ageFrom")}
               <Input className="mt-1" type="number" min={18} max={65} value={ageMin} onChange={(e) => { setAgeMin(Number(e.target.value)); touch(); }} />
             </label>
             <label className="block text-xs font-medium text-slate-500">
-              Đến tuổi (18–65)
+              {t("meta.ab.form.ageTo")}
               <Input className="mt-1" type="number" min={18} max={65} value={ageMax} onChange={(e) => { setAgeMax(Number(e.target.value)); touch(); }} />
             </label>
             <label className="block text-xs font-medium text-slate-500">
-              Giới tính
+              {t("meta.ab.form.gender")}
               <select className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-2 text-sm text-slate-800" value={gender} onChange={(e) => { setGender(e.target.value as "all" | "1" | "2"); touch(); }}>
-                <option value="all">Mọi giới</option>
-                <option value="1">Nam</option>
-                <option value="2">Nữ</option>
+                <option value="all">{t("meta.ab.form.all")}</option>
+                <option value="1">{t("meta.ab.form.male")}</option>
+                <option value="2">{t("meta.ab.form.female")}</option>
               </select>
             </label>
-            {!ageOk && <p className="text-xs text-red-600 sm:col-span-3">Tuổi phải từ 18 đến 65 và “từ” không lớn hơn “đến”.</p>}
+            {!ageOk && <p className="text-xs text-red-600 sm:col-span-3">{t("meta.ab.form.ageErr")}</p>}
           </div>
         )}
       </fieldset>
@@ -154,40 +159,40 @@ export function AbCreateForm({ company, source, saved, onClose, onCreated }: {
       {plan && (
         <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
           <div className="grid gap-2 sm:grid-cols-2">
-            <div><div className="text-xs font-semibold text-slate-500">Nhóm A (giữ nguyên)</div><div className="text-slate-800">{plan.a.adsetName}</div><div className="text-xs text-slate-600">{plan.a.summary}</div></div>
-            <div><div className="text-xs font-semibold text-slate-500">Nhóm B (sẽ tạo)</div><div className="text-slate-800">{plan.bName}</div><div className="text-xs text-slate-600">{plan.bSummary}</div></div>
+            <div><div className="text-xs font-semibold text-slate-500">{t("meta.ab.form.groupAKeep")}</div><div className="text-slate-800">{plan.a.adsetName}</div><div className="text-xs text-slate-600">{plan.a.summary}</div></div>
+            <div><div className="text-xs font-semibold text-slate-500">{t("meta.ab.form.groupBNew")}</div><div className="text-slate-800">{plan.bName}</div><div className="text-xs text-slate-600">{plan.bSummary}</div></div>
           </div>
           <ul className="space-y-0.5 text-xs text-slate-700">
-            <li>Hai tệp trùng nhau khoảng {num(plan.overlapPct)}%.</li>
-            <li>Sao chép {num(plan.ads)} quảng cáo sang nhóm B.</li>
-            <li>{plan.dailyBudget !== null ? `Khi bắt đầu, chiến dịch chi thêm khoảng ${vnd(plan.dailyBudget)}/ngày cho nhóm B.` : "Ngân sách nhóm B theo chiến dịch (không có ngân sách riêng theo ngày)."}</li>
-            {plan.droppedKeys.length > 0 && <li>Không chép được vào nhóm B: {plan.droppedKeys.join(", ")}.</li>}
+            <li>{t("meta.ab.form.overlap", { n: num(plan.overlapPct) })}</li>
+            <li>{t("meta.ab.form.copyAds", { n: num(plan.ads) })}</li>
+            <li>{plan.dailyBudget !== null ? t("meta.ab.form.budget", { value: vnd(plan.dailyBudget) }) : t("meta.ab.form.budgetNone")}</li>
+            {plan.droppedKeys.length > 0 && <li>{t("meta.ab.form.dropped", { list: plan.droppedKeys.join(", ") })}</li>}
           </ul>
           {plan.blockers.length > 0 && (
             <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-2 text-xs text-red-700">
-              <div className="font-semibold">Chưa tạo được:</div>
+              <div className="font-semibold">{t("meta.ab.form.blockers")}</div>
               <ul className="list-disc pl-4">{plan.blockers.map((b, i) => <li key={i}>{b}</li>)}</ul>
             </div>
           )}
-          {plan.metaError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-2 text-xs text-red-700">Meta báo lỗi khi kiểm: {plan.metaError}</div>}
+          {plan.metaError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-2 text-xs text-red-700">{t("meta.ab.form.metaErr", { error: plan.metaError })}</div>}
           {plan.warnings.length > 0 && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
-              <div className="font-semibold">Lưu ý:</div>
+              <div className="font-semibold">{t("meta.ab.form.notes")}</div>
               <ul className="list-disc pl-4">{plan.warnings.map((w, i) => <li key={i}>{w}</li>)}</ul>
             </div>
           )}
-          {plan.validated && !plan.metaError && <div className="text-xs font-medium text-emerald-700">✓ Meta đã kiểm hợp lệ (chưa tạo gì).</div>}
+          {plan.validated && !plan.metaError && <div className="text-xs font-medium text-emerald-700">{t("meta.ab.form.valid")}</div>}
         </div>
       )}
 
       <div className="flex flex-wrap gap-2">
         <Button className="h-9" variant="outline" size="sm" onClick={() => run("plan")} disabled={busy !== null || !formOk}>
-          {busy === "plan" && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} Xem trước &amp; kiểm với Meta
+          {busy === "plan" && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} {t("meta.ab.form.preview")}
         </Button>
         <Button className="h-9" size="sm" onClick={() => run("create")} disabled={busy !== null || !canCreate}>
-          {busy === "create" && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} Tạo nhóm B (tạm dừng)
+          {busy === "create" && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} {t("meta.ab.form.create")}
         </Button>
-        <Button className="h-9" variant="outline" size="sm" onClick={onClose} disabled={busy !== null}>Đóng</Button>
+        <Button className="h-9" variant="outline" size="sm" onClick={onClose} disabled={busy !== null}>{t("meta.ab.form.close")}</Button>
       </div>
     </div>
   );
@@ -196,6 +201,7 @@ export function AbCreateForm({ company, source, saved, onClose, onCreated }: {
 // ---------- Mục danh sách A/B test ----------
 
 export function AbSection({ company, canEdit }: { company: string; canEdit: boolean }) {
+  const t = useT();
   const { data, error, isLoading, mutate } = useSWR<ListResponse>(company ? abKey(company) : null, getJson);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshErr, setRefreshErr] = useState<string | null>(null);
@@ -206,7 +212,7 @@ export function AbSection({ company, canEdit }: { company: string; canEdit: bool
     try {
       await mutate(getJson(`${abKey(company)}&force=1`) as Promise<ListResponse>, { revalidate: false });
     } catch (e) {
-      setRefreshErr(errMsg(e, "Không tải được số mới."));
+      setRefreshErr(errMsg(e, t("meta.ab.sec.refreshFail")));
     } finally {
       setRefreshing(false);
     }
@@ -216,24 +222,23 @@ export function AbSection({ company, canEdit }: { company: string; canEdit: bool
   const editable = canEdit && (data?.canEdit ?? true);
 
   return (
-    <section className="space-y-3" aria-label="A/B test tệp">
+    <section className="space-y-3" aria-label={t("meta.ab.sec.aria")}>
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="max-w-3xl">
-          <h2 className="text-base font-bold text-slate-900">🧪 A/B test tệp</h2>
+          <h2 className="text-base font-bold text-slate-900">{t("meta.ab.sec.title")}</h2>
           <p className="text-xs text-slate-500">
-            Tool giữ nguyên nhóm A và tạo nhóm B y hệt (cùng sự kiện, ngân sách, quảng cáo), chỉ đổi tệp. Đo bằng cùng phép thử của bảng so sánh; cần chạy ít nhất 7 ngày mới kết luận.
-            Đây không phải công cụ chia tách người của Meta — hai nhóm vẫn có thể trùng một phần người xem.
+            {t("meta.ab.sec.intro")}
           </p>
         </div>
         <Button className="h-10" variant="outline" size="sm" onClick={refresh} disabled={refreshing || !company}>
-          <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} aria-hidden="true" /> Làm mới số
+          <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} aria-hidden="true" /> {t("meta.ab.sec.refresh")}
         </Button>
       </div>
-      {isLoading && <p className="text-sm text-slate-500">Đang tải…</p>}
-      {!isLoading && !!error && <p role="alert" className="text-sm text-red-600">{errMsg(error, "Không tải được danh sách A/B test.")}</p>}
+      {isLoading && <p className="text-sm text-slate-500">{t("meta.ab.sec.loading")}</p>}
+      {!isLoading && !!error && <p role="alert" className="text-sm text-red-600">{errMsg(error, t("meta.ab.sec.listFail"))}</p>}
       {refreshErr && <p role="alert" className="text-sm text-red-600">{refreshErr}</p>}
       {!isLoading && !error && tests.length === 0 && (
-        <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-500">Chưa có A/B test nào. So sánh các chiến dịch ở trên rồi bấm “🧪 A/B test tệp khác” ở một nhóm đang chạy để tạo nhóm B.</p>
+        <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-500">{t("meta.ab.sec.empty")}</p>
       )}
       <div className="grid gap-3 lg:grid-cols-2">
         {tests.map((e) => <TestCard key={e.test.id} entry={e} canEdit={editable} onChanged={() => mutate()} />)}
@@ -243,6 +248,7 @@ export function AbSection({ company, canEdit }: { company: string; canEdit: bool
 }
 
 function TestCard({ entry, canEdit, onChanged }: { entry: Entry; canEdit: boolean; onChanged: () => void }) {
+  const tr = useT();
   const { test: t, measure, reading, error } = entry;
   const ui = STATUS_UI[t.status];
   const [panel, setPanel] = useState<"start" | "discard" | "end" | null>(null);
@@ -259,34 +265,34 @@ function TestCard({ entry, canEdit, onChanged }: { entry: Entry; canEdit: boolea
       setPanel(null);
       onChanged();
     } catch (e) {
-      setErr(errMsg(e, "Không thực hiện được — thử lại sau ít phút."));
+      setErr(errMsg(e, tr("meta.ab.card.failTryLater")));
     } finally {
       setBusy(false);
     }
   }
 
   const loser = reading?.tone === "win_a" ? "b" : reading?.tone === "win_b" ? "a" : null;
-  const pausedLabel = t.result?.paused === t.a.adsetId ? "nhóm A" : t.result?.paused === t.b.adsetId ? "nhóm B" : t.result?.paused ? t.result.paused : "không tạm dừng nhóm nào";
+  const pausedLabel = t.result?.paused === t.a.adsetId ? tr("meta.ab.card.pausedA") : t.result?.paused === t.b.adsetId ? tr("meta.ab.card.pausedB") : t.result?.paused ? t.result.paused : tr("meta.ab.card.pausedNone");
 
   return (
     <article className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 text-sm">
       <div className="flex flex-wrap items-center gap-2">
-        <Pill tone={ui.tone}>{ui.label}</Pill>
+        <Pill tone={ui.tone}>{tr(ui.label)}</Pill>
         <span className="break-words font-semibold text-slate-800">{t.campaignName}</span>
       </div>
       <div className="grid gap-2 sm:grid-cols-2">
-        <div><div className="text-xs font-semibold text-slate-500">Nhóm A</div><div className="break-words text-slate-800">{t.a.adsetName}</div><div className="text-xs text-slate-600">{t.a.summary}</div></div>
-        <div><div className="text-xs font-semibold text-slate-500">Nhóm B</div><div className="break-words text-slate-800">{t.b.adsetName}</div><div className="text-xs text-slate-600">{t.b.summary}</div></div>
+        <div><div className="text-xs font-semibold text-slate-500">{tr("meta.ab.card.groupA")}</div><div className="break-words text-slate-800">{t.a.adsetName}</div><div className="text-xs text-slate-600">{t.a.summary}</div></div>
+        <div><div className="text-xs font-semibold text-slate-500">{tr("meta.ab.card.groupB")}</div><div className="break-words text-slate-800">{t.b.adsetName}</div><div className="text-xs text-slate-600">{t.b.summary}</div></div>
       </div>
       <p className="text-xs text-slate-500">
-        Tạo {datetimeVN(t.createdAt)} bởi {t.createdBy}
-        {t.startedAt && <> · bắt đầu {datetimeVN(t.startedAt)}</>}
-        {t.endedAt && <> · kết thúc {datetimeVN(t.endedAt)}</>}
-        {t.overlapPct > 0 && <> · trùng tệp ≈ {num(t.overlapPct)}%</>}
+        {tr("meta.ab.card.created", { time: datetimeVN(t.createdAt), by: t.createdBy })}
+        {t.startedAt && <>{tr("meta.ab.card.started", { time: datetimeVN(t.startedAt) })}</>}
+        {t.endedAt && <>{tr("meta.ab.card.endedAt", { time: datetimeVN(t.endedAt) })}</>}
+        {t.overlapPct > 0 && <>{tr("meta.ab.card.overlap", { n: num(t.overlapPct) })}</>}
       </p>
       {t.warnings.length > 0 && (
         <details className="text-xs text-amber-800">
-          <summary className="cursor-pointer font-medium">Lưu ý ({t.warnings.length})</summary>
+          <summary className="cursor-pointer font-medium">{tr("meta.ab.card.notes", { n: t.warnings.length })}</summary>
           <ul className="mt-1 list-disc pl-4">{t.warnings.map((w, i) => <li key={i}>{w}</li>)}</ul>
         </details>
       )}
@@ -295,16 +301,16 @@ function TestCard({ entry, canEdit, onChanged }: { entry: Entry; canEdit: boolea
         <div className="space-y-2">
           {reading && <div className={cn("rounded-lg border p-2 text-sm", READING_BOX[reading.tone])}>{reading.text}</div>}
           {error && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-2 text-xs text-red-700">{error}</div>}
-          {measure && <p className="text-xs text-slate-500">Đã chạy {num(measure.days)} ngày{measure.days < 7 && " — chưa đủ 7 ngày để kết luận"}.</p>}
+          {measure && <p className="text-xs text-slate-500">{tr("meta.ab.card.ranDays", { n: num(measure.days) })}{measure.days < 7 && tr("meta.ab.card.notEnough")}.</p>}
           {measure?.group && measure.group.rows.length > 0 && (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[420px] text-left text-xs">
                 <thead className="text-slate-500">
                   <tr className="border-b border-slate-100">
-                    <th className="py-1.5 pr-2 font-medium">Nhóm</th>
-                    <th className="py-1.5 pr-2 text-right font-medium">Chi phí</th>
-                    <th className="py-1.5 pr-2 text-right font-medium">Kết quả</th>
-                    <th className="py-1.5 text-right font-medium">Chi phí/kết quả</th>
+                    <th className="py-1.5 pr-2 font-medium">{tr("meta.ab.card.th.group")}</th>
+                    <th className="py-1.5 pr-2 text-right font-medium">{tr("meta.ab.card.th.spend")}</th>
+                    <th className="py-1.5 pr-2 text-right font-medium">{tr("meta.ab.card.th.results")}</th>
+                    <th className="py-1.5 text-right font-medium">{tr("meta.ab.card.th.cpr")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -335,7 +341,7 @@ function TestCard({ entry, canEdit, onChanged }: { entry: Entry; canEdit: boolea
       {t.status === "ended" && t.result && (
         <div className="space-y-1 rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs text-slate-700">
           <p>{t.result.summary}</p>
-          <p>Đã đo {num(t.result.days)} ngày · {t.result.paused ? `đã tạm dừng ${pausedLabel}` : "giữ cả hai nhóm"}.</p>
+          <p>{tr("meta.ab.card.measured", { n: num(t.result.days), what: t.result.paused ? tr("meta.ab.card.pausedWhat", { which: pausedLabel }) : tr("meta.ab.card.keepBoth") })}</p>
         </div>
       )}
 
@@ -350,44 +356,44 @@ function TestCard({ entry, canEdit, onChanged }: { entry: Entry; canEdit: boolea
         <div className="space-y-2">
           <div className="flex flex-wrap gap-2">
             {t.status === "draft" && panel !== "start" && (
-              <Button className="h-9" size="sm" disabled={busy} onClick={() => { setPanel("start"); setErr(null); }}>▶ Bắt đầu thử nghiệm</Button>
+              <Button className="h-9" size="sm" disabled={busy} onClick={() => { setPanel("start"); setErr(null); }}>{tr("meta.ab.card.start")}</Button>
             )}
             {t.status === "running" && panel !== "end" && (
-              <Button className="h-9" size="sm" disabled={busy} onClick={() => { setPanel("end"); setErr(null); }}>Kết thúc</Button>
+              <Button className="h-9" size="sm" disabled={busy} onClick={() => { setPanel("end"); setErr(null); }}>{tr("meta.ab.card.end")}</Button>
             )}
             {t.status === "draft" && panel !== "discard" && (
-              <Button className="h-9" variant="outline" size="sm" disabled={busy} onClick={() => { setPanel("discard"); setErr(null); }}>Huỷ thử nghiệm</Button>
+              <Button className="h-9" variant="outline" size="sm" disabled={busy} onClick={() => { setPanel("discard"); setErr(null); }}>{tr("meta.ab.card.discard")}</Button>
             )}
           </div>
           {panel === "start" && (
             <div className="space-y-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-slate-700">
               <p>
-                {t.dailyBudget !== null ? <>Chiến dịch sẽ chi thêm khoảng <b>{vnd(t.dailyBudget)}/ngày</b> cho nhóm B. </> : "Nhóm B sẽ bắt đầu chi tiền ngay. "}
-                Máy chủ kiểm lại trạng thái thật trên Meta trước khi bật.
+                {t.dailyBudget !== null ? <>{rich(tr("meta.ab.card.startExtra", { value: vnd(t.dailyBudget) }))}</> : tr("meta.ab.card.startNow")}
+                {tr("meta.ab.card.startCheck")}
               </p>
               <div className="flex gap-2">
-                <Button className="h-9" size="sm" disabled={busy} onClick={() => act({ action: "start" })}>{busy && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} Xác nhận bắt đầu</Button>
-                <Button className="h-9" variant="outline" size="sm" disabled={busy} onClick={() => setPanel(null)}>Không</Button>
+                <Button className="h-9" size="sm" disabled={busy} onClick={() => act({ action: "start" })}>{busy && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} {tr("meta.ab.card.confirmStart")}</Button>
+                <Button className="h-9" variant="outline" size="sm" disabled={busy} onClick={() => setPanel(null)}>{tr("meta.ab.card.no")}</Button>
               </div>
             </div>
           )}
           {panel === "discard" && (
             <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-slate-700">
-              <p>Nhóm B chưa chạy sẽ bị xoá; nếu đã phân phối thì chỉ tạm dừng. Nhóm A không bị đụng tới.</p>
+              <p>{tr("meta.ab.card.discardNote")}</p>
               <div className="flex gap-2">
-                <Button className="h-9" size="sm" disabled={busy} onClick={() => act({ action: "discard" })}>{busy && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} Xác nhận huỷ</Button>
-                <Button className="h-9" variant="outline" size="sm" disabled={busy} onClick={() => setPanel(null)}>Không</Button>
+                <Button className="h-9" size="sm" disabled={busy} onClick={() => act({ action: "discard" })}>{busy && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} {tr("meta.ab.card.confirmDiscard")}</Button>
+                <Button className="h-9" variant="outline" size="sm" disabled={busy} onClick={() => setPanel(null)}>{tr("meta.ab.card.no")}</Button>
               </div>
             </div>
           )}
           {panel === "end" && (
             <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
-              <p>Chọn cách kết thúc{loser ? ` — số đang cho thấy nhóm ${loser === "a" ? "A" : "B"} kém hơn, nhưng bạn quyết định` : ""}.</p>
+              <p>{tr("meta.ab.card.endPick", { hint: loser ? tr("meta.ab.card.endHint", { which: loser === "a" ? "A" : "B" }) : "" })}</p>
               <div className="flex flex-wrap gap-2">
-                <Button className="h-9" variant="outline" size="sm" disabled={busy} onClick={() => act({ action: "end", pause: null })}>Kết thúc, giữ cả hai</Button>
-                <Button className={cn("h-9", loser === "a" && "border-emerald-400")} variant="outline" size="sm" disabled={busy} onClick={() => act({ action: "end", pause: "a" })}>Kết thúc + tạm dừng nhóm A{loser === "a" && " (gợi ý)"}</Button>
-                <Button className={cn("h-9", loser === "b" && "border-emerald-400")} variant="outline" size="sm" disabled={busy} onClick={() => act({ action: "end", pause: "b" })}>Kết thúc + tạm dừng nhóm B{loser === "b" && " (gợi ý)"}</Button>
-                <Button className="h-9" variant="outline" size="sm" disabled={busy} onClick={() => setPanel(null)}>Không</Button>
+                <Button className="h-9" variant="outline" size="sm" disabled={busy} onClick={() => act({ action: "end", pause: null })}>{tr("meta.ab.card.endKeep")}</Button>
+                <Button className={cn("h-9", loser === "a" && "border-emerald-400")} variant="outline" size="sm" disabled={busy} onClick={() => act({ action: "end", pause: "a" })}>{tr("meta.ab.card.endPauseA")}{loser === "a" && tr("meta.ab.card.suggested")}</Button>
+                <Button className={cn("h-9", loser === "b" && "border-emerald-400")} variant="outline" size="sm" disabled={busy} onClick={() => act({ action: "end", pause: "b" })}>{tr("meta.ab.card.endPauseB")}{loser === "b" && tr("meta.ab.card.suggested")}</Button>
+                <Button className="h-9" variant="outline" size="sm" disabled={busy} onClick={() => setPanel(null)}>{tr("meta.ab.card.no")}</Button>
               </div>
             </div>
           )}

@@ -13,6 +13,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import { Pill, type PillTone } from "@/components/measure/Pill";
 import { postJson, ApiError } from "@/components/case/api";
+import { useT } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/messages";
 
 type ImportStatus = "imported" | "exists" | "invalid";
 interface ImportResultRow {
@@ -22,11 +24,16 @@ interface ImportResultRow {
   reason?: string;
 }
 
-const STATUS_PILL: Record<ImportStatus, { tone: PillTone; text: string }> = {
-  imported: { tone: "green", text: "✓ Đã nhập" },
-  exists: { tone: "grey", text: "⏭ Bỏ qua — đã có trên hệ thống" },
-  invalid: { tone: "red", text: "✕ Không hợp lệ" },
+const STATUS_PILL: Record<ImportStatus, { tone: PillTone; text: MessageKey }> = {
+  imported: { tone: "green", text: "overview.import.pill.imported" },
+  exists: { tone: "grey", text: "overview.import.pill.exists" },
+  invalid: { tone: "red", text: "overview.import.pill.invalid" },
 };
+
+// Chuỗi từ điển có <b>…</b> → in đậm (chỉ chuỗi tĩnh do mình viết trong lib/i18n/messages).
+function rich(s: string): React.ReactNode[] {
+  return s.split(/<b>(.*?)<\/b>/).map((part, i) => (i % 2 ? <b key={i}>{part}</b> : part));
+}
 
 export function ImportCasesDialog({
   open,
@@ -37,6 +44,7 @@ export function ImportCasesDialog({
   onOpenChange: (open: boolean) => void;
   onImported: () => void;
 }) {
+  const t = useT();
   const [file, setFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -65,14 +73,14 @@ export function ImportCasesDialog({
       try {
         parsed = JSON.parse(text);
       } catch {
-        setError("Tệp không phải JSON hợp lệ");
+        setError(t("overview.import.badJson"));
         return;
       }
       const json = await postJson("/api/cases/import", parsed);
       setResults(json.results ?? []);
       onImported();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Không nhập được — lỗi kết nối");
+      setError(e instanceof ApiError ? e.message : t("overview.import.connError"));
     } finally {
       setImporting(false);
     }
@@ -86,14 +94,14 @@ export function ImportCasesDialog({
     <Dialog open={open} onOpenChange={(o) => (o ? onOpenChange(o) : close())}>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Nhập phiên từ tệp</DialogTitle>
+          <DialogTitle>{t("overview.import.title")}</DialogTitle>
         </DialogHeader>
 
         {!results ? (
           <div className="space-y-3">
             <div>
               <label className="mb-1 block text-xs font-medium text-slate-500" htmlFor="import-cases-file">
-                Tệp phiên (.json)
+                {t("overview.import.fileLabel")}
               </label>
               <input
                 id="import-cases-file"
@@ -107,21 +115,21 @@ export function ImportCasesDialog({
               />
             </div>
             <p className="text-xs text-slate-500">
-              Dùng để đưa phiên đã áp ở bản chạy cục bộ lên đây. Phiên trùng mã sẽ <b>bỏ qua, không ghi đè</b>.
+              {rich(t("overview.import.hint"))}
             </p>
             {error && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
           </div>
         ) : (
           <div>
             <div className="mb-2 text-sm font-semibold text-slate-800">
-              Kết quả nhập — {imported} đã nhập, {skipped} bỏ qua{invalid > 0 ? `, ${invalid} không hợp lệ` : ""}
+              {t("overview.import.resultHead", { imported, skipped })}{invalid > 0 ? `, ${t("overview.import.resultInvalid", { invalid })}` : ""}
             </div>
             <div className="overflow-x-auto rounded-xl border border-slate-200">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-100 text-left text-xs text-slate-500">
-                    <th className="px-3 py-2 font-medium">Phiên</th>
-                    <th className="px-3 py-2 font-medium">Kết quả</th>
+                    <th className="px-3 py-2 font-medium">{t("overview.import.thCase")}</th>
+                    <th className="px-3 py-2 font-medium">{t("overview.import.thResult")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -131,7 +139,7 @@ export function ImportCasesDialog({
                       <tr key={`${r.id}-${i}`} className="border-b border-slate-50 align-top last:border-0">
                         <td className="px-3 py-2 text-slate-700">{r.campaignName}</td>
                         <td className="px-3 py-2">
-                          <Pill tone={pill.tone}>{r.status === "invalid" && r.reason ? `${pill.text}: ${r.reason}` : pill.text}</Pill>
+                          <Pill tone={pill.tone}>{r.status === "invalid" && r.reason ? `${t(pill.text)}: ${r.reason}` : t(pill.text)}</Pill>
                         </td>
                       </tr>
                     );
@@ -143,10 +151,10 @@ export function ImportCasesDialog({
         )}
 
         <DialogFooter>
-          <Button variant="outline" onClick={close} disabled={importing}>Đóng</Button>
+          <Button variant="outline" onClick={close} disabled={importing}>{t("overview.import.close")}</Button>
           {!results && (
             <Button onClick={handleImport} disabled={!file || importing}>
-              {importing && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} Nhập
+              {importing && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} {t("overview.import.submit")}
             </Button>
           )}
         </DialogFooter>

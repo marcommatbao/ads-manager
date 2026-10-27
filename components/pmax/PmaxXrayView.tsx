@@ -15,6 +15,8 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AlertTriangle, ChevronDown, ChevronUp, Loader2, RefreshCw, ScanLine } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useIntlLocale, useT } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/messages";
 import { getJson, ApiError } from "@/components/case/api";
 import { vnd, num, pct } from "@/components/case/format";
 import { DateRangeControl, type DateRangeValue } from "@/components/DateRangeControl";
@@ -52,6 +54,7 @@ function Badge({ cls, symbol, children }: { cls: string; symbol: string; childre
 // ── Section 1: cảnh báo ──
 
 function WarningBanner({ warnings }: { warnings: XrayWarning[] }) {
+  const t = useT();
   const bad = warnings.filter((w) => w.level === "bad");
   const warn = warnings.filter((w) => w.level === "warn");
   return (
@@ -59,7 +62,7 @@ function WarningBanner({ warnings }: { warnings: XrayWarning[] }) {
       {bad.length > 0 && (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4">
           <p className="flex items-center gap-1.5 text-sm font-bold text-red-700">
-            <AlertTriangle className="h-4 w-4" aria-hidden="true" /> Cảnh báo
+            <AlertTriangle className="h-4 w-4" aria-hidden="true" /> {t("google.pmaxXray.warning")}
           </p>
           <ul className="mt-2 space-y-1.5 text-xs text-red-700">
             {bad.map((w) => (
@@ -85,11 +88,11 @@ function WarningBanner({ warnings }: { warnings: XrayWarning[] }) {
       )}
       {bad.length === 0 && warn.length === 0 && (
         <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
-          ✓ Không phát hiện cảnh báo bất thường ở kênh nào trong khoảng này.
+          {t("google.pmaxXray.noWarn")}
         </p>
       )}
       <p className="text-[11px] italic text-slate-400">
-        Đơn sau lượt xem = người xem video ≥10 giây, không bấm, sau đó mua. Google vẫn tính để đặt giá. Tính năng thí nghiệm đo tăng thật sẽ có ở Đợt 10c.
+        {t("google.pmaxXray.vtcNote")}
       </p>
     </div>
   );
@@ -102,16 +105,17 @@ function ChannelTable({ channels, totals, badNetworks }: {
   totals: { cost: number; convClick: number; convEngaged: number };
   badNetworks: Set<string>;
 }) {
+  const t = useT();
   return (
     <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
       <table className="w-full text-xs">
         <thead>
           <tr className="border-b border-slate-100 text-left text-[11px] text-slate-500">
-            <th className="px-3 py-2 font-medium">Kênh</th>
-            <th className="px-3 py-2 font-medium">Chi (₫, % chi)</th>
-            <th className="px-3 py-2 text-right font-medium">Đơn từ lượt bấm</th>
-            <th className="px-3 py-2 text-right font-medium">Đơn sau lượt xem</th>
-            <th className="px-3 py-2 text-right font-medium">CPA theo đơn bấm</th>
+            <th className="px-3 py-2 font-medium">{t("google.pmaxXray.channel")}</th>
+            <th className="px-3 py-2 font-medium">{t("google.pmaxXray.spend")}</th>
+            <th className="px-3 py-2 text-right font-medium">{t("google.pmaxXray.convClick")}</th>
+            <th className="px-3 py-2 text-right font-medium">{t("google.pmaxXray.convView")}</th>
+            <th className="px-3 py-2 text-right font-medium">{t("google.pmaxXray.cpaClick")}</th>
           </tr>
         </thead>
         <tbody>
@@ -138,7 +142,7 @@ function ChannelTable({ channels, totals, badNetworks }: {
         </tbody>
         <tfoot>
           <tr className="border-t border-slate-200 bg-slate-50 font-semibold text-slate-800">
-            <td className="px-3 py-2.5">Tổng</td>
+            <td className="px-3 py-2.5">{t("google.pmaxXray.total")}</td>
             <td className="px-3 py-2.5 tabular-nums">{vnd(totals.cost)}</td>
             <td className="px-3 py-2.5 text-right tabular-nums">{num(totals.convClick, { maximumFractionDigits: 1 })}</td>
             <td className="px-3 py-2.5 text-right tabular-nums">{num(totals.convEngaged, { maximumFractionDigits: 1 })}</td>
@@ -150,15 +154,16 @@ function ChannelTable({ channels, totals, badNetworks }: {
   );
 }
 
-const CAMPAIGN_STATUS_LABEL: Record<string, string> = { ENABLED: "Đang chạy", PAUSED: "Tạm dừng", REMOVED: "Đã xoá" };
-const BIDDING_LABEL: Record<string, string> = {
-  MAXIMIZE_CONVERSIONS: "Tối đa chuyển đổi", MAXIMIZE_CONVERSION_VALUE: "Tối đa giá trị chuyển đổi",
-  TARGET_CPA: "CPA mục tiêu", TARGET_ROAS: "ROAS mục tiêu", MANUAL_CPC: "CPC thủ công", MANUAL_CPA: "CPA thủ công",
-  TARGET_SPEND: "Tối đa lượt bấm", ENHANCED_CPC: "CPC nâng cao",
+const CAMPAIGN_STATUS_LABEL: Record<string, MessageKey> = { ENABLED: "google.pmaxXray.stRunning", PAUSED: "google.pmaxXray.stPaused", REMOVED: "google.pmaxXray.stRemoved" };
+const BIDDING_LABEL: Record<string, MessageKey> = {
+  MAXIMIZE_CONVERSIONS: "google.pmaxXray.bMaxConv", MAXIMIZE_CONVERSION_VALUE: "google.pmaxXray.bMaxValue",
+  TARGET_CPA: "google.pmaxXray.bTcpa", TARGET_ROAS: "google.pmaxXray.bTroas", MANUAL_CPC: "google.pmaxXray.bManCpc", MANUAL_CPA: "google.pmaxXray.bManCpa",
+  TARGET_SPEND: "google.pmaxXray.bMaxClicks", ENHANCED_CPC: "google.pmaxXray.bEcpc",
 };
-const biddingLabel = (v: string) => BIDDING_LABEL[v] ?? v.replaceAll("_", " ");
+const biddingLabel = (v: string, t: (k: MessageKey) => string) => (BIDDING_LABEL[v] ? t(BIDDING_LABEL[v]) : v.replaceAll("_", " "));
 
 function CampaignXrayRow({ campaign }: { campaign: PmaxXray["campaigns"][number] }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const isOn = campaign.status === "ENABLED";
   const badNetworks = badNetworkSet(campaign.warnings);
@@ -169,15 +174,15 @@ function CampaignXrayRow({ campaign }: { campaign: PmaxXray["campaigns"][number]
           <p className="truncate text-sm font-semibold text-slate-800" title={campaign.name}>{campaign.name}</p>
           <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400">
             <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", isOn ? "bg-emerald-500" : "bg-slate-300")} />
-            {CAMPAIGN_STATUS_LABEL[campaign.status] ?? campaign.status} · {biddingLabel(campaign.bidding)} · Ngân sách {vnd(campaign.budget)}/ngày
+            {CAMPAIGN_STATUS_LABEL[campaign.status] ? t(CAMPAIGN_STATUS_LABEL[campaign.status]) : campaign.status} · {biddingLabel(campaign.bidding, t)} · {t("google.pmaxXray.budgetDay", { budget: vnd(campaign.budget) })}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-3">
           <div className="text-right">
             <p className="tabular-nums text-xs font-semibold text-slate-700">{vnd(campaign.cost)}</p>
-            <p className="tabular-nums text-[10px] text-slate-400">{num(campaign.convClick, { maximumFractionDigits: 1 })} bấm · {num(campaign.convEngaged, { maximumFractionDigits: 1 })} xem</p>
+            <p className="tabular-nums text-[10px] text-slate-400">{t("google.pmaxXray.clickView", { a: num(campaign.convClick, { maximumFractionDigits: 1 }), b: num(campaign.convEngaged, { maximumFractionDigits: 1 }) })}</p>
           </div>
-          {campaign.warnings.length > 0 && <span className="text-xs font-bold text-red-500" title="Có cảnh báo">✕</span>}
+          {campaign.warnings.length > 0 && <span className="text-xs font-bold text-red-500" title={t("google.pmaxXray.hasWarn")}>✕</span>}
           {open ? <ChevronUp className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" /> : <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />}
         </div>
       </button>
@@ -202,27 +207,28 @@ function CampaignXrayRow({ campaign }: { campaign: PmaxXray["campaigns"][number]
 }
 
 function ChannelSection({ account, campaigns }: { account: PmaxXray["account"]; campaigns: PmaxXray["campaigns"] }) {
+  const t = useT();
   const badNetworks = badNetworkSet(account.warnings);
   const withCost = campaigns.filter((c) => c.cost > 0);
   const withoutCost = campaigns.filter((c) => c.cost <= 0);
   return (
     <section className="space-y-3">
       <div>
-        <h3 className="text-sm font-bold text-slate-800">Chi phí &amp; đơn theo kênh</h3>
+        <h3 className="text-sm font-bold text-slate-800">{t("google.pmaxXray.chanTitle")}</h3>
         <p className="mt-0.5 text-xs text-slate-500">
-          &quot;Đơn từ lượt bấm&quot; là số nên tin để đặt CPA; &quot;đơn sau lượt xem&quot; Google vẫn tính vào Smart Bidding nhưng không chắc là do quảng cáo.
+          {t("google.pmaxXray.chanNote")}
         </p>
       </div>
       <ChannelTable channels={account.channels} totals={account.totals} badNetworks={badNetworks} />
       {campaigns.length > 0 && (
         <div className="space-y-2">
-          <p className="text-xs font-semibold text-slate-600">Theo chiến dịch ({campaigns.length})</p>
+          <p className="text-xs font-semibold text-slate-600">{t("google.pmaxXray.byCampaign")} ({campaigns.length})</p>
           <div className="space-y-2">
             {withCost.map((c) => <CampaignXrayRow key={c.id} campaign={c} />)}
           </div>
           {withoutCost.length > 0 && (
             <details className="text-xs text-slate-400">
-              <summary className="cursor-pointer select-none py-1">+{withoutCost.length} chiến dịch không phát sinh chi phí trong khoảng này</summary>
+              <summary className="cursor-pointer select-none py-1">{t("google.pmaxXray.noCost", { n: withoutCost.length })}</summary>
               <div className="mt-2 space-y-2">{withoutCost.map((c) => <CampaignXrayRow key={c.id} campaign={c} />)}</div>
             </details>
           )}
@@ -237,22 +243,23 @@ function ChannelSection({ account, campaigns }: { account: PmaxXray["account"]; 
 const HILITE_INTENT = new Set(["own_brand", "competitor"]);
 
 function IntentSection({ terms }: { terms: PmaxXray["terms"] }) {
+  const t = useT();
   const [showNgrams, setShowNgrams] = useState(false);
   return (
     <section className="space-y-3">
       <div>
-        <h3 className="text-sm font-bold text-slate-800">Lượt tìm của PMax theo ý định</h3>
-        <p className="mt-0.5 text-xs text-slate-500">{num(terms.total)} lượt tìm PMax tự chọn hiển thị trong khoảng này — nhóm theo ý định để thấy tiền có rơi vào khách đã biết mình hay tên đối thủ không.</p>
+        <h3 className="text-sm font-bold text-slate-800">{t("google.pmaxXray.intentTitle")}</h3>
+        <p className="mt-0.5 text-xs text-slate-500">{t("google.pmaxXray.intentNote", { n: num(terms.total) })}</p>
       </div>
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
         <table className="w-full text-xs">
           <thead>
             <tr className="border-b border-slate-100 text-left text-[11px] text-slate-500">
-              <th className="px-3 py-2 font-medium">Ý định</th>
-              <th className="px-3 py-2 text-right font-medium">Số lượt tìm</th>
-              <th className="px-3 py-2 text-right font-medium">Lượt bấm</th>
-              <th className="px-3 py-2 text-right font-medium">Đơn</th>
-              <th className="px-3 py-2 font-medium">Ví dụ</th>
+              <th className="px-3 py-2 font-medium">{t("google.pmaxXray.intent")}</th>
+              <th className="px-3 py-2 text-right font-medium">{t("google.pmaxXray.terms")}</th>
+              <th className="px-3 py-2 text-right font-medium">{t("google.pmaxXray.clicks")}</th>
+              <th className="px-3 py-2 text-right font-medium">{t("google.pmaxXray.conv")}</th>
+              <th className="px-3 py-2 font-medium">{t("google.pmaxXray.examples")}</th>
             </tr>
           </thead>
           <tbody>
@@ -268,7 +275,7 @@ function IntentSection({ terms }: { terms: PmaxXray["terms"] }) {
                 <td className="px-3 py-2.5">
                   <div className="flex flex-wrap gap-1">
                     {it.examples.slice(0, 5).map((ex) => (
-                      <span key={ex.term} className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] text-slate-600" title={`${ex.clicks} lượt bấm · ${ex.conversions} đơn`}>
+                      <span key={ex.term} className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] text-slate-600" title={t("google.pmaxXray.exTitle", { clicks: ex.clicks, conv: ex.conversions })}>
                         {ex.term}
                       </span>
                     ))}
@@ -283,17 +290,17 @@ function IntentSection({ terms }: { terms: PmaxXray["terms"] }) {
         <div>
           <button type="button" onClick={() => setShowNgrams((s) => !s)} className="flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700">
             {showNgrams ? <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" /> : <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />}
-            Cụm từ lặp lại nhiều ({terms.ngrams.length})
+            {t("google.pmaxXray.ngrams")} ({terms.ngrams.length})
           </button>
           {showNgrams && (
             <div className="mt-2 overflow-x-auto rounded-xl border border-slate-200 bg-white">
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b border-slate-100 text-left text-[11px] text-slate-500">
-                    <th className="px-3 py-2 font-medium">Cụm từ</th>
-                    <th className="px-3 py-2 text-right font-medium">Số lượt tìm</th>
-                    <th className="px-3 py-2 text-right font-medium">Lượt bấm</th>
-                    <th className="px-3 py-2 text-right font-medium">Đơn</th>
+                    <th className="px-3 py-2 font-medium">{t("google.pmaxXray.phrase")}</th>
+                    <th className="px-3 py-2 text-right font-medium">{t("google.pmaxXray.terms")}</th>
+                    <th className="px-3 py-2 text-right font-medium">{t("google.pmaxXray.clicks")}</th>
+                    <th className="px-3 py-2 text-right font-medium">{t("google.pmaxXray.conv")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -318,28 +325,29 @@ function IntentSection({ terms }: { terms: PmaxXray["terms"] }) {
 // ── Section 4: PMax ăn sang Search ──
 
 function CannibalizationSection({ c }: { c: Cannibalization }) {
+  const t = useT();
   const badgeCls = c.brandShare >= 0.4 ? "bg-red-50 text-red-700 border-red-200" : c.brandShare >= 0.2 ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-emerald-50 text-emerald-700 border-emerald-200";
   const symbol = c.brandShare >= 0.4 ? "✕" : c.brandShare >= 0.2 ? "⚠" : "✓";
   return (
     <section className="space-y-3">
       <div>
-        <h3 className="text-sm font-bold text-slate-800">PMax ăn sang Search</h3>
+        <h3 className="text-sm font-bold text-slate-800">{t("google.pmaxXray.cannTitle")}</h3>
         <p className="mt-0.5 text-xs text-slate-500">
-          Khi đã có chiến dịch Search thương hiệu, lượt tìm thương hiệu do PMax giành thường là khách cũ — tốn tiền mà không thêm khách mới. Loại trừ thương hiệu khỏi PMax sẽ có ở Đợt 10b.
+          {t("google.pmaxXray.cannNote")}
         </p>
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div className="rounded-xl border border-slate-200 bg-white p-3">
-          <p className="text-[10px] font-semibold uppercase text-slate-400">Lượt bấm tìm kiếm vào thương hiệu mình</p>
+          <p className="text-[10px] font-semibold uppercase text-slate-400">{t("google.pmaxXray.brandShare")}</p>
           <Badge cls={cn("mt-1.5 text-sm", badgeCls)} symbol={symbol}>{pct(c.brandShare, 0)}</Badge>
         </div>
         <div className="rounded-xl border border-slate-200 bg-white p-3">
-          <p className="text-[10px] font-semibold uppercase text-slate-400">Trùng từ khoá Search đang chạy</p>
-          <p className="mt-1 tabular-nums text-sm font-bold text-slate-800">{num(c.overlapClicks)} / {num(c.pmaxClicks)} lượt bấm</p>
-          <p className="tabular-nums text-[10px] text-slate-400">{num(c.overlapTerms)} lượt tìm · {num(c.overlapConversions, { maximumFractionDigits: 1 })} đơn</p>
+          <p className="text-[10px] font-semibold uppercase text-slate-400">{t("google.pmaxXray.overlap")}</p>
+          <p className="mt-1 tabular-nums text-sm font-bold text-slate-800">{t("google.pmaxXray.overlapClicks", { a: num(c.overlapClicks), b: num(c.pmaxClicks) })}</p>
+          <p className="tabular-nums text-[10px] text-slate-400">{t("google.pmaxXray.overlapTerms", { a: num(c.overlapTerms), b: num(c.overlapConversions, { maximumFractionDigits: 1 }) })}</p>
         </div>
         <div className="rounded-xl border border-slate-200 bg-white p-3">
-          <p className="text-[10px] font-semibold uppercase text-slate-400">Tổng lượt bấm PMax vào thương hiệu</p>
+          <p className="text-[10px] font-semibold uppercase text-slate-400">{t("google.pmaxXray.brandClicks")}</p>
           <p className="mt-1 tabular-nums text-sm font-bold text-slate-800">{num(c.brandClicks)}</p>
         </div>
       </div>
@@ -348,9 +356,9 @@ function CannibalizationSection({ c }: { c: Cannibalization }) {
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b border-slate-100 text-left text-[11px] text-slate-500">
-                <th className="px-3 py-2 font-medium">Lượt tìm PMax</th>
-                <th className="px-3 py-2 text-right font-medium">Lượt bấm</th>
-                <th className="px-3 py-2 font-medium">Trùng từ khoá Search</th>
+                <th className="px-3 py-2 font-medium">{t("google.pmaxXray.pmaxTerm")}</th>
+                <th className="px-3 py-2 text-right font-medium">{t("google.pmaxXray.clicks")}</th>
+                <th className="px-3 py-2 font-medium">{t("google.pmaxXray.overlapKw")}</th>
               </tr>
             </thead>
             <tbody>
@@ -371,30 +379,33 @@ function CannibalizationSection({ c }: { c: Cannibalization }) {
 
 // ── Section 5: asset group ──
 
-const AD_STRENGTH_LABEL: Record<string, { text: string; symbol: string; cls: string }> = {
-  EXCELLENT: { text: "Xuất sắc", symbol: "✓", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-  GOOD: { text: "Tốt", symbol: "✓", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-  AVERAGE: { text: "Trung bình", symbol: "⚠", cls: "bg-amber-50 text-amber-700 border-amber-200" },
-  POOR: { text: "Kém", symbol: "✕", cls: "bg-red-50 text-red-700 border-red-200" },
-  NO_ADS: { text: "Chưa có quảng cáo", symbol: "✕", cls: "bg-red-50 text-red-700 border-red-200" },
-  PENDING: { text: "Đang chờ", symbol: "◌", cls: "bg-slate-50 text-slate-500 border-slate-200" },
+type BadgeDef = { text: string; symbol: string; cls: string; raw?: boolean };
+const AD_STRENGTH_LABEL: Record<string, BadgeDef> = {
+  EXCELLENT: { text: "google.pmaxXray.s_exc", symbol: "✓", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  GOOD: { text: "google.pmaxXray.s_good", symbol: "✓", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  AVERAGE: { text: "google.pmaxXray.s_avg", symbol: "⚠", cls: "bg-amber-50 text-amber-700 border-amber-200" },
+  POOR: { text: "google.pmaxXray.s_poor", symbol: "✕", cls: "bg-red-50 text-red-700 border-red-200" },
+  NO_ADS: { text: "google.pmaxXray.s_noAds", symbol: "✕", cls: "bg-red-50 text-red-700 border-red-200" },
+  PENDING: { text: "google.pmaxXray.s_pending", symbol: "◌", cls: "bg-slate-50 text-slate-500 border-slate-200" },
 };
-const AG_STATUS_LABEL: Record<string, { text: string; symbol: string; cls: string }> = {
-  ELIGIBLE: { text: "Đủ điều kiện", symbol: "✓", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-  LIMITED: { text: "Hạn chế", symbol: "⚠", cls: "bg-amber-50 text-amber-700 border-amber-200" },
-  NOT_ELIGIBLE: { text: "Không đủ điều kiện", symbol: "✕", cls: "bg-red-50 text-red-700 border-red-200" },
-  PENDING: { text: "Đang chờ", symbol: "◌", cls: "bg-slate-50 text-slate-500 border-slate-200" },
-  PAUSED: { text: "Tạm dừng", symbol: "⏸", cls: "bg-slate-50 text-slate-500 border-slate-200" },
-  REMOVED: { text: "Đã xoá", symbol: "✕", cls: "bg-slate-50 text-slate-500 border-slate-200" },
+const AG_STATUS_LABEL: Record<string, BadgeDef> = {
+  ELIGIBLE: { text: "google.pmaxXray.s_eligible", symbol: "✓", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  LIMITED: { text: "google.pmaxXray.s_limited", symbol: "⚠", cls: "bg-amber-50 text-amber-700 border-amber-200" },
+  NOT_ELIGIBLE: { text: "google.pmaxXray.s_notEligible", symbol: "✕", cls: "bg-red-50 text-red-700 border-red-200" },
+  PENDING: { text: "google.pmaxXray.s_pending", symbol: "◌", cls: "bg-slate-50 text-slate-500 border-slate-200" },
+  PAUSED: { text: "google.pmaxXray.stPaused", symbol: "⏸", cls: "bg-slate-50 text-slate-500 border-slate-200" },
+  REMOVED: { text: "google.pmaxXray.stRemoved", symbol: "✕", cls: "bg-slate-50 text-slate-500 border-slate-200" },
 };
-const fallbackBadge = (raw: string) => ({ text: raw, symbol: "?", cls: "bg-slate-50 text-slate-500 border-slate-200" });
+const fallbackBadge = (raw: string) => ({ text: raw, symbol: "?", cls: "bg-slate-50 text-slate-500 border-slate-200", raw: true });
 
 function AssetGroupSection({ groups }: { groups: PmaxXray["assetGroups"] }) {
+  const t = useT();
+  const badgeText = (b: BadgeDef) => (b.raw ? b.text : t(b.text as MessageKey));
   if (groups.length === 0) {
     return (
       <section className="space-y-2">
-        <h3 className="text-sm font-bold text-slate-800">Asset group đang chạy</h3>
-        <p className="text-xs text-slate-400">Không có asset group PMax nào đang bật.</p>
+        <h3 className="text-sm font-bold text-slate-800">{t("google.pmaxXray.agTitle")}</h3>
+        <p className="text-xs text-slate-400">{t("google.pmaxXray.agEmpty")}</p>
       </section>
     );
   }
@@ -406,14 +417,14 @@ function AssetGroupSection({ groups }: { groups: PmaxXray["assetGroups"] }) {
   }
   return (
     <section className="space-y-3">
-      <h3 className="text-sm font-bold text-slate-800">Asset group đang chạy</h3>
+      <h3 className="text-sm font-bold text-slate-800">{t("google.pmaxXray.agTitle")}</h3>
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
         <table className="w-full text-xs">
           <thead>
             <tr className="border-b border-slate-100 text-left text-[11px] text-slate-500">
-              <th className="px-3 py-2 font-medium">Chiến dịch › Asset group</th>
-              <th className="px-3 py-2 font-medium">Độ mạnh</th>
-              <th className="px-3 py-2 font-medium">Trạng thái</th>
+              <th className="px-3 py-2 font-medium">{t("google.pmaxXray.agCol")}</th>
+              <th className="px-3 py-2 font-medium">{t("google.pmaxXray.agStrength")}</th>
+              <th className="px-3 py-2 font-medium">{t("google.pmaxXray.agStatus")}</th>
             </tr>
           </thead>
           <tbody>
@@ -426,8 +437,8 @@ function AssetGroupSection({ groups }: { groups: PmaxXray["assetGroups"] }) {
                     {i === 0 && <span className="block text-[10px] font-semibold text-slate-400">{b.campaignName}</span>}
                     <span className="text-slate-700">{g.name}</span>
                   </td>
-                  <td className="px-3 py-2.5"><Badge cls={strength.cls} symbol={strength.symbol}>{strength.text}</Badge></td>
-                  <td className="px-3 py-2.5"><Badge cls={status.cls} symbol={status.symbol}>{status.text}</Badge></td>
+                  <td className="px-3 py-2.5"><Badge cls={strength.cls} symbol={strength.symbol}>{badgeText(strength)}</Badge></td>
+                  <td className="px-3 py-2.5"><Badge cls={status.cls} symbol={status.symbol}>{badgeText(status)}</Badge></td>
                 </tr>
               );
             }))}
@@ -451,6 +462,8 @@ function XraySkeleton() {
 // ── Root ──
 
 export function PmaxXrayView({ company }: { company: Company }) {
+  const t = useT();
+  const intl = useIntlLocale();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [range, setRange] = useState<DateRangeValue>(() => initialRange(searchParams));
@@ -466,12 +479,12 @@ export function PmaxXrayView({ company }: { company: Company }) {
       const json = await getJson(`/api/google/pmax/xray?company=${company}&from=${range.from}&to=${range.to}${force ? "&force=1" : ""}`);
       setData(json as PmaxXray);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Lỗi kết nối tới Google Ads");
+      setError(e instanceof ApiError ? e.message : t("google.pmaxXray.connErr"));
     } finally {
       setLoading(false);
       setReloading(false);
     }
-  }, [company, range.from, range.to]);
+  }, [company, range.from, range.to, t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -488,8 +501,8 @@ export function PmaxXrayView({ company }: { company: Company }) {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900">🩻 X-quang chi tiêu PMax</h2>
-          <p className="mt-1 text-xs text-slate-500">Tách chi phí &amp; đơn theo TỪNG kênh thật (Search/Display/YouTube/Gmail/Discover/Maps) và theo kiểu ghi nhận — lớp minh bạch mà báo cáo PMax gộp chung không cho thấy.</p>
+          <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900">{t("google.pmaxXray.title")}</h2>
+          <p className="mt-1 text-xs text-slate-500">{t("google.pmaxXray.subtitle")}</p>
         </div>
         <div className="flex items-center gap-2">
           <DateRangeControl value={range} onChange={handleRangeChange} maxDays={MAX_RANGE_DAYS} />
@@ -500,7 +513,7 @@ export function PmaxXrayView({ company }: { company: Company }) {
             className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600 hover:border-slate-300 disabled:opacity-50"
           >
             {reloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />}
-            Tải lại
+            {t("google.pmaxXray.reload")}
           </button>
         </div>
       </div>
@@ -517,14 +530,14 @@ export function PmaxXrayView({ company }: { company: Company }) {
       ) : !data ? null : data.account.totals.cost === 0 ? (
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-10 text-center">
           <ScanLine className="mx-auto mb-3 h-10 w-10 text-slate-300" aria-hidden="true" />
-          <p className="text-sm font-semibold text-slate-500">Không có chi phí PMax trong khoảng này</p>
-          <p className="mt-1 text-xs text-slate-400">Đổi khoảng ngày hoặc kiểm tra chiến dịch Performance Max của {company}.</p>
+          <p className="text-sm font-semibold text-slate-500">{t("google.pmaxXray.noSpend")}</p>
+          <p className="mt-1 text-xs text-slate-400">{t("google.pmaxXray.noSpendHint", { company })}</p>
         </div>
       ) : (
         <>
           {data.errors.length > 0 && (
             <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-              ⚠ Một phần dữ liệu không đọc được: {data.errors.join(" · ")}
+              {t("google.pmaxXray.partial", { errors: data.errors.join(" · ") })}
             </p>
           )}
           <WarningBanner warnings={data.account.warnings} />
@@ -533,7 +546,7 @@ export function PmaxXrayView({ company }: { company: Company }) {
           <IntentSection terms={data.terms} />
           <CannibalizationSection c={data.cannibalization} />
           <AssetGroupSection groups={data.assetGroups} />
-          <p className="text-right text-[10px] text-slate-300">Cập nhật lúc {new Date(data.collectedAt).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })}</p>
+          <p className="text-right text-[10px] text-slate-300">{t("google.pmaxXray.updatedAt", { time: new Date(data.collectedAt).toLocaleString(intl, { timeZone: "Asia/Ho_Chi_Minh" }) })}</p>
         </>
       )}
     </div>

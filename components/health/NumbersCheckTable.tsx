@@ -5,31 +5,33 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@
 import { vnd, ddmmyyyy, datetimeVN } from "@/components/case/format";
 import type { NumbersCheckResult } from "@/lib/jobs/numbers-check";
 import { Badge, NUMBERS_STATUS_META } from "./badges";
+import { useT } from "@/lib/i18n/client";
 
 export function NumbersCheckTable({ numbersCheck }: { numbersCheck: NumbersCheckResult | null }) {
+  const t = useT();
   return (
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-4 space-y-3">
-      <p className="text-sm font-semibold text-slate-800">Đối chiếu số tuần</p>
+      <p className="text-sm font-semibold text-slate-800">{t("overview.health.numbers.title")}</p>
 
       {!numbersCheck ? (
         <p className="text-sm text-slate-400">
-          Chưa có lần đối chiếu nào — job chạy thứ Hai 09:30 (hoặc chạy tay ở{" "}
-          <Link href="/settings/jobs" className="text-blue-600 hover:underline">Cài đặt → Jobs → Đối chiếu số hằng tuần</Link>).
+          {t("overview.health.numbers.empty1")} ({t("overview.health.numbers.empty2")}{" "}
+          <Link href="/settings/jobs" className="text-blue-600 hover:underline">{t("overview.health.numbers.empty3")}</Link>).
         </p>
       ) : (
         <>
           <p className="text-xs text-slate-500">
-            Khoảng {ddmmyyyy(numbersCheck.range.from)} → {ddmmyyyy(numbersCheck.range.to)} · lúc {datetimeVN(numbersCheck.at)}
+            {t("overview.health.numbers.range", { from: ddmmyyyy(numbersCheck.range.from), to: ddmmyyyy(numbersCheck.range.to), time: datetimeVN(numbersCheck.at) })}
           </p>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Công ty</TableHead>
-                <TableHead>Chỉ số</TableHead>
-                <TableHead>Tool</TableHead>
-                <TableHead>Gốc</TableHead>
-                <TableHead>Lệch</TableHead>
-                <TableHead>Trạng thái</TableHead>
+                <TableHead>{t("overview.health.numbers.th.company")}</TableHead>
+                <TableHead>{t("overview.health.numbers.th.metric")}</TableHead>
+                <TableHead>{t("overview.health.numbers.th.tool")}</TableHead>
+                <TableHead>{t("overview.health.numbers.th.reference")}</TableHead>
+                <TableHead>{t("overview.health.numbers.th.diff")}</TableHead>
+                <TableHead>{t("overview.health.numbers.th.status")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -45,7 +47,7 @@ export function NumbersCheckTable({ numbersCheck }: { numbersCheck: NumbersCheck
                       {c.diff === null ? "—" : `${Math.round(c.diff * 100)}%`}
                     </TableCell>
                     <TableCell>
-                      <Badge cls={meta.cls}>{meta.label}</Badge>
+                      <Badge cls={meta.cls}>{t(meta.label)}</Badge>
                       {c.note && c.status === "loi" && (
                         <p className="text-[11px] text-slate-400 mt-0.5">{c.note}</p>
                       )}

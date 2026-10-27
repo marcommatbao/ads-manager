@@ -13,11 +13,13 @@
 
 import * as React from "react";
 import { format, differenceInCalendarDays } from "date-fns";
-import { vi } from "date-fns/locale";
+import { vi, enUS } from "date-fns/locale";
 import { Calendar as CalendarIcon } from "lucide-react";
 import type { DateRange } from "react-day-picker";
 
 import { cn } from "@/lib/utils";
+import { useT, useLocale } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/messages";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -71,6 +73,8 @@ export function DateRangeControl({
   minDays?: number;
   className?: string;
 }) {
+  const t = useT();
+  const locale = useLocale();
   const [open, setOpen] = React.useState(false);
   const [tempRange, setTempRange] = React.useState<DateRange | undefined>(() => ({
     from: parseYmd(value.from),
@@ -91,19 +95,19 @@ export function DateRangeControl({
   const tooLong = hasFullRange && span > maxDays;
   const tooShort = hasFullRange && !!minDays && span < minDays;
   const validationMessage = tooLong
-    ? `Tối đa ${maxDays} ngày (đang chọn ${span} ngày)`
+    ? t("panels.daterange.max", { max: maxDays, span })
     : tooShort
-      ? `Tối thiểu ${minDays} ngày (đang chọn ${span} ngày)`
+      ? t("panels.daterange.min", { min: minDays ?? 0, span })
       : null;
   const canApply = hasFullRange && !tooLong && !tooShort;
 
   const presets = React.useMemo(() => {
     const all = [
-      { label: "7 ngày", range: { from: addDays(today, -6), to: today } },
-      { label: "30 ngày", range: { from: addDays(today, -29), to: today } },
-      { label: "90 ngày", range: { from: addDays(today, -89), to: today } },
-      { label: "Tháng này", range: { from: startOfMonthStr(today), to: today } },
-      { label: "Tháng trước", range: lastMonthRange(today) },
+      { id: "panels.daterange.d7" as MessageKey, range: { from: addDays(today, -6), to: today } },
+      { id: "panels.daterange.d30" as MessageKey, range: { from: addDays(today, -29), to: today } },
+      { id: "panels.daterange.d90" as MessageKey, range: { from: addDays(today, -89), to: today } },
+      { id: "panels.daterange.thisMonth" as MessageKey, range: { from: startOfMonthStr(today), to: today } },
+      { id: "panels.daterange.lastMonth" as MessageKey, range: lastMonthRange(today) },
     ];
     return all.filter((p) => {
       const n = rangeDays(p.range);
@@ -125,7 +129,7 @@ export function DateRangeControl({
     setOpen(false); // không gọi onChange — useEffect ở lượt mở kế tiếp sẽ nạp lại `value`
   }
 
-  const triggerLabel = `${format(parseYmd(value.from), "dd/MM/yyyy")} → ${format(parseYmd(value.to), "dd/MM/yyyy")} · ${rangeDays(value)} ngày`;
+  const triggerLabel = `${format(parseYmd(value.from), "dd/MM/yyyy")} → ${format(parseYmd(value.to), "dd/MM/yyyy")} · ${t("panels.daterange.days", { n: rangeDays(value) })}`;
 
   return (
     <div className={cn("grid gap-2", className)}>
@@ -145,12 +149,12 @@ export function DateRangeControl({
             <div className="flex flex-wrap gap-1.5 border-b border-slate-100 bg-slate-50/50 p-2 sm:w-[140px] sm:flex-col sm:flex-nowrap sm:border-r sm:border-b-0 sm:p-3">
               {presets.map((preset) => (
                 <button
-                  key={preset.label}
+                  key={preset.id}
                   type="button"
                   className="shrink-0 rounded-md px-2.5 py-1.5 sm:px-3 sm:py-2 text-left text-sm font-medium whitespace-nowrap text-slate-700 transition-colors hover:bg-slate-200/50"
                   onClick={() => applyPreset(preset.range)}
                 >
-                  {preset.label}
+                  {t(preset.id)}
                 </button>
               ))}
             </div>
@@ -163,23 +167,23 @@ export function DateRangeControl({
                 selected={tempRange}
                 onSelect={setTempRange}
                 numberOfMonths={isDesktop ? 2 : 1}
-                locale={vi}
+                locale={locale === "en" ? enUS : vi}
                 // Tên thứ ngắn "T2…CN" — mặc định locale vi là "Th 2" dính nhau trên điện thoại.
-                formatters={{ formatWeekdayName: (d) => (d.getDay() === 0 ? "CN" : `T${d.getDay() + 1}`) }}
+                formatters={{ formatWeekdayName: (d) => t("panels.daterange.weekdays").split(",")[d.getDay()] }}
                 disabled={{ after: todayDate }}
               />
               {validationMessage && (
                 <div className="mt-2 rounded-md bg-red-50 px-2.5 py-1.5 text-xs text-red-600">{validationMessage}</div>
               )}
               <div className="mt-3 flex justify-end gap-2">
-                <Button variant="outline" size="sm" onClick={handleCancel}>Huỷ</Button>
+                <Button variant="outline" size="sm" onClick={handleCancel}>{t("panels.daterange.cancel")}</Button>
                 <Button
                   size="sm"
                   className="bg-amber-500 text-amber-950 hover:bg-amber-600"
                   onClick={handleApply}
                   disabled={!canApply}
                 >
-                  Áp dụng
+                  {t("panels.daterange.apply")}
                 </Button>
               </div>
             </div>

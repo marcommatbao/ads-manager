@@ -15,6 +15,7 @@ import { Pill, type PillTone } from "@/components/measure/Pill";
 import { datetimeVN, num, vnd } from "@/components/case/format";
 import { getJson, ApiError } from "@/components/case/api";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 import type { DateRangeValue } from "@/components/DateRangeControl";
 import type { CreativeTruth, Verdict } from "@/lib/meta/creative-truth";
 
@@ -24,6 +25,7 @@ const FILTERS: (Verdict | "all")[] = ["all", "nhan_ban", "nen_tat", "bi_nham", "
 const n1 = (x: number | null | undefined) => (x == null ? "—" : num(Math.round(x * 10) / 10));
 
 export function CreativeTruthView({ company, range }: { company: string; range: DateRangeValue }) {
+  const tr = useT();
   const url = `/api/meta/creative-truth?company=${company}&from=${range.from}&to=${range.to}`;
   const { data, error, isLoading, mutate } = useSWR<Resp>(url, getJson, { revalidateOnFocus: false });
   const [filter, setFilter] = useState<Verdict | "all">("all");
@@ -35,43 +37,43 @@ export function CreativeTruthView({ company, range }: { company: string; range: 
     try { await mutate(await getJson(`${url}&force=1`), { revalidate: false }); } catch { /* lỗi hiện qua SWR lần sau */ } finally { setPulling(false); }
   }
 
-  if (isLoading) return <div className="flex items-center gap-2 text-sm text-slate-500"><Loader2 className="h-4 w-4 animate-spin" /> Đang đọc số từng quảng cáo…</div>;
+  if (isLoading) return <div className="flex items-center gap-2 text-sm text-slate-500"><Loader2 className="h-4 w-4 animate-spin" /> {tr("meta.truth.loading")}</div>;
   if (error || !data) {
-    const msg = error instanceof ApiError ? error.message : "Có lỗi khi tải";
-    return <EmptyState icon={AlertTriangle} title="Không đọc được số quảng cáo" description={/hạn mức|#613|rate/i.test(msg) ? `${msg} — Meta đang giới hạn lượt gọi, thử lại sau khoảng 10 phút.` : msg} />;
+    const msg = error instanceof ApiError ? error.message : tr("meta.truth.err.generic");
+    return <EmptyState icon={AlertTriangle} title={tr("meta.truth.err.title")} description={/hạn mức|#613|rate/i.test(msg) ? tr("meta.truth.err.rate", { msg }) : msg} />;
   }
-  if (!data.ads.length) return <EmptyState icon={Info} title={`Không có quảng cáo ${company} nào chi tiền trong kỳ`} description="Đổi khoảng ngày hoặc công ty." />;
+  if (!data.ads.length) return <EmptyState icon={Info} title={tr("meta.truth.empty.title", { company })} description={tr("meta.truth.empty.desc")} />;
 
   const t = data.totals;
   return (
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-4">
-        <div className="rounded-xl border border-slate-200 bg-white p-3"><div className="text-xs text-slate-500">Chi ({num(t.ads)} quảng cáo)</div><div className="text-lg font-bold">{vnd(t.spend)}</div></div>
-        <div className="rounded-xl border border-slate-200 bg-white p-3"><div className="text-xs text-slate-500">Meta tự báo &quot;mua hàng&quot;</div><div className="text-lg font-bold text-slate-400 line-through decoration-1">{n1(t.meta)}</div></div>
-        <div className="rounded-xl border border-blue-200 bg-blue-50 p-3"><div className="text-xs text-blue-700">Đơn dùng để chấm</div><div className="text-lg font-bold text-blue-900">{n1(t.truth)}</div><div className="text-[11px] text-blue-700">{data.sourceLabel}</div></div>
-        <div className="rounded-xl border border-slate-200 bg-white p-3"><div className="text-xs text-slate-500">CPA chung (mốc so)</div><div className="text-lg font-bold">{data.accountCpa ? vnd(data.accountCpa) : "—"}</div>{t.value != null && t.spend > 0 && <div className="text-[11px] text-slate-500">ROAS thật {(t.value / t.spend).toFixed(2)}x</div>}</div>
+        <div className="rounded-xl border border-slate-200 bg-white p-3"><div className="text-xs text-slate-500">{tr("meta.truth.sum.spend", { n: num(t.ads) })}</div><div className="text-lg font-bold">{vnd(t.spend)}</div></div>
+        <div className="rounded-xl border border-slate-200 bg-white p-3"><div className="text-xs text-slate-500">{tr("meta.truth.sum.metaClaims")}</div><div className="text-lg font-bold text-slate-400 line-through decoration-1">{n1(t.meta)}</div></div>
+        <div className="rounded-xl border border-blue-200 bg-blue-50 p-3"><div className="text-xs text-blue-700">{tr("meta.truth.sum.scored")}</div><div className="text-lg font-bold text-blue-900">{n1(t.truth)}</div><div className="text-[11px] text-blue-700">{data.sourceLabel}</div></div>
+        <div className="rounded-xl border border-slate-200 bg-white p-3"><div className="text-xs text-slate-500">{tr("meta.truth.sum.cpa")}</div><div className="text-lg font-bold">{data.accountCpa ? vnd(data.accountCpa) : "—"}</div>{t.value != null && t.spend > 0 && <div className="text-[11px] text-slate-500">{tr("meta.truth.sum.roas", { value: (t.value / t.spend).toFixed(2) })}</div>}</div>
       </div>
 
       {data.notes.length > 0 && (
         <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600 space-y-1">
           {data.notes.map((n) => <p key={n} className="flex gap-2"><Info className="h-4 w-4 shrink-0 text-slate-400 mt-0.5" />{n}</p>)}
-          {!data.setup.odooConversion && company === "MBI" && <p className="pl-6"><Link className="text-blue-700 underline" href="/do-luong?tab=orders&company=MBI">Mở Đo lường → Đơn thật</Link></p>}
+          {!data.setup.odooConversion && company === "MBI" && <p className="pl-6"><Link className="text-blue-700 underline" href="/do-luong?tab=orders&company=MBI">{tr("meta.truth.openMeasure")}</Link></p>}
         </div>
       )}
-      {data.errors.length > 0 && <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Đọc thiếu: {data.errors.join(" · ")}</div>}
+      {data.errors.length > 0 && <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">{tr("meta.truth.partial", { errors: data.errors.join(" · ") })}</div>}
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div role="tablist" className="flex flex-wrap gap-1">
           {FILTERS.map((f) => (
             <button key={f} role="tab" aria-selected={filter === f} onClick={() => setFilter(f)}
               className={cn("rounded-full border px-3 py-1 text-xs font-semibold", filter === f ? "border-slate-800 bg-slate-800 text-white" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50")}>
-              {f === "all" ? `Tất cả ${data.ads.length}` : `${data.verdictLabels[f]} ${data.counts[f]}`}
+              {f === "all" ? tr("meta.truth.filter.all", { n: data.ads.length }) : `${data.verdictLabels[f]} ${data.counts[f]}`}
             </button>
           ))}
         </div>
         <div className="flex items-center gap-2 text-xs text-slate-400">
-          <span>đọc {datetimeVN(data.collectedAt)} · {data.calls} lượt gọi Meta</span>
-          <Button variant="outline" size="sm" onClick={pull} disabled={pulling}>{pulling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />} Kéo lại</Button>
+          <span>{tr("meta.truth.read", { time: datetimeVN(data.collectedAt), n: data.calls })}</span>
+          <Button variant="outline" size="sm" onClick={pull} disabled={pulling}>{pulling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />} {tr("meta.truth.refetch")}</Button>
         </div>
       </div>
 
@@ -79,16 +81,16 @@ export function CreativeTruthView({ company, range }: { company: string; range: 
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-xs text-slate-500">
             <tr>
-              <th className="px-3 py-2 text-left">Quảng cáo</th>
-              <th className="px-3 py-2 text-right">Chi</th>
-              <th className="px-3 py-2 text-right" title="Meta báo mặc định (bấm 7 ngày + xem 1 ngày)">Meta báo</th>
-              <th className="px-3 py-2 text-right">Từ lượt bấm</th>
-              {data.setup.odooConversion && <th className="px-3 py-2 text-right">Đơn đã thu tiền</th>}
+              <th className="px-3 py-2 text-left">{tr("meta.truth.th.ad")}</th>
+              <th className="px-3 py-2 text-right">{tr("meta.truth.th.spend")}</th>
+              <th className="px-3 py-2 text-right" title={tr("meta.truth.th.metaTitle")}>{tr("meta.truth.th.meta")}</th>
+              <th className="px-3 py-2 text-right">{tr("meta.truth.th.click")}</th>
+              {data.setup.odooConversion && <th className="px-3 py-2 text-right">{tr("meta.truth.th.odoo")}</th>}
               {data.setup.ga4AdsTagged > 0 && <th className="px-3 py-2 text-right">GA4</th>}
-              <th className="px-3 py-2 text-right">CPA thật</th>
-              {data.source === "odoo" && <th className="px-3 py-2 text-right">ROAS thật</th>}
-              <th className="px-3 py-2 text-right">Tần suất</th>
-              <th className="px-3 py-2 text-left">Kết luận</th>
+              <th className="px-3 py-2 text-right">{tr("meta.truth.th.cpa")}</th>
+              {data.source === "odoo" && <th className="px-3 py-2 text-right">{tr("meta.truth.th.roas")}</th>}
+              <th className="px-3 py-2 text-right">{tr("meta.truth.th.freq")}</th>
+              <th className="px-3 py-2 text-left">{tr("meta.truth.th.verdict")}</th>
             </tr>
           </thead>
           <tbody>
@@ -104,7 +106,7 @@ export function CreativeTruthView({ company, range }: { company: string; range: 
                   </div>
                 </td>
                 <td className="px-3 py-2 text-right tabular-nums">{vnd(a.spend)}</td>
-                <td className="px-3 py-2 text-right tabular-nums text-slate-400">{n1(a.metaPurchases)}{a.viewShare != null && a.metaPurchases > 0 && <div className="text-[10px]">{Math.round(a.viewShare * 100)}% chỉ xem</div>}</td>
+                <td className="px-3 py-2 text-right tabular-nums text-slate-400">{n1(a.metaPurchases)}{a.viewShare != null && a.metaPurchases > 0 && <div className="text-[10px]">{tr("meta.truth.viewOnlyPct", { pct: Math.round(a.viewShare * 100) })}</div>}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{n1(a.click)}</td>
                 {data.setup.odooConversion && <td className="px-3 py-2 text-right tabular-nums font-semibold">{n1(a.odoo)}</td>}
                 {data.setup.ga4AdsTagged > 0 && <td className="px-3 py-2 text-right tabular-nums">{n1(a.ga4)}</td>}
@@ -120,7 +122,7 @@ export function CreativeTruthView({ company, range }: { company: string; range: 
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-slate-400">Trang chỉ đọc — không tự tắt hay nhân bản quảng cáo. Làm việc đó ở Trình quản lý quảng cáo hoặc phiên Xử lý chiến dịch.</p>
+      <p className="text-xs text-slate-400">{tr("meta.truth.footer")}</p>
     </div>
   );
 }

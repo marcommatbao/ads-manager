@@ -21,6 +21,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { AlertTriangle, Loader2, RefreshCw } from "lucide-react";
 import { getJson, ApiError } from "@/components/case/api";
+import { useT } from "@/lib/i18n/client";
 import { Button } from "@/components/ui/button";
 import { AssetHealthPanel } from "./AssetHealthPanel";
 import { ThemesPanel } from "./ThemesPanel";
@@ -40,6 +41,7 @@ interface ThemesResponse {
 }
 
 export function PmaxAssetsView({ company }: { company: Company }) {
+  const t = useT();
   const [data, setData] = useState<ThemesResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [reloading, setReloading] = useState(false);
@@ -52,11 +54,11 @@ export function PmaxAssetsView({ company }: { company: Company }) {
       const json = await getJson(`/api/google/pmax/themes?company=${company}`);
       setData(json as ThemesResponse);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Lỗi kết nối tới Google Ads");
+      setError(e instanceof ApiError ? e.message : t("google.pmaxAssets.connErr"));
     } finally {
       setLoading(false); setReloading(false);
     }
-  }, [company]);
+  }, [company, t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -69,7 +71,7 @@ export function PmaxAssetsView({ company }: { company: Company }) {
       <div className="space-y-8 border-t border-slate-100 pt-8">
         <div className="flex justify-end">
           <Button type="button" variant="outline" size="sm" className="h-8 bg-white" onClick={refresh} disabled={loading || reloading}>
-            {reloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />} Tải lại search theme / asset group
+            {reloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />} {t("google.pmaxAssets.reload")}
           </Button>
         </div>
 

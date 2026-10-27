@@ -14,6 +14,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Copy, Check, Undo2, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/messages";
 import { usePlaybookSuggest } from "@/hooks/usePlaybookSuggest";
 import { placementLabel } from "@/lib/case/meta-placements";
 import type { ConversionEventOption, PixelEventsPayload } from "@/lib/meta-pixel-events";
@@ -21,7 +23,7 @@ import { optionToSelection, type ConversionEventSelection } from "@/components/c
 import type { MetaSuggestions, SuggestItem } from "@/lib/playbook/suggest";
 import useSWR from "swr";
 
-const CONTENT_KIND_VI: Record<string, string> = { ad_format: "Định dạng", hook: "Câu mở", headline: "Tiêu đề", cta: "Nút" };
+const CONTENT_KIND_VI: Record<string, MessageKey> = { ad_format: "overview.playbook.suggest.kindFormat", hook: "overview.playbook.suggest.kindHook", headline: "overview.playbook.suggest.kindHeadline", cta: "overview.playbook.suggest.kindCta" };
 const isStrongAvoid = (status: string) => status === "auto" || status === "approved";
 
 export interface PlaybookLaunchState {
@@ -62,10 +64,11 @@ const fetcher = async (url: string): Promise<PixelEventsPayload> => {
 };
 
 function ConfidenceChip({ c }: { c: "high" | "medium" }) {
+  const t = useT();
   return (
     <span className={cn("rounded-full px-1.5 py-0.5 text-[9px] font-semibold shrink-0",
       c === "high" ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500")}>
-      {c === "high" ? "Cao" : "Trung bình"}
+      {c === "high" ? t("overview.playbook.suggest.confHigh") : t("overview.playbook.suggest.confMed")}
     </span>
   );
 }
@@ -75,9 +78,10 @@ function WhyLine({ why }: { why: string }) {
 }
 
 function CopyButton({ text }: { text: string }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
   return (
-    <button type="button" title="Sao chép"
+    <button type="button" title={t("overview.playbook.suggest.copy")}
       onClick={() => { void navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1200); }}
       className="shrink-0 text-slate-300 hover:text-slate-600">
       {copied ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
@@ -92,6 +96,7 @@ export default function PlaybookSuggestPanel({
   pixelId, conversionEvent, onSetConversionEvent,
   onStateChange, interestsReady, resetKey,
 }: PlaybookSuggestPanelProps) {
+  const t = useT();
   const { suggestions, loading, error } = usePlaybookSuggest(company, "facebook", product);
 
   // Danh sách sự kiện thật của Pixel — CÙNG khoá SWR với ConversionEventPicker
@@ -226,12 +231,12 @@ export default function PlaybookSuggestPanel({
   if (error) {
     return (
       <p className="text-[11px] text-slate-400 italic">
-        📒 Không đọc được Sổ kinh nghiệm — vẫn tạo chiến dịch bình thường.
+        {t("overview.playbook.suggest.loadErr")}
       </p>
     );
   }
   if (loading || !suggestions) {
-    return <p className="text-[11px] text-slate-400">📒 Đang đọc Sổ kinh nghiệm…</p>;
+    return <p className="text-[11px] text-slate-400">{t("overview.playbook.suggest.loading")}</p>;
   }
 
   const totalItems =
@@ -242,8 +247,8 @@ export default function PlaybookSuggestPanel({
   if (totalItems === 0) {
     return (
       <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-[11px] text-slate-400">
-        📒 Sổ kinh nghiệm chưa có kinh nghiệm nào cho sản phẩm này.{" "}
-        <a href="/so-kinh-nghiem" target="_blank" rel="noreferrer" className="text-amber-700 underline">Xem Sổ kinh nghiệm</a>
+        {t("overview.playbook.suggest.none")}{" "}
+        <a href="/so-kinh-nghiem" target="_blank" rel="noreferrer" className="text-amber-700 underline">{t("overview.playbook.suggest.viewPlaybook")}</a>
       </div>
     );
   }
@@ -254,8 +259,8 @@ export default function PlaybookSuggestPanel({
   return (
     <div className="rounded-xl border border-amber-200 bg-amber-50/40 p-4 space-y-3">
       <div className="flex items-center justify-between">
-        <h4 className="text-xs font-bold text-amber-900">📒 Từ Sổ kinh nghiệm</h4>
-        <a href="/so-kinh-nghiem" target="_blank" rel="noreferrer" className="text-[10px] text-amber-700 underline">Xem Sổ</a>
+        <h4 className="text-xs font-bold text-amber-900">{t("overview.playbook.suggest.heading")}</h4>
+        <a href="/so-kinh-nghiem" target="_blank" rel="noreferrer" className="text-[10px] text-amber-700 underline">{t("overview.playbook.suggest.viewShort")}</a>
       </div>
 
       {/* ── Tuổi ── */}
@@ -263,7 +268,7 @@ export default function PlaybookSuggestPanel({
         <div className="space-y-1.5">
           {suggestions.apply.meta.age && (
             <SuggestRow
-              label={`Tuổi ${suggestions.apply.meta.age.min}–${suggestions.apply.meta.age.max}`}
+              label={t("overview.playbook.suggest.age", { min: suggestions.apply.meta.age.min, max: suggestions.apply.meta.age.max })}
               why={suggestions.apply.meta.age.why} confidence={suggestions.apply.meta.age.confidence}
               applied={ageApplied.has(suggestions.apply.meta.age.entryId)}
               onUndo={() => undoAgeSuggestion(suggestions.apply.meta.age!.entryId)}
@@ -272,7 +277,7 @@ export default function PlaybookSuggestPanel({
           )}
           {suggestions.suggest.meta.age && (
             <SuggestRow
-              label={`Tuổi ${suggestions.suggest.meta.age.min}–${suggestions.suggest.meta.age.max}`}
+              label={t("overview.playbook.suggest.age", { min: suggestions.suggest.meta.age.min, max: suggestions.suggest.meta.age.max })}
               why={suggestions.suggest.meta.age.why} confidence={suggestions.suggest.meta.age.confidence}
               applied={keptExtra.has(suggestions.suggest.meta.age.entryId)}
               onAdd={() => { applyAgeSuggestion(suggestions.suggest.meta.age!.entryId, suggestions.suggest.meta.age!.min, suggestions.suggest.meta.age!.max); setKeptExtra((p) => new Set(p).add(suggestions.suggest.meta.age!.entryId)); }}
@@ -307,7 +312,7 @@ export default function PlaybookSuggestPanel({
           rows.push(opt
             ? <SuggestRow key="opt-apply" label={a.label} why={a.why} confidence={a.confidence}
                 applied={optEventApplied === a.entryId} onUndo={undoOptEventSuggestion} autoBadge />
-            : <SuggestRow key="opt-apply-miss" label={a.label} why={`${a.why} · chưa tìm thấy sự kiện này trong Pixel hiện tại — có thể phải tạo sự kiện tuỳ chỉnh trên Pixel trước.`} confidence={a.confidence} applied={false} />);
+            : <SuggestRow key="opt-apply-miss" label={a.label} why={t("overview.playbook.suggest.eventMissCustom", { why: a.why })} confidence={a.confidence} applied={false} />);
         }
         if (s) {
           const opt = findOption({ pixelEvent: (s as { pixelEvent?: string }).pixelEvent, customEventName: (s as { customEventName?: string }).customEventName });
@@ -316,7 +321,7 @@ export default function PlaybookSuggestPanel({
                 applied={optEventApplied === s.entryId}
                 onAdd={conversionEvent === null ? () => applyOptEventSuggestion(s.entryId, { pixelEvent: (s as { pixelEvent?: string }).pixelEvent, customEventName: (s as { customEventName?: string }).customEventName }) : undefined}
                 onUndo={optEventApplied === s.entryId ? undoOptEventSuggestion : undefined} />
-            : <SuggestRow key="opt-suggest-miss" label={s.label} why={`${s.why} · chưa tìm thấy sự kiện này trong Pixel hiện tại.`} confidence={s.confidence} applied={false} />);
+            : <SuggestRow key="opt-suggest-miss" label={s.label} why={t("overview.playbook.suggest.eventMiss", { why: s.why })} confidence={s.confidence} applied={false} />);
         }
         return <div className="space-y-1.5">{rows}</div>;
       })()}
@@ -324,7 +329,7 @@ export default function PlaybookSuggestPanel({
       {/* ── Nên tránh ── */}
       {suggestions.avoidPlacements.length > 0 && (
         <div>
-          <p className="text-[10px] font-semibold text-red-700 mb-1">🚫 Vị trí nên tránh</p>
+          <p className="text-[10px] font-semibold text-red-700 mb-1">{t("overview.playbook.suggest.avoidPlacements")}</p>
           <div className="flex flex-wrap gap-1.5">
             {suggestions.avoidPlacements.map((it) => {
               const k = it.key;
@@ -333,12 +338,12 @@ export default function PlaybookSuggestPanel({
                 <label key={k} title={it.why} className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-white px-2 py-0.5 text-[10px] text-red-700">
                   <input type="checkbox" checked={checked} className="accent-red-600"
                     onChange={() => setUncheckedPlacements((prev) => { const n = new Set(prev); if (n.has(k)) n.delete(k); else n.add(k); return n; })} />
-                  {placementLabel(k)}{isStrongAvoid(it.status) ? "" : " (gợi ý)"}
+                  {placementLabel(k)}{isStrongAvoid(it.status) ? "" : t("overview.playbook.suggest.suggestedSuffix")}
                 </label>
               );
             })}
           </div>
-          <p className="text-[9px] text-slate-400 mt-1">Đã tích = bỏ vị trí này khi tạo. Dòng tin cậy cao tích sẵn — bỏ tích là vẫn dùng, trái khuyến nghị Sổ.</p>
+          <p className="text-[9px] text-slate-400 mt-1">{t("overview.playbook.suggest.avoidNote")}</p>
         </div>
       )}
       {(() => {
@@ -349,7 +354,7 @@ export default function PlaybookSuggestPanel({
           <div className="rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1.5 flex items-start gap-1.5">
             <AlertTriangle className="h-3 w-3 text-amber-600 shrink-0 mt-0.5" />
             <p className="text-[10px] text-amber-800">
-              Sự kiện tối ưu đang chọn nằm trong &quot;Nên tránh&quot;{found ? `: ${found.why}` : ""}. Vẫn giữ = trái khuyến nghị Sổ.
+              {t("overview.playbook.suggest.avoidEvent", { why: found ? `: ${found.why}` : "" })}
             </p>
           </div>
         );
@@ -358,11 +363,11 @@ export default function PlaybookSuggestPanel({
       {/* ── Tham khảo nội dung / vị trí đã thắng / mức ngân sách ── */}
       {(suggestions.apply.meta.content.length > 0 || suggestions.suggest.meta.content.length > 0) && (
         <div>
-          <p className="text-[10px] font-semibold text-slate-500 mb-1">✍️ Nội dung tham khảo (không tự chép)</p>
+          <p className="text-[10px] font-semibold text-slate-500 mb-1">{t("overview.playbook.suggest.contentTitle")}</p>
           <div className="space-y-1">
             {[...suggestions.apply.meta.content, ...suggestions.suggest.meta.content].map((c, i) => (
               <div key={i} className="flex items-start gap-1.5 rounded bg-white border border-slate-200 px-2 py-1">
-                <span className="text-[9px] text-slate-400 shrink-0 w-14">{CONTENT_KIND_VI[c.kind] ?? c.kind}</span>
+                <span className="text-[9px] text-slate-400 shrink-0 w-14">{CONTENT_KIND_VI[c.kind] ? t(CONTENT_KIND_VI[c.kind]) : c.kind}</span>
                 <span className="text-[10px] text-slate-700 flex-1">{c.text}</span>
                 <CopyButton text={c.text} />
               </div>
@@ -372,19 +377,19 @@ export default function PlaybookSuggestPanel({
       )}
       {(suggestions.apply.meta.placements.length > 0 || suggestions.suggest.meta.placements.length > 0) && (
         <p className="text-[10px] text-slate-500">
-          📍 Vị trí đã thắng: {[...suggestions.apply.meta.placements, ...suggestions.suggest.meta.placements].map((p) => p.label).join(", ")}
+          {t("overview.playbook.suggest.placementsWon", { v: [...suggestions.apply.meta.placements, ...suggestions.suggest.meta.placements].map((p) => p.label).join(", ") })}
         </p>
       )}
       {(suggestions.apply.meta.budgetTier || suggestions.suggest.meta.budgetTier) && (
         <p className="text-[10px] text-slate-500">
-          💰 Mức ngân sách gợi ý: {(suggestions.apply.meta.budgetTier ?? suggestions.suggest.meta.budgetTier)?.tier}
+          {t("overview.playbook.suggest.budgetTier", { v: String((suggestions.apply.meta.budgetTier ?? suggestions.suggest.meta.budgetTier)?.tier ?? "") })}
         </p>
       )}
 
       {(suggestions.hiddenNonIncremental > 0 || suggestions.hiddenLegacyMerged > 0) && (
         <p className="text-[9px] text-slate-400">
-          {suggestions.hiddenNonIncremental > 0 && `Ẩn ${suggestions.hiddenNonIncremental} kinh nghiệm tìm thương hiệu/khách cũ — không dùng cho chiến dịch tìm khách mới. `}
-          {suggestions.hiddenLegacyMerged > 0 && `${suggestions.hiddenLegacyMerged} kinh nghiệm cũ sẽ hiện sau lượt bóc Sổ kế tiếp.`}
+          {suggestions.hiddenNonIncremental > 0 && t("overview.playbook.suggest.hiddenBrand", { n: suggestions.hiddenNonIncremental })}
+          {suggestions.hiddenLegacyMerged > 0 && t("overview.playbook.suggest.hiddenLegacy", { n: suggestions.hiddenLegacyMerged })}
         </p>
       )}
     </div>
@@ -397,6 +402,7 @@ function SuggestRow({
   label: string; why: string; confidence: "high" | "medium"; applied: boolean;
   autoBadge?: boolean; onAdd?: () => void; onUndo?: () => void;
 }) {
+  const t = useT();
   return (
     <div className="flex items-start gap-2 rounded-lg bg-white border border-slate-200 px-2.5 py-1.5">
       <div className="flex-1 min-w-0">
@@ -404,10 +410,10 @@ function SuggestRow({
           <span className="text-[11px] font-semibold text-slate-700">{label}</span>
           <ConfidenceChip c={confidence} />
           {applied && autoBadge && (
-            <span className="rounded-full bg-amber-100 text-amber-700 px-1.5 py-0.5 text-[9px] font-semibold">Từ Sổ kinh nghiệm</span>
+            <span className="rounded-full bg-amber-100 text-amber-700 px-1.5 py-0.5 text-[9px] font-semibold">{t("overview.playbook.suggest.badgePlaybook")}</span>
           )}
           {applied && !autoBadge && (
-            <span className="rounded-full bg-emerald-100 text-emerald-700 px-1.5 py-0.5 text-[9px] font-semibold">✓ Đã thêm</span>
+            <span className="rounded-full bg-emerald-100 text-emerald-700 px-1.5 py-0.5 text-[9px] font-semibold">{t("overview.playbook.suggest.added")}</span>
           )}
         </div>
         <WhyLine why={why} />
@@ -415,13 +421,13 @@ function SuggestRow({
       {applied ? (
         onUndo && (
           <button type="button" onClick={onUndo} className="shrink-0 flex items-center gap-1 text-[10px] text-slate-400 hover:text-red-600">
-            <Undo2 className="h-3 w-3" /> Hoàn tác
+            <Undo2 className="h-3 w-3" /> {t("overview.playbook.suggest.undo")}
           </button>
         )
       ) : (
         onAdd && (
           <button type="button" onClick={onAdd} className="shrink-0 rounded bg-amber-500 text-amber-950 px-2 py-0.5 text-[10px] font-semibold hover:bg-amber-600">
-            Thêm
+            {t("overview.playbook.suggest.add")}
           </button>
         )
       )}

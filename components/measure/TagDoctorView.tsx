@@ -29,6 +29,9 @@ import { useSession } from "@/components/SessionProvider";
 import { ExecutionCard, TagDoctorFixPanel } from "@/components/measure/TagDoctorFixPanel";
 import { GtmFixPanel, type GtmMeta } from "@/components/measure/GtmFixPanel";
 import { rangeDays } from "@/lib/case/dates";
+import { useT } from "@/lib/i18n/client";
+import type { TFunction } from "@/lib/i18n/translate";
+import type { MessageKey } from "@/lib/i18n/messages";
 import type { DateRangeValue } from "@/components/DateRangeControl";
 import type { Company } from "@/lib/case/types";
 import type { CanonicalRow, RoadmapStep, TagDoctorReport, TagIssue } from "@/lib/measure/tag-doctor";
@@ -59,25 +62,28 @@ const ROADMAP_STYLE: Record<RoadmapStep["status"], { tone: PillTone; symbol: str
   waiting: { tone: "grey", symbol: "◌" },
 };
 
-const SEVERITY_STYLE: Record<TagIssue["severity"], { tone: PillTone; text: string }> = {
-  bad: { tone: "red", text: "✕ Nghiêm trọng" },
-  warn: { tone: "amber", text: "⚠ Cảnh báo" },
+const bold = (s: string) => s.split(/<b>(.*?)<\/b>/).map((part, i) => (i % 2 ? <b key={i}>{part}</b> : part));
+
+const SEVERITY_STYLE: Record<TagIssue["severity"], { tone: PillTone; text: MessageKey }> = {
+  bad: { tone: "red", text: "meta.measure.td.sev.bad" },
+  warn: { tone: "amber", text: "meta.measure.td.sev.warn" },
 };
 
 const PLATFORM_CHIP: Record<TagIssue["platform"], string> = { meta: "Meta", google: "Google", gtm: "GTM" };
 
 /** Thông điệp thân thiện khi Meta/Google chặn vì vượt hạn mức gọi API (#613…) — cùng luật với app/(dashboard)/do-luong/page.tsx. */
-function quotaHint(message: string): string | null {
-  return /hạn mức|quota|rate limit|#613/i.test(message) ? "Thử lại sau khoảng 10 phút." : null;
+function quotaHint(message: string, t: TFunction): string | null {
+  return /hạn mức|quota|rate limit|#613/i.test(message) ? t("meta.measure.td.quota") : null;
 }
 
-function gtmBadge(inGtm: boolean | null): { tone: PillTone; text: string } {
-  if (inGtm === true) return { tone: "green", text: "✓ có" };
-  if (inGtm === false) return { tone: "red", text: "✕ không" };
-  return { tone: "grey", text: "? không rõ" };
+function gtmBadge(inGtm: boolean | null, t: TFunction): { tone: PillTone; text: string } {
+  if (inGtm === true) return { tone: "green", text: t("meta.measure.td.gtm.yes") };
+  if (inGtm === false) return { tone: "red", text: t("meta.measure.td.gtm.no") };
+  return { tone: "grey", text: t("meta.measure.td.gtm.unknown") };
 }
 
 export function TagDoctorView({ company, range }: { company: Company; range: DateRangeValue }) {
+  const t = useT();
   const { user } = useSession();
   const canEdit = !!user && hasPermission(user.role, "can_edit");
 
@@ -99,7 +105,7 @@ export function TagDoctorView({ company, range }: { company: Company; range: Dat
       setPullError(null);
       await mutate(json, { revalidate: false });
     } catch (e) {
-      setPullError(e instanceof ApiError ? e.message : "Không kéo lại được số liệu chẩn đoán gắn thẻ");
+      setPullError(e instanceof ApiError ? e.message : t("meta.measure.td.pullFail"));
     } finally {
       setPulling(false);
     }
@@ -119,22 +125,22 @@ export function TagDoctorView({ company, range }: { company: Company; range: Dat
     window.setTimeout(() => setGtmHighlightIds(null), 4000);
   }
 
-  const errorMessage = pullError ?? (error instanceof ApiError ? error.message : error ? "Có lỗi khi tải dữ liệu chẩn đoán gắn thẻ" : null);
+  const errorMessage = pullError ?? (error instanceof ApiError ? error.message : error ? t("meta.measure.td.loadFail") : null);
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="flex items-center gap-2 text-base font-bold text-slate-900">
-            <Stethoscope className="h-4.5 w-4.5 text-blue-600" aria-hidden="true" /> Chẩn đoán gắn thẻ
+            <Stethoscope className="h-4.5 w-4.5 text-blue-600" aria-hidden="true" /> {t("meta.measure.td.title")}
           </h2>
           <p className="mt-1 max-w-2xl text-sm text-slate-500">
-            Phát hiện sự kiện bắn trùng/sai tên và thẻ cấu hình sai trong GTM — kèm cách sửa từng bước.
+            {t("meta.measure.td.subtitle")}
           </p>
         </div>
         <Button className="h-10" variant="outline" size="sm" onClick={() => reload(true)} disabled={pulling}>
           {pulling ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />}
-          Kéo lại
+          {t("meta.measure.td.refresh")}
         </Button>
       </div>
 
@@ -144,8 +150,8 @@ export function TagDoctorView({ company, range }: { company: Company; range: Dat
         <EmptyState
           icon={AlertTriangle}
           title={errorMessage}
-          description={quotaHint(errorMessage) ?? "Số cũ không hiển thị để tránh xử lý trên dữ liệu lỗi thời."}
-          action={<Button className="h-10" onClick={() => reload(true)} disabled={pulling}>{pulling ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-4 w-4" aria-hidden="true" />} Thử lại</Button>}
+          description={quotaHint(errorMessage, t) ?? t("meta.measure.td.staleNote")}
+          action={<Button className="h-10" onClick={() => reload(true)} disabled={pulling}>{pulling ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-4 w-4" aria-hidden="true" />} {t("meta.measure.td.retry")}</Button>}
         />
       )}
 
@@ -154,15 +160,15 @@ export function TagDoctorView({ company, range }: { company: Company; range: Dat
           {!data.current && (
             <div className="flex items-start gap-2 rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">
               <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-              <span>Khoảng đang xem kết thúc trước hôm nay — chỉ xem số, tool không đề xuất sửa (cấu hình GTM/Google là của hôm nay). Chọn khoảng tới hôm nay để sửa.</span>
+              <span>{t("meta.measure.td.pastRange")}</span>
             </div>
           )}
 
           {data.roadmap.length > 0 && (
             <section>
-              <h3 className="mb-1 text-sm font-bold text-slate-900">Lộ trình sửa đo lường Mua hàng</h3>
+              <h3 className="mb-1 text-sm font-bold text-slate-900">{t("meta.measure.td.roadmap.title")}</h3>
               <p className="mb-3 text-sm text-slate-500">
-                Làm theo thứ tự — sửa thẻ nhầm nhóm TRƯỚC khi Google đặt giá theo Mua hàng sẽ làm mất tín hiệu đặt giá.
+                {t("meta.measure.td.roadmap.desc")}
               </p>
               <ol className="space-y-2">
                 {data.roadmap.map((step, i) => <RoadmapStepCard key={step.id} index={i + 1} step={step} />)}
@@ -173,20 +179,20 @@ export function TagDoctorView({ company, range }: { company: Company; range: Dat
           <SourceTable sources={data.sources} />
 
           <section>
-            <h3 className="mb-1 text-sm font-bold text-slate-900">1 · Bản chuẩn của từng hành động</h3>
+            <h3 className="mb-1 text-sm font-bold text-slate-900">{t("meta.measure.td.s1.title")}</h3>
             <p className="mb-3 text-sm text-slate-500">
-              So Meta (chuẩn vs tự đặt) với Google (Chính/Phụ) và Odoo cùng kỳ. Nếu bản <b>chuẩn</b> đếm ít hơn hẳn bản <b>tự đặt</b> — sửa nguồn bắn, đừng vội đổi mục tiêu tối ưu sang bản tự đặt.
+              {bold(t("meta.measure.td.s1.desc"))}
             </p>
             <CanonicalTable rows={data.canonical} company={company} days={rangeDays(data.range)} />
           </section>
 
           <section>
-            <h3 className="mb-1 text-sm font-bold text-slate-900">2 · Thẻ Facebook Pixel trong GTM</h3>
+            <h3 className="mb-1 text-sm font-bold text-slate-900">{t("meta.measure.td.s2.title")}</h3>
             <div className="mb-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
-              GTM chỉ hướng dẫn — tool không có quyền ghi GTM.
+              {t("meta.measure.td.s2.note")}
             </div>
             {data.gtm.length === 0 ? (
-              <EmptyState compact title="Không đọc được cấu hình GTM" description="Không thấy mã GTM công khai trên trang đích của công ty này." />
+              <EmptyState compact title={t("meta.measure.td.s2.emptyTitle")} description={t("meta.measure.td.s2.emptyDesc")} />
             ) : (
               <div className="space-y-4">
                 {data.gtm.map((g) => <GtmContainerTable key={g.id} container={g} />)}
@@ -195,10 +201,10 @@ export function TagDoctorView({ company, range }: { company: Company; range: Dat
           </section>
 
           <section>
-            <h3 className="mb-1 text-sm font-bold text-slate-900">3 · Vấn đề phát hiện</h3>
+            <h3 className="mb-1 text-sm font-bold text-slate-900">{t("meta.measure.td.s3.title")}</h3>
             {data.issues.length === 0 ? (
               <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm">
-                <Pill tone="green">✓ Không phát hiện vấn đề nào</Pill>
+                <Pill tone="green">{t("meta.measure.td.s3.none")}</Pill>
               </div>
             ) : (
               <div className="space-y-3">
@@ -208,17 +214,17 @@ export function TagDoctorView({ company, range }: { company: Company; range: Dat
           </section>
 
           <section>
-            <h3 className="mb-1 text-sm font-bold text-slate-900">4 · Gửi 2 đường</h3>
+            <h3 className="mb-1 text-sm font-bold text-slate-900">{t("meta.measure.td.s4.title")}</h3>
             {data.dualSource.length === 0 ? (
-              <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-400">Không có sự kiện nào gửi cả 2 đường trong kỳ.</div>
+              <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-400">{t("meta.measure.td.s4.none")}</div>
             ) : (
               <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-slate-100 text-left text-xs text-slate-500">
-                      <th className="px-4 py-2 font-medium">Sự kiện</th>
-                      <th className="px-3 py-2 text-right font-medium">Trình duyệt (Pixel)</th>
-                      <th className="px-3 py-2 text-right font-medium">Máy chủ (Conversions API)</th>
+                      <th className="px-4 py-2 font-medium">{t("meta.measure.td.s4.event")}</th>
+                      <th className="px-3 py-2 text-right font-medium">{t("meta.measure.td.s4.browser")}</th>
+                      <th className="px-3 py-2 text-right font-medium">{t("meta.measure.td.s4.server")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -236,10 +242,10 @@ export function TagDoctorView({ company, range }: { company: Company; range: Dat
           </section>
 
           <section id="fix-panel">
-            <h3 className="mb-1 text-sm font-bold text-slate-900">5 · Sửa trên Google</h3>
+            <h3 className="mb-1 text-sm font-bold text-slate-900">{t("meta.measure.td.s5.title")}</h3>
             {data.fixes.length === 0 ? (
               <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm">
-                <Pill tone="green">✓ Không có gì cần sửa trên Google</Pill>
+                <Pill tone="green">{t("meta.measure.td.s5.none")}</Pill>
               </div>
             ) : (
               <TagDoctorFixPanel
@@ -255,7 +261,7 @@ export function TagDoctorView({ company, range }: { company: Company; range: Dat
           </section>
 
           <section id="gtm-fix-panel">
-            <h3 className="mb-1 text-sm font-bold text-slate-900">6 · Sửa trên GTM</h3>
+            <h3 className="mb-1 text-sm font-bold text-slate-900">{t("meta.measure.td.s6.title")}</h3>
             <GtmFixPanel
               company={company}
               gtmFixes={data.gtmFixes}
@@ -267,7 +273,7 @@ export function TagDoctorView({ company, range }: { company: Company; range: Dat
           </section>
 
           <section>
-            <h3 className="mb-1 text-sm font-bold text-slate-900">7 · Lịch sử sửa trên Google</h3>
+            <h3 className="mb-1 text-sm font-bold text-slate-900">{t("meta.measure.td.s7.title")}</h3>
             <TagDoctorHistory history={data.history} company={company} canEdit={canEdit} onChanged={reload} />
           </section>
         </>
@@ -277,6 +283,7 @@ export function TagDoctorView({ company, range }: { company: Company; range: Dat
 }
 
 function RoadmapStepCard({ index, step }: { index: number; step: RoadmapStep }) {
+  const t = useT();
   const s = ROADMAP_STYLE[step.status];
   const isTodo = step.status === "todo";
   return (
@@ -302,7 +309,7 @@ function RoadmapStepCard({ index, step }: { index: number; step: RoadmapStep }) 
         <div className="mt-2 flex flex-wrap items-center gap-2 pl-8">
           <span className="text-sm font-medium text-amber-800">{step.action}</span>
           <Link href={step.href}>
-            <Button className="h-8" size="sm">Đi tới bước này →</Button>
+            <Button className="h-8" size="sm">{t("meta.measure.td.roadmap.go")}</Button>
           </Link>
         </div>
       )}
@@ -311,35 +318,36 @@ function RoadmapStepCard({ index, step }: { index: number; step: RoadmapStep }) 
 }
 
 function CanonicalTable({ rows, company, days }: { rows: CanonicalRow[]; company: Company; days: number }) {
+  const t = useT();
   return (
     <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-slate-100 text-left text-xs text-slate-500">
-            <th className="px-4 py-2 font-medium">Hành động</th>
+            <th className="px-4 py-2 font-medium">{t("meta.measure.td.ct.action")}</th>
             <th className="px-3 py-2 font-medium">Meta</th>
             <th className="px-3 py-2 font-medium">Google Ads</th>
-            <th className="px-3 py-2 font-medium">Odoo (đơn thật)</th>
-            <th className="px-3 py-2 font-medium">Kết luận</th>
+            <th className="px-3 py-2 font-medium">{t("meta.measure.td.ct.odoo")}</th>
+            <th className="px-3 py-2 font-medium">{t("meta.measure.td.ct.verdict")}</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((row) => {
             const v = VERDICT_STYLE[row.verdict.tone];
-            const odooText = row.key !== "purchase" ? "—" : row.odooOrders !== null ? `${num(row.odooOrders)} đơn` : company === "MBC" ? "chưa có bộ lọc" : "—";
+            const odooText = row.key !== "purchase" ? "—" : row.odooOrders !== null ? t("meta.measure.td.ct.orders", { n: num(row.odooOrders) }) : company === "MBC" ? t("meta.measure.td.ct.noFilter") : "—";
             return (
               <tr key={row.key} className="border-b border-slate-50 last:border-0 align-top">
                 <td className="px-4 py-2.5 font-semibold whitespace-nowrap text-slate-800">{row.label}</td>
                 <td className="px-3 py-2.5">
                   {row.meta.length === 0 ? (
-                    <span className="text-slate-400">Chưa dùng</span>
+                    <span className="text-slate-400">{t("meta.measure.td.ct.notUsed")}</span>
                   ) : (
                     <div className="flex flex-col gap-2">
                       {row.meta.map((m) => (
                         <div key={m.name}>
                           <code className="text-xs">{m.name}</code>{" "}
-                          <Pill tone={m.standard ? "grey" : "amber"} className="ml-1">{m.standard ? "Chuẩn" : "⚠ Tự đặt"}</Pill>
-                          <div className="mt-0.5 text-xs text-slate-400 tabular-nums">{days} ngày: {num(m.total)} · 7 ngày: {num(m.last7)}</div>
+                          <Pill tone={m.standard ? "grey" : "amber"} className="ml-1">{m.standard ? t("meta.measure.td.ct.standard") : t("meta.measure.td.ct.custom")}</Pill>
+                          <div className="mt-0.5 text-xs text-slate-400 tabular-nums">{t("meta.measure.td.ct.days", { days, total: num(m.total), last7: num(m.last7) })}</div>
                         </div>
                       ))}
                     </div>
@@ -347,18 +355,18 @@ function CanonicalTable({ rows, company, days }: { rows: CanonicalRow[]; company
                 </td>
                 <td className="px-3 py-2.5">
                   {row.google.length === 0 ? (
-                    <span className="text-slate-400">— Không có hành động Google tương ứng</span>
+                    <span className="text-slate-400">{t("meta.measure.td.ct.noGoogle")}</span>
                   ) : (
                     <div className="flex flex-col gap-2">
                       {row.google.map((g, i) => {
-                        const badge = gtmBadge(g.inGtm);
+                        const badge = gtmBadge(g.inGtm, t);
                         return (
                           <div key={i}>
                             <code className="text-xs">{g.name}</code>{" "}
-                            <span className={cn("ml-1 text-xs font-semibold", g.primary ? "text-slate-800" : "text-slate-500 font-normal")}>{g.primary ? "Chính" : "Phụ"}</span>
+                            <span className={cn("ml-1 text-xs font-semibold", g.primary ? "text-slate-800" : "text-slate-500 font-normal")}>{g.primary ? t("meta.measure.td.ct.primary") : t("meta.measure.td.ct.secondary")}</span>
                             <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-slate-400 tabular-nums">
-                              <span>{num(g.total, { maximumFractionDigits: 1 })}/{days} · {num(g.last7, { maximumFractionDigits: 1 })}/7 ngày</span>
-                              <Pill tone={badge.tone}>GTM: {badge.text}</Pill>
+                              <span>{t("meta.measure.td.ct.perDays", { total: num(g.total, { maximumFractionDigits: 1 }), days, last7: num(g.last7, { maximumFractionDigits: 1 }) })}</span>
+                              <Pill tone={badge.tone}>{t("meta.measure.td.ct.gtm", { value: badge.text })}</Pill>
                             </div>
                           </div>
                         );
@@ -380,32 +388,33 @@ function CanonicalTable({ rows, company, days }: { rows: CanonicalRow[]; company
 }
 
 function GtmContainerTable({ container }: { container: GtmContainer }) {
+  const t = useT();
   return (
     <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
       <div className="border-b border-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-800">
-        {container.id} · bản {container.version ?? "?"}
+        {t("meta.measure.td.gt.version", { id: container.id, version: container.version ?? "?" })}
       </div>
       {container.pixelTags.length === 0 ? (
-        <div className="p-4 text-sm text-slate-400">Không thấy thẻ Facebook Pixel nào trong container này.</div>
+        <div className="p-4 text-sm text-slate-400">{t("meta.measure.td.gt.noTags")}</div>
       ) : (
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-100 text-left text-xs text-slate-500">
-              <th className="px-4 py-2 font-medium">Thẻ</th>
-              <th className="px-3 py-2 font-medium">Loại</th>
-              <th className="px-3 py-2 font-medium">Sự kiện</th>
+              <th className="px-4 py-2 font-medium">{t("meta.measure.td.gt.tag")}</th>
+              <th className="px-3 py-2 font-medium">{t("meta.measure.td.gt.kind")}</th>
+              <th className="px-3 py-2 font-medium">{t("meta.measure.td.gt.event")}</th>
               <th className="px-3 py-2 font-medium">event_id</th>
-              <th className="px-3 py-2 font-medium">Nguồn</th>
+              <th className="px-3 py-2 font-medium">{t("meta.measure.td.gt.source")}</th>
             </tr>
           </thead>
           <tbody>
-            {container.pixelTags.map((t: GtmPixelTag, i) => (
+            {container.pixelTags.map((tag: GtmPixelTag, i) => (
               <tr key={i} className="border-b border-slate-50 last:border-0">
-                <td className="px-4 py-2.5 font-semibold text-slate-800">{t.tagId}</td>
-                <td className="px-3 py-2.5 text-slate-600">{t.kind === "standard" ? "Standard" : "Custom"}</td>
-                <td className="px-3 py-2.5">{t.dynamic ? <span className="text-slate-400 italic">tên từ biến</span> : <code className="text-xs">{t.eventName}</code>}</td>
-                <td className="px-3 py-2.5">{t.hasEventId ? <Pill tone="green">✓</Pill> : <Pill tone="red">✕</Pill>}</td>
-                <td className="px-3 py-2.5 text-slate-600">{t.source === "template" ? "mẫu" : "HTML"}</td>
+                <td className="px-4 py-2.5 font-semibold text-slate-800">{tag.tagId}</td>
+                <td className="px-3 py-2.5 text-slate-600">{tag.kind === "standard" ? "Standard" : "Custom"}</td>
+                <td className="px-3 py-2.5">{tag.dynamic ? <span className="text-slate-400 italic">{t("meta.measure.td.gt.dynamic")}</span> : <code className="text-xs">{tag.eventName}</code>}</td>
+                <td className="px-3 py-2.5">{tag.hasEventId ? <Pill tone="green">✓</Pill> : <Pill tone="red">✕</Pill>}</td>
+                <td className="px-3 py-2.5 text-slate-600">{tag.source === "template" ? t("meta.measure.td.gt.template") : "HTML"}</td>
               </tr>
             ))}
           </tbody>
@@ -416,12 +425,13 @@ function GtmContainerTable({ container }: { container: GtmContainer }) {
 }
 
 function IssueCard({ issue, onFix, onFixGtm }: { issue: TagIssue; onFix: (ids: string[]) => void; onFixGtm: (ids: string[]) => void }) {
+  const t = useT();
   const sev = SEVERITY_STYLE[issue.severity];
   const isWebTeamNote = issue.id.startsWith("gtm_dl_silent_");
   return (
     <div className={cn("rounded-xl border p-3.5 text-sm", issue.severity === "bad" ? "border-red-200 bg-red-50/50" : "border-amber-200 bg-amber-50/50")}>
       <div className="flex flex-wrap items-center gap-2">
-        <Pill tone={sev.tone}>{sev.text}</Pill>
+        <Pill tone={sev.tone}>{t(sev.text)}</Pill>
         <Pill tone="blue">{PLATFORM_CHIP[issue.platform]}</Pill>
         <span className="font-semibold text-slate-800">{issue.title}</span>
       </div>
@@ -434,10 +444,10 @@ function IssueCard({ issue, onFix, onFixGtm }: { issue: TagIssue; onFix: (ids: s
       {(issue.fixIds.length > 0 || (issue.gtmFixIds && issue.gtmFixIds.length > 0) || isWebTeamNote) && (
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {issue.fixIds.length > 0 && (
-            <Button className="h-10" size="sm" onClick={() => onFix(issue.fixIds)}>Sửa trên Google</Button>
+            <Button className="h-10" size="sm" onClick={() => onFix(issue.fixIds)}>{t("meta.measure.td.issue.fixGoogle")}</Button>
           )}
           {issue.gtmFixIds && issue.gtmFixIds.length > 0 && (
-            <Button className="h-10" size="sm" onClick={() => onFixGtm(issue.gtmFixIds!)}>Sửa trên GTM</Button>
+            <Button className="h-10" size="sm" onClick={() => onFixGtm(issue.gtmFixIds!)}>{t("meta.measure.td.issue.fixGtm")}</Button>
           )}
           {isWebTeamNote && <CopyWebTeamStepsButton issue={issue} />}
         </div>
@@ -449,6 +459,7 @@ function IssueCard({ issue, onFix, onFixGtm }: { issue: TagIssue; onFix: (ids: s
 /** Lỗi `gtm_dl_silent_*` là việc của đội web (trang không đẩy sự kiện dataLayer) — tool không tự
  *  sửa được, chỉ đưa dặn việc để dán sang kênh trao đổi với đội web. */
 function CopyWebTeamStepsButton({ issue }: { issue: TagIssue }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
   const text = [issue.title, issue.detail, ...issue.steps.map((s, i) => `${i + 1}. ${s}`)].join("\n");
   return (
@@ -459,7 +470,7 @@ function CopyWebTeamStepsButton({ issue }: { issue: TagIssue }) {
       onClick={() => { void navigator.clipboard.writeText(text); setCopied(true); window.setTimeout(() => setCopied(false), 1500); }}
     >
       {copied ? <Check className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" /> : <Copy className="h-3.5 w-3.5" aria-hidden="true" />}
-      {copied ? "Đã sao chép" : "Sao chép dặn việc cho đội web"}
+      {copied ? t("meta.measure.td.copy.done") : t("meta.measure.td.copy.btn")}
     </Button>
   );
 }
@@ -467,6 +478,7 @@ function CopyWebTeamStepsButton({ issue }: { issue: TagIssue }) {
 // Lịch sử dùng chung khối hiển thị readback với TagDoctorFixPanel (component
 // con export cả ExecutionCard) — xem import gộp ở đầu file.
 function TagDoctorHistory({ history, company, canEdit, onChanged }: { history: GoalFixExecution[]; company: Company; canEdit: boolean; onChanged: (force?: boolean) => void }) {
+  const t = useT();
   const [undoTarget, setUndoTarget] = useState<GoalFixExecution | null>(null);
   const [undoing, setUndoing] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -480,14 +492,14 @@ function TagDoctorHistory({ history, company, canEdit, onChanged }: { history: G
       setUndoTarget(null);
       await onChanged(true);
     } catch (e) {
-      setErr(e instanceof ApiError ? e.message : "Không hoàn tác được — thử lại sau");
+      setErr(e instanceof ApiError ? e.message : t("meta.measure.td.hist.undoFail"));
     } finally {
       setUndoing(false);
     }
   }
 
   if (history.length === 0) {
-    return <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-400">Chưa có lần sửa nào trên Google.</div>;
+    return <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-400">{t("meta.measure.td.hist.none")}</div>;
   }
 
   return (
@@ -495,31 +507,31 @@ function TagDoctorHistory({ history, company, canEdit, onChanged }: { history: G
       {err && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{err}</div>}
       {history.map((ex) => (
         <div key={ex.id} className="space-y-2">
-          <ExecutionCard exec={ex} title={ex.status === "done" ? `Đã ghi bởi ${ex.by}` : `Ghi thất bại — bởi ${ex.by}`} />
+          <ExecutionCard exec={ex} title={ex.status === "done" ? t("meta.measure.td.hist.done", { by: ex.by }) : t("meta.measure.td.hist.failed", { by: ex.by })} />
           {ex.changes.length > 0 && (
             <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-              Việc đã ghi: {ex.changes.map((c) => c.label).join("; ")}
+              {t("meta.measure.td.hist.changes", { list: ex.changes.map((c) => c.label).join("; ") })}
             </div>
           )}
           {ex.undoneAt ? (
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-xs text-slate-600">
-              <div className="font-semibold">Đã hoàn tác lúc {datetimeVN(ex.undoneAt)}</div>
+              <div className="font-semibold">{t("meta.measure.td.hist.undoneAt", { time: datetimeVN(ex.undoneAt) })}</div>
               {ex.undoReport && ex.undoReport.length > 0 && (
                 <ul className="mt-1 list-disc pl-4">{ex.undoReport.map((line, i) => <li key={i}>{line}</li>)}</ul>
               )}
             </div>
           ) : (
             <div className="flex items-center justify-end gap-2">
-              {!canEdit && <span className="text-xs text-slate-500">Cần quyền chỉnh sửa</span>}
+              {!canEdit && <span className="text-xs text-slate-500">{t("meta.measure.td.hist.needEdit")}</span>}
               <Button
                 className="h-10"
                 variant="destructive"
                 size="sm"
                 onClick={() => setUndoTarget(ex)}
                 disabled={!canEdit}
-                title={!canEdit ? "Cần quyền chỉnh sửa" : undefined}
+                title={!canEdit ? t("meta.measure.td.hist.needEdit") : undefined}
               >
-                <Undo2 className="h-3.5 w-3.5" aria-hidden="true" /> Hoàn tác
+                <Undo2 className="h-3.5 w-3.5" aria-hidden="true" /> {t("meta.measure.td.hist.undo")}
               </Button>
             </div>
           )}
@@ -529,15 +541,15 @@ function TagDoctorHistory({ history, company, canEdit, onChanged }: { history: G
       <Dialog open={!!undoTarget} onOpenChange={(o) => !o && setUndoTarget(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle className="text-red-600">Hoàn tác thay đổi vừa ghi?</DialogTitle>
+            <DialogTitle className="text-red-600">{t("meta.measure.td.hist.dlgTitle")}</DialogTitle>
             <DialogDescription>
-              Sẽ đưa mục tiêu đặt giá cấp tài khoản và hành động chính về đúng trạng thái trước khi lần ghi này thực hiện. Chỉ hoàn tác những gì lần ghi này đã đổi — sửa tay của người khác sau đó được giữ nguyên.
+              {t("meta.measure.td.hist.dlgDesc")}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <DialogClose render={<Button className="h-10" variant="outline" />}>Giữ nguyên</DialogClose>
+            <DialogClose render={<Button className="h-10" variant="outline" />}>{t("meta.measure.td.hist.keep")}</DialogClose>
             <Button className="h-10" variant="destructive" onClick={runUndo} disabled={undoing}>
-              {undoing && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} Hoàn tác
+              {undoing && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} {t("meta.measure.td.hist.undo")}
             </Button>
           </DialogFooter>
         </DialogContent>

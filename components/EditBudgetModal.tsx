@@ -8,6 +8,7 @@ import { Loader2 } from "lucide-react";
 import { useToast } from "@/components/Toast";
 import { formatCurrency } from "@/lib/utils";
 import { useAdsStore } from "@/store/useAdsStore";
+import { useT } from "@/lib/i18n/client";
 import type { Campaign } from "@/types/ads.types";
 
 interface EditBudgetModalProps {
@@ -26,6 +27,7 @@ export function EditBudgetModal({
   onSuccess,
 }: EditBudgetModalProps) {
   const { toast } = useToast();
+  const t = useT();
   const { updateCampaignBudget } = useAdsStore();
   const [isSaving, setIsSaving] = useState(false);
   const [budget, setBudget] = useState<string>("");
@@ -75,11 +77,11 @@ export function EditBudgetModal({
         // lên thay đổi của cron mà không hề biết, rồi vài giờ sau cron đè lại.
         if (data.conflictWarning) {
           toast({
-            title: `⚠️ Đã cập nhật, nhưng lưu ý: ${data.conflictWarning}`,
+            title: t("panels.budget.updatedWarn", { warning: data.conflictWarning }),
             variant: "error",
           });
         } else {
-          toast({ title: "✅ Đã cập nhật ngân sách" });
+          toast({ title: t("panels.budget.updated") });
         }
         onSuccess(newBudget);
         onClose();
@@ -87,7 +89,7 @@ export function EditBudgetModal({
         toast({ title: `❌ ${data.error}`, variant: "error" });
       }
     } catch {
-      toast({ title: "❌ Lỗi kết nối API", variant: "error" });
+      toast({ title: t("panels.budget.connError"), variant: "error" });
     } finally {
       setIsSaving(false);
     }
@@ -97,16 +99,16 @@ export function EditBudgetModal({
     <Dialog open={isOpen} onOpenChange={(open) => !isSaving && !open && onClose()}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Chỉnh sửa ngân sách — {campaign.name}</DialogTitle>
+          <DialogTitle>{t("panels.budget.title", { name: campaign.name })}</DialogTitle>
         </DialogHeader>
 
         <div className="py-2 space-y-4">
           <p className="text-sm font-medium text-slate-700">
-            Ngân sách hiện tại: {formatCurrency(currentBudget, currency)}/ngày
+            {t("panels.budget.current", { amount: formatCurrency(currentBudget, currency) })}
           </p>
 
           <div className="space-y-2">
-            <label className="text-xs font-medium text-slate-500">Ngân sách mới (VNĐ/ngày)</label>
+            <label className="text-xs font-medium text-slate-500">{t("panels.budget.newLabel")}</label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-medium pb-[1px]">₫</span>
               <Input
@@ -114,13 +116,13 @@ export function EditBudgetModal({
                 min={10000}
                 step={10000}
                 className="pl-7"
-                placeholder="Nhập số tiền..."
+                placeholder={t("panels.budget.placeholder")}
                 value={budget}
                 onChange={(e) => setBudget(e.target.value)}
                 disabled={isSaving}
               />
             </div>
-            <p className="text-[11px] text-slate-400">Tối thiểu ₫10,000/ngày</p>
+            <p className="text-[11px] text-slate-400">{t("panels.budget.min")}</p>
           </div>
 
           <div className="flex flex-wrap gap-2 pt-1">
@@ -140,17 +142,17 @@ export function EditBudgetModal({
 
           {newBudget > 0 && newBudget !== currentBudget && (
             <div className={`mt-2 text-sm font-medium ${difference > 0 ? "text-emerald-600" : "text-amber-600"}`}>
-              {difference > 0 ? "▲ Tăng" : "▼ Giảm"}{" "}
-              {formatCurrency(Math.abs(difference), currency)}/ngày ({difference > 0 ? "+" : ""}{percentChange.toFixed(0)}%)
+              {difference > 0 ? t("panels.budget.increase") : t("panels.budget.decrease")}{" "}
+              {t("panels.budget.perDay", { amount: formatCurrency(Math.abs(difference), currency) })} ({difference > 0 ? "+" : ""}{percentChange.toFixed(0)}%)
             </div>
           )}
         </div>
 
         <DialogFooter className="gap-2 sm:gap-0 mt-2">
-          <Button variant="outline" onClick={onClose} disabled={isSaving}>Huỷ</Button>
+          <Button variant="outline" onClick={onClose} disabled={isSaving}>{t("panels.budget.cancel")}</Button>
           <Button className="bg-amber-500 hover:bg-amber-600 text-amber-950" onClick={handleSave} disabled={!hasChanged || isSaving}>
             {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Lưu thay đổi
+            {t("panels.budget.save")}
           </Button>
         </DialogFooter>
       </DialogContent>

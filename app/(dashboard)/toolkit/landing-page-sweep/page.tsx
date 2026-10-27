@@ -21,6 +21,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Link2Off, Loader2, AlertTriangle, RefreshCw, Info, CheckCircle2, HelpCircle, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { companyIds, orderedCompanyIds } from "@/lib/companies/registry";
+import { useIntlLocale, useT } from "@/lib/i18n/client";
 
 interface SweepRow {
   url: string;
@@ -52,10 +53,11 @@ interface ApiResponse {
   error?: string;
 }
 
-const vnd = (n: number) => `₫${Math.round(n).toLocaleString("vi-VN")}`;
-const num = (n: number) => Math.round(n).toLocaleString("vi-VN");
-
 export default function LandingPageSweepPage() {
+  const t = useT();
+  const loc = useIntlLocale();
+  const vnd = (n: number) => `₫${Math.round(n).toLocaleString(loc)}`;
+  const num = (n: number) => Math.round(n).toLocaleString(loc);
   const [company, setCompany] = useState<string>(() => orderedCompanyIds(["MBC"])[0] ?? "MBC") // Đợt 25: công ty theo bản cài (bản Mắt Bão y như cũ);
   const [days, setDays] = useState<"7" | "14" | "30">("30");
   const [data, setData] = useState<ApiResponse | null>(null);
@@ -70,7 +72,7 @@ export default function LandingPageSweepPage() {
       if (!res.ok || !json.success) throw new Error(json.error ?? `HTTP ${res.status}`);
       setData(json);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Không quét được");
+      setError(e instanceof Error ? e.message : t("google.lpSweep.scanFailed"));
     }
     setLoading(false);
   }, [company, days]);
@@ -82,10 +84,9 @@ export default function LandingPageSweepPage() {
       <div className="flex items-start gap-3 flex-wrap">
         <div className="rounded-lg bg-red-100 p-2.5 text-red-600"><Link2Off className="h-5 w-5" /></div>
         <div className="flex-1 min-w-[260px]">
-          <h1 className="text-xl font-bold text-slate-800">Quét trang đích chết</h1>
+          <h1 className="text-xl font-bold text-slate-800">{t("google.lpSweep.title")}</h1>
           <p className="text-sm text-slate-500 mt-0.5">
-            Mở thử trang đích của mọi quảng cáo Google đang chạy, tìm trang trả lỗi.
-            Chỉ đọc và báo cáo — không tự tạm dừng gì.
+            {t("google.lpSweep.subtitle")}
           </p>
         </div>
       </div>
@@ -93,7 +94,7 @@ export default function LandingPageSweepPage() {
       <Card>
         <CardContent className="p-4 flex items-end gap-4 flex-wrap">
           <div>
-            <label className="text-xs font-semibold text-slate-500 mb-1 block">Công ty</label>
+            <label className="text-xs font-semibold text-slate-500 mb-1 block">{t("google.lpSweep.company")}</label>
             <div className="flex gap-1.5">
               {companyIds().map(c => (
                 <button key={c} onClick={() => setCompany(c)}
@@ -105,20 +106,20 @@ export default function LandingPageSweepPage() {
             </div>
           </div>
           <div>
-            <label className="text-xs font-semibold text-slate-500 mb-1 block">Khoảng số liệu</label>
+            <label className="text-xs font-semibold text-slate-500 mb-1 block">{t("google.lpSweep.range")}</label>
             <div className="flex gap-1.5">
               {(["7", "14", "30"] as const).map(d => (
                 <button key={d} onClick={() => setDays(d)}
                   className={cn("rounded-lg border px-3 py-2 text-xs font-semibold",
                     days === d ? "border-slate-700 bg-slate-800 text-white" : "border-slate-200 bg-white text-slate-500")}>
-                  {d} ngày
+                  {t("google.lpSweep.days", { n: d })}
                 </button>
               ))}
             </div>
           </div>
           <button onClick={run} disabled={loading}
             className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50">
-            {loading ? <><Loader2 className="h-4 w-4 animate-spin" /> Đang quét…</> : <><RefreshCw className="h-4 w-4" /> Quét ngay</>}
+            {loading ? <><Loader2 className="h-4 w-4 animate-spin" /> {t("google.lpSweep.scanning")}</> : <><RefreshCw className="h-4 w-4" /> {t("google.lpSweep.scanNow")}</>}
           </button>
         </CardContent>
       </Card>
@@ -126,13 +127,13 @@ export default function LandingPageSweepPage() {
       {loading && (
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500 flex items-center gap-2">
           <Loader2 className="h-4 w-4 animate-spin" />
-          Đang mở thử từng trang đích. Mỗi trang chờ tối đa 12 giây nên lượt quét có thể mất vài phút.
+          {t("google.lpSweep.scanningNote")}
         </div>
       )}
 
       {error && (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4">
-          <p className="text-sm font-semibold text-red-700">Không quét được</p>
+          <p className="text-sm font-semibold text-red-700">{t("google.lpSweep.scanFailed")}</p>
           <p className="text-xs text-red-600 mt-1">{error}</p>
         </div>
       )}
@@ -141,10 +142,10 @@ export default function LandingPageSweepPage() {
         <>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[
-              { label: "URL đã kiểm", value: num(s.urlsChecked), sub: `gộp từ ${num(s.rowsBeforeMerge)} dòng`, tone: "text-slate-800" },
-              { label: "Trang chết", value: num(s.dead), sub: s.dead > 0 ? `đang tiêu ${vnd(s.deadSpendVnd)}` : "không có", tone: s.dead > 0 ? "text-red-600" : "text-emerald-600" },
-              { label: "Chưa kết luận", value: num(s.inconclusive), sub: "không nhận được phản hồi", tone: "text-amber-600" },
-              { label: "Trang sống", value: num(s.alive), sub: "mở bình thường", tone: "text-emerald-600" },
+              { label: t("google.lpSweep.kpiChecked"), value: num(s.urlsChecked), sub: t("google.lpSweep.kpiMerged", { n: num(s.rowsBeforeMerge) }), tone: "text-slate-800" },
+              { label: t("google.lpSweep.kpiDead"), value: num(s.dead), sub: s.dead > 0 ? t("google.lpSweep.kpiSpending", { amount: vnd(s.deadSpendVnd) }) : t("google.lpSweep.kpiNone"), tone: s.dead > 0 ? "text-red-600" : "text-emerald-600" },
+              { label: t("google.lpSweep.kpiInconclusive"), value: num(s.inconclusive), sub: t("google.lpSweep.kpiNoResponse"), tone: "text-amber-600" },
+              { label: t("google.lpSweep.kpiAlive"), value: num(s.alive), sub: t("google.lpSweep.kpiOpensFine"), tone: "text-emerald-600" },
             ].map(c => (
               <div key={c.label} className="rounded-xl border border-slate-200 bg-white p-4">
                 <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wide">{c.label}</p>
@@ -158,10 +159,10 @@ export default function LandingPageSweepPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4 text-red-500" /> Trang đích trả lỗi ({data.dead.length})
+                  <AlertTriangle className="h-4 w-4 text-red-500" /> {t("google.lpSweep.deadTitle", { n: data.dead.length })}
                 </CardTitle>
                 <CardDescription>
-                  Xếp theo chi tiêu giảm dần. Đây là tiền đang chảy vào những trang khách bấm vào không mở được.
+                  {t("google.lpSweep.deadDesc")}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-2.5">
@@ -179,8 +180,8 @@ export default function LandingPageSweepPage() {
                     </div>
                     {r.problem && <p className="text-xs text-red-700 mt-1.5 leading-relaxed">{r.problem}</p>}
                     <p className="text-[11px] text-slate-500 mt-1">
-                      {num(r.impressions)} hiển thị · {num(r.clicks)} click · {num(r.conversions)} chuyển đổi
-                      {r.refCount > 1 && ` · ${r.refCount} nhóm quảng cáo cùng trỏ vào đây`}
+                      {t("google.lpSweep.rowStats", { impressions: num(r.impressions), clicks: num(r.clicks), conversions: num(r.conversions) })}
+                      {r.refCount > 1 && t("google.lpSweep.rowRefs", { n: r.refCount })}
                     </p>
                   </div>
                 ))}
@@ -190,7 +191,7 @@ export default function LandingPageSweepPage() {
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 flex gap-2">
               <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
               <p className="text-sm text-emerald-800">
-                Không có trang đích nào trả lỗi trong {num(s.urlsChecked)} URL đã kiểm.
+                {t("google.lpSweep.noDead", { n: num(s.urlsChecked) })}
               </p>
             </div>
           )}
@@ -199,11 +200,10 @@ export default function LandingPageSweepPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
-                  <HelpCircle className="h-4 w-4 text-amber-500" /> Chưa kết luận được ({data.inconclusive.length})
+                  <HelpCircle className="h-4 w-4 text-amber-500" /> {t("google.lpSweep.inconclusiveTitle", { n: data.inconclusive.length })}
                 </CardTitle>
                 <CardDescription>
-                  Máy chủ không nhận được phản hồi nào từ các trang này. Đây <strong>không</strong> phải bằng chứng
-                  trang hỏng — có thể do mạng phía tool. Tự mở thử trước khi sửa gì.
+                  {t("google.lpSweep.inconclusivePre")} <strong>{t("google.lpSweep.inconclusiveNot")}</strong> {t("google.lpSweep.inconclusivePost")}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-1.5">
@@ -222,7 +222,7 @@ export default function LandingPageSweepPage() {
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 flex gap-2">
               <Info className="h-4 w-4 text-slate-400 shrink-0 mt-0.5" />
               <p className="text-[11px] text-slate-500 leading-relaxed">
-                Google từ chối truy vấn đầy đủ nên đã phải hạ xuống bản chỉ-theo-URL (mất thông tin nhóm quảng cáo): {data.downgradeReason}
+                {t("google.lpSweep.downgrade")} {data.downgradeReason}
               </p>
             </div>
           )}

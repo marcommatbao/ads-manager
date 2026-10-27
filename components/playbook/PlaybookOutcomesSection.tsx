@@ -22,6 +22,8 @@ import { useToast } from "@/components/Toast";
 import { vnd, num, datetimeVN } from "@/components/case/format";
 import { postJson, ApiError } from "@/components/case/api";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/messages";
 import type { OutcomeRecord } from "@/lib/playbook/outcomes";
 import type { Company } from "@/lib/case/types";
 
@@ -53,16 +55,16 @@ export interface OutcomesApiResponse {
   company: Company;
 }
 
-const VERDICT_STYLE: Record<OutcomeRecord["verdict"], { tone: PillTone; text: string }> = {
-  better: { tone: "green", text: "✓ Tốt hơn" },
-  worse: { tone: "red", text: "✕ Kém hơn" },
-  neutral: { tone: "grey", text: "= Ngang" },
-  insufficient: { tone: "grey", text: "◌ Chưa đủ số" },
+const VERDICT_STYLE: Record<OutcomeRecord["verdict"], { tone: PillTone; text: MessageKey }> = {
+  better: { tone: "green", text: "overview.playbook.outcomes.better" },
+  worse: { tone: "red", text: "overview.playbook.outcomes.worse" },
+  neutral: { tone: "grey", text: "overview.playbook.outcomes.neutral" },
+  insufficient: { tone: "grey", text: "overview.playbook.outcomes.insufficient" },
 };
 
-const PLATFORM_BADGE: Record<OutcomeUsage["platform"], { text: string; cls: string }> = {
-  facebook: { text: "FB", cls: "bg-blue-100 text-blue-700" },
-  google: { text: "GG", cls: "bg-red-100 text-red-600" },
+const PLATFORM_BADGE: Record<OutcomeUsage["platform"], { text: MessageKey; cls: string }> = {
+  facebook: { text: "overview.playbook.outcomes.platFb", cls: "bg-blue-100 text-blue-700" },
+  google: { text: "overview.playbook.outcomes.platGg", cls: "bg-red-100 text-red-600" },
 };
 
 export function PlaybookOutcomesSection({
@@ -76,6 +78,7 @@ export function PlaybookOutcomesSection({
   error: unknown;
   onReload: () => unknown;
 }) {
+  const t = useT();
   const { toast } = useToast();
   const [running, setRunning] = useState(false);
 
@@ -89,11 +92,11 @@ export function PlaybookOutcomesSection({
       const res = await postJson(`/api/jobs/${jobId}/trigger`);
       await onReload();
       toast({
-        title: res?.success ? "✅ Đã chấm xong" : "❌ Job báo lỗi — xem chi tiết ở /settings/jobs",
+        title: res?.success ? t("overview.playbook.outcomes.toastDone") : t("overview.playbook.outcomes.toastJobErr"),
         variant: res?.success ? "success" : "error",
       });
     } catch (e) {
-      toast({ title: "❌ Không chạy được job", description: e instanceof ApiError ? e.message : undefined, variant: "error" });
+      toast({ title: t("overview.playbook.outcomes.toastRunErr"), description: e instanceof ApiError ? e.message : undefined, variant: "error" });
     } finally {
       setRunning(false);
     }
@@ -103,15 +106,15 @@ export function PlaybookOutcomesSection({
     <div className="space-y-2">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-base font-bold text-slate-900">Kết quả áp dụng (chấm sau 14 / 28 ngày)</h2>
+          <h2 className="text-base font-bold text-slate-900">{t("overview.playbook.outcomes.title")}</h2>
           <p className="mt-0.5 text-sm text-slate-500">
-            Chiến dịch tạo bằng kinh nghiệm trong Sổ, so với các chiến dịch cùng sản phẩm cùng kỳ ở mốc 14 và 28 ngày.
+            {t("overview.playbook.outcomes.desc")}
           </p>
         </div>
         {canRunNow && (
           <Button size="sm" onClick={runNow} disabled={running}>
             {running ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Play className="h-3.5 w-3.5" aria-hidden="true" />}
-            Chấm ngay
+            {t("overview.playbook.outcomes.runNow")}
           </Button>
         )}
       </div>
@@ -122,16 +125,16 @@ export function PlaybookOutcomesSection({
         <EmptyState
           compact
           icon={AlertCircle}
-          title="Chưa tải được kết quả áp dụng"
-          description={error instanceof ApiError ? error.message : "Không kết nối được API."}
+          title={t("overview.playbook.outcomes.loadErrTitle")}
+          description={error instanceof ApiError ? error.message : t("overview.playbook.outcomes.apiErr")}
         />
       )}
 
       {!loading && error == null && usages.length === 0 && (
         <EmptyState
           compact
-          title="Chưa có chiến dịch nào tạo bằng kinh nghiệm"
-          description="Khi tạo chiến dịch ở Creative/Google có dùng gợi ý từ Sổ, kết quả sẽ hiện ở đây sau 14 ngày."
+          title={t("overview.playbook.outcomes.emptyTitle")}
+          description={t("overview.playbook.outcomes.emptyDesc")}
         />
       )}
 
@@ -145,16 +148,17 @@ export function PlaybookOutcomesSection({
 }
 
 function UsageCard({ usage }: { usage: OutcomeUsage & { company: Company } }) {
+  const t = useT();
   const badge = PLATFORM_BADGE[usage.platform];
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 px-4 py-3">
         <div className="flex items-start gap-2">
-          <span className={cn("mt-0.5 inline-flex shrink-0 items-center rounded px-1 py-0.5 text-[9px] font-bold", badge.cls)}>{badge.text}</span>
+          <span className={cn("mt-0.5 inline-flex shrink-0 items-center rounded px-1 py-0.5 text-[9px] font-bold", badge.cls)}>{t(badge.text)}</span>
           <div>
             <div className="font-semibold text-slate-900">{usage.campaignName}</div>
             <div className="mt-0.5 text-xs text-slate-400">
-              {usage.company} · tạo {datetimeVN(usage.at)}{usage.by ? ` · bởi ${usage.by}` : ""}
+              {t("overview.playbook.outcomes.createdAt", { company: usage.company, at: datetimeVN(usage.at) })}{usage.by ? t("overview.playbook.outcomes.createdBy", { by: usage.by }) : ""}
             </div>
           </div>
         </div>
@@ -163,7 +167,7 @@ function UsageCard({ usage }: { usage: OutcomeUsage & { company: Company } }) {
       {(usage.entries.length > 0 || usage.overriddenAvoid.length > 0) && (
         <div className="flex flex-wrap items-center gap-1.5 border-b border-slate-100 px-4 py-2.5">
           {usage.entries.map((e) => <Pill key={e.id} tone="blue">{e.label}</Pill>)}
-          {usage.overriddenAvoid.map((e) => <Pill key={e.id} tone="amber">⚠ làm trái Nên tránh: {e.label}</Pill>)}
+          {usage.overriddenAvoid.map((e) => <Pill key={e.id} tone="amber">{t("overview.playbook.outcomes.overridden", { label: e.label })}</Pill>)}
         </div>
       )}
 
@@ -175,14 +179,15 @@ function UsageCard({ usage }: { usage: OutcomeUsage & { company: Company } }) {
 }
 
 function CheckpointCard({ checkpoint }: { checkpoint: OutcomeCheckpoint }) {
+  const t = useT();
   return (
     <div className="rounded-lg border border-slate-100 bg-slate-50/60 p-3">
-      <div className="mb-1.5 text-xs font-semibold text-slate-500">Mốc {checkpoint.days} ngày</div>
+      <div className="mb-1.5 text-xs font-semibold text-slate-500">{t("overview.playbook.outcomes.checkpoint", { days: checkpoint.days })}</div>
       {checkpoint.status === "waiting" && (
-        <div className="text-sm text-slate-400">chờ tới {checkpoint.due}</div>
+        <div className="text-sm text-slate-400">{t("overview.playbook.outcomes.waitUntil", { due: checkpoint.due })}</div>
       )}
       {checkpoint.status === "pending_run" && (
-        <div className="text-sm text-slate-500">đủ ngày — chờ lượt chấm</div>
+        <div className="text-sm text-slate-500">{t("overview.playbook.outcomes.pendingRun")}</div>
       )}
       {checkpoint.status === "done" && checkpoint.record && (
         <RecordDetail record={checkpoint.record} />
@@ -192,22 +197,23 @@ function CheckpointCard({ checkpoint }: { checkpoint: OutcomeCheckpoint }) {
 }
 
 function RecordDetail({ record }: { record: OutcomeRecord }) {
+  const t = useT();
   const v = VERDICT_STYLE[record.verdict];
   return (
     <div className="space-y-1.5">
-      <Pill tone={v.tone}>{v.text}</Pill>
+      <Pill tone={v.tone}>{t(v.text)}</Pill>
       <p className="text-xs text-slate-600">{record.why}</p>
       {record.cpr !== null && record.peerMedian !== null && (
-        <div className="text-xs tabular-nums text-slate-500">{vnd(record.cpr)}/kết quả vs trung vị {vnd(record.peerMedian)}</div>
+        <div className="text-xs tabular-nums text-slate-500">{t("overview.playbook.outcomes.cprVsMedian", { cpr: vnd(record.cpr), median: vnd(record.peerMedian) })}</div>
       )}
       {record.odoo && (
         "orders" in record.odoo ? (
           <div className="text-xs tabular-nums text-slate-500">
-            Odoo: {num(record.odoo.orders)} đơn · {vnd(record.odoo.revenue)}
-            {record.odoo.tags.length > 0 && <span className="text-slate-400"> (thẻ {record.odoo.tags.join(", ")})</span>}
+            {t("overview.playbook.outcomes.odooOrders", { n: num(record.odoo.orders), revenue: vnd(record.odoo.revenue) })}
+            {record.odoo.tags.length > 0 && <span className="text-slate-400">{t("overview.playbook.outcomes.odooTags", { tags: record.odoo.tags.join(", ") })}</span>}
           </div>
         ) : (
-          <div className="text-xs text-slate-400">Odoo: {record.odoo.error}</div>
+          <div className="text-xs text-slate-400">{t("overview.playbook.outcomes.odooErr", { error: record.odoo.error })}</div>
         )
       )}
     </div>

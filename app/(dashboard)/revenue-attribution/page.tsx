@@ -24,6 +24,8 @@ import useSWR from "swr";
 import { Wallet, TrendingUp, Receipt, AlertTriangle, RefreshCw, Info, Scale } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { orderedCompanyIds } from "@/lib/companies/registry";
+import { useIntlLocale, useT } from "@/lib/i18n/client";
+import type { TFunction } from "@/lib/i18n/translate";
 
 interface Row { campaign: string; orders: number; revenue: number; aov: number }
 interface Report {
@@ -44,11 +46,12 @@ interface Unified {
 
 type Company = string /* mã công ty hoặc "ALL" */;
 
-const vnd = (n: number) => `₫${Math.round(n).toLocaleString("vi-VN")}`;
-const short = (n: number) =>
-  n >= 1_000_000_000 ? `₫${(n / 1e9).toFixed(2)} tỷ`
-  : n >= 1_000_000 ? `₫${(n / 1e6).toFixed(1)} tr`
-  : vnd(n);
+const rich = (s: string) => s.split(/<(b|code)>(.*?)<\/\1>/).map((part, i, a) => (i % 3 === 2 ? (a[i - 1] === "b" ? <b key={i}>{part}</b> : <code key={i}>{part}</code>) : i % 3 === 1 ? null : part));
+const vndL = (n: number, intl: string) => `₫${Math.round(n).toLocaleString(intl)}`;
+const shortL = (n: number, intl: string, t: TFunction) =>
+  n >= 1_000_000_000 ? t("meta.revenue.short.bn", { v: (n / 1e9).toFixed(2) })
+  : n >= 1_000_000 ? t("meta.revenue.short.mn", { v: (n / 1e6).toFixed(1) })
+  : vndL(n, intl);
 
 function ymd(d: Date) {
   const p = (x: number) => String(x).padStart(2, "0");
@@ -64,7 +67,7 @@ interface Loaded {
 
 /** Hai đường độc lập: Odoo hỏng thì vẫn thấy chi phí, và ngược lại. Mất một nửa
  *  số liệu vẫn hơn mất sạch, nên không dùng Promise.all-rồi-throw. */
-async function loadBoth(qs: string): Promise<Loaded> {
+async function loadBoth(qs: string, t: TFunction): Promise<Loaded> {
   const [rev, spend] = await Promise.allSettled([
     fetch(`/api/audience/campaign-revenue?${qs}`).then(r => r.json() as Promise<{ report?: Report; error?: string }>),
     fetch(`/api/dashboard/unified?${qs}`).then(r => r.json() as Promise<Partial<Unified>>),
@@ -74,9 +77,9 @@ async function loadBoth(qs: string): Promise<Loaded> {
 
   if (rev.status === "fulfilled") {
     out.report = rev.value.report ?? null;
-    out.reportError = rev.value.report?.error ?? (rev.value.report ? null : rev.value.error ?? "Không đọc được Odoo");
+    out.reportError = rev.value.report?.error ?? (rev.value.report ? null : rev.value.error ?? t("meta.revenue.err.odoo"));
   } else {
-    out.reportError = "Không gọi được API doanh thu";
+    out.reportError = t("meta.revenue.err.api");
   }
 
   if (spend.status === "fulfilled" && spend.value.summary) {
@@ -88,13 +91,17 @@ async function loadBoth(qs: string): Promise<Loaded> {
     ].filter(Boolean);
     out.spendError = errs.length ? errs.join(" · ") : null;
   } else {
-    out.spendError = "Không lấy được chi phí quảng cáo cho kỳ này";
+    out.spendError = t("meta.revenue.err.spend");
   }
 
   return out;
 }
 
 export default function RevenueAttributionPage() {
+  const t = useT();
+  const intl = useIntlLocale();
+  const vnd = (n: number) => vndL(n, intl);
+  const short = (n: number) => shortL(n, intl, t);
   const now = new Date();
   const [from, setFrom] = useState(ymd(new Date(now.getFullYear(), now.getMonth(), 1)));
   const [to, setTo] = useState(ymd(now));
@@ -102,7 +109,7 @@ export default function RevenueAttributionPage() {
 
   const { data, isLoading, isValidating, mutate } = useSWR(
     `from=${from}&to=${to}&company=${company}`,
-    loadBoth,
+    (qs: string) => loadBoth(qs, t),
     // Kỳ đã chốt thì số không đổi; đây lại là trang gọi thẳng Meta/Google nên
     // mỗi lần focus lại tab mà tự gọi là đốt quota vô ích.
     { revalidateOnFocus: false, keepPreviousData: true },
@@ -130,16 +137,15 @@ export default function RevenueAttributionPage() {
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <Receipt className="h-5 w-5 text-emerald-600" /> Doanh thu thật
+            <Receipt className="h-5 w-5 text-emerald-600" /> {t("meta.revenue.title")}
           </h1>
           <p className="text-sm text-slate-500 mt-1 max-w-2xl">
-            Đối chiếu tiền quảng cáo với <b>đơn hàng thật trong Odoo</b>. Khác với ROAS ở trang Reports —
-            con số đó do chính nền tảng quảng cáo tự khai.
+            {rich(t("meta.revenue.sub"))}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex rounded-lg border border-slate-200 overflow-hidden">
-            {([["MBC", "MBC"], ["ALL", "Tất cả"]] as const).map(([v, label]) => (
+            {([["MBC", "MBC"], ["ALL", t("meta.revenue.all")]] as const).map(([v, label]) => (
               <button key={v} onClick={() => setCompany(v)}
                 className={cn("px-3 py-1.5 text-xs font-semibold transition-colors",
                   company === v ? "bg-slate-800 text-white" : "bg-white text-slate-600 hover:bg-slate-50")}>
@@ -153,7 +159,7 @@ export default function RevenueAttributionPage() {
             className="text-xs border border-slate-200 rounded-lg px-2 py-1.5" />
           <button onClick={() => void mutate()} disabled={loading}
             className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-50 flex items-center gap-1.5">
-            <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} /> Tải lại
+            <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} /> {t("meta.revenue.reload")}
           </button>
         </div>
       </div>
@@ -168,32 +174,32 @@ export default function RevenueAttributionPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="rounded-2xl bg-white border border-slate-200 shadow-sm p-4">
           <div className="flex items-start justify-between">
-            <span className="text-xs font-semibold text-slate-500">CHI QUẢNG CÁO</span>
+            <span className="text-xs font-semibold text-slate-500">{t("meta.revenue.kpi.spend")}</span>
             <Wallet className="h-4 w-4 text-slate-400" />
           </div>
           <p className="text-xl font-black text-slate-800 mt-2">{spendError ? "—" : short(spend)}</p>
           <p className="text-[11px] text-slate-400 mt-0.5">
             {spendData
-              ? `Google ${short(spendData.google.spend)} · Facebook ${short(spendData.facebook.spend)}`
-              : "Đang lấy…"}
+              ? t("meta.revenue.kpi.spendSub", { google: short(spendData.google.spend), facebook: short(spendData.facebook.spend) })
+              : t("meta.revenue.kpi.fetching")}
           </p>
           {spendError && <p className="text-[11px] text-amber-600 mt-1">⚠️ {spendError}</p>}
         </div>
 
         <div className="rounded-2xl bg-white border border-slate-200 shadow-sm p-4">
           <div className="flex items-start justify-between">
-            <span className="text-xs font-semibold text-slate-500">DOANH THU ĐƠN THẬT (CÓ NHÃN)</span>
+            <span className="text-xs font-semibold text-slate-500">{t("meta.revenue.kpi.rev")}</span>
             <Receipt className="h-4 w-4 text-emerald-500" />
           </div>
           <p className="text-xl font-black text-emerald-700 mt-2">{report ? short(tagged) : "—"}</p>
           <p className="text-[11px] text-slate-400 mt-0.5">
-            {taggedOrders.toLocaleString("vi-VN")} đơn trong Odoo mang nhãn campaign
+            {t("meta.revenue.kpi.revSub", { n: taggedOrders.toLocaleString(intl) })}
           </p>
         </div>
 
         <div className="rounded-2xl bg-white border border-slate-200 shadow-sm p-4">
           <div className="flex items-start justify-between">
-            <span className="text-xs font-semibold text-slate-500">ROAS ĐO BẰNG ĐƠN THẬT</span>
+            <span className="text-xs font-semibold text-slate-500">{t("meta.revenue.kpi.roas")}</span>
             <TrendingUp className="h-4 w-4 text-indigo-500" />
           </div>
           <p className={cn("text-xl font-black mt-2",
@@ -202,7 +208,7 @@ export default function RevenueAttributionPage() {
             {roasReal === null ? "—" : `${roasReal.toFixed(2)}x`}
           </p>
           <p className="text-[11px] text-slate-400 mt-0.5">
-            {roasReal === null ? "Thiếu một vế nên không chia" : "Doanh thu Odoo ÷ chi quảng cáo"}
+            {roasReal === null ? t("meta.revenue.kpi.roasMissing") : t("meta.revenue.kpi.roasHint")}
           </p>
         </div>
       </div>
@@ -211,32 +217,29 @@ export default function RevenueAttributionPage() {
       {roasDeclared !== null && roasReal !== null && (
         <div className="rounded-2xl bg-white border border-slate-200 shadow-sm p-5">
           <h2 className="text-sm font-bold text-slate-700 flex items-center gap-1.5">
-            <Scale className="h-4 w-4 text-slate-400" /> Nền tảng khai bao nhiêu, thật sự vào bao nhiêu
+            <Scale className="h-4 w-4 text-slate-400" /> {t("meta.revenue.cmp.title")}
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-3">
             <div>
-              <p className="text-[11px] font-semibold text-slate-500">NỀN TẢNG TỰ KHAI</p>
+              <p className="text-[11px] font-semibold text-slate-500">{t("meta.revenue.cmp.declared")}</p>
               <p className="text-lg font-bold text-slate-700 mt-1">{roasDeclared.toFixed(2)}x</p>
-              <p className="text-[11px] text-slate-400">{short(declared)} — con số Reports đang dùng</p>
+              <p className="text-[11px] text-slate-400">{t("meta.revenue.cmp.declaredSub", { value: short(declared) })}</p>
             </div>
             <div>
-              <p className="text-[11px] font-semibold text-slate-500">ĐƠN HÀNG THẬT</p>
+              <p className="text-[11px] font-semibold text-slate-500">{t("meta.revenue.cmp.real")}</p>
               <p className="text-lg font-bold text-emerald-700 mt-1">{roasReal.toFixed(2)}x</p>
-              <p className="text-[11px] text-slate-400">{short(tagged)} — tiền vào tài khoản công ty</p>
+              <p className="text-[11px] text-slate-400">{t("meta.revenue.cmp.realSub", { value: short(tagged) })}</p>
             </div>
             <div>
-              <p className="text-[11px] font-semibold text-slate-500">CHÊNH LỆCH</p>
+              <p className="text-[11px] font-semibold text-slate-500">{t("meta.revenue.cmp.gap")}</p>
               <p className={cn("text-lg font-bold mt-1", (gap ?? 1) >= 1.5 ? "text-red-600" : "text-slate-700")}>
                 {gap === null ? "—" : `${gap.toFixed(2)}×`}
               </p>
-              <p className="text-[11px] text-slate-400">nền tảng khai cao hơn bấy nhiêu lần</p>
+              <p className="text-[11px] text-slate-400">{t("meta.revenue.cmp.gapSub")}</p>
             </div>
           </div>
           <p className="text-xs text-slate-500 mt-3 leading-relaxed">
-            Chênh lệch này <b>không có nghĩa nền tảng nói dối</b>. Nền tảng đếm mọi chuyển đổi nó cho là
-            do mình tạo ra (kể cả view-through, kể cả người đã định mua sẵn), còn Odoo chỉ ghi đơn đã
-            chốt. Con số bên phải là con số dùng để quyết định ngân sách; con số bên trái dùng để tối ưu
-            trong từng nền tảng.
+            {rich(t("meta.revenue.cmp.note"))}
           </p>
         </div>
       )}
@@ -244,32 +247,31 @@ export default function RevenueAttributionPage() {
       {/* Bảng theo nhãn campaign */}
       <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden">
         <div className="px-5 py-3 border-b border-slate-100">
-          <h2 className="text-sm font-bold text-slate-700">Theo nhãn campaign</h2>
+          <h2 className="text-sm font-bold text-slate-700">{t("meta.revenue.tbl.title")}</h2>
           <p className="text-[11px] text-slate-400 mt-0.5">
-            Nhãn lấy từ <code>campaign_id</code> của đơn hàng Odoo — do người gắn UTM đặt (dòng sản phẩm),
-            không phải tên chiến dịch trên nền tảng.
+            {rich(t("meta.revenue.tbl.note"))}
           </p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="text-left px-5 py-2 font-semibold">Nhãn</th>
-                <th className="text-right px-5 py-2 font-semibold">Đơn</th>
-                <th className="text-right px-5 py-2 font-semibold">Doanh thu</th>
-                <th className="text-right px-5 py-2 font-semibold">TB/đơn</th>
-                <th className="text-right px-5 py-2 font-semibold">% DT có nhãn</th>
+                <th className="text-left px-5 py-2 font-semibold">{t("meta.revenue.tbl.label")}</th>
+                <th className="text-right px-5 py-2 font-semibold">{t("meta.revenue.tbl.orders")}</th>
+                <th className="text-right px-5 py-2 font-semibold">{t("meta.revenue.tbl.revenue")}</th>
+                <th className="text-right px-5 py-2 font-semibold">{t("meta.revenue.tbl.aov")}</th>
+                <th className="text-right px-5 py-2 font-semibold">{t("meta.revenue.tbl.share")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
               {!report && (
                 <tr><td colSpan={5} className="px-5 py-6 text-center text-slate-400 text-xs">
-                  {loading ? "Đang đọc Odoo…" : "Chưa có dữ liệu."}
+                  {loading ? t("meta.revenue.tbl.reading") : t("meta.revenue.tbl.noData")}
                 </td></tr>
               )}
               {report && report.rows.length === 0 && (
                 <tr><td colSpan={5} className="px-5 py-6 text-center text-slate-400 text-xs">
-                  Không có đơn nào mang nhãn campaign trong kỳ này.
+                  {t("meta.revenue.tbl.empty")}
                 </td></tr>
               )}
               {report?.rows.map(r => (
@@ -278,11 +280,11 @@ export default function RevenueAttributionPage() {
                     {r.campaign}
                     {r.revenue === 0 && (
                       <span className="ml-2 text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">
-                        0đ — kiểm lại đơn trong Odoo
+                        {t("meta.revenue.tbl.zero")}
                       </span>
                     )}
                   </td>
-                  <td className="px-5 py-2.5 text-right text-slate-600 tabular-nums">{r.orders.toLocaleString("vi-VN")}</td>
+                  <td className="px-5 py-2.5 text-right text-slate-600 tabular-nums">{r.orders.toLocaleString(intl)}</td>
                   <td className="px-5 py-2.5 text-right font-semibold text-slate-800 tabular-nums">{vnd(r.revenue)}</td>
                   <td className="px-5 py-2.5 text-right text-slate-600 tabular-nums">{vnd(r.aov)}</td>
                   <td className="px-5 py-2.5 text-right text-slate-500 tabular-nums">
@@ -299,15 +301,13 @@ export default function RevenueAttributionPage() {
       {report && report.ordersWithoutCampaign > 0 && (
         <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4">
           <h3 className="text-sm font-bold text-slate-700 flex items-center gap-1.5">
-            <Info className="h-4 w-4 text-slate-400" /> Đơn không mang nhãn campaign
+            <Info className="h-4 w-4 text-slate-400" /> {t("meta.revenue.un.title")}
           </h3>
           <p className="text-sm text-slate-700 mt-1">
-            <b>{report.ordersWithoutCampaign.toLocaleString("vi-VN")} đơn</b> · {short(report.revenueWithoutCampaign)}
+            {rich(t("meta.revenue.un.count", { n: report.ordersWithoutCampaign.toLocaleString(intl), value: short(report.revenueWithoutCampaign) }))}
           </p>
           <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
-            Phần lớn là <b>gia hạn tự động, khách cũ, đơn qua điện thoại và kênh chat</b> — những đường
-            chưa bao giờ đi qua quảng cáo nên không có UTM để mà mất. Đây <b>không phải</b> dấu hiệu
-            tracking hỏng: đo riêng nhóm đơn đến từ quảng cáo trả phí thì <b>97,9%</b> đều có nhãn.
+            {rich(t("meta.revenue.un.note"))}
           </p>
         </div>
       )}
@@ -315,14 +315,14 @@ export default function RevenueAttributionPage() {
       {/* Giới hạn — đặt cạnh số, không giấu trong tài liệu */}
       <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
         <h3 className="text-sm font-bold text-amber-900 flex items-center gap-1.5">
-          <AlertTriangle className="h-4 w-4" /> Đọc con số này thế nào cho đúng
+          <AlertTriangle className="h-4 w-4" /> {t("meta.revenue.lim.title")}
         </h3>
         <ul className="mt-2 space-y-1.5 text-xs text-amber-900 leading-relaxed">
-          <li>• <b>Chiến dịch brand không tạo ra toàn bộ nhu cầu.</b> Người gõ đúng tên thương hiệu phần lớn đã định mua — gán trọn doanh thu đó cho quảng cáo là hào phóng, nên ROAS thật có thể còn thấp hơn số hiển thị.</li>
-          <li>• <b>Tên miền / hosting là doanh thu lặp lại.</b> Một đơn hôm nay còn gia hạn nhiều năm sau; ROAS một tháng không phản ánh giá trị vòng đời.</li>
-          <li>• <b>Chỉ tới cấp NHÃN campaign.</b> Odoo không có trường nào chứa được ad set hay phân khúc, nên không tách nhỏ hơn được.</li>
-          <li>• <b>Doanh thu ở đây là <code>amount_untaxed</code> của đơn hàng</b>, khác cách tính doanh thu thuần theo hoá đơn mà card P&amp;L dùng — hai chỗ lệch nhau là bình thường.</li>
-          <li>• <b>Ngày của đơn ≠ ngày của click.</b> Đơn chốt hôm nay có thể đến từ chi tiêu tuần trước; kỳ càng ngắn thì sai số này càng lớn.</li>
+          <li>{rich(t("meta.revenue.lim.1"))}</li>
+          <li>{rich(t("meta.revenue.lim.2"))}</li>
+          <li>{rich(t("meta.revenue.lim.3"))}</li>
+          <li>{rich(t("meta.revenue.lim.4"))}</li>
+          <li>{rich(t("meta.revenue.lim.5"))}</li>
         </ul>
       </div>
     </div>

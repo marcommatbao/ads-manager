@@ -10,6 +10,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { orderedCompanyIds, companyLabel } from "@/lib/companies/registry";
+import { useIntlLocale, useT } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/messages";
+import type { TFunction } from "@/lib/i18n/translate";
 
 // ─────────────────────────────────────────────
 // Types
@@ -49,24 +52,30 @@ const CPL_ALERT_TYPES = new Set(["cpl_critical", "cpl_warning"]);
 // Helpers
 // ─────────────────────────────────────────────
 
-function timeAgo(dateStr: string): string {
+function timeAgo(dateStr: string, t: TFunction, loc: string): string {
   const now = Date.now();
   const then = new Date(dateStr).getTime();
   const diffMs = now - then;
   const mins = Math.floor(diffMs / 60000);
-  if (mins < 1) return "Vừa xong";
-  if (mins < 60) return `${mins} phút trước`;
+  if (mins < 1) return t("overview.notifications.time.justNow");
+  if (mins < 60) return t("overview.notifications.time.minsAgo", { n: mins });
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours} giờ trước`;
+  if (hours < 24) return t("overview.notifications.time.hoursAgo", { n: hours });
   const days = Math.floor(hours / 24);
-  if (days < 7) return `${days} ngày trước`;
-  return new Date(dateStr).toLocaleDateString("vi-VN");
+  if (days < 7) return t("overview.notifications.time.daysAgo", { n: days });
+  return new Date(dateStr).toLocaleDateString(loc);
 }
 
-function fmt(n: number | undefined | string): string {
+function fmtNum(n: number | undefined | string, loc: string): string {
   if (n === undefined || typeof n === "string") return "—";
-  return new Intl.NumberFormat("vi-VN").format(Math.round(n));
+  return new Intl.NumberFormat(loc).format(Math.round(n));
 }
+
+const SEVERITY_LABEL: Record<Severity, MessageKey> = {
+  critical: "overview.notifications.sev.critical",
+  warning: "overview.notifications.sev.warning",
+  info: "overview.notifications.sev.info",
+};
 
 const SEVERITY_CONFIG: Record<Severity, {
   label: string;
@@ -86,6 +95,9 @@ const SEVERITY_CONFIG: Record<Severity, {
 // ─────────────────────────────────────────────
 
 export default function NotificationsPage() {
+  const t = useT();
+  const loc = useIntlLocale();
+  const fmt = (n: number | undefined | string) => fmtNum(n, loc);
   const { user } = useSession();
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
@@ -174,7 +186,7 @@ export default function NotificationsPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Xóa thông báo này?")) return;
+    if (!confirm(t("overview.notifications.confirmDelete"))) return;
     await fetch(`/api/notifications/${id}`, { method: "DELETE" });
     fetchAlerts();
   };
@@ -197,10 +209,10 @@ export default function NotificationsPage() {
       if (json.success) {
         setRootCauseOverride((prev) => ({ ...prev, [alert.id]: json.data }));
       } else {
-        setRootCauseError((prev) => ({ ...prev, [alert.id]: json.error || "Không thể phân tích" }));
+        setRootCauseError((prev) => ({ ...prev, [alert.id]: json.error || t("overview.notifications.rcFail") }));
       }
     } catch (err) {
-      setRootCauseError((prev) => ({ ...prev, [alert.id]: err instanceof Error ? err.message : "Lỗi kết nối" }));
+      setRootCauseError((prev) => ({ ...prev, [alert.id]: err instanceof Error ? err.message : t("overview.notifications.connError") }));
     } finally {
       setRootCauseLoading(null);
     }
@@ -219,12 +231,12 @@ export default function NotificationsPage() {
       if (json.success) {
         setAiInsight((prev) => ({ ...prev, [alert.id]: json.data?.response || json.data }));
       } else {
-        setAiInsight((prev) => ({ ...prev, [alert.id]: `⚠️ Lỗi: ${json.error || "Không thể lấy gợi ý"}` }));
+        setAiInsight((prev) => ({ ...prev, [alert.id]: t("overview.notifications.aiError", { error: json.error || t("overview.notifications.aiNoSuggest") }) }));
       }
     } catch (err) {
       setAiInsight((prev) => ({
         ...prev,
-        [alert.id]: `⚠️ Lỗi kết nối: ${err instanceof Error ? err.message : "Thử lại sau"}`,
+        [alert.id]: t("overview.notifications.aiConnError", { error: err instanceof Error ? err.message : t("overview.notifications.retryLater") }),
       }));
     } finally {
       setAiLoading(null);
@@ -237,12 +249,12 @@ export default function NotificationsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-            <Bell className="h-6 w-6 text-blue-600" /> Tất cả thông báo
+            <Bell className="h-6 w-6 text-blue-600" /> {t("overview.notifications.title")}
           </h1>
-          <p className="text-sm text-slate-500 mt-1">Alerts tự động từ hệ thống giám sát campaigns.</p>
+          <p className="text-sm text-slate-500 mt-1">{t("overview.notifications.subtitle")}</p>
         </div>
         <Button onClick={handleMarkAllRead} variant="outline" className="text-xs gap-1.5">
-          <CheckCircle2 className="h-3.5 w-3.5" /> Đánh dấu tất cả đã đọc
+          <CheckCircle2 className="h-3.5 w-3.5" /> {t("overview.notifications.markAllRead")}
         </Button>
       </div>
 
@@ -258,7 +270,7 @@ export default function NotificationsPage() {
                 filter === f ? "bg-white shadow-sm text-slate-800" : "text-slate-500 hover:text-slate-700"
               )}
             >
-              {f === "all" ? "Tất cả" : f === "critical" ? "🔴 Critical" : f === "warning" ? "🟡 Warning" : f === "info" ? "🟢 Info" : "✓ Đã giải quyết"}
+              {f === "all" ? t("overview.notifications.filter.all") : f === "critical" ? t("overview.notifications.filter.critical") : f === "warning" ? t("overview.notifications.filter.warning") : f === "info" ? t("overview.notifications.filter.info") : t("overview.notifications.filter.resolved")}
             </button>
           ))}
         </div>
@@ -276,11 +288,11 @@ export default function NotificationsPage() {
                   : "text-slate-500 hover:text-slate-700"
               )}
             >
-              {c === "all" ? "Tất cả" : c === "MBC" || c === "MBI" ? c : companyLabel(c)}
+              {c === "all" ? t("overview.notifications.filter.all") : c === "MBC" || c === "MBI" ? c : companyLabel(c)}
             </button>
           ))}
         </div>
-        <span className="text-xs text-slate-400 ml-auto">{filtered.length} thông báo</span>
+        <span className="text-xs text-slate-400 ml-auto">{t("overview.notifications.count", { n: filtered.length })}</span>
       </div>
 
       {/* Alert List */}
@@ -292,7 +304,7 @@ export default function NotificationsPage() {
         ) : filtered.length === 0 ? (
           <div className="py-12 text-center bg-white rounded-xl border border-slate-200">
             <Bell className="h-10 w-10 text-slate-200 mx-auto mb-3" />
-            <p className="text-sm text-slate-400">Không có thông báo nào</p>
+            <p className="text-sm text-slate-400">{t("overview.notifications.empty")}</p>
           </div>
         ) : (
           filtered.map((alert) => {
@@ -321,26 +333,26 @@ export default function NotificationsPage() {
                 {/* Header bar */}
                 <div className={cn("flex items-center gap-2 px-4 py-2", sev.bg, "border-b", sev.border)}>
                   <SevIcon className={cn("h-3.5 w-3.5", sev.color)} />
-                  <span className={cn("text-[11px] font-bold uppercase", sev.color)}>{sev.label}</span>
+                  <span className={cn("text-[11px] font-bold uppercase", sev.color)}>{t(SEVERITY_LABEL[alert.severity])}</span>
                   <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded", alert.company === "MBC" ? "bg-blue-100 text-blue-700" : "bg-violet-100 text-violet-700")}>
                     {alert.company}
                   </span>
-                  <span className="text-[10px] text-slate-400 ml-auto">{timeAgo(alert.created_at)}</span>
-                  {alert.is_resolved && <span className="text-[10px] font-bold text-emerald-600">✓ Đã giải quyết</span>}
+                  <span className="text-[10px] text-slate-400 ml-auto">{timeAgo(alert.created_at, t, loc)}</span>
+                  {alert.is_resolved && <span className="text-[10px] font-bold text-emerald-600">{t("overview.notifications.filter.resolved")}</span>}
                 </div>
 
                 {/* Body */}
                 <div className="px-4 py-3">
                   <p className="text-sm font-semibold text-slate-800">{alert.message}</p>
-                  <p className="text-xs text-slate-500 mt-1">Campaign: {alert.campaign_name}</p>
+                  <p className="text-xs text-slate-500 mt-1">{t("overview.notifications.campaign", { name: alert.campaign_name })}</p>
 
                   {/* Metrics */}
                   {alert.metadata && (
                     <div className="mt-2 flex flex-wrap gap-3 text-[11px] text-slate-500">
-                      {alert.metadata.spend !== undefined && <span>Spend: ₫{fmt(alert.metadata.spend as number)}</span>}
-                      {alert.metadata.conversions !== undefined && <span>Conversions: {fmt(alert.metadata.conversions as number)}</span>}
-                      {alert.metadata.cpl !== undefined && <span>CPL: ₫{fmt(alert.metadata.cpl as number)}</span>}
-                      {alert.metadata.budget_remaining_pct !== undefined && <span>Budget còn: {Math.round(alert.metadata.budget_remaining_pct as number)}%</span>}
+                      {alert.metadata.spend !== undefined && <span>{t("overview.notifications.spend", { value: fmt(alert.metadata.spend as number) })}</span>}
+                      {alert.metadata.conversions !== undefined && <span>{t("overview.notifications.conversions", { value: fmt(alert.metadata.conversions as number) })}</span>}
+                      {alert.metadata.cpl !== undefined && <span>{t("overview.notifications.cpl", { value: fmt(alert.metadata.cpl as number) })}</span>}
+                      {alert.metadata.budget_remaining_pct !== undefined && <span>{t("overview.notifications.budgetLeft", { pct: Math.round(alert.metadata.budget_remaining_pct as number) })}</span>}
                     </div>
                   )}
 
@@ -348,22 +360,22 @@ export default function NotificationsPage() {
                   {isCplAlert && rootCause && (
                     <div className="mt-3 bg-indigo-50 border border-indigo-200 rounded-lg p-3 text-xs text-indigo-800 space-y-2">
                       <p className="font-bold text-indigo-600 flex items-center gap-1">
-                        <Sparkles className="h-3 w-3" /> Vì sao CPL spike{!rootCause.ai_generated && " (phân tích cơ bản — AI không khả dụng)"}
+                        <Sparkles className="h-3 w-3" /> {t("overview.notifications.rcTitle")}{!rootCause.ai_generated && t("overview.notifications.rcBasic")}
                       </p>
                       <div>
-                        <p className="font-semibold text-indigo-700">Nguyên nhân khả dĩ:</p>
+                        <p className="font-semibold text-indigo-700">{t("overview.notifications.causes")}</p>
                         <ul className="list-disc list-inside space-y-0.5">
                           {rootCause.likely_causes.map((c, i) => <li key={i}>{c}</li>)}
                         </ul>
                       </div>
                       <div>
-                        <p className="font-semibold text-indigo-700">Đề xuất:</p>
+                        <p className="font-semibold text-indigo-700">{t("overview.notifications.suggestions")}</p>
                         <ul className="list-disc list-inside space-y-0.5">
                           {rootCause.suggested_actions.map((a, i) => <li key={i}>{a}</li>)}
                         </ul>
                       </div>
                       {rootCause.budget_constrained && (
-                        <p className="text-indigo-500 italic">⚠️ Đang mất impression share vì giới hạn ngân sách (Google)</p>
+                        <p className="text-indigo-500 italic">{t("overview.notifications.budgetConstrained")}</p>
                       )}
                     </div>
                   )}
@@ -374,7 +386,7 @@ export default function NotificationsPage() {
                   {/* AI Insight (non-CPL alert types) */}
                   {!isCplAlert && aiInsight[alert.id] && (
                     <div className="mt-3 bg-indigo-50 border border-indigo-200 rounded-lg p-3 text-xs text-indigo-800">
-                      <p className="font-bold text-indigo-600 mb-1 flex items-center gap-1"><Sparkles className="h-3 w-3" /> Gợi ý AI</p>
+                      <p className="font-bold text-indigo-600 mb-1 flex items-center gap-1"><Sparkles className="h-3 w-3" /> {t("overview.notifications.aiHint")}</p>
                       {aiInsight[alert.id]}
                     </div>
                   )}
@@ -382,7 +394,7 @@ export default function NotificationsPage() {
                   {/* Resolve Note */}
                   {alert.resolved_note && (
                     <div className="mt-2 bg-emerald-50 border border-emerald-200 rounded-lg p-2 text-xs text-emerald-700">
-                      <b>Ghi chú:</b> {alert.resolved_note}
+                      <b>{t("overview.notifications.note")}</b> {alert.resolved_note}
                     </div>
                   )}
 
@@ -393,7 +405,7 @@ export default function NotificationsPage() {
                         onClick={() => { setResolvingId(alert.id); setResolveNote(""); }}
                         className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 px-2 py-1 rounded hover:bg-emerald-50 transition-colors"
                       >
-                        <Check className="h-3 w-3" /> Giải quyết
+                        <Check className="h-3 w-3" /> {t("overview.notifications.resolve")}
                       </button>
                       {isCplAlert ? (
                         !rootCause && (
@@ -402,7 +414,7 @@ export default function NotificationsPage() {
                             disabled={rootCauseLoading === alert.id}
                             className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 px-2 py-1 rounded hover:bg-indigo-50 transition-colors"
                           >
-                            {rootCauseLoading === alert.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Phân tích nguyên nhân
+                            {rootCauseLoading === alert.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} {t("overview.notifications.analyze")}
                           </button>
                         )
                       ) : (
@@ -411,7 +423,7 @@ export default function NotificationsPage() {
                           disabled={aiLoading === alert.id}
                           className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 px-2 py-1 rounded hover:bg-indigo-50 transition-colors"
                         >
-                          {aiLoading === alert.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Gợi ý AI
+                          {aiLoading === alert.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} {t("overview.notifications.aiHint")}
                         </button>
                       )}
                       {user?.role === "super_admin" && (
@@ -419,7 +431,7 @@ export default function NotificationsPage() {
                           onClick={() => handleDelete(alert.id)}
                           className="text-xs text-slate-400 hover:text-red-500 flex items-center gap-1 px-2 py-1 rounded hover:bg-red-50 transition-colors ml-auto"
                         >
-                          <Trash2 className="h-3 w-3" /> Xóa
+                          <Trash2 className="h-3 w-3" /> {t("overview.notifications.delete")}
                         </button>
                       )}
                     </div>
@@ -427,8 +439,8 @@ export default function NotificationsPage() {
 
                   {/* Swipe Help Text on Mobile */}
                   <div className="md:hidden flex justify-between text-[10px] text-slate-300 mt-4 px-2">
-                    <span>👉 Trượt phải: Xem chiến dịch</span>
-                    <span>👈 Trượt trái: Giải quyết</span>
+                    <span>{t("overview.notifications.swipeRight")}</span>
+                    <span>{t("overview.notifications.swipeLeft")}</span>
                   </div>
                 </div>
 
@@ -436,17 +448,17 @@ export default function NotificationsPage() {
                 {resolvingId === alert.id && (
                   <div className="px-4 py-3 border-t border-slate-100 bg-slate-50 flex gap-2 items-end">
                     <div className="flex-1">
-                      <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Ghi chú xử lý (tùy chọn)</label>
+                      <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">{t("overview.notifications.noteLabel")}</label>
                       <input
                         type="text"
                         value={resolveNote}
                         onChange={(e) => setResolveNote(e.target.value)}
-                        placeholder="VD: Đã pause campaign, test creative mới..."
+                        placeholder={t("overview.notifications.notePlaceholder")}
                         className="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:border-emerald-400 focus:outline-none"
                       />
                     </div>
                     <Button onClick={() => handleResolve(alert.id)} className="h-8 text-xs bg-emerald-600 text-white gap-1">
-                      <Check className="h-3 w-3" /> Xác nhận
+                      <Check className="h-3 w-3" /> {t("overview.notifications.confirm")}
                     </Button>
                     <button onClick={() => setResolvingId(null)} className="h-8 text-xs text-slate-400 hover:text-slate-600">
                       <X className="h-4 w-4" />

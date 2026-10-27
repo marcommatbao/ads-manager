@@ -1,6 +1,8 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { useIntlLocale, useT } from "@/lib/i18n/client";
+import type { TFunction } from "@/lib/i18n/translate";
 import type { PolicyRadarItem, PolicySeverity } from "@/lib/policy-radar/types";
 
 const SEVERITY_DOT: Record<PolicySeverity, string> = {
@@ -9,21 +11,17 @@ const SEVERITY_DOT: Record<PolicySeverity, string> = {
   low: "bg-slate-400",
 };
 
-const SEVERITY_WORD: Record<PolicySeverity, string> = { high: "Cao", medium: "Trung bình", low: "Thấp" };
-
 const PLATFORM_LABEL = { google_ads: "Google Ads", meta: "Meta" } as const;
-
-const MONTH_FORMATTER = new Intl.DateTimeFormat("vi-VN", { month: "long", year: "numeric" });
 
 function monthKey(publishedAt: string | null): string {
   if (!publishedAt) return "unknown";
   return publishedAt.slice(0, 7); // YYYY-MM
 }
 
-function monthLabel(key: string): string {
-  if (key === "unknown") return "Chưa xác định ngày";
+function monthLabel(key: string, t: TFunction, intl: string): string {
+  if (key === "unknown") return t("meta.policy.noDate");
   const [y, m] = key.split("-").map(Number);
-  return MONTH_FORMATTER.format(new Date(y, m - 1, 1));
+  return new Intl.DateTimeFormat(intl, { month: "long", year: "numeric" }).format(new Date(y, m - 1, 1));
 }
 
 interface PolicyTimelineViewProps {
@@ -33,6 +31,8 @@ interface PolicyTimelineViewProps {
 }
 
 export function PolicyTimelineView({ items, selectedId, onOpenDetail }: PolicyTimelineViewProps) {
+  const t = useT();
+  const intl = useIntlLocale();
   const groups = new Map<string, PolicyRadarItem[]>();
   for (const item of items) {
     const key = monthKey(item.publishedAt);
@@ -51,8 +51,8 @@ export function PolicyTimelineView({ items, selectedId, onOpenDetail }: PolicyTi
       {orderedKeys.map((key) => (
         <div key={key}>
           <div className="sticky top-0 z-10 bg-white/95 backdrop-blur-sm border-b border-slate-100 px-1 py-1.5 flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-600 capitalize">{monthLabel(key)}</span>
-            <span className="text-[10px] text-slate-400">{groups.get(key)!.length} mục</span>
+            <span className="text-xs font-semibold text-slate-600 capitalize">{monthLabel(key, t, intl)}</span>
+            <span className="text-[10px] text-slate-400">{t("meta.policy.timeline.count", { n: groups.get(key)!.length })}</span>
           </div>
           <div className="divide-y divide-slate-50">
             {groups.get(key)!.map((item) => (
@@ -66,7 +66,7 @@ export function PolicyTimelineView({ items, selectedId, onOpenDetail }: PolicyTi
               >
                 <span className={cn("h-2 w-2 rounded-full shrink-0", SEVERITY_DOT[item.severity])} />
                 <span className="text-xs text-slate-400 shrink-0 w-20 truncate">{PLATFORM_LABEL[item.platform]}</span>
-                <span className="text-xs text-slate-400 shrink-0 w-16 truncate">{SEVERITY_WORD[item.severity]}</span>
+                <span className="text-xs text-slate-400 shrink-0 w-16 truncate">{t(`meta.policy.sev.${item.severity}`)}</span>
                 <span className="text-sm text-slate-700 truncate">{item.title}</span>
               </button>
             ))}

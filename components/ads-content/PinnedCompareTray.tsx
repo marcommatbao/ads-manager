@@ -8,6 +8,7 @@
 
 import { Pin, X, Columns2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/lib/i18n/client";
 import type { CreativeItem } from "@/types/creative-content.types";
 
 interface Props {
@@ -18,18 +19,19 @@ interface Props {
 }
 
 export function PinnedCompareTray({ pinned, onUnpin, onCompare, onClear }: Props) {
+  const t = useT();
   if (pinned.length === 0) return null;
 
   return (
     <div className="sticky bottom-20 z-30 mx-auto flex w-full max-w-2xl flex-wrap items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 shadow-lg">
       <Pin className="h-3.5 w-3.5 shrink-0 text-amber-600" />
-      <span className="text-xs font-semibold text-amber-800">Đã ghim {pinned.length}/2</span>
+      <span className="text-xs font-semibold text-amber-800">{t("creative.adsContent.tray.pinned", { n: pinned.length })}</span>
 
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
         {pinned.map((p) => (
           <span key={p.id} className="flex max-w-[220px] items-center gap-1 rounded-full border border-amber-300 bg-white px-2 py-0.5 text-[11px] text-slate-700">
             <span className="truncate" title={`${p.name} — ${p.campaignName}`}>{p.name}</span>
-            <button type="button" onClick={() => onUnpin(p.id)} className="shrink-0 text-slate-400 hover:text-red-600" title="Bỏ ghim">
+            <button type="button" onClick={() => onUnpin(p.id)} className="shrink-0 text-slate-400 hover:text-red-600" title={t("creative.adsContent.tray.unpin")}>
               <X className="h-3 w-3" />
             </button>
           </span>
@@ -42,11 +44,11 @@ export function PinnedCompareTray({ pinned, onUnpin, onCompare, onClear }: Props
           size="sm"
           onClick={onCompare}
           disabled={pinned.length !== 2}
-          title={pinned.length !== 2 ? "Ghim đủ 2 creative rồi mới so sánh được" : undefined}
+          title={pinned.length !== 2 ? t("creative.adsContent.tray.needTwo") : undefined}
         >
-          <Columns2 className="h-3.5 w-3.5" /> So sánh 2 creative đã ghim
+          <Columns2 className="h-3.5 w-3.5" /> {t("creative.adsContent.tray.compare")}
         </Button>
-        <Button variant="ghost" size="icon-sm" onClick={onClear} title="Bỏ ghim tất cả">
+        <Button variant="ghost" size="icon-sm" onClick={onClear} title={t("creative.adsContent.tray.clear")}>
           <X className="h-4 w-4" />
         </Button>
       </div>

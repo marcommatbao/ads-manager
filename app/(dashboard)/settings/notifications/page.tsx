@@ -20,6 +20,7 @@ import {
   Send,
   Info,
 } from "lucide-react";
+import { useT } from "@/lib/i18n/client";
 
 // ─────────────────────────────────────────────
 // Toggle Switch
@@ -63,6 +64,7 @@ function PasswordField({
   placeholder?: string;
   onChange: (v: string) => void;
 }) {
+  const t = useT();
   const [show, setShow] = useState(false);
   return (
     <div className="space-y-1.5">
@@ -79,7 +81,7 @@ function PasswordField({
           type="button"
           onClick={() => setShow((s) => !s)}
           className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-          aria-label={show ? "Ẩn" : "Hiện"}
+          aria-label={show ? t("creative.settingsNotifications.pw.hide") : t("creative.settingsNotifications.pw.show")}
         >
           {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
         </button>
@@ -146,6 +148,7 @@ type TestStatus = "idle" | "testing" | "ok" | "fail";
 // ─────────────────────────────────────────────
 
 export default function NotificationsSettingsPage() {
+  const t = useT();
   const [state, setState] = useState<NotifState>(DEFAULT_STATE);
   const [loading, setLoading] = useState(true);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
@@ -200,14 +203,14 @@ export default function NotificationsSettingsPage() {
       const json = await res.json();
       if (res.ok) {
         setTestStatus("ok");
-        setTestMessage(json.message ?? "Gửi thành công!");
+        setTestMessage(json.message ?? t("creative.settingsNotifications.test.ok"));
       } else {
         setTestStatus("fail");
-        setTestMessage(json.error ?? "Gửi thất bại.");
+        setTestMessage(json.error ?? t("creative.settingsNotifications.test.fail"));
       }
     } catch {
       setTestStatus("fail");
-      setTestMessage("Không thể kết nối server.");
+      setTestMessage(t("creative.settingsNotifications.test.noConn"));
     }
     setTimeout(() => {
       setTestStatus("idle");
@@ -236,9 +239,9 @@ export default function NotificationsSettingsPage() {
       <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50/60 p-4">
         <Info className="mt-0.5 h-5 w-5 text-amber-500 shrink-0" />
         <div>
-          <p className="text-sm font-medium text-amber-800">Lưu ý cấu hình thực tế</p>
+          <p className="text-sm font-medium text-amber-800">{t("creative.settingsNotifications.note.title")}</p>
           <p className="mt-0.5 text-xs text-amber-700">
-            Thay đổi cài đặt thực sự cần cập nhật trong Coolify Environment Variables.
+            {t("creative.settingsNotifications.note.body")}
           </p>
         </div>
       </div>
@@ -251,7 +254,7 @@ export default function NotificationsSettingsPage() {
             <CardTitle className="text-lg font-semibold text-slate-800">Telegram</CardTitle>
           </div>
           <CardDescription className="text-sm text-slate-500 mt-1">
-            Nhận cảnh báo và báo cáo tự động qua Telegram Bot.
+            {t("creative.settingsNotifications.tg.desc")}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -265,7 +268,7 @@ export default function NotificationsSettingsPage() {
             <label className="text-sm font-medium text-slate-700">Chat ID</label>
             <Input
               type="text"
-              placeholder="-100123456789 (Group) hoặc 123456 (User)"
+              placeholder={t("creative.settingsNotifications.tg.chatPlaceholder")}
               value={state.telegram.chat_id}
               onChange={(e) => patch("telegram", { chat_id: e.target.value })}
               className="rounded-lg border-slate-200"
@@ -286,7 +289,7 @@ export default function NotificationsSettingsPage() {
               ) : (
                 <Send className="h-3.5 w-3.5" />
               )}
-              Gửi tin nhắn test
+              {t("creative.settingsNotifications.tg.test")}
             </Button>
             {testStatus === "ok" && (
               <span className="flex items-center gap-1 text-xs text-emerald-600">
@@ -304,22 +307,22 @@ export default function NotificationsSettingsPage() {
 
           <div className="space-y-3 rounded-lg border border-slate-100 bg-slate-50 p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Loại thông báo
+              {t("creative.settingsNotifications.types")}
             </p>
             <Toggle
               checked={state.telegram.alert_cpl}
               onChange={(v) => patch("telegram", { alert_cpl: v })}
-              label="Nhận cảnh báo CPL"
+              label={t("creative.settingsNotifications.tg.alertCpl")}
             />
             <Toggle
               checked={state.telegram.report_daily}
               onChange={(v) => patch("telegram", { report_daily: v })}
-              label="Nhận báo cáo ngày"
+              label={t("creative.settingsNotifications.tg.reportDaily")}
             />
             <Toggle
               checked={state.telegram.alert_budget}
               onChange={(v) => patch("telegram", { alert_budget: v })}
-              label="Nhận cảnh báo ngân sách"
+              label={t("creative.settingsNotifications.tg.alertBudget")}
             />
           </div>
         </CardContent>
@@ -333,7 +336,7 @@ export default function NotificationsSettingsPage() {
             <CardTitle className="text-lg font-semibold text-slate-800">Email (Resend)</CardTitle>
           </div>
           <CardDescription className="text-sm text-slate-500 mt-1">
-            Gửi báo cáo và cảnh báo qua email bằng Resend API.
+            {t("creative.settingsNotifications.email.desc")}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -345,8 +348,8 @@ export default function NotificationsSettingsPage() {
           />
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-slate-700">
-              Email nhận báo cáo{" "}
-              <span className="font-normal text-slate-400">(phân cách bằng dấu phẩy)</span>
+              {t("creative.settingsNotifications.email.recipients")}{" "}
+              <span className="font-normal text-slate-400">{t("creative.settingsNotifications.email.recipientsHint")}</span>
             </label>
             <Input
               type="text"
@@ -359,17 +362,17 @@ export default function NotificationsSettingsPage() {
 
           <div className="space-y-3 rounded-lg border border-slate-100 bg-slate-50 p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Loại thông báo
+              {t("creative.settingsNotifications.types")}
             </p>
             <Toggle
               checked={state.email.report_weekly}
               onChange={(v) => patch("email", { report_weekly: v })}
-              label="Báo cáo tuần"
+              label={t("creative.settingsNotifications.email.weekly")}
             />
             <Toggle
               checked={state.email.alert_cpl}
               onChange={(v) => patch("email", { alert_cpl: v })}
-              label="Cảnh báo CPL"
+              label={t("creative.settingsNotifications.email.alertCpl")}
             />
           </div>
         </CardContent>
@@ -382,11 +385,11 @@ export default function NotificationsSettingsPage() {
             <span className="flex h-3 w-3 rounded-full bg-emerald-500" />
             <CardTitle className="text-lg font-semibold text-slate-800">
               Slack{" "}
-              <span className="text-sm font-normal text-slate-400">(tùy chọn)</span>
+              <span className="text-sm font-normal text-slate-400">{t("creative.settingsNotifications.slack.optional")}</span>
             </CardTitle>
           </div>
           <CardDescription className="text-sm text-slate-500 mt-1">
-            Gửi thông báo vào channel Slack của nhóm.
+            {t("creative.settingsNotifications.slack.desc")}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -403,7 +406,7 @@ export default function NotificationsSettingsPage() {
           <Toggle
             checked={state.slack.enabled}
             onChange={(v) => patch("slack", { enabled: v })}
-            label="Nhận thông báo Slack"
+            label={t("creative.settingsNotifications.slack.enabled")}
           />
         </CardContent>
       </Card>
@@ -411,13 +414,13 @@ export default function NotificationsSettingsPage() {
       {saveStatus === "success" && (
         <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
           <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
-          <p className="text-sm text-emerald-700">Đã lưu cài đặt thông báo.</p>
+          <p className="text-sm text-emerald-700">{t("creative.settingsNotifications.saved")}</p>
         </div>
       )}
       {saveStatus === "error" && (
         <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
           <AlertCircle className="h-4 w-4 shrink-0 text-red-600" />
-          <p className="text-sm text-red-700">Lưu thất bại. Vui lòng thử lại.</p>
+          <p className="text-sm text-red-700">{t("creative.settingsNotifications.err.save")}</p>
         </div>
       )}
 
@@ -430,12 +433,12 @@ export default function NotificationsSettingsPage() {
           {saveStatus === "saving" ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
-              Đang lưu...
+              {t("creative.settingsNotifications.saving")}
             </>
           ) : (
             <>
               <Save className="h-4 w-4" />
-              Lưu cài đặt thông báo
+              {t("creative.settingsNotifications.save")}
             </>
           )}
         </Button>

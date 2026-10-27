@@ -15,6 +15,8 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn, formatCurrency } from "@/lib/utils";
 import { ChevronDown, ChevronRight, Loader2 } from "lucide-react";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/messages";
 import type { KeywordInsight, IntentMatch, BudgetImpact } from "@/types/keyword-insight";
 
 // ─────────────────────────────────────────────
@@ -28,11 +30,11 @@ const INTENT_STYLE: Record<IntentMatch, string> = {
   unknown: "bg-slate-100 text-slate-500",
 };
 
-const INTENT_LABEL: Record<IntentMatch, string> = {
-  relevant: "Phù hợp",
-  borderline: "Chưa chắc",
-  off_intent: "Lệch ý định",
-  unknown: "Chưa đủ dữ liệu",
+const INTENT_LABEL: Record<IntentMatch, MessageKey> = {
+  relevant: "panels.keywords.intent.relevant",
+  borderline: "panels.keywords.intent.borderline",
+  off_intent: "panels.keywords.intent.off_intent",
+  unknown: "panels.keywords.intent.unknown",
 };
 
 const BUDGET_STYLE: Record<BudgetImpact, string> = {
@@ -42,10 +44,10 @@ const BUDGET_STYLE: Record<BudgetImpact, string> = {
   unknown: "bg-slate-100 text-slate-500",
 };
 
-const BUDGET_LABEL: Record<BudgetImpact, string> = {
-  over_budget: "Vượt ngân sách",
-  under_budget: "Dưới ngân sách",
-  on_track: "Đúng mức",
+const BUDGET_LABEL: Record<BudgetImpact, MessageKey | "—"> = {
+  over_budget: "panels.keywords.budget.over_budget",
+  under_budget: "panels.keywords.budget.under_budget",
+  on_track: "panels.keywords.budget.on_track",
   unknown: "—",
 };
 
@@ -62,6 +64,8 @@ interface KeywordTableProps {
 }
 
 export function KeywordTable({ keywords, loading, applyingId, onAddNegative, onAdjustCpc }: KeywordTableProps) {
+  const t = useT();
+  const loc = useIntlLocale();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [cpcDraft, setCpcDraft] = useState<Record<string, string>>({});
   const [negativeOpenId, setNegativeOpenId] = useState<string | null>(null);
@@ -85,8 +89,8 @@ export function KeywordTable({ keywords, loading, applyingId, onAddNegative, onA
   if (!loading && keywords.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border py-16 text-center">
-        <p className="text-sm font-medium text-foreground">Không có từ khóa nào khớp bộ lọc</p>
-        <p className="text-xs text-muted-foreground">Thử đổi công ty, chiến dịch, hoặc bộ lọc mức độ phù hợp.</p>
+        <p className="text-sm font-medium text-foreground">{t("panels.keywords.emptyTitle")}</p>
+        <p className="text-xs text-muted-foreground">{t("panels.keywords.emptyHint")}</p>
       </div>
     );
   }
@@ -97,21 +101,21 @@ export function KeywordTable({ keywords, loading, applyingId, onAddNegative, onA
         <TableHeader>
           <TableRow>
             <TableHead className="w-6" />
-            <TableHead>Từ khóa</TableHead>
-            <TableHead>Loại khớp</TableHead>
-            <TableHead>Chiến dịch</TableHead>
-            <TableHead>Kênh / Chiến lược</TableHead>
-            <TableHead>Ý định</TableHead>
-            <TableHead className="text-right">Hiển thị</TableHead>
-            <TableHead className="text-right">Click</TableHead>
+            <TableHead>{t("panels.keywords.h.keyword")}</TableHead>
+            <TableHead>{t("panels.keywords.h.match")}</TableHead>
+            <TableHead>{t("panels.keywords.h.campaign")}</TableHead>
+            <TableHead>{t("panels.keywords.h.channel")}</TableHead>
+            <TableHead>{t("panels.keywords.h.intent")}</TableHead>
+            <TableHead className="text-right">{t("panels.keywords.h.impr")}</TableHead>
+            <TableHead className="text-right">{t("panels.keywords.h.clicks")}</TableHead>
             <TableHead className="text-right">CTR</TableHead>
-            <TableHead className="text-right">CPC hiện tại</TableHead>
+            <TableHead className="text-right">{t("panels.keywords.h.cpc")}</TableHead>
             <TableHead className="text-right">QS</TableHead>
-            <TableHead className="text-right">CPL ước tính</TableHead>
-            <TableHead className="text-right">CPC đề xuất</TableHead>
-            <TableHead>Ngân sách</TableHead>
-            <TableHead>Gợi ý</TableHead>
-            <TableHead className="text-right">Hành động</TableHead>
+            <TableHead className="text-right">{t("panels.keywords.h.cpl")}</TableHead>
+            <TableHead className="text-right">{t("panels.keywords.h.sugCpc")}</TableHead>
+            <TableHead>{t("panels.keywords.h.budget")}</TableHead>
+            <TableHead>{t("panels.keywords.h.hint")}</TableHead>
+            <TableHead className="text-right">{t("panels.keywords.h.actions")}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -119,7 +123,7 @@ export function KeywordTable({ keywords, loading, applyingId, onAddNegative, onA
             <TableRow>
               <TableCell colSpan={16} className="py-10 text-center text-sm text-muted-foreground">
                 <Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin" />
-                Đang tải dữ liệu thật từ Google Ads...
+                {t("panels.keywords.loading")}
               </TableCell>
             </TableRow>
           )}
@@ -135,7 +139,7 @@ export function KeywordTable({ keywords, loading, applyingId, onAddNegative, onA
                       <button
                         onClick={() => toggleExpand(kw.id)}
                         className="text-muted-foreground hover:text-foreground"
-                        aria-label="Xem search term mẫu"
+                        aria-label={t("panels.keywords.viewSamples")}
                       >
                         {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                       </button>
@@ -149,16 +153,16 @@ export function KeywordTable({ keywords, loading, applyingId, onAddNegative, onA
                     <div className="text-xs">{kw.biddingStrategyType}</div>
                   </TableCell>
                   <TableCell>
-                    <Badge className={INTENT_STYLE[kw.intentMatch]}>{INTENT_LABEL[kw.intentMatch]}</Badge>
+                    <Badge className={INTENT_STYLE[kw.intentMatch]}>{t(INTENT_LABEL[kw.intentMatch])}</Badge>
                   </TableCell>
-                  <TableCell className="text-right tabular-nums">{kw.impressions.toLocaleString("vi-VN")}</TableCell>
-                  <TableCell className="text-right tabular-nums">{kw.clicks.toLocaleString("vi-VN")}</TableCell>
+                  <TableCell className="text-right tabular-nums">{kw.impressions.toLocaleString(loc)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{kw.clicks.toLocaleString(loc)}</TableCell>
                   <TableCell className="text-right tabular-nums">{fmtPct(kw.ctr)}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatCurrency(kw.currentCpc, "VND")}</TableCell>
                   <TableCell className="text-right tabular-nums">{kw.qualityScore ?? "—"}</TableCell>
                   <TableCell className="text-right tabular-nums">{kw.cplEstimate !== null ? formatCurrency(kw.cplEstimate, "VND") : "—"}</TableCell>
-                  <TableCell className="text-right tabular-nums" title={kw.suggestedMaxCpc > 0 ? undefined : "Chưa đủ chuyển đổi đo được để tính CPC đề xuất"}>{kw.suggestedMaxCpc > 0 ? formatCurrency(kw.suggestedMaxCpc, "VND") : "—"}</TableCell>
-                  <TableCell><Badge className={BUDGET_STYLE[kw.budgetImpact]}>{BUDGET_LABEL[kw.budgetImpact]}</Badge></TableCell>
+                  <TableCell className="text-right tabular-nums" title={kw.suggestedMaxCpc > 0 ? undefined : t("panels.keywords.noCpcTitle")}>{kw.suggestedMaxCpc > 0 ? formatCurrency(kw.suggestedMaxCpc, "VND") : "—"}</TableCell>
+                  <TableCell><Badge className={BUDGET_STYLE[kw.budgetImpact]}>{BUDGET_LABEL[kw.budgetImpact] === "—" ? "—" : t(BUDGET_LABEL[kw.budgetImpact] as MessageKey)}</Badge></TableCell>
                   <TableCell className="max-w-[180px] text-xs text-muted-foreground">{kw.suggestedAction}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
@@ -169,13 +173,13 @@ export function KeywordTable({ keywords, loading, applyingId, onAddNegative, onA
                             variant="outline"
                             disabled={!hasOffIntent || isApplying}
                             onClick={() => openNegativePopover(kw)}
-                            title={hasOffIntent ? "Thêm search term lệch ý định vào negative" : "Không có search term lệch ý định"}
+                            title={hasOffIntent ? t("panels.keywords.negTitleOn") : t("panels.keywords.negTitleOff")}
                           >
                             Negative
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-72" align="end">
-                          <p className="mb-2 text-xs font-medium text-foreground">Chọn search term để thêm negative:</p>
+                          <p className="mb-2 text-xs font-medium text-foreground">{t("panels.keywords.negPick")}</p>
                           <div className="max-h-48 space-y-1 overflow-y-auto">
                             {kw.searchTermSamples.filter(s => s.classification !== "relevant").map(s => (
                               <label key={s.searchTerm} className="flex items-center gap-2 text-xs">
@@ -205,7 +209,7 @@ export function KeywordTable({ keywords, loading, applyingId, onAddNegative, onA
                               setNegativeOpenId(null);
                             }}
                           >
-                            {isApplying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : `Thêm ${selectedTerms.size} negative`}
+                            {isApplying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : t("panels.keywords.negAdd", { n: selectedTerms.size })}
                           </Button>
                         </PopoverContent>
                       </Popover>
@@ -222,13 +226,13 @@ export function KeywordTable({ keywords, loading, applyingId, onAddNegative, onA
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-56" align="end">
-                          <p className="mb-2 text-xs font-medium text-foreground">CPC mới (VNĐ):</p>
+                          <p className="mb-2 text-xs font-medium text-foreground">{t("panels.keywords.cpcNew")}</p>
                           <Input
                             type="number"
                             value={cpcDraft[kw.id] ?? String(Math.round(kw.suggestedMaxCpc > 0 ? kw.suggestedMaxCpc : kw.currentCpc))}
                             onChange={e => setCpcDraft(prev => ({ ...prev, [kw.id]: e.target.value }))}
                           />
-                          <p className="mt-1 text-xs text-muted-foreground">{kw.suggestedMaxCpc > 0 ? <>Đề xuất: {formatCurrency(kw.suggestedMaxCpc, "VND")}</> : "Chưa đủ dữ liệu để đề xuất — đang điền CPC hiện tại"}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">{kw.suggestedMaxCpc > 0 ? <>{t("panels.keywords.cpcSuggest", { amount: formatCurrency(kw.suggestedMaxCpc, "VND") })}</> : t("panels.keywords.cpcNoSuggest")}</p>
                           <Button
                             size="sm"
                             className="mt-3 w-full"
@@ -241,13 +245,13 @@ export function KeywordTable({ keywords, loading, applyingId, onAddNegative, onA
                               }
                             }}
                           >
-                            {isApplying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Áp dụng"}
+                            {isApplying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : t("panels.keywords.apply")}
                           </Button>
                         </PopoverContent>
                       </Popover>
 
-                      <Button size="sm" variant="outline" disabled title="Chưa hỗ trợ ở bước này">
-                        Đổi Ad Group
+                      <Button size="sm" variant="outline" disabled title={t("panels.keywords.adGroupTitle")}>
+                        {t("panels.keywords.adGroup")}
                       </Button>
                     </div>
                   </TableCell>
@@ -256,7 +260,7 @@ export function KeywordTable({ keywords, loading, applyingId, onAddNegative, onA
                   <TableRow key={`${kw.id}-samples`}>
                     <TableCell />
                     <TableCell colSpan={15} className="bg-muted/30 py-3">
-                      <p className="mb-1.5 text-xs font-medium text-muted-foreground">Search term thực tế đã kích hoạt từ khóa này:</p>
+                      <p className="mb-1.5 text-xs font-medium text-muted-foreground">{t("panels.keywords.samples")}</p>
                       <div className="flex flex-wrap gap-1.5">
                         {kw.searchTermSamples.map(s => (
                           <Badge key={s.searchTerm} className={cn("gap-1.5", INTENT_STYLE[s.classification])}>

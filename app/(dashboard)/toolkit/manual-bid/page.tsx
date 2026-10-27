@@ -22,6 +22,8 @@ import { useToast } from "@/components/Toast";
 import { cn } from "@/lib/utils";
 import type { CampaignBidSummary, KeywordBidRec, BidVerdict } from "@/lib/google-manual-bid";
 import { companyIds, orderedCompanyIds } from "@/lib/companies/registry";
+import { useIntlLocale, useT } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/messages";
 
 const fetcher = (url: string) => fetch(url).then(async (r) => {
   const j = await r.json();
@@ -29,25 +31,28 @@ const fetcher = (url: string) => fetch(url).then(async (r) => {
   return j as { campaigns: CampaignBidSummary[]; warnings: string[]; generatedAt: string };
 });
 
-const vnd = (n: number) => `₫${Math.round(n).toLocaleString("vi-VN")}`;
+const fmtVnd = (n: number, loc: string) => `₫${Math.round(n).toLocaleString(loc)}`;
 
-const VERDICT_META: Record<BidVerdict, { label: string; cls: string; Icon: typeof Minus }> = {
-  giam:            { label: "Nên giảm",        cls: "bg-red-50 text-red-700 border-red-200",         Icon: TrendingDown },
-  tang:            { label: "Có thể tăng",     cls: "bg-emerald-50 text-emerald-700 border-emerald-200", Icon: TrendingUp },
-  giu:             { label: "Đang hợp lý",     cls: "bg-slate-50 text-slate-600 border-slate-200",   Icon: Minus },
-  khong_dat_duoc:  { label: "Không đạt được",  cls: "bg-amber-50 text-amber-700 border-amber-200",   Icon: Ban },
-  thieu_du_lieu:   { label: "Thiếu dữ liệu",   cls: "bg-slate-50 text-slate-400 border-slate-200",   Icon: HelpCircle },
+const VERDICT_META: Record<BidVerdict, { label: MessageKey; cls: string; Icon: typeof Minus }> = {
+  giam:            { label: "google.manualBid.vReduce",        cls: "bg-red-50 text-red-700 border-red-200",         Icon: TrendingDown },
+  tang:            { label: "google.manualBid.vRaise",     cls: "bg-emerald-50 text-emerald-700 border-emerald-200", Icon: TrendingUp },
+  giu:             { label: "google.manualBid.vKeep",     cls: "bg-slate-50 text-slate-600 border-slate-200",   Icon: Minus },
+  khong_dat_duoc:  { label: "google.manualBid.vUnreachable",  cls: "bg-amber-50 text-amber-700 border-amber-200",   Icon: Ban },
+  thieu_du_lieu:   { label: "google.manualBid.vNoData",   cls: "bg-slate-50 text-slate-400 border-slate-200",   Icon: HelpCircle },
 };
 
-const CONFIDENCE_LABEL: Record<string, string> = {
-  du: "Đủ dữ liệu",
-  tam: "Tạm đủ — mượn tỷ lệ chiến dịch",
-  thieu: "Mỏng — đọc kỹ khoảng",
+const CONFIDENCE_LABEL: Record<string, MessageKey> = {
+  du: "google.manualBid.confEnough",
+  tam: "google.manualBid.confTemp",
+  thieu: "google.manualBid.confThin",
 };
 
 function KeywordRow({
   kw, checked, onToggle,
 }: { kw: KeywordBidRec; checked: boolean; onToggle: () => void }) {
+  const t = useT();
+  const loc = useIntlLocale();
+  const vnd = (n: number) => fmtVnd(n, loc);
   const [open, setOpen] = useState(false);
   const meta = VERDICT_META[kw.verdict];
   const selectable = kw.recommendedBid !== null && kw.verdict !== "giu";
@@ -64,7 +69,7 @@ function KeywordRow({
             <span className="truncate text-sm font-medium text-slate-800">{kw.text}</span>
             <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">{kw.matchType}</span>
             <span className={cn("flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-medium", meta.cls)}>
-              <meta.Icon className="h-3 w-3" /> {meta.label}
+              <meta.Icon className="h-3 w-3" /> {t(meta.label)}
             </span>
             {kw.qualityScore !== null && (
               <span className={cn("rounded px-1.5 py-0.5 text-[10px]", kw.qualityScore <= 4 ? "bg-red-50 text-red-600" : "bg-slate-100 text-slate-500")}>
@@ -74,28 +79,28 @@ function KeywordRow({
             <ChevronDown className={cn("h-3 w-3 text-slate-300 transition", open && "rotate-180")} />
           </div>
           <p className="mt-0.5 text-[11px] text-slate-400">
-            {kw.clicks} nhấp · {kw.conversions} chuyển đổi · đã tiêu {vnd(kw.cost)} · thực trả {vnd(kw.avgCpc)}/nhấp
+            {t("google.manualBid.kwStats", { clicks: kw.clicks, conv: kw.conversions, cost: vnd(kw.cost), cpc: vnd(kw.avgCpc) })}
           </p>
           {open && (
             <div className="mt-1.5 rounded-md bg-slate-50 px-2 py-1.5">
               <p className="text-[11px] leading-relaxed text-slate-600">{kw.reason}</p>
               <p className="mt-1 text-[10px] text-slate-400">
-                Mức tin cậy: {CONFIDENCE_LABEL[kw.confidence]} · Mục tiêu CPA {vnd(kw.targetCpa)}
-                {kw.targetCpaSource === "noi_bo" ? " (mốc nội bộ, chiến dịch không khai target CPA)" : " (lấy từ Google)"}
-                {kw.firstPageCpc !== null && ` · Google ước tính trang đầu ${vnd(kw.firstPageCpc)}`}
-                {kw.topOfPageCpc !== null && ` · đầu trang ${vnd(kw.topOfPageCpc)}`}
+                {t("google.manualBid.confidence", { level: t(CONFIDENCE_LABEL[kw.confidence]), cpa: vnd(kw.targetCpa) })}
+                {kw.targetCpaSource === "noi_bo" ? t("google.manualBid.cpaInternal") : t("google.manualBid.cpaGoogle")}
+                {kw.firstPageCpc !== null && t("google.manualBid.firstPage", { v: vnd(kw.firstPageCpc) })}
+                {kw.topOfPageCpc !== null && t("google.manualBid.topOfPage", { v: vnd(kw.topOfPageCpc) })}
               </p>
             </div>
           )}
         </button>
 
         <div className="shrink-0 text-right">
-          <p className="text-[10px] text-slate-400">đang đặt</p>
+          <p className="text-[10px] text-slate-400">{t("google.manualBid.currentBid")}</p>
           <p className="text-xs tabular-nums text-slate-600">{kw.currentBid > 0 ? vnd(kw.currentBid) : "—"}</p>
         </div>
         <div className="w-px self-stretch bg-slate-100" />
         <div className="shrink-0 text-right">
-          <p className="text-[10px] text-slate-400">đề xuất</p>
+          <p className="text-[10px] text-slate-400">{t("google.manualBid.recommended")}</p>
           <p className={cn("text-xs font-bold tabular-nums", kw.recommendedBid === null ? "text-slate-300" : "text-slate-800")}>
             {kw.recommendedBid === null ? "—" : vnd(kw.recommendedBid)}
           </p>
@@ -109,6 +114,9 @@ function KeywordRow({
 }
 
 export default function ManualBidPage() {
+  const t = useT();
+  const loc = useIntlLocale();
+  const vnd = (n: number) => fmtVnd(n, loc);
   const { toast } = useToast();
   const [company, setCompany] = useState<string>(() => orderedCompanyIds(["MBC"])[0] ?? "MBC") // Đợt 25: công ty theo bản cài (bản Mắt Bão y như cũ);
   const [days, setDays] = useState(30);
@@ -134,7 +142,7 @@ export default function ManualBidPage() {
 
   async function apply(camp: CampaignBidSummary, dryRun: boolean) {
     const rns = camp.keywords.filter((k) => selected.has(k.resourceName)).map((k) => k.resourceName);
-    if (rns.length === 0) { toast({ title: "Chưa chọn từ khoá nào trong chiến dịch này" }); return; }
+    if (rns.length === 0) { toast({ title: t("google.manualBid.noneSelected") }); return; }
     setApplying(camp.campaignId);
     try {
       const res = await fetch("/api/google/manual-bid/apply", {
@@ -146,14 +154,14 @@ export default function ManualBidPage() {
       if (!res.ok || !j.success) throw new Error(j.error ?? `HTTP ${res.status}`);
       if (dryRun) {
         const lines = (j.preview ?? []).slice(0, 5).map((p: { keyword: string; from: number; to: number }) => `${p.keyword}: ${vnd(p.from)} → ${vnd(p.to)}`);
-        toast({ title: `Xem trước ${j.preview?.length ?? 0} thay đổi${lines.length ? " · " + lines.join(" · ") : ""}` });
+        toast({ title: t("google.manualBid.previewToast", { n: j.preview?.length ?? 0 }) + (lines.length ? " · " + lines.join(" · ") : "") });
       } else {
-        toast({ title: `✅ Đã cập nhật ${j.applied} từ khoá trên Google Ads` });
+        toast({ title: t("google.manualBid.appliedToast", { n: j.applied }) });
         setSelected(new Set());
         mutate();
       }
       if (j.skipped?.length) {
-        toast({ title: `Bỏ qua ${j.skipped.length} từ khoá: ${j.skipped.slice(0, 3).map((s: { keyword: string; why: string }) => `${s.keyword} (${s.why})`).join("; ")}` });
+        toast({ title: t("google.manualBid.skippedToast", { n: j.skipped.length, list: j.skipped.slice(0, 3).map((s: { keyword: string; why: string }) => `${s.keyword} (${s.why})`).join("; ") }) });
       }
       (j.warnings ?? []).forEach((w: string) => toast({ title: `⚠️ ${w}` }));
     } catch (err) {
@@ -169,8 +177,8 @@ export default function ManualBidPage() {
         <div className="flex items-center gap-2">
           <div className="rounded-lg bg-indigo-100 p-2"><Gauge className="h-5 w-5 text-indigo-600" /></div>
           <div>
-            <h1 className="text-lg font-bold text-slate-800">Giá thầu thủ công</h1>
-            <p className="text-xs text-slate-400">Đề xuất mức giá thầu cho từng từ khoá, dựa trên dữ liệu đã chạy</p>
+            <h1 className="text-lg font-bold text-slate-800">{t("google.manualBid.title")}</h1>
+            <p className="text-xs text-slate-400">{t("google.manualBid.subtitle")}</p>
           </div>
         </div>
         <div className="ml-auto flex items-center gap-2">
@@ -183,13 +191,13 @@ export default function ManualBidPage() {
           ))}
           <select value={days} onChange={(e) => { setDays(Number(e.target.value)); setSelected(new Set()); }}
             className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs text-slate-600">
-            <option value={14}>14 ngày</option>
-            <option value={30}>30 ngày</option>
-            <option value={60}>60 ngày</option>
-            <option value={90}>90 ngày</option>
+            <option value={14}>{t("google.manualBid.days", { n: 14 })}</option>
+            <option value={30}>{t("google.manualBid.days", { n: 30 })}</option>
+            <option value={60}>{t("google.manualBid.days", { n: 60 })}</option>
+            <option value={90}>{t("google.manualBid.days", { n: 90 })}</option>
           </select>
           <Button variant="outline" size="sm" onClick={() => mutate()} disabled={isValidating}>
-            <RefreshCw className={cn("h-3.5 w-3.5", isValidating && "animate-spin")} /> Làm mới
+            <RefreshCw className={cn("h-3.5 w-3.5", isValidating && "animate-spin")} /> {t("google.manualBid.refresh")}
           </Button>
         </div>
       </div>
@@ -197,8 +205,8 @@ export default function ManualBidPage() {
       <div className="flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-[11px] leading-relaxed text-slate-600">
         <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
         <div>
-          <p><strong>Cách tính:</strong> mỗi từ khoá có hai ràng buộc. <strong>Trần chi trả</strong> = mục tiêu CPA × tỷ lệ chuyển đổi (cao hơn mức này là lỗ). <strong>Sàn thị trường</strong> = ước tính của chính Google để lên trang đầu (thấp hơn là gần như không hiện). Đề xuất là chỗ dung hoà hai bên; khi trần thấp hơn sàn thì không có giá nào đúng, và công cụ nói thẳng thay vì đưa một con số vô nghĩa.</p>
-          <p className="mt-1"><strong>Mức vượt/tháng</strong> tính theo giá THỰC TRẢ, và giả định lượt nhấp giữ nguyên — thực tế hạ giá thầu thường kéo lượt nhấp xuống, nên coi đó là mức trần của khoản tiết kiệm, không phải con số chắc chắn.</p>
+          <p><strong>{t("google.manualBid.howLabel")}</strong> {t("google.manualBid.how1")} <strong>{t("google.manualBid.ceilingLabel")}</strong> {t("google.manualBid.how2")} <strong>{t("google.manualBid.floorLabel")}</strong> {t("google.manualBid.how3")}</p>
+          <p className="mt-1"><strong>{t("google.manualBid.overLabel")}</strong> {t("google.manualBid.over1")}</p>
         </div>
       </div>
 
@@ -206,29 +214,29 @@ export default function ManualBidPage() {
         <Card>
           <CardContent className="flex flex-wrap items-center gap-6 py-4">
             <div>
-              <p className="text-[10px] uppercase tracking-wide text-slate-400">Chiến dịch Search</p>
+              <p className="text-[10px] uppercase tracking-wide text-slate-400">{t("google.manualBid.kpiCampaigns")}</p>
               <p className="text-xl font-bold text-slate-800">{campaigns.length}</p>
             </div>
             <div>
-              <p className="text-[10px] uppercase tracking-wide text-slate-400">Đang trả vượt trần / tháng</p>
+              <p className="text-[10px] uppercase tracking-wide text-slate-400">{t("google.manualBid.kpiOverspend")}</p>
               <p className="text-xl font-bold text-red-600">{vnd(totalOverspend)}</p>
             </div>
             <div>
-              <p className="text-[10px] uppercase tracking-wide text-slate-400">Từ khoá nên giảm</p>
+              <p className="text-[10px] uppercase tracking-wide text-slate-400">{t("google.manualBid.kpiReduce")}</p>
               <p className="text-xl font-bold text-slate-800">{campaigns.reduce((s, c) => s + c.countGiam, 0)}</p>
             </div>
             <div>
-              <p className="text-[10px] uppercase tracking-wide text-slate-400">Chạy Manual CPC</p>
+              <p className="text-[10px] uppercase tracking-wide text-slate-400">{t("google.manualBid.kpiManual")}</p>
               <p className="text-xl font-bold text-slate-800">{campaigns.filter((c) => c.isManualCpc).length}/{campaigns.length}</p>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {isLoading && <p className="flex items-center gap-2 py-8 text-sm text-slate-400"><Loader2 className="h-4 w-4 animate-spin" /> Đang đọc dữ liệu từ Google Ads…</p>}
+      {isLoading && <p className="flex items-center gap-2 py-8 text-sm text-slate-400"><Loader2 className="h-4 w-4 animate-spin" /> {t("google.manualBid.loading")}</p>}
 
       {error && (
-        <EmptyState icon={AlertTriangle} title="Không tải được dữ liệu"
+        <EmptyState icon={AlertTriangle} title={t("google.manualBid.loadFailed")}
           description={error instanceof Error ? error.message : String(error)} />
       )}
 
@@ -239,8 +247,8 @@ export default function ManualBidPage() {
       ))}
 
       {!isLoading && !error && campaigns.length === 0 && (
-        <EmptyState icon={Gauge} title="Không có chiến dịch Search nào đang chạy"
-          description="Công cụ này chỉ áp dụng cho chiến dịch Search — PMax và Demand Gen không có giá thầu thủ công." />
+        <EmptyState icon={Gauge} title={t("google.manualBid.emptyTitle")}
+          description={t("google.manualBid.emptyDesc")} />
       )}
 
       {campaigns.map((camp) => {
@@ -256,15 +264,15 @@ export default function ManualBidPage() {
                 </span>
                 {camp.overspendPerMonth > 0 && (
                   <span className="rounded border border-red-200 bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-700">
-                    vượt {vnd(camp.overspendPerMonth)}/tháng
+                    {t("google.manualBid.overBy", { amount: vnd(camp.overspendPerMonth) })}
                   </span>
                 )}
               </div>
               <p className="text-[11px] text-slate-400">
-                {camp.days} ngày · {camp.clicks} nhấp · {camp.conversions.toFixed(0)} chuyển đổi · {vnd(camp.cost)} ·
-                {" "}{camp.countGiam} nên giảm, {camp.countTang} có thể tăng, {camp.countGiu} đang hợp lý
-                {camp.countKhongDatDuoc > 0 && `, ${camp.countKhongDatDuoc} không đạt được`}
-                {camp.countThieuDuLieu > 0 && `, ${camp.countThieuDuLieu} thiếu dữ liệu`}
+                {t("google.manualBid.campStats", { days: camp.days, clicks: camp.clicks, conv: camp.conversions.toFixed(0), cost: vnd(camp.cost) })} ·
+                {" "}{t("google.manualBid.campVerdicts", { reduce: camp.countGiam, raise: camp.countTang, keep: camp.countGiu })}
+                {camp.countKhongDatDuoc > 0 && t("google.manualBid.campUnreachable", { n: camp.countKhongDatDuoc })}
+                {camp.countThieuDuLieu > 0 && t("google.manualBid.campNoData", { n: camp.countThieuDuLieu })}
               </p>
             </CardHeader>
             <CardContent className="pt-0">
@@ -282,24 +290,24 @@ export default function ManualBidPage() {
                 ))}
               </div>
               {camp.keywords.length > 40 && (
-                <p className="mt-1 text-[11px] text-slate-400">Hiển thị 40/{camp.keywords.length} từ khoá, xếp theo mức vượt trần giảm dần.</p>
+                <p className="mt-1 text-[11px] text-slate-400">{t("google.manualBid.showing", { total: camp.keywords.length })}</p>
               )}
 
               <div className="mt-3 flex flex-wrap items-center gap-2">
-                <span className="text-xs text-slate-500">{selectedHere} từ khoá đã chọn</span>
+                <span className="text-xs text-slate-500">{t("google.manualBid.selectedCount", { n: selectedHere })}</span>
                 <div className="ml-auto flex gap-2">
                   <Button variant="outline" size="sm" disabled={selectedHere === 0 || applying === camp.campaignId}
                     onClick={() => apply(camp, true)}>
-                    {applying === camp.campaignId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Info className="h-3.5 w-3.5" />} Xem trước
+                    {applying === camp.campaignId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Info className="h-3.5 w-3.5" />} {t("google.manualBid.preview")}
                   </Button>
                   <Button variant="default" size="sm"
                     disabled={selectedHere === 0 || !camp.canApply || applying === camp.campaignId}
-                    title={!camp.canApply ? `Chiến dịch đang chạy ${camp.biddingStrategy} — Google bỏ qua giá thầu đặt tay` : undefined}
+                    title={!camp.canApply ? t("google.manualBid.cannotApply", { strategy: camp.biddingStrategy }) : undefined}
                     onClick={() => {
-                      if (!confirm(`Ghi giá thầu mới cho ${selectedHere} từ khoá của "${camp.campaignName}" lên Google Ads?\n\nĐây là thay đổi THẬT, ảnh hưởng tới chi tiêu.`)) return;
+                      if (!confirm(t("google.manualBid.confirmApply", { n: selectedHere, name: camp.campaignName }))) return;
                       apply(camp, false);
                     }}>
-                    {applying === camp.campaignId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Áp dụng lên Google
+                    {applying === camp.campaignId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} {t("google.manualBid.applyToGoogle")}
                   </Button>
                 </div>
               </div>

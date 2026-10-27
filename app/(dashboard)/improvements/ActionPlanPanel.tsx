@@ -7,6 +7,7 @@ import { generateActionPlan } from "@/lib/actionPlanGenerator";
 import { executeActionPlan, handleUndo } from "@/lib/actionExecutor";
 import { ActionPlan, ActionStep, Improvement } from "@/types/improvements";
 import { getManualGuide } from "@/lib/improvement-manual-guide";
+import { useIntlLocale, useT } from "@/lib/i18n/client";
 
 // Simple Spinner since we don't have Lucide imports easily tracked here
 const Spinner = ({ size = 16 }: { size?: number }) => (
@@ -35,6 +36,8 @@ const ChevronIcon = ({ className, size = 14 }: { className?: string; size?: numb
 );
 
 export function ActionPlanPanel({ improvement, company, onClose }: { improvement: Improvement; company: string; onClose: () => void }) {
+  const t = useT();
+  const loc = useIntlLocale();
   const [plan, setPlan] = useState<ActionPlan | null>(null);
   const [stepStatus, setStepStatus] = useState<Record<string, string>>({});
   const [applying, setApplying] = useState(false);
@@ -92,7 +95,7 @@ export function ActionPlanPanel({ improvement, company, onClose }: { improvement
             </div>
             <h2 className="text-base font-semibold text-slate-900">{improvement.title}</h2>
             <p className="text-xs text-slate-500 mt-1">
-              📁 {improvement.campaignName || "General"}
+              📁 {improvement.campaignName || t("overview.improvements.plan.general")}
             </p>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-700 p-1 rounded-md hover:bg-slate-100">
@@ -106,22 +109,22 @@ export function ActionPlanPanel({ improvement, company, onClose }: { improvement
             <div className="text-2xl">💰</div>
             <div>
               {/* Soát dữ liệu 07/10: đây là CHI TIÊU đo được trong kỳ dính lỗi này — không phải "tiết kiệm/tháng" dự kiến. */}
-              <p className="text-xs text-green-700 font-medium">{improvement.impactRough ? "Mức ảnh hưởng (ước lượng thô)" : "Chi tiêu trong kỳ dính lỗi này"}</p>
+              <p className="text-xs text-green-700 font-medium">{improvement.impactRough ? t("overview.improvements.plan.impactRough") : t("overview.improvements.plan.impactSpend")}</p>
               <p className="text-lg font-bold text-green-700">
-                ₫{Math.round(plan?.totalImpact || 0).toLocaleString("vi-VN")}
+                ₫{Math.round(plan?.totalImpact || 0).toLocaleString(loc)}
               </p>
             </div>
             <div className="ml-auto text-right text-green-800">
-              <p className="text-xs">Auto-apply được</p>
+              <p className="text-xs">{t("overview.improvements.plan.autoApplicable")}</p>
               <p className="font-semibold text-sm">
-                {plan?.autoSteps}/{plan?.steps.length} bước
+                {t("overview.improvements.plan.stepsCount", { auto: plan?.autoSteps ?? "", total: plan?.steps.length ?? "" })}
               </p>
             </div>
           </div>
 
           <div>
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">
-              Kế hoạch hành động
+              {t("overview.improvements.plan.title")}
             </p>
             <div className="flex flex-col gap-3">
               {plan?.steps.map((step, index) => (
@@ -139,10 +142,10 @@ export function ActionPlanPanel({ improvement, company, onClose }: { improvement
           {(plan?.manualSteps || 0) > 0 && (
             <div className="rounded-lg bg-orange-50 border border-orange-200 p-4">
               <p className="text-xs font-semibold text-orange-700 mb-1">
-                ⚠️ {plan?.manualSteps} bước cần làm thủ công
+                {t("overview.improvements.plan.manualCount", { n: plan?.manualSteps ?? "" })}
               </p>
               <p className="text-xs text-orange-600">
-                Hệ thống không thể tự động hóa hoàn toàn. Bạn cần thực hiện các bước có nhãn "Thủ công" sau khi apply.
+                {t("overview.improvements.plan.manualNote")}
               </p>
             </div>
           )}
@@ -160,17 +163,17 @@ export function ActionPlanPanel({ improvement, company, onClose }: { improvement
                 {applying ? (
                   <>
                     <Spinner size={16} />
-                    Đang apply...
+                    {t("overview.improvements.plan.applying")}
                   </>
                 ) : (
                   <>
                     <CheckIcon size={16} strokeWidth={2.5} />
-                    Apply {plan?.autoSteps} bước tự động
+                    {t("overview.improvements.plan.applyAuto", { n: plan?.autoSteps ?? "" })}
                   </>
                 )}
               </button>
               <p className="text-xs text-slate-500 text-center mt-3">
-                Có thể Undo trong 24h sau khi apply
+                {t("overview.improvements.plan.undoNote")}
               </p>
             </>
           ) : (
@@ -178,16 +181,16 @@ export function ActionPlanPanel({ improvement, company, onClose }: { improvement
               <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center text-green-600">
                 <CheckIcon size={24} strokeWidth={3} />
               </div>
-              <p className="font-semibold text-green-700">Đã apply thành công!</p>
+              <p className="font-semibold text-green-700">{t("overview.improvements.plan.applied")}</p>
               <p className="text-xs text-slate-500 text-center max-w-[250px]">
-                Thay đổi đang được áp dụng. Kết quả sẽ cập nhật trong 2-6 giờ tới.
+                {t("overview.improvements.plan.appliedNote")}
               </p>
               <button
                 onClick={onUndo}
                 disabled={applying}
                 className="text-xs text-amber-700 font-medium underline hover:text-amber-900"
               >
-                 {applying ? "Đang hoàn tác..." : "Hoàn tác (undo)"}
+                 {applying ? t("overview.improvements.plan.undoing") : t("overview.improvements.plan.undo")}
               </button>
             </div>
           )}
@@ -198,6 +201,7 @@ export function ActionPlanPanel({ improvement, company, onClose }: { improvement
 }
 
 function ActionStepCard({ step, index, status, improvement }: { step: ActionStep; index: number; status: string; improvement: Improvement }) {
+  const t = useT();
   const [expanded, setExpanded] = useState(index === 1);
 
   return (
@@ -227,7 +231,7 @@ function ActionStepCard({ step, index, status, improvement }: { step: ActionStep
             <span className="text-sm font-semibold text-slate-800">{step.title}</span>
             {!step.canAutoApply && (
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 font-medium flex-shrink-0">
-                Thủ công
+                {t("overview.improvements.plan.manual")}
               </span>
             )}
           </div>
@@ -243,7 +247,7 @@ function ActionStepCard({ step, index, status, improvement }: { step: ActionStep
         <div className="px-4 pb-4 border-t border-slate-100 pt-3">
           <div className="grid grid-cols-2 gap-3 mb-3">
             <div className="rounded-lg bg-slate-50 border border-slate-100 p-3">
-              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-2">Hiện tại</p>
+              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-2">{t("overview.improvements.plan.current")}</p>
               {Object.entries(step.before).map(([k, v]) => (
                 <div key={k} className="flex flex-col mb-2 last:mb-0">
                   <span className="text-[11px] text-slate-500 font-medium">{k}</span>
@@ -252,7 +256,7 @@ function ActionStepCard({ step, index, status, improvement }: { step: ActionStep
               ))}
             </div>
             <div className="rounded-lg bg-green-50 border border-green-100 p-3">
-              <p className="text-[11px] font-bold text-green-700 uppercase tracking-wide mb-2">Sau khi apply</p>
+              <p className="text-[11px] font-bold text-green-700 uppercase tracking-wide mb-2">{t("overview.improvements.plan.afterApply")}</p>
               {Object.entries(step.after).map(([k, v]) => (
                 <div key={k} className="flex flex-col mb-2 last:mb-0">
                   <span className="text-[11px] text-green-700 font-medium">{k}</span>
@@ -265,7 +269,7 @@ function ActionStepCard({ step, index, status, improvement }: { step: ActionStep
           {!step.canAutoApply && (
             <div className="rounded-lg bg-orange-50 border border-orange-200 p-3">
               <p className="text-[11px] font-bold text-orange-800 uppercase tracking-wide mb-1.5 flex items-center gap-1.5">
-                <span>📝</span> Hướng dẫn thực hiện thủ công:
+                <span>📝</span> {t("overview.improvements.plan.manualGuide")}
               </p>
               <ManualStepGuide step={step} improvement={improvement} />
             </div>
@@ -287,6 +291,7 @@ function ActionStepCard({ step, index, status, improvement }: { step: ActionStep
  * ba dòng chung.
  */
 function ManualStepGuide({ step, improvement }: { step: ActionStep; improvement: Improvement }) {
+  const t = useT();
   const guide = getManualGuide(improvement);
   const hasSteps = guide.steps.length > 0;
 
@@ -301,9 +306,9 @@ function ManualStepGuide({ step, improvement }: { step: ActionStep; improvement:
           guide.steps.map((s, i) => <li key={i}>{s}</li>)
         ) : (
           <>
-            <li>Truy cập vào trình quản lý quảng cáo.</li>
-            <li>Tìm campaign <strong>{step.entityName}</strong>.</li>
-            <li>Thực hiện thay đổi được yêu cầu.</li>
+            <li>{t("overview.improvements.plan.guide1")}</li>
+            <li>{t("overview.improvements.plan.guide2Pre")}<strong>{step.entityName}</strong>{t("overview.improvements.plan.guide2Post")}</li>
+            <li>{t("overview.improvements.plan.guide3")}</li>
           </>
         )}
       </ul>
@@ -313,7 +318,7 @@ function ManualStepGuide({ step, improvement }: { step: ActionStep; improvement:
           href={guide.internalLink}
           className="inline-block text-xs font-semibold text-blue-700 hover:underline"
         >
-          → {guide.internalLabel ?? "Mở công cụ"}
+          → {guide.internalLabel ?? t("overview.improvements.plan.openTool")}
         </a>
       )}
 

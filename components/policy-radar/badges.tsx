@@ -1,19 +1,22 @@
 import { CheckCircle2, Flag, Archive, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/messages";
 import type { PolicyPlatform, PolicyReviewStatus, PolicySeverity } from "@/lib/policy-radar/types";
 
-const SEVERITY_STYLE: Record<PolicySeverity, { label: string; className: string }> = {
-  high:   { label: "Cao",         className: "bg-red-100 text-red-700 border-red-200" },
-  medium: { label: "Trung bình",  className: "bg-amber-100 text-amber-700 border-amber-200" },
-  low:    { label: "Thấp",        className: "bg-slate-100 text-slate-600 border-slate-200" },
+const SEVERITY_STYLE: Record<PolicySeverity, { label: MessageKey; className: string }> = {
+  high:   { label: "meta.policy.sev.high",   className: "bg-red-100 text-red-700 border-red-200" },
+  medium: { label: "meta.policy.sev.medium", className: "bg-amber-100 text-amber-700 border-amber-200" },
+  low:    { label: "meta.policy.sev.low",    className: "bg-slate-100 text-slate-600 border-slate-200" },
 };
 
 export function SeverityBadge({ severity, className }: { severity: PolicySeverity; className?: string }) {
+  const t = useT();
   const style = SEVERITY_STYLE[severity];
   return (
     <Badge variant="outline" className={cn("rounded-full font-bold tracking-wide", style.className, className)}>
-      {style.label}
+      {t(style.label)}
     </Badge>
   );
 }
@@ -41,9 +44,10 @@ export function PolicyPlatformBadge({ platform, className }: { platform: PolicyP
 // only ever showed a marker for the *non*-official/unverified case, so the
 // real, fully-verified Google items rendered with no trust signal at all.
 export function OfficialSourceBadge({ className }: { className?: string }) {
+  const t = useT();
   return (
     <Badge className={cn("inline-flex items-center gap-1 rounded-md bg-slate-900 text-white border-transparent", className)}>
-      <ShieldCheck className="h-3 w-3" /> Nguồn chính thức
+      <ShieldCheck className="h-3 w-3" /> {t("meta.policy.official")}
     </Badge>
   );
 }

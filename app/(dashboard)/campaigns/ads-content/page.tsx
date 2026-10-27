@@ -18,6 +18,7 @@ import { currentMonth } from "@/lib/ads-content/month-range";
 import { applyFilters, sortItems, groupByCampaign, DEFAULT_FILTERS, type AdsContentFilters } from "@/lib/ads-content/filtering";
 import type { AdsContentResponse, CreativeItem } from "@/types/creative-content.types";
 import { Images } from "lucide-react";
+import { useT } from "@/lib/i18n/client";
 
 const PINNED_KEY = "ads_content_pinned_compare";
 
@@ -51,6 +52,7 @@ async function downloadPdf(items: CreativeItem[], month: string, currency: strin
 }
 
 export default function AdsContentPage() {
+  const t = useT();
   const currency = useAdsStore((s) => s.currency);
   const { toast } = useToast();
 
@@ -129,9 +131,9 @@ export default function AdsContentPage() {
     setExportingCurrentView(true);
     try {
       await downloadExcel(filteredItems);
-      toast({ title: "✅ Đã export current view" });
+      toast({ title: t("creative.adsContentPage.exportViewDone") });
     } catch {
-      toast({ title: "❌ Export thất bại" });
+      toast({ title: t("creative.adsContentPage.exportFailed") });
     } finally {
       setExportingCurrentView(false);
     }
@@ -141,9 +143,9 @@ export default function AdsContentPage() {
     setExportingSelected(true);
     try {
       await downloadExcel(selectedItems);
-      toast({ title: `✅ Đã export ${selectedItems.length} creative đã chọn` });
+      toast({ title: t("creative.adsContentPage.exportSelectedDone", { n: selectedItems.length }) });
     } catch {
-      toast({ title: "❌ Export thất bại" });
+      toast({ title: t("creative.adsContentPage.exportFailed") });
     } finally {
       setExportingSelected(false);
     }
@@ -153,9 +155,9 @@ export default function AdsContentPage() {
     setExportingCurrentViewPdf(true);
     try {
       await downloadPdf(filteredItems, month, currency, filters);
-      toast({ title: "✅ Đã export PDF current view" });
+      toast({ title: t("creative.adsContentPage.exportPdfViewDone") });
     } catch {
-      toast({ title: "❌ Export PDF thất bại" });
+      toast({ title: t("creative.adsContentPage.exportPdfFailed") });
     } finally {
       setExportingCurrentViewPdf(false);
     }
@@ -165,9 +167,9 @@ export default function AdsContentPage() {
     setExportingSelectedPdf(true);
     try {
       await downloadPdf(selectedItems, month, currency, filters);
-      toast({ title: `✅ Đã export PDF ${selectedItems.length} creative đã chọn` });
+      toast({ title: t("creative.adsContentPage.exportPdfSelectedDone", { n: selectedItems.length }) });
     } catch {
-      toast({ title: "❌ Export PDF thất bại" });
+      toast({ title: t("creative.adsContentPage.exportPdfFailed") });
     } finally {
       setExportingSelectedPdf(false);
     }
@@ -188,15 +190,15 @@ export default function AdsContentPage() {
     if (selectedItems.length !== 1 || pinned.length >= 2) return;
     const item = selectedItems[0];
     if (pinned.some((p) => p.id === item.id)) {
-      toast({ title: "Creative này đã được ghim rồi" });
+      toast({ title: t("creative.adsContentPage.alreadyPinned") });
       return;
     }
     persistPinned([...pinned, item]);
     setSelectedIds(new Set());
     toast({
       title: pinned.length === 0
-        ? "📌 Đã ghim 1/2 — đổi sang tháng khác rồi ghim creative thứ hai"
-        : "📌 Đã ghim đủ 2 — bấm “So sánh 2 creative đã ghim”",
+        ? t("creative.adsContentPage.pinned1")
+        : t("creative.adsContentPage.pinned2"),
     });
   }
 
@@ -223,7 +225,7 @@ export default function AdsContentPage() {
         <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           <div>
-            <p className="font-medium">Một số nguồn dữ liệu bị lỗi — dữ liệu hiển thị có thể chưa đầy đủ:</p>
+            <p className="font-medium">{t("creative.adsContentPage.warningsTitle")}</p>
             <ul className="mt-1 list-disc pl-4">
               {data.warnings.map((w, i) => <li key={i}>{w}</li>)}
             </ul>
@@ -234,8 +236,8 @@ export default function AdsContentPage() {
       {error && (
         <EmptyState
           icon={AlertTriangle}
-          title="Không tải được dữ liệu"
-          description="Đã có lỗi khi tải Ads Content. Thử refresh lại."
+          title={t("creative.adsContentPage.loadErrorTitle")}
+          description={t("creative.adsContentPage.loadErrorDesc")}
         />
       )}
 
@@ -253,8 +255,8 @@ export default function AdsContentPage() {
       {!isLoading && !error && groups.length === 0 && (
         <EmptyState
           icon={Images}
-          title="Không có creative nào có spend trong tháng này"
-          description="Thử chọn tháng khác hoặc nới filter."
+          title={t("creative.adsContentPage.emptyTitle")}
+          description={t("creative.adsContentPage.emptyDesc")}
         />
       )}
 

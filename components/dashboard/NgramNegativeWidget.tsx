@@ -5,6 +5,8 @@ import Link from "next/link";
 import { Loader2, ShieldOff, ArrowRight, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { companyIds } from "@/lib/companies/registry";
+import { useIntlLocale, useT } from "@/lib/i18n/client";
+import type { TFunction } from "@/lib/i18n/translate";
 
 interface NgramItem {
   ngram: string;
@@ -22,13 +24,15 @@ interface NegativeSuggestion extends NgramItem {
   company: string;
 }
 
-function fmtMoney(val: number): string {
-  if (val >= 1_000_000) return `₫${(val / 1_000_000).toFixed(1)}Tr`;
+function fmtMoney(val: number, t: TFunction, loc: string): string {
+  if (val >= 1_000_000) return `₫${(val / 1_000_000).toFixed(1)}${t("overview.ngram.unitM")}`;
   if (val >= 1_000) return `₫${Math.round(val / 1000)}K`;
-  return `₫${val.toLocaleString("vi-VN")}`;
+  return `₫${val.toLocaleString(loc)}`;
 }
 
 export function NgramNegativeWidget() {
+  const t = useT();
+  const loc = useIntlLocale();
   const [suggestions, setSuggestions] = useState<NegativeSuggestion[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -73,20 +77,20 @@ export function NgramNegativeWidget() {
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden flex flex-col h-full">
       <div className="flex items-center justify-between px-5 pt-5 pb-3">
         <h3 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
-          🚫 Từ khóa nên chặn (Google)
+          {t("overview.ngram.title")}
         </h3>
         <Link
           href="/toolkit/ngram"
           className="text-[11px] font-semibold text-amber-700 hover:text-amber-800 flex items-center gap-0.5"
         >
-          Xem & xử lý <ArrowRight className="h-3 w-3" />
+          {t("overview.ngram.viewAndHandle")} <ArrowRight className="h-3 w-3" />
         </Link>
       </div>
 
       <div className="px-5 pb-5 space-y-2 flex-1">
         {suggestions.length === 0 ? (
           <p className="text-[10px] text-emerald-600 flex items-center gap-1 py-2">
-            <CheckCircle2 className="h-3 w-3" /> Không có từ khóa rác đáng chú ý
+            <CheckCircle2 className="h-3 w-3" /> {t("overview.ngram.none")}
           </p>
         ) : (
           suggestions.map((s, i) => (
@@ -99,11 +103,11 @@ export function NgramNegativeWidget() {
                     {s.company}
                   </span>{" "}
                   {s.cpa === null
-                    ? <>0 chuyển đổi · {s.clicks} click · đã tiêu {fmtMoney(s.cost)}</>
-                    : <>CPA {fmtMoney(s.cpa)} ({s.vsAvgPct !== null && s.vsAvgPct > 0 ? "+" : ""}{s.vsAvgPct ?? 0}%)</>}
+                    ? <>{t("overview.ngram.zeroConv", { clicks: s.clicks, cost: fmtMoney(s.cost, t, loc) })}</>
+                    : <>{t("overview.ngram.cpa", { cpa: fmtMoney(s.cpa, t, loc), delta: `${s.vsAvgPct !== null && s.vsAvgPct > 0 ? "+" : ""}${s.vsAvgPct ?? 0}` })}</>}
                 </p>
               </div>
-              <p className="text-xs font-bold text-red-600 shrink-0">Tiết kiệm {fmtMoney(s.potentialSavings)}</p>
+              <p className="text-xs font-bold text-red-600 shrink-0">{t("overview.ngram.savings", { amount: fmtMoney(s.potentialSavings, t, loc) })}</p>
             </div>
           ))
         )}

@@ -33,16 +33,19 @@ import type { CompareResult } from "@/lib/meta/audience-compare-fetch";
 import type { WinningAudience } from "@/lib/meta/winning-audiences";
 import type { AiAssessment } from "@/lib/meta/audience-compare-ai";
 import { AbCreateForm, AbSection } from "./AbTests";
+import { useT } from "@/lib/i18n/client";
+import type { TFunction } from "@/lib/i18n/translate";
+import type { MessageKey } from "@/lib/i18n/messages";
 
 const MAX_PICK = 3; // = MAX_COMPARE_CAMPAIGNS (không import giá trị từ lib phía máy chủ)
 
 type CompareResponse = CompareResult & { success: true };
 
-const VERDICT_UI: Record<CompareVerdict, { tone: PillTone; label: string; box: string }> = {
-  winner: { tone: "green", label: "Có tệp thắng", box: "border-emerald-200 bg-emerald-50 text-emerald-800" },
-  leaning: { tone: "amber", label: "Đang nghiêng về", box: "border-amber-200 bg-amber-50 text-amber-800" },
-  undecided: { tone: "grey", label: "Chưa phân thắng thua", box: "border-slate-200 bg-slate-50 text-slate-700" },
-  not_enough: { tone: "grey", label: "Chưa phân thắng thua", box: "border-slate-200 bg-slate-50 text-slate-700" },
+const VERDICT_UI: Record<CompareVerdict, { tone: PillTone; label: MessageKey; box: string }> = {
+  winner: { tone: "green", label: "meta.cmp.v.winner", box: "border-emerald-200 bg-emerald-50 text-emerald-800" },
+  leaning: { tone: "amber", label: "meta.cmp.v.leaning", box: "border-amber-200 bg-amber-50 text-amber-800" },
+  undecided: { tone: "grey", label: "meta.cmp.v.undecided", box: "border-slate-200 bg-slate-50 text-slate-700" },
+  not_enough: { tone: "grey", label: "meta.cmp.v.undecided", box: "border-slate-200 bg-slate-50 text-slate-700" },
 };
 
 const sortRows = (rows: RankedAdset[]): RankedAdset[] => {
@@ -51,10 +54,20 @@ const sortRows = (rows: RankedAdset[]): RankedAdset[] => {
   return [...ranked, ...rest];
 };
 
-const learningLabel = (l: string | null): string =>
-  l === "LEARNING" ? "Đang học" : l === "SUCCESS" ? "Đã học xong" : l === "FAIL" ? "Học thất bại" : l === "LEARNING_LIMITED" ? "Học bị giới hạn" : l ? l : "—";
+const rich = (s: string) => s.split(/<b>(.*?)<\/b>/).map((part, i) => (i % 2 ? <b key={i}>{part}</b> : part));
+
+const learningLabel = (l: string | null, t: TFunction): string =>
+  l === "LEARNING" ? t("meta.cmp.learn.LEARNING") : l === "SUCCESS" ? t("meta.cmp.learn.SUCCESS") : l === "FAIL" ? t("meta.cmp.learn.FAIL") : l === "LEARNING_LIMITED" ? t("meta.cmp.learn.LEARNING_LIMITED") : l ? l : "—";
+
+const OBJ_KEYS: Record<string, MessageKey> = {
+  OUTCOME_SALES: "meta.cmp.obj.OUTCOME_SALES", OUTCOME_LEADS: "meta.cmp.obj.OUTCOME_LEADS", OUTCOME_ENGAGEMENT: "meta.cmp.obj.OUTCOME_ENGAGEMENT", OUTCOME_AWARENESS: "meta.cmp.obj.OUTCOME_AWARENESS",
+  OUTCOME_TRAFFIC: "meta.cmp.obj.OUTCOME_TRAFFIC", OUTCOME_APP_PROMOTION: "meta.cmp.obj.OUTCOME_APP_PROMOTION", CONVERSIONS: "meta.cmp.obj.CONVERSIONS", PRODUCT_CATALOG_SALES: "meta.cmp.obj.PRODUCT_CATALOG_SALES",
+  LINK_CLICKS: "meta.cmp.obj.LINK_CLICKS", REACH: "meta.cmp.obj.REACH", BRAND_AWARENESS: "meta.cmp.obj.BRAND_AWARENESS", VIDEO_VIEWS: "meta.cmp.obj.VIDEO_VIEWS", MESSAGES: "meta.cmp.obj.MESSAGES",
+};
+const objectiveLabel = (o: string, t: TFunction): string => (OBJ_KEYS[o] ? t(OBJ_KEYS[o]) : metaObjectiveLabel(o));
 
 export default function SoSanhTepPage() {
+  const t = useT();
   const { user } = useSession();
   const allowedCompanies = resolveCompanyScope(user?.companies, user?.role);
   const canEdit = !!user && hasPermission(user.role, "can_edit");
@@ -99,7 +112,7 @@ export default function SoSanhTepPage() {
       setResult(await getJson(`/api/meta/audience-compare?${q}`));
     } catch (e) {
       setResult(null);
-      setCompareErr(e instanceof ApiError ? e.message : "Không so sánh được — thử lại sau ít phút.");
+      setCompareErr(e instanceof ApiError ? e.message : t("meta.cmp.compareFail"));
     } finally {
       setComparing(false);
     }
@@ -109,18 +122,18 @@ export default function SoSanhTepPage() {
     <div className="mx-auto max-w-7xl space-y-5 p-4 sm:p-6">
       <div>
         <h1 className="flex items-center gap-2 text-xl font-bold text-slate-900">
-          <Scale className="h-5 w-5 text-blue-600" aria-hidden="true" /> So sánh tệp đối tượng (Meta)
+          <Scale className="h-5 w-5 text-blue-600" aria-hidden="true" /> {t("meta.cmp.title")}
         </h1>
         <p className="mt-1 max-w-3xl text-sm text-slate-500">
-          So các nhóm quảng cáo trong 2–3 chiến dịch theo chi phí mỗi kết quả (mua hoặc lead Meta ghi nhận, tính từ lượt bấm quảng cáo trong 7 ngày). Trang này chủ yếu đọc số; chỉ người có quyền chỉnh sửa mới tạm dừng được nhóm kém rõ rệt hoặc tạo A/B test tệp, và mọi thay đổi đều được kiểm lại với Meta trước khi ghi.
+          {t("meta.cmp.intro")}
         </p>
       </div>
 
       {/* Điều khiển */}
       <div className="flex flex-wrap items-end gap-4">
         <div>
-          <div className="mb-1 text-xs font-medium text-slate-400">Công ty</div>
-          <div role="tablist" aria-label="Công ty" className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
+          <div className="mb-1 text-xs font-medium text-slate-400">{t("meta.cmp.company")}</div>
+          <div role="tablist" aria-label={t("meta.cmp.company")} className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
             {(orderedCompanyIds([]) as Company[]).map((v) => {
               const allowed = allowedCompanies.includes(v);
               return (
@@ -142,37 +155,37 @@ export default function SoSanhTepPage() {
           </div>
         </div>
         <div>
-          <div className="mb-1 text-xs font-medium text-slate-400">Khoảng ngày</div>
+          <div className="mb-1 text-xs font-medium text-slate-400">{t("meta.cmp.dateRange")}</div>
           <DateRangeControl value={range} onChange={(r) => { setRange(r); resetSelection(); }} maxDays={MAX_RANGE_DAYS} />
         </div>
       </div>
 
       {allowedCompanies.length === 0 && (
-        <EmptyState icon={AlertTriangle} title="Tài khoản của bạn chưa được gán công ty nào" description="Liên hệ quản trị để được cấp quyền truy cập công ty." />
+        <EmptyState icon={AlertTriangle} title={t("meta.cmp.noCompany")} description={t("meta.cmp.noCompanyDesc")} />
       )}
 
       {allowedCompanies.length > 0 && (
-        <section className="rounded-xl border border-slate-200 bg-white p-4" aria-label="Chọn chiến dịch">
+        <section className="rounded-xl border border-slate-200 bg-white p-4" aria-label={t("meta.cmp.pick.aria")}>
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-sm font-semibold text-slate-800">1. Chọn 2–3 chiến dịch Meta để so ({picked.length}/{MAX_PICK})</h2>
+            <h2 className="text-sm font-semibold text-slate-800">{t("meta.cmp.pick.title", { n: picked.length, max: MAX_PICK })}</h2>
             <div className="flex items-center gap-2">
               {result && (
                 <Button className="h-10" variant="outline" size="sm" onClick={() => runCompare(true)} disabled={comparing || picked.length < 2}>
-                  <RefreshCw className={cn("h-3.5 w-3.5", comparing && "animate-spin")} aria-hidden="true" /> Tải số mới
+                  <RefreshCw className={cn("h-3.5 w-3.5", comparing && "animate-spin")} aria-hidden="true" /> {t("meta.cmp.pick.refresh")}
                 </Button>
               )}
               <Button className="h-10" size="sm" onClick={() => runCompare(false)} disabled={comparing || picked.length < 2 || picked.length > MAX_PICK}>
-                {comparing ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Scale className="h-4 w-4" aria-hidden="true" />} So sánh
+                {comparing ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Scale className="h-4 w-4" aria-hidden="true" />} {t("meta.cmp.pick.compare")}
               </Button>
             </div>
           </div>
 
-          {campaigns.isLoading && <p className="mt-3 text-sm text-slate-500">Đang tải danh sách chiến dịch…</p>}
+          {campaigns.isLoading && <p className="mt-3 text-sm text-slate-500">{t("meta.cmp.pick.loading")}</p>}
           {!campaigns.isLoading && campaigns.error && (
-            <p className="mt-3 text-sm text-red-600">{campaigns.error instanceof ApiError ? campaigns.error.message : "Không tải được danh sách chiến dịch."}</p>
+            <p className="mt-3 text-sm text-red-600">{campaigns.error instanceof ApiError ? campaigns.error.message : t("meta.cmp.pick.loadFail")}</p>
           )}
           {!campaigns.isLoading && !campaigns.error && campaignRows.length === 0 && (
-            <p className="mt-3 rounded-lg bg-slate-50 p-3 text-sm text-slate-500">Không có chiến dịch Meta nào có chi tiêu trong khoảng ngày này. Thử chọn khoảng dài hơn.</p>
+            <p className="mt-3 rounded-lg bg-slate-50 p-3 text-sm text-slate-500">{t("meta.cmp.pick.none")}</p>
           )}
           {campaignRows.length > 0 && (
             <ul className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -192,7 +205,7 @@ export default function SoSanhTepPage() {
                       <span className="min-w-0">
                         <span className="block break-words font-medium text-slate-800">{c.name}</span>
                         <span className="block text-xs text-slate-500">
-                          {metaObjectiveLabel(c.channel)} · Chi {vnd(c.perf.cost)}
+                          {t("meta.cmp.pick.spend", { objective: objectiveLabel(c.channel, t), value: vnd(c.perf.cost) })}
                         </span>
                       </span>
                     </label>
@@ -201,14 +214,14 @@ export default function SoSanhTepPage() {
               })}
             </ul>
           )}
-          {picked.length === MAX_PICK && <p className="mt-2 text-xs text-slate-400">Đã chọn đủ {MAX_PICK} chiến dịch — bỏ một chiến dịch để chọn chiến dịch khác.</p>}
+          {picked.length === MAX_PICK && <p className="mt-2 text-xs text-slate-400">{t("meta.cmp.pick.full", { max: MAX_PICK })}</p>}
         </section>
       )}
 
       {compareErr && (
         <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{compareErr}</div>
       )}
-      {comparing && !result && <p className="text-sm text-slate-500">Đang đọc số từ Meta…</p>}
+      {comparing && !result && <p className="text-sm text-slate-500">{t("meta.cmp.reading")}</p>}
 
       {result && (
         <ResultView
@@ -240,18 +253,19 @@ export default function SoSanhTepPage() {
 function ResultView({ result, company, canEdit, campaignIds, onSaved, saved }: {
   result: CompareResponse; company: Company; canEdit: boolean; campaignIds: string[]; onSaved: () => void; saved: WinningAudience[];
 }) {
+  const t = useT();
   return (
-    <section className="space-y-4" aria-label="Kết quả so sánh">
+    <section className="space-y-4" aria-label={t("meta.cmp.res.aria")}>
       <div className="text-xs text-slate-400">
-        Số liệu {ddmmyyyy(result.range.from)} – {ddmmyyyy(result.range.to)} · đọc lúc {datetimeVN(result.fetchedAt)}
+        {t("meta.cmp.res.range", { from: ddmmyyyy(result.range.from), to: ddmmyyyy(result.range.to), time: datetimeVN(result.fetchedAt) })}
       </div>
       {result.mixedKinds && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
-          Các chiến dịch khác loại kết quả (mua và lead) — so riêng từng loại.
+          {t("meta.cmp.res.mixed")}
         </div>
       )}
       {result.groups.length === 0 && (
-        <EmptyState icon={Scale} title="Chưa có nhóm quảng cáo nào để so" description="Các chiến dịch đã chọn không có nhóm quảng cáo nào có chi tiêu trong khoảng ngày này." />
+        <EmptyState icon={Scale} title={t("meta.cmp.res.emptyTitle")} description={t("meta.cmp.res.emptyDesc")} />
       )}
       {result.groups.map((g) => (
         <GroupView key={g.goalKind} group={g} range={result.range} company={company} canEdit={canEdit} campaignIds={campaignIds} onSaved={onSaved} saved={saved} />
@@ -263,8 +277,9 @@ function ResultView({ result, company, canEdit, campaignIds, onSaved, saved }: {
 function GroupView({ group, range, company, canEdit, campaignIds, onSaved, saved }: {
   group: CompareGroup; range: { from: string; to: string }; company: Company; canEdit: boolean; campaignIds: string[]; onSaved: () => void; saved: WinningAudience[];
 }) {
+  const t = useT();
   const ui = VERDICT_UI[group.verdict];
-  const word = group.goalKind === "leads" ? "lead" : "lượt mua";
+  const word = group.goalKind === "leads" ? t("meta.cmp.word.leads") : t("meta.cmp.word.purchases");
   const rows = useMemo(() => sortRows(group.rows), [group.rows]);
   const [formFor, setFormFor] = useState<string | null>(null);
   const [name, setName] = useState("");
@@ -288,11 +303,11 @@ function GroupView({ group, range, company, canEdit, campaignIds, onSaved, saved
       setPauseFor(null);
       setPauseMsg(
         res.ok === false
-          ? { tone: "warn", text: `Đã gửi lệnh tạm dừng “${res.adsetName ?? r.name}” nhưng Meta đang báo trạng thái ${res.after}. Kiểm lại trên Meta.` }
-          : { tone: "ok", text: `Đã tạm dừng “${res.adsetName ?? r.name}” (trạng thái trên Meta: ${res.after}). Hoàn tác ở Đã làm & kết quả.` },
+          ? { tone: "warn", text: t("meta.cmp.pause.warn", { name: res.adsetName ?? r.name, state: res.after }) }
+          : { tone: "ok", text: t("meta.cmp.pause.ok", { name: res.adsetName ?? r.name, state: res.after }) },
       );
     } catch (e) {
-      setPauseMsg({ tone: "err", text: e instanceof ApiError ? e.message : "Không tạm dừng được — thử lại sau ít phút." });
+      setPauseMsg({ tone: "err", text: e instanceof ApiError ? e.message : t("meta.cmp.pause.fail") });
     } finally {
       setPausing(false);
     }
@@ -310,11 +325,11 @@ function GroupView({ group, range, company, canEdit, campaignIds, onSaved, saved
     setMsg(null);
     try {
       await postJson("/api/meta/winning-audiences", { company, campaignIds, from: range.from, to: range.to, adsetId: r.id, name, note });
-      setMsg({ ok: true, text: `Đã lưu “${name.trim() || r.name}” vào Tệp thắng đã lưu.` });
+      setMsg({ ok: true, text: t("meta.cmp.save.ok", { name: name.trim() || r.name }) });
       setFormFor(null);
       onSaved();
     } catch (e) {
-      setMsg({ ok: false, text: e instanceof ApiError ? e.message : "Không lưu được tệp thắng." });
+      setMsg({ ok: false, text: e instanceof ApiError ? e.message : t("meta.cmp.save.fail") });
     } finally {
       setSaving(false);
     }
@@ -323,8 +338,8 @@ function GroupView({ group, range, company, canEdit, campaignIds, onSaved, saved
   return (
     <div className="rounded-xl border border-slate-200 bg-white">
       <div className={cn("flex flex-wrap items-start gap-2 rounded-t-xl border-b p-3 text-sm", ui.box)}>
-        <Pill tone={ui.tone}>{ui.label}</Pill>
-        <span className="text-xs font-semibold uppercase tracking-wide opacity-70">{group.goalKind === "leads" ? "Thu lead" : "Bán hàng"}</span>
+        <Pill tone={ui.tone}>{t(ui.label)}</Pill>
+        <span className="text-xs font-semibold uppercase tracking-wide opacity-70">{group.goalKind === "leads" ? t("meta.cmp.goal.leads") : t("meta.cmp.goal.sales")}</span>
         <p className="w-full">{group.summary}</p>
       </div>
       {msg && (
@@ -343,7 +358,7 @@ function GroupView({ group, range, company, canEdit, campaignIds, onSaved, saved
           )}
         >
           {pauseMsg.text}
-          {pauseMsg.tone !== "err" && <> <Link href="/xu-ly/da-lam" className="font-medium underline">Đã làm &amp; kết quả</Link></>}
+          {pauseMsg.tone !== "err" && <> <Link href="/xu-ly/da-lam" className="font-medium underline">{t("meta.cmp.done")}</Link></>}
         </div>
       )}
       {abMsg && <div role="status" className="mx-3 mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-2 text-sm text-emerald-700">{abMsg}</div>}
@@ -351,14 +366,14 @@ function GroupView({ group, range, company, canEdit, campaignIds, onSaved, saved
         <table className="w-full min-w-[860px] text-left text-sm">
           <thead className="text-xs text-slate-500">
             <tr className="border-b border-slate-100">
-              <th className="p-3 font-medium">Nhóm quảng cáo</th>
-              <th className="p-3 text-right font-medium">Chi phí</th>
-              <th className="p-3 text-right font-medium" title="Tính theo lượt bấm quảng cáo trong 7 ngày — không gồm người chỉ xem rồi mua">Kết quả ({word}, từ lượt bấm)</th>
-              <th className="p-3 text-right font-medium">Chi phí/kết quả</th>
+              <th className="p-3 font-medium">{t("meta.cmp.th.adset")}</th>
+              <th className="p-3 text-right font-medium">{t("meta.cmp.th.spend")}</th>
+              <th className="p-3 text-right font-medium" title={t("meta.cmp.th.resultsTitle")}>{t("meta.cmp.th.results", { word })}</th>
+              <th className="p-3 text-right font-medium">{t("meta.cmp.th.cpr")}</th>
               <th className="p-3 text-right font-medium">CTR</th>
-              <th className="p-3 text-right font-medium">Click→kết quả</th>
-              <th className="p-3 text-right font-medium">Tần suất</th>
-              <th className="p-3 font-medium">Trạng thái học</th>
+              <th className="p-3 text-right font-medium">{t("meta.cmp.th.clickResult")}</th>
+              <th className="p-3 text-right font-medium">{t("meta.cmp.th.freq")}</th>
+              <th className="p-3 font-medium">{t("meta.cmp.th.learning")}</th>
             </tr>
           </thead>
           <tbody>
@@ -370,7 +385,7 @@ function GroupView({ group, range, company, canEdit, campaignIds, onSaved, saved
                     <td className="p-3 align-top">
                       <div className="flex items-start gap-2">
                         {r.rank !== null && (
-                          <span aria-label={`Hạng ${r.rank}`} className={cn("mt-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-xs font-bold", win ? "bg-emerald-600 text-white" : "bg-slate-200 text-slate-700")}>{r.rank}</span>
+                          <span aria-label={t("meta.cmp.rank", { n: r.rank })} className={cn("mt-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-xs font-bold", win ? "bg-emerald-600 text-white" : "bg-slate-200 text-slate-700")}>{r.rank}</span>
                         )}
                         <div className="min-w-0">
                           <div className="break-words font-medium text-slate-800">{win && "🏆 "}{r.name}</div>
@@ -384,7 +399,7 @@ function GroupView({ group, range, company, canEdit, campaignIds, onSaved, saved
                       {num(r.results)}
                       {/* Chấm theo lượt BẤM 7 ngày; Meta báo tổng gồm cả người chỉ xem (1 ngày) */}
                       {r.resultsAll !== undefined && r.resultsAll !== r.results && (
-                        <div className="text-[11px] font-normal text-slate-400">Meta báo {num(r.resultsAll)}</div>
+                        <div className="text-[11px] font-normal text-slate-400">{t("meta.cmp.metaReports", { n: num(r.resultsAll) })}</div>
                       )}
                     </td>
                     <td className="p-3 text-right align-top tabular-nums">
@@ -396,7 +411,7 @@ function GroupView({ group, range, company, canEdit, campaignIds, onSaved, saved
                     <td className="p-3 text-right align-top tabular-nums">{r.ctr !== null ? pct(r.ctr) : "—"}</td>
                     <td className="p-3 text-right align-top tabular-nums">{r.clickToResult !== null ? pct(r.clickToResult) : "—"}</td>
                     <td className="p-3 text-right align-top tabular-nums">{r.frequency !== null ? r.frequency.toFixed(1) : "—"}</td>
-                    <td className="p-3 align-top text-xs text-slate-600">{learningLabel(r.learning)}</td>
+                    <td className="p-3 align-top text-xs text-slate-600">{learningLabel(r.learning, t)}</td>
                   </tr>
                   <tr className={cn(win && "bg-emerald-50")}>
                     <td colSpan={8} className="px-3 pb-3">
@@ -407,28 +422,27 @@ function GroupView({ group, range, company, canEdit, campaignIds, onSaved, saved
                       )}
                       <div className="flex flex-wrap items-center gap-2">
                         {r.results > 0 && canEdit && formFor !== r.id && (
-                          <Button className="mt-2 h-9" variant="outline" size="sm" onClick={() => openForm(r)}>Lưu làm tệp thắng</Button>
+                          <Button className="mt-2 h-9" variant="outline" size="sm" onClick={() => openForm(r)}>{t("meta.cmp.btn.save")}</Button>
                         )}
                         {canEdit && r.status === "ACTIVE" && abFor !== r.id && !pausedIds.has(r.id) && (
-                          <Button className="mt-2 h-9" variant="outline" size="sm" onClick={() => { setAbFor(r.id); setAbMsg(null); }}>🧪 A/B test tệp khác</Button>
+                          <Button className="mt-2 h-9" variant="outline" size="sm" onClick={() => { setAbFor(r.id); setAbMsg(null); }}>{t("meta.cmp.btn.ab")}</Button>
                         )}
-                        {pausedIds.has(r.id) && <span className="mt-2"><Pill tone="grey">Đã tạm dừng</Pill></span>}
+                        {pausedIds.has(r.id) && <span className="mt-2"><Pill tone="grey">{t("meta.cmp.paused")}</Pill></span>}
                         {canEdit && r.clearlyWorse && r.status === "ACTIVE" && !pausedIds.has(r.id) && pauseFor !== r.id && (
-                          <Button className="mt-2 h-9 text-red-700" variant="outline" size="sm" disabled={pausing} onClick={() => { setPauseFor(r.id); setPauseMsg(null); }}>⏸ Tạm dừng nhóm này</Button>
+                          <Button className="mt-2 h-9 text-red-700" variant="outline" size="sm" disabled={pausing} onClick={() => { setPauseFor(r.id); setPauseMsg(null); }}>{t("meta.cmp.btn.pause")}</Button>
                         )}
                       </div>
                       {pauseFor === r.id && (
-                        <div role="alertdialog" aria-label="Xác nhận tạm dừng" className="mt-2 max-w-xl space-y-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-slate-700">
+                        <div role="alertdialog" aria-label={t("meta.cmp.pdlg.aria")} className="mt-2 max-w-xl space-y-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-slate-700">
                           <p>
-                            Nhóm “{r.name}” <b>kém rõ rệt</b> so với nhóm dẫn đầu theo các số ở trên. Tạm dừng chỉ dừng chi tiêu của riêng nhóm này.
-                            Tool sẽ đọc lại số liệu và trạng thái thật trên Meta trước khi ghi. Có thể hoàn tác ở{" "}
-                            <Link href="/xu-ly/da-lam" className="font-medium underline">Đã làm &amp; kết quả</Link>.
+                            {rich(t("meta.cmp.pdlg.text", { name: r.name }))}
+                            <Link href="/xu-ly/da-lam" className="font-medium underline">{t("meta.cmp.done")}</Link>.
                           </p>
                           <div className="flex gap-2">
                             <Button className="h-9" size="sm" onClick={() => pause(r)} disabled={pausing}>
-                              {pausing && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} Xác nhận tạm dừng
+                              {pausing && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} {t("meta.cmp.pdlg.confirm")}
                             </Button>
-                            <Button className="h-9" variant="outline" size="sm" onClick={() => setPauseFor(null)} disabled={pausing}>Huỷ</Button>
+                            <Button className="h-9" variant="outline" size="sm" onClick={() => setPauseFor(null)} disabled={pausing}>{t("meta.cmp.cancel")}</Button>
                           </div>
                         </div>
                       )}
@@ -444,18 +458,18 @@ function GroupView({ group, range, company, canEdit, campaignIds, onSaved, saved
                       {formFor === r.id && (
                         <div className="mt-2 max-w-xl space-y-2 rounded-lg border border-slate-200 bg-white p-3">
                           <label className="block text-xs font-medium text-slate-500">
-                            Tên tệp
+                            {t("meta.cmp.form.name")}
                             <Input className="mt-1" value={name} maxLength={120} onChange={(e) => setName(e.target.value)} />
                           </label>
                           <label className="block text-xs font-medium text-slate-500">
-                            Ghi chú (không bắt buộc)
-                            <Input className="mt-1" value={note} maxLength={500} onChange={(e) => setNote(e.target.value)} placeholder="Vd: chạy tốt với ưu đãi tháng 10" />
+                            {t("meta.cmp.form.note")}
+                            <Input className="mt-1" value={note} maxLength={500} onChange={(e) => setNote(e.target.value)} placeholder={t("meta.cmp.form.notePh")} />
                           </label>
                           <div className="flex gap-2">
                             <Button className="h-9" size="sm" onClick={() => save(r)} disabled={saving || !name.trim()}>
-                              {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} Lưu
+                              {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} {t("meta.cmp.save")}
                             </Button>
-                            <Button className="h-9" variant="outline" size="sm" onClick={() => setFormFor(null)} disabled={saving}>Huỷ</Button>
+                            <Button className="h-9" variant="outline" size="sm" onClick={() => setFormFor(null)} disabled={saving}>{t("meta.cmp.cancel")}</Button>
                           </div>
                         </div>
                       )}
@@ -467,7 +481,7 @@ function GroupView({ group, range, company, canEdit, campaignIds, onSaved, saved
           </tbody>
         </table>
       </div>
-      {!canEdit && <p className="px-3 pb-3 text-xs text-slate-400">Bạn chỉ có quyền xem — cần quyền chỉnh sửa để lưu tệp thắng.</p>}
+      {!canEdit && <p className="px-3 pb-3 text-xs text-slate-400">{t("meta.cmp.viewOnly")}</p>}
     </div>
   );
 }
@@ -475,35 +489,36 @@ function GroupView({ group, range, company, canEdit, campaignIds, onSaved, saved
 function SavedList({ loading, error, rows, canEdit, onChanged }: {
   loading: boolean; error: unknown; rows: WinningAudience[]; canEdit: boolean; onChanged: () => void;
 }) {
+  const t = useT();
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const now = Date.now();
 
   async function remove(w: WinningAudience) {
-    if (!window.confirm(`Xoá tệp thắng “${w.name}”?\n\nChỉ xoá bản lưu trong tool, không đổi gì trên Meta.`)) return;
+    if (!window.confirm(t("meta.cmp.sv.confirm", { name: w.name }))) return;
     setBusy(w.id);
     setErr(null);
     try {
       await deleteJson(`/api/meta/winning-audiences?id=${encodeURIComponent(w.id)}`);
       onChanged();
     } catch (e) {
-      setErr(e instanceof ApiError ? e.message : "Không xoá được.");
+      setErr(e instanceof ApiError ? e.message : t("meta.cmp.sv.deleteFail"));
     } finally {
       setBusy(null);
     }
   }
 
   return (
-    <section className="space-y-3" aria-label="Tệp thắng đã lưu">
+    <section className="space-y-3" aria-label={t("meta.cmp.sv.aria")}>
       <div>
-        <h2 className="text-base font-bold text-slate-900">🏆 Tệp thắng đã lưu</h2>
-        <p className="text-xs text-slate-500">Dùng ở Creative → bước chọn đối tượng → Tệp thắng đã lưu.</p>
+        <h2 className="text-base font-bold text-slate-900">{t("meta.cmp.sv.title")}</h2>
+        <p className="text-xs text-slate-500">{t("meta.cmp.sv.hint")}</p>
       </div>
-      {loading && <p className="text-sm text-slate-500">Đang tải…</p>}
-      {!loading && !!error && <p className="text-sm text-red-600">{error instanceof ApiError ? error.message : "Không tải được danh sách tệp thắng."}</p>}
+      {loading && <p className="text-sm text-slate-500">{t("meta.cmp.sv.loading")}</p>}
+      {!loading && !!error && <p className="text-sm text-red-600">{error instanceof ApiError ? error.message : t("meta.cmp.sv.loadFail")}</p>}
       {err && <p role="alert" className="text-sm text-red-600">{err}</p>}
       {!loading && !error && rows.length === 0 && (
-        <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-500">Chưa có tệp thắng nào. So sánh các chiến dịch ở trên rồi bấm “Lưu làm tệp thắng” ở nhóm tốt nhất.</p>
+        <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-500">{t("meta.cmp.sv.empty")}</p>
       )}
       <div className="grid gap-3 md:grid-cols-2">
         {rows.map((w) => {
@@ -514,25 +529,25 @@ function SavedList({ loading, error, rows, canEdit, onChanged }: {
               <div className="flex items-start justify-between gap-2">
                 <h3 className="break-words font-semibold text-slate-800">{w.name}</h3>
                 {canEdit && (
-                  <Button variant="outline" size="sm" className="h-9 shrink-0" disabled={busy === w.id} onClick={() => remove(w)} aria-label={`Xoá ${w.name}`}>
-                    <Trash2 className="h-3.5 w-3.5" aria-hidden="true" /> Xoá
+                  <Button variant="outline" size="sm" className="h-9 shrink-0" disabled={busy === w.id} onClick={() => remove(w)} aria-label={t("meta.cmp.sv.delete", { name: w.name })}>
+                    <Trash2 className="h-3.5 w-3.5" aria-hidden="true" /> {t("meta.cmp.sv.deleteBtn")}
                   </Button>
                 )}
               </div>
               <p className="mt-1 text-slate-600">{w.summary}</p>
-              {w.note && <p className="mt-1 text-xs italic text-slate-500">Ghi chú: {w.note}</p>}
+              {w.note && <p className="mt-1 text-xs italic text-slate-500">{t("meta.cmp.sv.note", { note: w.note })}</p>}
               <p className="mt-2 text-xs text-slate-500">
-                Lưu {datetimeVN(w.savedAt)} bởi {w.savedBy} · từ nhóm “{w.source.adsetName}” ({w.source.campaignName})
+                {t("meta.cmp.sv.saved", { time: datetimeVN(w.savedAt), by: w.savedBy, adset: w.source.adsetName, campaign: w.source.campaignName })}
               </p>
               <p className="mt-1 text-xs text-slate-600">
-                Bằng chứng {ddmmyyyy(ev.range.from)} – {ddmmyyyy(ev.range.to)}: chi {vnd(ev.spend)}, {num(ev.results)} {w.goalKind === "leads" ? "lead" : "lượt mua"}
-                {ev.costPerResult !== null && <>, {vnd(ev.costPerResult)}/kết quả</>}
-                {ev.comparedWith.length > 0 && <> · so với {ev.comparedWith.length} nhóm</>}
+                {t("meta.cmp.sv.evidence", { from: ddmmyyyy(ev.range.from), to: ddmmyyyy(ev.range.to), spend: vnd(ev.spend), n: num(ev.results), word: w.goalKind === "leads" ? t("meta.cmp.word.leads") : t("meta.cmp.word.purchases") })}
+                {ev.costPerResult !== null && <>{t("meta.cmp.sv.cpr", { value: vnd(ev.costPerResult) })}</>}
+                {ev.comparedWith.length > 0 && <>{t("meta.cmp.sv.vs", { n: ev.comparedWith.length })}</>}
               </p>
               <p className="mt-1 text-xs text-slate-500">{ev.groupSummary}</p>
-              <p className="mt-1 text-xs text-slate-400">Kiểm lại trước {ddmmyyyy(w.reviewBy.slice(0, 10))}</p>
+              <p className="mt-1 text-xs text-slate-400">{t("meta.cmp.sv.recheck", { date: ddmmyyyy(w.reviewBy.slice(0, 10)) })}</p>
               {overdue && (
-                <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-700">Đã quá hạn kiểm lại — nên so lại trước khi dùng.</p>
+                <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-700">{t("meta.cmp.sv.overdue")}</p>
               )}
             </article>
           );
@@ -545,13 +560,14 @@ function SavedList({ loading, error, rows, canEdit, onChanged }: {
 
 // Đợt 26b — AI đánh giá: máy chủ dựng lại bảng, chỉ đưa bảng đó cho AI, rồi soát từng con số AI viết ra.
 function AiAssess({ company, ids, range }: { company: Company; ids: string[]; range: { from: string; to: string } }) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [data, setData] = useState<{ assessment: AiAssessment; unsupported: number[]; cached: boolean } | null>(null);
   async function run() {
     setBusy(true); setErr(null);
     try { setData(await postJson("/api/meta/audience-compare/ai", { company, ids, from: range.from, to: range.to })); }
-    catch (e) { setErr(e instanceof ApiError ? e.message : "Không gọi được AI"); }
+    catch (e) { setErr(e instanceof ApiError ? e.message : t("meta.cmp.ai.fail")); }
     finally { setBusy(false); }
   }
   const Points = ({ title, items }: { title: string; items: AiAssessment["why"] }) => items.length === 0 ? null : (
@@ -568,29 +584,29 @@ function AiAssess({ company, ids, range }: { company: Company; ids: string[]; ra
     </div>
   );
   return (
-    <section className="space-y-3 rounded-xl border border-violet-200 bg-violet-50/40 p-4" aria-label="AI đánh giá">
+    <section className="space-y-3 rounded-xl border border-violet-200 bg-violet-50/40 p-4" aria-label={t("meta.cmp.ai.aria")}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h2 className="text-sm font-semibold text-slate-800">🤖 AI đánh giá</h2>
-          <p className="text-xs text-slate-500">AI chỉ đọc đúng các số trong bảng trên (không tự lấy thêm). Mỗi ý kèm số dẫn chứng; số nào không có trong bảng sẽ bị đánh dấu.</p>
+          <h2 className="text-sm font-semibold text-slate-800">{t("meta.cmp.ai.title")}</h2>
+          <p className="text-xs text-slate-500">{t("meta.cmp.ai.hint")}</p>
         </div>
         <Button className="h-10" size="sm" onClick={run} disabled={busy}>
-          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}{busy ? "Đang đánh giá…" : data ? "Đánh giá lại" : "AI đánh giá"}
+          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}{busy ? t("meta.cmp.ai.running") : data ? t("meta.cmp.ai.again") : t("meta.cmp.ai.run")}
         </Button>
       </div>
       {err && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{err}</div>}
       {data && (
         <div className="space-y-3 rounded-lg border border-slate-200 bg-white p-4">
           <p className="text-sm font-semibold text-slate-900">{data.assessment.conclusion}</p>
-          <Points title="Vì sao" items={data.assessment.why} />
-          <Points title="Nên làm" items={data.assessment.actions} />
+          <Points title={t("meta.cmp.ai.why")} items={data.assessment.why} />
+          <Points title={t("meta.cmp.ai.actions")} items={data.assessment.actions} />
           {data.assessment.caveats.length > 0 && (
-            <div className="text-xs text-slate-500">Lưu ý: {data.assessment.caveats.join(" · ")}</div>
+            <div className="text-xs text-slate-500">{t("meta.cmp.ai.caveats", { list: data.assessment.caveats.join(" · ") })}</div>
           )}
           {data.unsupported.length > 0 && (
             <div className="flex items-start gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              AI nêu số không có trong bảng: {data.unsupported.map((n) => num(n)).join(", ")} — đừng dựa vào các số này.
+              {t("meta.cmp.ai.unsupported", { list: data.unsupported.map((n) => num(n)).join(", ") })}
             </div>
           )}
         </div>

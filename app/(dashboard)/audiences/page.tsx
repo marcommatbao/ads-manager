@@ -24,18 +24,27 @@ import {
   type CustomerRecord,
 } from "@/lib/audience-builder";
 import { orderedCompanyIds } from "@/lib/companies/registry";
+import { useIntlLocale, useT } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/messages";
 
 // ─────────────────────────────────────────────
 // Step indicator
 // ─────────────────────────────────────────────
 
-const STEPS = [
-  { num: 1, label: "Nguồn Data", icon: "📊" },
-  { num: 2, label: "Filter", icon: "🔍" },
-  { num: 3, label: "Tạo Lookalike", icon: "🚀" },
+const rich = (s: string) => s.split(/<b>(.*?)<\/b>/).map((part, i) => (i % 2 ? <b key={i}>{part}</b> : part));
+
+const STEPS: { num: number; label: MessageKey; icon: string }[] = [
+  { num: 1, label: "meta.aud.step.1", icon: "📊" },
+  { num: 2, label: "meta.aud.step.2", icon: "🔍" },
+  { num: 3, label: "meta.aud.step.3", icon: "🚀" },
 ];
 
+const LAL_DESC: Record<number, MessageKey> = { 1: "meta.aud.lal.1", 2: "meta.aud.lal.2", 3: "meta.aud.lal.3", 5: "meta.aud.lal.5" };
+const TIME_LABEL: Record<number, MessageKey> = { 90: "meta.aud.time.90", 180: "meta.aud.time.180", 365: "meta.aud.time.365" };
+const AMT_LABEL: Record<number, MessageKey> = { 0: "meta.aud.amt.0", 500000: "meta.aud.amt.500000", 1000000: "meta.aud.amt.1000000", 3000000: "meta.aud.amt.3000000" };
+
 function StepIndicator({ current }: { current: number }) {
+  const t = useT();
   return (
     <div className="flex items-center justify-center gap-2 mb-8">
       {STEPS.map((s, i) => (
@@ -49,7 +58,7 @@ function StepIndicator({ current }: { current: number }) {
                 : "bg-slate-100 text-slate-400"
           )}>
             {current > s.num ? <Check className="h-3.5 w-3.5" /> : <span>{s.icon}</span>}
-            <span className="hidden sm:inline">{s.label}</span>
+            <span className="hidden sm:inline">{t(s.label)}</span>
           </div>
           {i < STEPS.length - 1 && (
             <div className={cn(
@@ -68,6 +77,10 @@ function StepIndicator({ current }: { current: number }) {
 // ─────────────────────────────────────────────
 
 export default function AudiencesPage() {
+  const t = useT();
+  const intl = useIntlLocale();
+  const srcLabel = (id: AudienceSource) => t(`meta.aud.src.${id}.label`);
+  const lalLabel = (ratio: number) => t("meta.aud.lal.label", { n: Math.round(ratio * 100) });
   const [step, setStep] = useState(1);
 
   // Step 1
@@ -147,7 +160,7 @@ export default function AudiencesPage() {
     fetch('/api/facebook/check-token')
       .then(r => r.json())
       .then(data => setTokenStatus({ valid: data.valid, name: data.name, error: data.error }))
-      .catch(() => setTokenStatus({ valid: false, error: 'Không thể kiểm tra token' }));
+      .catch(() => setTokenStatus({ valid: false, error: t("meta.aud.tokenCheckFail") }));
   }, []);
 
   // Real MBI offline-order customers (source=offline_orders, company=MBI
@@ -187,7 +200,7 @@ export default function AudiencesPage() {
         } else if (data.success && !data.supported) {
           setMbiOffline({ loading: false, error: null, supported: false, customers: [] });
         } else {
-          setMbiOffline({ loading: false, error: data.error || "Lỗi tải dữ liệu Odoo", supported: true, customers: [] });
+          setMbiOffline({ loading: false, error: data.error || t("meta.aud.loadOdooFail"), supported: true, customers: [] });
         }
       })
       .catch(err => {
@@ -275,7 +288,7 @@ export default function AudiencesPage() {
         if (json.success) {
           setResult(json.data);
         } else {
-          setError(json.error || "Có lỗi xảy ra");
+          setError(json.error || t("meta.aud.err.generic"));
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Network error");
@@ -286,11 +299,11 @@ export default function AudiencesPage() {
     }
 
     if (source === "csv_upload" && !uploadedFile) {
-      setError("Vui lòng upload file CSV trước");
+      setError(t("meta.aud.err.needCsv"));
       return;
     }
     if (isMbiRealOffline && mbiOffline.customers.length === 0) {
-      setError(mbiOffline.error || "Không tìm thấy khách hàng thực từ Odoo cho khoảng lọc này");
+      setError(mbiOffline.error || t("meta.aud.err.noOdooCustomers"));
       return;
     }
 
@@ -320,13 +333,13 @@ export default function AudiencesPage() {
           };
         }).filter(c => c.email || c.phone);
       } else {
-        setError("Nguồn dữ liệu này yêu cầu upload file CSV");
+        setError(t("meta.aud.err.sourceNeedsCsv"));
         setIsCreating(false);
         return;
       }
 
       if (customers.length === 0) {
-        setError("Không tìm thấy email hoặc số điện thoại hợp lệ trong file");
+        setError(t("meta.aud.err.noValidContacts"));
         setIsCreating(false);
         return;
       }
@@ -340,7 +353,7 @@ export default function AudiencesPage() {
       if (json.success) {
         setResult(json.data);
       } else {
-        setError(json.error || "Có lỗi xảy ra");
+        setError(json.error || t("meta.aud.err.generic"));
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error");
@@ -358,10 +371,10 @@ export default function AudiencesPage() {
             <div className="rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 p-2.5 shadow-lg shadow-violet-200">
               <Users className="h-5 w-5 text-white" />
             </div>
-            🎯 Audiences AI
+            {t("meta.aud.title")}
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            Tạo Custom Audience + Lookalike từ dữ liệu khách hàng nội bộ
+            {t("meta.aud.subtitle")}
           </p>
         </div>
       </div>
@@ -376,16 +389,16 @@ export default function AudiencesPage() {
         )}>
           {tokenStatus.valid ? (
             <p className="text-xs font-medium text-emerald-700 flex items-center gap-1.5">
-              ✅ Facebook đã kết nối {tokenStatus.name ? `— ${tokenStatus.name}` : ''}
+              {t("meta.aud.fb.connected", { name: tokenStatus.name ? `— ${tokenStatus.name}` : "" })}
             </p>
           ) : (
             <div className="flex items-center justify-between w-full">
               <p className="text-xs font-medium text-red-700 flex items-center gap-1.5">
-                ❌ Token Facebook không hợp lệ: {tokenStatus.error}
+                {t("meta.aud.fb.invalid", { error: tokenStatus.error ?? "" })}
               </p>
               <Button variant="outline" size="sm" className="text-xs gap-1 border-red-300 text-red-600 hover:bg-red-100"
                 onClick={() => window.location.href = '/settings'}>
-                🔗 Kết nối lại Facebook
+                {t("meta.aud.fb.reconnect")}
               </Button>
             </div>
           )}
@@ -396,14 +409,14 @@ export default function AudiencesPage() {
       {step === 1 && !result && (
         <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-5">
           <h2 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-1.5">
-            <Target className="h-4 w-4 text-violet-500" /> Audiences hiện có (Facebook Ad Account)
+            <Target className="h-4 w-4 text-violet-500" /> {t("meta.aud.existing.title")}
           </h2>
           {loadingAudiences ? (
             <div className="flex items-center justify-center py-6">
               <Loader2 className="h-5 w-5 animate-spin text-violet-400" />
             </div>
           ) : existingAudiences.length === 0 ? (
-            <p className="text-xs text-slate-400 text-center py-4">Chưa có custom audience nào trong tài khoản</p>
+            <p className="text-xs text-slate-400 text-center py-4">{t("meta.aud.existing.none")}</p>
           ) : (
             <div className="space-y-2">
               {existingAudiences.map(a => (
@@ -418,11 +431,11 @@ export default function AudiencesPage() {
                   </span>
                   <span className="text-xs font-semibold text-slate-700 flex-1 truncate" title={a.name}>{a.name}</span>
                   <span className="text-[10px] text-slate-400 shrink-0">
-                    {a.size >= 1000000
+                    {t("meta.aud.existing.people", { size: a.size >= 1000000
                       ? `${(a.size / 1000000).toFixed(1)}M`
                       : a.size >= 1000
                         ? `${(a.size / 1000).toFixed(0)}K`
-                        : a.size > 0 ? `${a.size}` : "Đang xử lý"} người
+                        : a.size > 0 ? `${a.size}` : t("meta.aud.existing.processing") })}
                   </span>
                   {a.createdAt && (
                     <span className="text-[10px] text-slate-300 shrink-0">{a.createdAt}</span>
@@ -440,23 +453,23 @@ export default function AudiencesPage() {
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
             <Check className="h-8 w-8 text-emerald-600" />
           </div>
-          <h2 className="text-lg font-bold text-slate-900">🎉 Tạo Audiences thành công!</h2>
+          <h2 className="text-lg font-bold text-slate-900">{t("meta.aud.done.title")}</h2>
           <p className="text-sm text-slate-500 mt-1 mb-6">
             {typeof result.customerCount === "number"
-              ? `Đã tạo ${result.customAudienceName} với ${result.customerCount.toLocaleString("vi-VN")} khách hàng`
-              : `Đã tạo ${result.customAudienceName} — Meta sẽ tự tính kích thước theo lưu lượng Pixel thực tế`}
+              ? t("meta.aud.done.withCount", { name: result.customAudienceName, n: result.customerCount.toLocaleString(intl) })
+              : t("meta.aud.done.noCount", { name: result.customAudienceName })}
           </p>
 
           <div className="space-y-3 max-w-md mx-auto text-left">
             <div className="rounded-lg border border-violet-200 bg-violet-50 px-4 py-3 flex items-center justify-between">
               <div>
                 <p className="text-xs font-bold text-violet-700">
-                  {typeof result.customerCount === "number" ? "Custom Audience" : "Website Custom Audience"}
+                  {typeof result.customerCount === "number" ? t("meta.aud.done.custom") : t("meta.aud.done.website")}
                 </p>
                 <p className="text-[10px] text-violet-500 mt-0.5">{result.customAudienceName}</p>
               </div>
               <span className="text-xs font-bold text-violet-700">
-                {typeof result.customerCount === "number" ? `${result.customerCount.toLocaleString()} KH` : "Đang tính"}
+                {typeof result.customerCount === "number" ? t("meta.aud.done.kh", { n: result.customerCount.toLocaleString(intl) }) : t("meta.aud.done.calculating")}
               </span>
             </div>
 
@@ -465,7 +478,7 @@ export default function AudiencesPage() {
                 <div>
                   <p className="text-xs font-bold text-blue-700">{lal.name}</p>
                   <p className="text-[10px] text-blue-500 mt-0.5">
-                    Meta đang tính kích thước — kiểm tra lại sau vài giờ trong Meta Ads Manager
+                    {t("meta.aud.done.lalNote")}
                   </p>
                 </div>
                 <span className="text-xs font-bold text-blue-700">{lal.ratio * 100}%</span>
@@ -480,14 +493,14 @@ export default function AudiencesPage() {
               className="text-xs"
               onClick={() => { setResult(null); setStep(1); }}
             >
-              Tạo audience khác
+              {t("meta.aud.done.another")}
             </Button>
             <Button
               size="sm"
               className="text-xs bg-amber-500 text-amber-950 hover:bg-amber-600 gap-1"
               onClick={() => window.location.href = "/creative"}
             >
-              <Sparkles className="h-3 w-3" /> Dùng trong Creative AI
+              <Sparkles className="h-3 w-3" /> {t("meta.aud.done.useCreative")}
             </Button>
           </div>
         </div>
@@ -504,10 +517,10 @@ export default function AudiencesPage() {
               <div className="p-6 space-y-5">
                 <div>
                   <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
-                    📊 Bước 1: Chọn nguồn data
+                    {t("meta.aud.s1.title")}
                   </h2>
                   <p className="text-xs text-slate-400 mt-1">
-                    Chọn nguồn khách hàng để tạo Custom Audience trên Facebook
+                    {t("meta.aud.s1.sub")}
                   </p>
                 </div>
 
@@ -531,22 +544,22 @@ export default function AudiencesPage() {
                         </div>
                       )}
                       <span className="text-2xl">{src.icon}</span>
-                      <h3 className="text-sm font-bold text-slate-800 mt-2">{src.label}</h3>
-                      <p className="text-[10px] text-slate-400 mt-1">{src.description}</p>
+                      <h3 className="text-sm font-bold text-slate-800 mt-2">{srcLabel(src.id)}</h3>
+                      <p className="text-[10px] text-slate-400 mt-1">{t(`meta.aud.src.${src.id}.desc`)}</p>
                       <div className="mt-3 flex items-center gap-2">
                         {src.estimatedCount > 0 && (
                           <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
-                            {src.estimatedCount.toLocaleString("vi-VN")} người
+                            {t("meta.aud.people", { n: src.estimatedCount.toLocaleString(intl) })}
                           </span>
                         )}
                         {src.requiresPixel && (
                           <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">
-                            Cần Pixel
+                            {t("meta.aud.needPixel")}
                           </span>
                         )}
                         {src.requiresUpload && (
                           <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-700 flex items-center gap-0.5">
-                            <Upload className="h-2.5 w-2.5" /> Upload
+                            <Upload className="h-2.5 w-2.5" /> {t("meta.aud.upload")}
                           </span>
                         )}
                       </div>
@@ -569,12 +582,12 @@ export default function AudiencesPage() {
                       }}
                     />
                     <Upload className="h-10 w-10 text-amber-400 mx-auto mb-3" />
-                    <p className="text-sm font-semibold text-amber-800">Kéo thả file vào đây</p>
+                    <p className="text-sm font-semibold text-amber-800">{t("meta.aud.drop")}</p>
                     <p className="text-[10px] text-amber-600 mt-1">
-                      Cần có cột: email, phone (tối thiểu 1 cột)
+                      {t("meta.aud.dropHint")}
                     </p>
                     <div className="mt-3 inline-flex items-center justify-center gap-1 text-xs font-medium border border-amber-300 text-amber-700 bg-white px-3 py-2 rounded-md shadow-sm pointer-events-none">
-                      <Upload className="h-3 w-3" /> Chọn file
+                      <Upload className="h-3 w-3" /> {t("meta.aud.pickFile")}
                     </div>
                   </label>
                 )}
@@ -591,14 +604,14 @@ export default function AudiencesPage() {
                         <div>
                           <p className="text-sm font-bold text-emerald-800">{uploadedFile.name}</p>
                           <p className="text-[10px] text-emerald-600">
-                            {uploadedFile.size} • {uploadedFile.rows.toLocaleString("vi-VN")} dòng dữ liệu
+                            {t("meta.aud.file.rows", { size: uploadedFile.size, n: uploadedFile.rows.toLocaleString(intl) })}
                           </p>
                         </div>
                       </div>
                       <button
                         onClick={() => setUploadedFile(null)}
                         className="h-7 w-7 rounded-full bg-red-100 text-red-500 hover:bg-red-200 flex items-center justify-center transition-colors"
-                        title="Xóa file"
+                        title={t("meta.aud.file.remove")}
                       >
                         <X className="h-3.5 w-3.5" />
                       </button>
@@ -608,21 +621,21 @@ export default function AudiencesPage() {
                     <div className="flex flex-wrap gap-2">
                       {uploadedFile.hasEmail && (
                         <span className="rounded-full bg-emerald-200 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800 flex items-center gap-1">
-                          <Check className="h-2.5 w-2.5" /> Có cột Email
+                          <Check className="h-2.5 w-2.5" /> {t("meta.aud.file.hasEmail")}
                         </span>
                       )}
                       {uploadedFile.hasPhone && (
                         <span className="rounded-full bg-emerald-200 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800 flex items-center gap-1">
-                          <Check className="h-2.5 w-2.5" /> Có cột Phone
+                          <Check className="h-2.5 w-2.5" /> {t("meta.aud.file.hasPhone")}
                         </span>
                       )}
                       {!uploadedFile.hasEmail && !uploadedFile.hasPhone && (
                         <span className="rounded-full bg-amber-200 px-2.5 py-0.5 text-[10px] font-bold text-amber-800 flex items-center gap-1">
-                          <AlertTriangle className="h-2.5 w-2.5" /> Không tìm thấy cột email/phone
+                          <AlertTriangle className="h-2.5 w-2.5" /> {t("meta.aud.file.noContact")}
                         </span>
                       )}
                       <span className="rounded-full bg-slate-200 px-2.5 py-0.5 text-[10px] font-bold text-slate-600">
-                        {uploadedFile.columns.length} cột: {uploadedFile.columns.join(", ")}
+                        {t("meta.aud.file.cols", { n: uploadedFile.columns.length, list: uploadedFile.columns.join(", ") })}
                       </span>
                     </div>
 
@@ -630,7 +643,7 @@ export default function AudiencesPage() {
                     <div className="rounded-lg bg-white p-3 border border-emerald-200">
                       <div className="flex items-center gap-2 mb-2">
                         <Table className="h-3.5 w-3.5 text-emerald-600" />
-                        <span className="text-xs font-bold text-emerald-800">Xem trước ({Math.min(5, uploadedFile.preview.length)} / {uploadedFile.rows.toLocaleString("vi-VN")} dòng)</span>
+                        <span className="text-xs font-bold text-emerald-800">{t("meta.aud.file.preview", { shown: Math.min(5, uploadedFile.preview.length), n: uploadedFile.rows.toLocaleString(intl) })}</span>
                       </div>
                       <div className="overflow-x-auto">
                         <table className="w-full text-[10px]">
@@ -659,14 +672,14 @@ export default function AudiencesPage() {
                     {/* Confirmation */}
                     <div className="flex items-center justify-between pt-1">
                       <p className="text-xs text-emerald-700">
-                        ✅ Sẵn sàng tạo Custom Audience từ <b>{uploadedFile.rows.toLocaleString("vi-VN")}</b> bản ghi
+                        {rich(t("meta.aud.file.ready", { n: uploadedFile.rows.toLocaleString(intl) }))}
                       </p>
                       <label className="text-[10px] text-amber-700 font-medium cursor-pointer hover:underline">
                         <input type="file" className="hidden" accept=".csv,.txt,.xlsx,.xls" onChange={(e) => {
                           const file = e.target.files?.[0];
                           if (file) parseUploadedFile(file);
                         }} />
-                        Đổi file khác
+                        {t("meta.aud.file.change")}
                       </label>
                     </div>
                   </div>
@@ -679,7 +692,7 @@ export default function AudiencesPage() {
                     className="gap-1.5 text-xs bg-amber-500 text-amber-950 hover:bg-amber-600"
                     onClick={() => setStep(2)}
                   >
-                    Tiếp theo <ArrowRight className="h-3.5 w-3.5" />
+                    {t("meta.aud.next")} <ArrowRight className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               </div>
@@ -690,17 +703,17 @@ export default function AudiencesPage() {
               <div className="p-6 space-y-5">
                 <div>
                   <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
-                    🔍 Bước 2: Filter nâng cao
+                    {t("meta.aud.s2.title")}
                   </h2>
                   <p className="text-xs text-slate-400 mt-1">
-                    Lọc khách hàng chất lượng để tạo audience chính xác nhất
+                    {t("meta.aud.s2.sub")}
                   </p>
                 </div>
 
                 {/* Company */}
                 <div>
                   <label className="text-xs font-semibold text-slate-600 mb-2 block flex items-center gap-1.5">
-                    <Building2 className="h-3.5 w-3.5 text-slate-400" /> Công ty
+                    <Building2 className="h-3.5 w-3.5 text-slate-400" /> {t("meta.aud.company")}
                   </label>
                   <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-0.5 w-fit">
                     {([...orderedCompanyIds(["MBC", "MBI"]), "both"] as const).map(c => (
@@ -712,7 +725,7 @@ export default function AudiencesPage() {
                           company === c ? "bg-violet-100 text-violet-700" : "text-slate-500 hover:bg-slate-50"
                         )}
                       >
-                        {c === "both" ? "Cả hai" : c}
+                        {c === "both" ? t("meta.aud.both") : c}
                       </button>
                     ))}
                   </div>
@@ -724,13 +737,13 @@ export default function AudiencesPage() {
                         : "border-amber-200 bg-amber-50 text-amber-700"
                     )}>
                       {company === "MBI"
-                        ? "✅ MBI: danh sách khách hàng lấy trực tiếp (thực) từ Odoo — không cần upload CSV."
-                        : "⚠️ MBC / Cả hai: chưa có kết nối Odoo thực cho công ty này — nguồn này vẫn cần Upload CSV."}
+                        ? t("meta.aud.mbiReal")
+                        : t("meta.aud.mbcCsv")}
                     </p>
                   )}
                   {source === "web_visitors" && company === "both" && (
                     <p className="text-[10px] mt-2 rounded-md px-3 py-2 border border-amber-200 bg-amber-50 text-amber-700">
-                      ⚠️ web_visitors cần chọn đúng 1 công ty (MBC hoặc MBI) — một Pixel chỉ thuộc về một công ty.
+                      {t("meta.aud.webOne")}
                     </p>
                   )}
                 </div>
@@ -738,27 +751,27 @@ export default function AudiencesPage() {
                 {/* Time range */}
                 <div>
                   <label className="text-xs font-semibold text-slate-600 mb-2 block flex items-center gap-1.5">
-                    <Calendar className="h-3.5 w-3.5 text-slate-400" /> Khoảng thời gian
+                    <Calendar className="h-3.5 w-3.5 text-slate-400" /> {t("meta.aud.timeRange")}
                   </label>
                   <div className="space-y-1.5">
-                    {TIME_RANGES.map(tr => (
+                    {TIME_RANGES.map(range => (
                       <button
-                        key={tr.days}
-                        onClick={() => setDays(tr.days)}
+                        key={range.days}
+                        onClick={() => setDays(range.days)}
                         className={cn(
                           "flex items-center gap-3 w-full rounded-lg border-2 px-4 py-3 text-left transition-all",
-                          days === tr.days
+                          days === range.days
                             ? "border-violet-300 bg-violet-50"
                             : "border-slate-200 bg-white hover:border-violet-200"
                         )}
                       >
                         <div className={cn(
                           "h-4 w-4 rounded-full border-2 flex items-center justify-center",
-                          days === tr.days ? "border-violet-500" : "border-slate-300"
+                          days === range.days ? "border-violet-500" : "border-slate-300"
                         )}>
-                          {days === tr.days && <div className="h-2 w-2 rounded-full bg-violet-500" />}
+                          {days === range.days && <div className="h-2 w-2 rounded-full bg-violet-500" />}
                         </div>
-                        <span className="text-xs font-medium text-slate-700">{tr.label}</span>
+                        <span className="text-xs font-medium text-slate-700">{TIME_LABEL[range.days] ? t(TIME_LABEL[range.days]) : range.label}</span>
                       </button>
                     ))}
                   </div>
@@ -768,7 +781,7 @@ export default function AudiencesPage() {
                 {(source === "offline_orders" || source === "good_cpl") && (
                   <div>
                     <label className="text-xs font-semibold text-slate-600 mb-2 block flex items-center gap-1.5">
-                      💰 Giá trị đơn hàng
+                      {t("meta.aud.orderValue")}
                     </label>
                     <div className="space-y-1.5">
                       {MIN_AMOUNTS.map(ma => (
@@ -788,7 +801,7 @@ export default function AudiencesPage() {
                           )}>
                             {minAmount === ma.value && <div className="h-2 w-2 rounded-full bg-violet-500" />}
                           </div>
-                          <span className="text-xs font-medium text-slate-700">{ma.label}</span>
+                          <span className="text-xs font-medium text-slate-700">{AMT_LABEL[ma.value] ? t(AMT_LABEL[ma.value]) : ma.label}</span>
                         </button>
                       ))}
                     </div>
@@ -799,7 +812,7 @@ export default function AudiencesPage() {
                 {source === "good_cpl" && (
                   <div>
                     <label className="text-xs font-semibold text-slate-600 mb-2 block">
-                      CPL tối đa (₫)
+                      {t("meta.aud.maxCpl")}
                     </label>
                     <Input
                       type="number"
@@ -808,7 +821,7 @@ export default function AudiencesPage() {
                       readOnly
                     />
                     <p className="text-[10px] text-slate-400 mt-1">
-                      {company === "MBI" ? "MBI: CPL < ₫250K" : "MBC: CPL < ₫60K"} — theo benchmark nội bộ
+                      {company === "MBI" ? t("meta.aud.cplMbi") : t("meta.aud.cplMbc")}{t("meta.aud.cplBench")}
                     </p>
                   </div>
                 )}
@@ -816,10 +829,10 @@ export default function AudiencesPage() {
                 {/* Nav */}
                 <div className="flex justify-between pt-3 border-t border-slate-100">
                   <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={() => setStep(1)}>
-                    <ArrowLeft className="h-3.5 w-3.5" /> Quay lại
+                    <ArrowLeft className="h-3.5 w-3.5" /> {t("meta.aud.back")}
                   </Button>
                   <Button size="sm" className="gap-1.5 text-xs bg-amber-500 text-amber-950 hover:bg-amber-600" onClick={() => setStep(3)}>
-                    Tiếp theo <ArrowRight className="h-3.5 w-3.5" />
+                    {t("meta.aud.next")} <ArrowRight className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               </div>
@@ -830,10 +843,10 @@ export default function AudiencesPage() {
               <div className="p-6 space-y-5">
                 <div>
                   <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
-                    🚀 Bước 3: Tạo Lookalike
+                    {t("meta.aud.s3.title")}
                   </h2>
                   <p className="text-xs text-slate-400 mt-1">
-                    Xem trước audience size và chọn tỷ lệ Lookalike
+                    {t("meta.aud.s3.sub")}
                   </p>
                 </div>
 
@@ -845,21 +858,20 @@ export default function AudiencesPage() {
                       ? "border-blue-200 bg-gradient-to-br from-blue-50 to-white"
                       : "border-red-200 bg-gradient-to-br from-red-50 to-white"
                   )}>
-                    <h3 className="text-sm font-bold text-slate-800 mb-2">Website Custom Audience (Pixel)</h3>
+                    <h3 className="text-sm font-bold text-slate-800 mb-2">{t("meta.aud.web.title")}</h3>
                     <p className="text-xs text-slate-600">
-                      Meta sẽ tự tính kích thước theo lưu lượng Pixel thực tế sau khi tạo — loại audience này
-                      không có số ước tính trước khi tạo, kể cả từ Meta.
+                      {t("meta.aud.web.desc")}
                     </p>
                     <div className="flex items-center gap-3 mt-3 text-[10px] text-slate-500">
-                      <span>📊 Nguồn: {AUDIENCE_SOURCES.find(s => s.id === source)?.label}</span>
-                      <span>🏢 {company === "both" ? "Cần chọn MBC hoặc MBI" : company}</span>
-                      <span>📅 Retention {days} ngày</span>
+                      <span>{t("meta.aud.web.source", { label: srcLabel(source) })}</span>
+                      <span>🏢 {company === "both" ? t("meta.aud.web.needCompany") : company}</span>
+                      <span>{t("meta.aud.web.retention", { n: days })}</span>
                     </div>
                     {!canCreateLookalike && (
                       <div className="mt-3 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3">
                         <AlertTriangle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
                         <p className="text-xs font-bold text-red-700">
-                          Cần quay lại Bước 2 và chọn đúng 1 công ty (MBC hoặc MBI)
+                          {t("meta.aud.web.goBack")}
                         </p>
                       </div>
                     )}
@@ -872,19 +884,19 @@ export default function AudiencesPage() {
                       : "border-red-200 bg-gradient-to-br from-red-50 to-white"
                   )}>
                     <div className="flex items-center justify-between mb-3">
-                      <h3 className="text-sm font-bold text-slate-800">Custom Audience size</h3>
+                      <h3 className="text-sm font-bold text-slate-800">{t("meta.aud.size.title")}</h3>
                       <span className={cn(
                         "rounded-full px-3 py-1 text-xs font-bold",
                         canCreateLookalike ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
                       )}>
-                        {canCreateLookalike ? "✅ Đủ điều kiện" : "❌ Chưa đủ"}
+                        {canCreateLookalike ? t("meta.aud.size.ok") : t("meta.aud.size.notEnough")}
                       </span>
                     </div>
 
                     {isMbiRealOffline && mbiOffline.loading ? (
                       <div className="flex items-center gap-2 text-slate-400">
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        <span className="text-xs">Đang tải danh sách khách hàng thực từ Odoo (MBI)...</span>
+                        <span className="text-xs">{t("meta.aud.size.loading")}</span>
                       </div>
                     ) : (
                       <div className="flex items-end gap-2">
@@ -892,12 +904,12 @@ export default function AudiencesPage() {
                           "text-3xl font-bold",
                           canCreateLookalike ? "text-emerald-700" : "text-red-700"
                         )}>
-                          {isMbiRealOffline ? "" : "~"}{estimatedSize.toLocaleString("vi-VN")}
+                          {isMbiRealOffline ? "" : "~"}{estimatedSize.toLocaleString(intl)}
                         </span>
-                        <span className="text-sm text-slate-400 mb-1">người</span>
+                        <span className="text-sm text-slate-400 mb-1">{t("meta.aud.size.unit")}</span>
                         {isMbiRealOffline && (
                           <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700 mb-1">
-                            Số thực từ Odoo
+                            {t("meta.aud.size.real")}
                           </span>
                         )}
                       </div>
@@ -908,9 +920,9 @@ export default function AudiencesPage() {
                     )}
 
                     <div className="flex items-center gap-3 mt-3 text-[10px] text-slate-500">
-                      <span>📊 Nguồn: {AUDIENCE_SOURCES.find(s => s.id === source)?.label}</span>
-                      <span>🏢 {company === "both" ? "MBC + MBI" : company}</span>
-                      <span>📅 {days} ngày</span>
+                      <span>{t("meta.aud.web.source", { label: srcLabel(source) })}</span>
+                      <span>🏢 {company === "both" ? t("meta.aud.size.both") : company}</span>
+                      <span>{t("meta.aud.size.days", { n: days })}</span>
                       {minAmount > 0 && <span>💰 ≥ ₫{(minAmount / 1000).toFixed(0)}K</span>}
                     </div>
 
@@ -919,10 +931,10 @@ export default function AudiencesPage() {
                         <AlertTriangle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
                         <div>
                           <p className="text-xs font-bold text-red-700">
-                            Cần tối thiểu {MIN_AUDIENCE_SIZE} người
+                            {t("meta.aud.size.min", { n: MIN_AUDIENCE_SIZE })}
                           </p>
                           <p className="text-[10px] text-red-500 mt-0.5">
-                            Thử mở rộng thời gian, bớt filter giá trị, hoặc chọn cả 2 công ty
+                            {t("meta.aud.size.minHint")}
                           </p>
                         </div>
                       </div>
@@ -933,7 +945,7 @@ export default function AudiencesPage() {
                 {/* Lookalike ratios */}
                 <div>
                   <label className="text-xs font-semibold text-slate-600 mb-2 block flex items-center gap-1.5">
-                    <Zap className="h-3.5 w-3.5 text-violet-500" /> Tạo Lookalike
+                    <Zap className="h-3.5 w-3.5 text-violet-500" /> {t("meta.aud.lal.title")}
                   </label>
                   <div className="space-y-2">
                     {LOOKALIKE_OPTIONS.map(opt => (
@@ -959,9 +971,9 @@ export default function AudiencesPage() {
                         </div>
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
-                            <span className="text-sm font-bold text-slate-800">{opt.label}</span>
+                            <span className="text-sm font-bold text-slate-800">{lalLabel(opt.ratio)}</span>
                           </div>
-                          <p className="text-[10px] text-slate-400 mt-0.5">{opt.description}</p>
+                          <p className="text-[10px] text-slate-400 mt-0.5">{LAL_DESC[Math.round(opt.ratio * 100)] ? t(LAL_DESC[Math.round(opt.ratio * 100)]) : opt.description}</p>
                         </div>
                       </button>
                     ))}
@@ -971,17 +983,17 @@ export default function AudiencesPage() {
                 {/* Summary */}
                 {canCreateLookalike && selectedRatios.length > 0 && (
                   <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-4">
-                    <h3 className="text-xs font-bold text-blue-700 mb-2">📋 Tóm tắt sẽ tạo:</h3>
+                    <h3 className="text-xs font-bold text-blue-700 mb-2">{t("meta.aud.sum.title")}</h3>
                     <div className="space-y-1 text-xs text-slate-600">
                       <p>
                         • {isWebVisitors
-                          ? "1 Website Custom Audience (kích thước theo Meta, sau khi tạo)"
-                          : `1 Custom Audience: ~${estimatedSize.toLocaleString("vi-VN")} KH`}
+                          ? t("meta.aud.sum.web")
+                          : t("meta.aud.sum.custom", { n: estimatedSize.toLocaleString(intl) })}
                       </p>
                       {selectedRatios.sort().map(r => {
                         const opt = LOOKALIKE_OPTIONS.find(o => o.ratio === r);
                         return (
-                          <p key={r}>• {opt?.label} (kích thước: Meta tính sau khi tạo)</p>
+                          <p key={r}>• {t("meta.aud.sum.lal", { label: opt ? lalLabel(opt.ratio) : "" })}</p>
                         );
                       })}
                     </div>
@@ -998,7 +1010,7 @@ export default function AudiencesPage() {
                 {/* Nav */}
                 <div className="flex justify-between pt-3 border-t border-slate-100">
                   <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={() => setStep(2)}>
-                    <ArrowLeft className="h-3.5 w-3.5" /> Quay lại
+                    <ArrowLeft className="h-3.5 w-3.5" /> {t("meta.aud.back")}
                   </Button>
                   <Button
                     size="sm"
@@ -1007,9 +1019,9 @@ export default function AudiencesPage() {
                     disabled={!canCreateLookalike || selectedRatios.length === 0 || isCreating}
                   >
                     {isCreating ? (
-                      <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Đang tạo...</>
+                      <><Loader2 className="h-3.5 w-3.5 animate-spin" /> {t("meta.aud.creating")}</>
                     ) : (
-                      <><Rocket className="h-3.5 w-3.5" /> Tạo Audiences</>
+                      <><Rocket className="h-3.5 w-3.5" /> {t("meta.aud.create")}</>
                     )}
                   </Button>
                 </div>

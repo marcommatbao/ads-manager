@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users2, Loader2, AlertTriangle, RefreshCw, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 interface OverlapPair {
   adSetA: { id: string; name: string; campaignId: string; campaignName: string };
@@ -33,10 +34,11 @@ function severityColor(pct: number): string {
 }
 
 function SignalBar({ label, value }: { label: string; value: number | null }) {
+  const t = useT();
   if (value === null) {
     return (
       <div className="flex items-center justify-between text-[10px] text-slate-300">
-        <span>{label}</span><span>không áp dụng</span>
+        <span>{label}</span><span>{t("google.audience.na")}</span>
       </div>
     );
   }
@@ -54,6 +56,7 @@ function SignalBar({ label, value }: { label: string; value: number | null }) {
 }
 
 function PairCard({ pair }: { pair: OverlapPair }) {
+  const t = useT();
   const sameCampaign = pair.adSetA.campaignId === pair.adSetB.campaignId;
   return (
     <div className={cn("rounded-xl border p-4 space-y-3", severityColor(pair.similarityPct))}>
@@ -76,23 +79,24 @@ function PairCard({ pair }: { pair: OverlapPair }) {
           )}>
             {pair.similarityPct}%
           </p>
-          <p className="text-[10px] text-slate-400">độ tương đồng targeting</p>
+          <p className="text-[10px] text-slate-400">{t("google.audience.simLabel")}</p>
           {!sameCampaign && (
-            <p className="text-[10px] font-medium text-red-500 mt-0.5">Khác campaign ⚠️</p>
+            <p className="text-[10px] font-medium text-red-500 mt-0.5">{t("google.audience.crossCamp")}</p>
           )}
         </div>
       </div>
       <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 pt-1 border-t border-slate-200/60">
         <SignalBar label="Interests/Behaviors" value={pair.signals.interests} />
         <SignalBar label="Custom Audiences" value={pair.signals.customAudiences} />
-        <SignalBar label="Vị trí" value={pair.signals.geo} />
-        <SignalBar label="Độ tuổi" value={pair.signals.age} />
+        <SignalBar label={t("google.audience.geo")} value={pair.signals.geo} />
+        <SignalBar label={t("google.audience.age")} value={pair.signals.age} />
       </div>
     </div>
   );
 }
 
 export default function AudienceOverlapPage() {
+  const t = useT();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<ApiResponse | null>(null);
@@ -107,14 +111,14 @@ export default function AudienceOverlapPage() {
       // success=false đều là thất bại, kể cả khi server quên kèm lý do. Bản cũ
       // đòi có `error` mới ném, nên nhánh "chưa cấu hình" (không kèm error) lọt
       // xuống và được vẽ thành "không có cặp trùng lặp".
-      if (!json.success) throw new Error(json.error ?? "Không lấy được dữ liệu ad set từ Facebook");
+      if (!json.success) throw new Error(json.error ?? t("google.audience.fetchFail"));
       setData(json);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Không thể tải dữ liệu");
+      setError(e instanceof Error ? e.message : t("google.audience.loadFail"));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -130,9 +134,9 @@ export default function AudienceOverlapPage() {
             <Users2 className="h-5 w-5 text-violet-600" />
           </div>
           <div>
-            <h1 className="text-xl font-semibold text-slate-800">Audience Overlap (Độ tương đồng Targeting)</h1>
+            <h1 className="text-xl font-semibold text-slate-800">{t("google.audience.title")}</h1>
             <p className="text-sm text-slate-500">
-              {data ? `${data.totalActiveAdSets} ad set đang chạy` : "Đang tải..."} — Facebook
+              {data ? t("google.audience.activeSets", { n: data.totalActiveAdSets }) : t("google.audience.loading")} — Facebook
             </p>
           </div>
         </div>
@@ -142,14 +146,14 @@ export default function AudienceOverlapPage() {
           className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600 hover:border-slate-300 disabled:opacity-50"
         >
           <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
-          Làm mới
+          {t("google.audience.refresh")}
         </button>
       </div>
 
       <div className="flex items-start gap-2.5 rounded-lg border border-blue-100 bg-blue-50/60 px-4 py-3">
         <Info className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
         <p className="text-xs text-blue-700">
-          Meta không còn cung cấp API tính % trùng audience thật (tính năng này đã bị gỡ khỏi Marketing API công khai từ nhiều năm trước, chỉ còn trong Ads Manager UI). Đây là <span className="font-semibold">độ tương đồng targeting</span> — so sánh interests/custom audiences/vị trí/độ tuổi thật giữa các ad set đang chạy cùng lúc để ước lượng khả năng tự cạnh tranh, không phải % trùng người xem đo được thật.
+          {t("google.audience.noteA")} <span className="font-semibold">{t("google.audience.noteB")}</span>{t("google.audience.noteC")}
         </p>
       </div>
 
@@ -158,13 +162,13 @@ export default function AudienceOverlapPage() {
           <Card className="border border-slate-200 bg-white shadow-sm">
             <CardContent className="py-4 text-center">
               <p className="text-2xl font-bold text-amber-600">{sameCampaignCount}</p>
-              <p className="text-xs text-slate-500 mt-1">Cặp trùng trong cùng campaign</p>
+              <p className="text-xs text-slate-500 mt-1">{t("google.audience.sameCnt")}</p>
             </CardContent>
           </Card>
           <Card className="border border-slate-200 bg-white shadow-sm">
             <CardContent className="py-4 text-center">
               <p className="text-2xl font-bold text-red-600">{crossCampaignCount}</p>
-              <p className="text-xs text-slate-500 mt-1">Cặp trùng khác campaign (đáng lo hơn)</p>
+              <p className="text-xs text-slate-500 mt-1">{t("google.audience.crossCnt")}</p>
             </CardContent>
           </Card>
         </div>
@@ -182,18 +186,18 @@ export default function AudienceOverlapPage() {
       ) : pairs.length === 0 ? (
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-10 text-center">
           <Users2 className="h-10 w-10 text-slate-300 mx-auto mb-3" />
-          <p className="text-sm font-semibold text-slate-500">Không có cặp ad set nào tương đồng cao</p>
-          <p className="text-xs text-slate-400 mt-1">Đã kiểm tra {data?.totalActiveAdSets ?? 0} ad set đang chạy — không phát hiện targeting trùng lặp đáng kể.</p>
+          <p className="text-sm font-semibold text-slate-500">{t("google.audience.emptyTitle")}</p>
+          <p className="text-xs text-slate-400 mt-1">{t("google.audience.emptyNote", { n: data?.totalActiveAdSets ?? 0 })}</p>
         </div>
       ) : (
         <Card className="border border-slate-200 bg-white shadow-sm">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold text-slate-800">Cặp ad set có targeting tương đồng cao</CardTitle>
+            <CardTitle className="text-sm font-semibold text-slate-800">{t("google.audience.cardTitle")}</CardTitle>
             <CardDescription className="text-xs text-slate-500">
-              Sắp xếp theo độ tương đồng giảm dần — chỉ hiện cặp ≥75%.{" "}
+              {t("google.audience.cardDesc")}{" "}
               {data && data.totalQualifyingPairs > pairs.length
-                ? `Hiển thị ${pairs.length}/${data.totalQualifyingPairs} cặp (đã lược bớt cặp thấp hơn).`
-                : `${pairs.length} cặp.`}
+                ? t("google.audience.shown", { shown: pairs.length, total: data.totalQualifyingPairs })
+                : t("google.audience.pairsN", { n: pairs.length })}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">

@@ -7,25 +7,40 @@ import { cn } from "@/lib/utils";
 import type { RevenueByProductResponse, ProductCategoryRevenue } from "@/app/api/odoo/revenue-by-product/route";
 import type { AttributionResponse, ProductAttribution, AdProductSpend } from "@/app/api/attribution/by-product/route";
 import { companyIds, orderedCompanyIds } from "@/lib/companies/registry";
+import { useIntlLocale, useT } from "@/lib/i18n/client";
+import type { TFunction } from "@/lib/i18n/translate";
 
 // ── Formatters ────────────────────────────────────────────────
 
-function fmtVND(v: number, compact = false): string {
+function fmtVNDLoc(v: number, compact: boolean, loc: string): string {
   if (compact) {
     if (v >= 1_000_000_000) return `${(v / 1_000_000_000).toFixed(1)} Tỷ`;
     if (v >= 1_000_000)     return `${(v / 1_000_000).toFixed(0)} Tr`;
     if (v >= 1_000)         return `${(v / 1_000).toFixed(0)}K`;
   }
-  return v.toLocaleString("vi-VN");
+  return v.toLocaleString(loc);
 }
 
-function fmtNumber(v: number): string {
-  return v.toLocaleString("vi-VN");
+function fmtNumberLoc(v: number, loc: string): string {
+  return v.toLocaleString(loc);
+}
+
+function useFmt() {
+  const loc = useIntlLocale();
+  return {
+    fmtVND: (v: number, compact = false) => fmtVNDLoc(v, compact, loc),
+    fmtNumber: (v: number) => fmtNumberLoc(v, loc),
+  };
 }
 
 function fmtRoas(revenue: number, spend: number): string {
   if (!spend) return "—";
   return `${(revenue / spend).toFixed(1)}x`;
+}
+
+// Chuỗi từ điển có <b>…</b> → in đậm (chỉ chuỗi tĩnh do mình viết trong lib/i18n/messages).
+function rich(s: string): React.ReactNode[] {
+  return s.split(/<b>(.*?)<\/b>/).map((part, i) => (i % 2 ? <b key={i}>{part}</b> : part));
 }
 
 // ── Month helpers ─────────────────────────────────────────────
@@ -41,9 +56,9 @@ function shiftMonth(month: string, delta: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
-function formatMonthLabel(month: string): string {
+function formatMonthLabel(month: string, t: TFunction): string {
   const [y, m] = month.split("-").map(Number);
-  return `Tháng ${m}/${y}`;
+  return t("overview.kpitab.month", { m, y });
 }
 
 function last6Months(month: string): string[] {
@@ -59,6 +74,7 @@ function SummaryCard({
 }: {
   label: string; value: string; sub?: string; trend?: number; loading: boolean;
 }) {
+  const t = useT();
   return (
     <div className="rounded-xl border border-slate-100 bg-white px-4 py-3 shadow-sm">
       <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">{label}</p>
@@ -81,7 +97,7 @@ function SummaryCard({
               ? <TrendingDown className="h-3 w-3" />
               : <Minus className="h-3 w-3" />
           }
-          {trend > 0 ? "+" : ""}{trend.toFixed(1)}% so với tháng trước
+          {trend > 0 ? "+" : ""}{trend.toFixed(1)}% {t("overview.kpitab.vsPrev")}
         </div>
       )}
     </div>
@@ -111,6 +127,8 @@ function TrendChart({
 }: {
   company: string; productKey: string; productLabel: string; baseMonth: string;
 }) {
+  const t = useT();
+  const { fmtVND } = useFmt();
   const [points, setPoints] = useState<TrendPoint[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -126,14 +144,14 @@ function TrendChart({
           const catGroup  = rev.categories?.find(c => c.key === productKey);
           const attrGroup = attr.products?.find(p => p.key === productKey);
           return {
-            monthLabel: formatMonthLabel(m),
+            monthLabel: formatMonthLabel(m, t),
             revenue:    catGroup?.revenue ?? 0,
             spend:      attrGroup?.totalSpend ?? 0,
           };
         })
       )
     ).then(setPoints).finally(() => setLoading(false));
-  }, [company, productKey, baseMonth]);
+  }, [company, productKey, baseMonth, t]);
 
   if (loading) {
     return <div className="h-32 animate-pulse rounded-lg bg-slate-50" />;
@@ -142,7 +160,7 @@ function TrendChart({
   return (
     <div>
       <p className="text-xs font-semibold text-slate-600 mb-2">
-        Trend 6 tháng — {productLabel}
+        {t("overview.kpitab.trend6", { label: productLabel })}
       </p>
       <ResponsiveContainer width="100%" height={120}>
         <BarChart data={points} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
@@ -150,7 +168,7 @@ function TrendChart({
           <YAxis hide />
           <Tooltip
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            formatter={(v: any, name: any) => [fmtVND(Number(v ?? 0)), name === "revenue" ? "Doanh thu" : "Chi phí QC"] as any}
+            formatter={(v: any, name: any) => [fmtVND(Number(v ?? 0)), name === "revenue" ? t("overview.kpitab.revenue") : t("overview.kpitab.adCost")] as any}
             labelStyle={{ fontSize: 10 }}
             contentStyle={{ fontSize: 10, borderRadius: 8 }}
           />
@@ -159,8 +177,8 @@ function TrendChart({
         </BarChart>
       </ResponsiveContainer>
       <div className="flex gap-3 mt-1 text-[10px] text-slate-400">
-        <span className="flex items-center gap-1"><span className="inline-block h-2 w-3 rounded-sm bg-blue-500" /> Doanh thu</span>
-        <span className="flex items-center gap-1"><span className="inline-block h-2 w-3 rounded-sm bg-orange-400" /> Chi phí QC</span>
+        <span className="flex items-center gap-1"><span className="inline-block h-2 w-3 rounded-sm bg-blue-500" /> {t("overview.kpitab.revenue")}</span>
+        <span className="flex items-center gap-1"><span className="inline-block h-2 w-3 rounded-sm bg-orange-400" /> {t("overview.kpitab.adCost")}</span>
       </div>
     </div>
   );
@@ -171,6 +189,8 @@ function TrendChart({
 const CHART_COLORS = ["#3b82f6", "#6366f1", "#10b981", "#f59e0b", "#ef4444"];
 
 function TopRevenueChart({ rows, loading }: { rows: MergedRow[]; loading: boolean }) {
+  const t = useT();
+  const { fmtVND } = useFmt();
   if (loading) return <div className="h-28 animate-pulse rounded-lg bg-slate-50" />;
   const top5 = [...rows].sort((a, b) => b.group.revenue - a.group.revenue).slice(0, 5);
   const data = top5.map(r => ({ name: r.group.label, revenue: r.group.revenue }));
@@ -181,7 +201,7 @@ function TopRevenueChart({ rows, loading }: { rows: MergedRow[]; loading: boolea
         <YAxis type="category" dataKey="name" tick={{ fontSize: 9 }} width={80} tickLine={false} axisLine={false} />
         <Tooltip
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          formatter={(v: any) => [fmtVND(Number(v ?? 0)), "Doanh thu"] as any}
+          formatter={(v: any) => [fmtVND(Number(v ?? 0)), t("overview.kpitab.revenue")] as any}
           contentStyle={{ fontSize: 10, borderRadius: 8 }}
         />
         <Bar dataKey="revenue" radius={[0, 3, 3, 0]}>
@@ -195,6 +215,7 @@ function TopRevenueChart({ rows, loading }: { rows: MergedRow[]; loading: boolea
 // ── Product table row ─────────────────────────────────────────
 
 function ProductRow({ row, isSelected, onClick }: { row: MergedRow; isSelected: boolean; onClick: () => void }) {
+  const { fmtVND, fmtNumber } = useFmt();
   const { group, attr } = row;
   const spend = attr?.totalSpend ?? 0;
   const roas  = spend > 0 ? group.revenue / spend : 0;
@@ -239,6 +260,8 @@ function AdSpendByProduct({
   adProducts: AdProductSpend[];
   loading: boolean;
 }) {
+  const t = useT();
+  const { fmtVND } = useFmt();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const toggleExpanded = (key: string) => {
     setExpanded(prev => {
@@ -261,7 +284,7 @@ function AdSpendByProduct({
     <div className="rounded-xl border border-slate-100 bg-white shadow-sm overflow-hidden">
       <div className="px-4 pt-4 pb-2 border-b border-slate-50 flex items-center justify-between">
         <p className="text-xs font-semibold text-slate-600">
-          Chi phí Quảng Cáo Từng Sản Phẩm
+          {t("overview.kpitab.adCostByProduct")}
           <span className={cn(
             "ml-2 px-1.5 py-0.5 rounded text-[10px] font-bold text-white",
             company === "MBC" ? "bg-blue-600" : "bg-violet-600",
@@ -269,7 +292,7 @@ function AdSpendByProduct({
         </p>
         {!loading && total > 0 && (
           <p className="text-[11px] text-slate-500">
-            Tổng: <span className="font-semibold text-slate-700">{fmtVND(total)}</span>
+            {t("overview.kpitab.total")} <span className="font-semibold text-slate-700">{fmtVND(total)}</span>
           </p>
         )}
       </div>
@@ -278,11 +301,11 @@ function AdSpendByProduct({
         <table className="w-full text-left">
           <thead>
             <tr className="border-b border-slate-100">
-              <th className="py-2 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Sản phẩm</th>
+              <th className="py-2 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t("overview.kpitab.product")}</th>
               <th className="py-2 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-right">Facebook</th>
               <th className="py-2 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-right">Google</th>
-              <th className="py-2 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-right">Tổng chi phí</th>
-              <th className="py-2 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-right w-[22%]">% tổng</th>
+              <th className="py-2 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-right">{t("overview.kpitab.totalCost")}</th>
+              <th className="py-2 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-right w-[22%]">{t("overview.kpitab.pctTotal")}</th>
             </tr>
           </thead>
           <tbody>
@@ -298,7 +321,7 @@ function AdSpendByProduct({
                 ? (
                   <tr>
                     <td colSpan={5} className="py-6 text-center text-xs text-slate-400">
-                      Chưa có chi phí quảng cáo trong tháng này.
+                      {t("overview.kpitab.noAdCost")}
                     </td>
                   </tr>
                 )
@@ -377,6 +400,8 @@ function AdSpendByProduct({
 // ── Main KpiTab ───────────────────────────────────────────────
 
 export function KpiTab() {
+  const t = useT();
+  const { fmtVND, fmtNumber } = useFmt();
   const [company,          setCompany]          = useState<string>(() => orderedCompanyIds(["MBC"])[0] ?? "MBC") // Đợt 25: công ty theo bản cài (bản Mắt Bão y như cũ);
   const [month,            setMonth]            = useState<string>(currentMonth);
   const [revData,          setRevData]          = useState<RevenueByProductResponse | null>(null);
@@ -482,7 +507,7 @@ export function KpiTab() {
             <ChevronLeft className="h-4 w-4 text-slate-500" />
           </button>
           <span className="text-sm font-semibold text-slate-700 min-w-[100px] text-center">
-            {formatMonthLabel(month)}
+            {formatMonthLabel(month, t)}
           </span>
           <button
             onClick={() => setMonth(m => shiftMonth(m, 1))}
@@ -494,7 +519,7 @@ export function KpiTab() {
           <button
             onClick={load}
             className="p-1 rounded-full hover:bg-slate-100 transition-colors ml-1"
-            title="Làm mới dữ liệu"
+            title={t("overview.kpitab.refresh")}
           >
             <RefreshCw className={cn("h-3.5 w-3.5 text-slate-400", loading && "animate-spin")} />
           </button>
@@ -507,25 +532,25 @@ export function KpiTab() {
             Gọi "Tổng doanh thu" trên một con số chỉ tính 6 nguồn MKT là mời
             người đọc hiểu nhầm đúng cái vừa sửa. */}
         <SummaryCard
-          label={useMkt ? "Doanh thu từ MKT" : "Tổng doanh thu"}
+          label={useMkt ? t("overview.kpitab.mktRevenue") : t("overview.kpitab.totalRevenue")}
           value={loading ? "…" : (useMkt && !mktOk) ? "—" : fmtVND(totalRevenue, false)}
-          sub={useMkt ? (mktOk ? "6 nguồn của phòng MKT · chưa thuế" : "chưa đọc được") : undefined}
+          sub={useMkt ? (mktOk ? t("overview.kpitab.mktSources") : t("overview.kpitab.unreadable")) : undefined}
           loading={loading}
         />
         <SummaryCard
-          label={useMkt ? "Đơn từ MKT" : "Tổng đơn hàng"}
+          label={useMkt ? t("overview.kpitab.mktOrders") : t("overview.kpitab.totalOrders")}
           value={loading ? "…" : (useMkt && !mktOk) ? "—" : fmtNumber(totalOrders)}
-          sub={useMkt ? (mktOk ? "đội M-* · đã thu tiền" : undefined) : "đơn riêng biệt · không đếm trùng theo dòng"}
+          sub={useMkt ? (mktOk ? t("overview.kpitab.mktTeam") : undefined) : t("overview.kpitab.distinctOrders")}
           loading={loading}
         />
         <SummaryCard
-          label="Chi phí QC"
+          label={t("overview.kpitab.adCost")}
           value={loading ? "…" : fmtVND(totalSpend, false)}
           // ROAS chỉ hiện khi đọc được doanh thu MKT. Không đọc được mà vẫn
           // chia bừa cho một con số khác là cách cũ đã tạo ra "267.7x".
           sub={totalRoas > 0
-            ? `ROAS: ${totalRoas.toFixed(2)}x${totalRoas < 1 ? " — đang lỗ" : ""}`
-            : mktOk ? undefined : "chưa tính được ROAS"}
+            ? `${t("overview.kpitab.roas", { v: totalRoas.toFixed(2) })}${totalRoas < 1 ? t("overview.kpitab.losing") : ""}`
+            : mktOk ? undefined : t("overview.kpitab.noRoas")}
           loading={loading}
         />
       </div>
@@ -534,13 +559,9 @@ export function KpiTab() {
           đọc không có cách nào biết. */}
       {useMkt && mktOk && (
         <p className="mt-2 text-[10px] text-slate-400 leading-snug">
-          Doanh thu và số đơn ở trên <b>chỉ tính đơn do marketing mang về</b>: đội <b>M-*</b>, đã thu tiền,
-          không tính đơn đồng bộ, và nguồn thuộc 6 nguồn của phòng MKT
-          (MBI online · Điện thoại vào công ty · Kênh chat · Yêu cầu phòng ban · matbao.in · Đơn hàng ID).
-          Tính theo <b>ngày đặt hàng</b>, giá trị <b>chưa thuế</b>.
+          {rich(t("overview.kpitab.mktNote"))}
           {typeof mktData?.unclassified?.revenue === "number" && mktData.unclassified.revenue > 0 && (
-            <> Còn <b>{fmtVND(mktData.unclassified.revenue, false)}</b> chưa khớp được vào nhóm sản phẩm nào —
-            nằm ngoài bảng bên dưới.</>
+            <>{" "}{rich(t("overview.kpitab.mktUnmatched", { amount: fmtVND(mktData.unclassified.revenue, false) }))}</>
           )}
         </p>
       )}
@@ -550,7 +571,7 @@ export function KpiTab() {
       <div className="rounded-xl border border-slate-100 bg-white shadow-sm overflow-hidden">
         <div className="px-4 pt-4 pb-2 border-b border-slate-50">
           <p className="text-xs font-semibold text-slate-600">
-            Hiệu suất theo sản phẩm
+            {t("overview.kpitab.perfByProduct")}
           </p>
           {revData?.error && (
             <p className="text-[10px] text-red-600 mt-0.5">
@@ -559,7 +580,7 @@ export function KpiTab() {
           )}
           {attrData?.error && (
             <p className="text-[10px] text-red-600 mt-0.5">
-              ⚠ Chi phí quảng cáo: {attrData.error}
+              {t("overview.kpitab.adCostErr", { error: attrData.error })}
             </p>
           )}
         </div>
@@ -574,10 +595,10 @@ export function KpiTab() {
           <table className="w-full text-left">
             <thead>
               <tr className="border-b border-slate-100">
-                <th className="py-2 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Sản phẩm</th>
-                <th className="py-2 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-right">Doanh thu</th>
-                <th className="py-2 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-right">Đơn hàng</th>
-                <th className="py-2 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-right">Chi phí QC</th>
+                <th className="py-2 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t("overview.kpitab.product")}</th>
+                <th className="py-2 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-right">{t("overview.kpitab.revenue")}</th>
+                <th className="py-2 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-right">{t("overview.kpitab.orders")}</th>
+                <th className="py-2 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-right">{t("overview.kpitab.adCost")}</th>
                 <th className="py-2 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-right">ROAS</th>
               </tr>
             </thead>
@@ -608,18 +629,14 @@ export function KpiTab() {
         {/* Cảnh báo VÀNG: chỉ khi có campaign THẬT SỰ chưa phân loại (tên chưa theo convention) */}
         {!loading && unattributed && unattributed.totalSpend > 0 && (
           <div className="px-4 py-2.5 bg-amber-50 border-t border-amber-100 text-[11px] text-amber-700">
-            ⚠ {fmtVND(unattributed.totalSpend)} chi phí QC chưa phân loại được sản phẩm
-            {" "}(tên campaign chưa theo convention) — xem dòng "Khác / chưa phân loại"
-            {" "}ở bảng bên dưới để chỉnh tên hoặc bổ sung mapping.
+            {t("overview.kpitab.unattributed", { amount: fmtVND(unattributed.totalSpend) })}
           </div>
         )}
 
         {/* Dòng THÔNG TIN trung tính: chi phí thương hiệu/sự kiện (không gắn doanh thu trực tiếp) */}
         {!loading && brandAwareness && brandAwareness.totalSpend > 0 && (
           <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-100 text-[11px] text-slate-500">
-            ℹ️ {fmtVND(brandAwareness.totalSpend)} chi phí thương hiệu/sự kiện (Group, Webinar,
-            {" "}Thông báo, Danh thiếp…) — không gắn doanh thu sản phẩm trực tiếp nên không tính ROAS.
-            {" "}Vẫn liệt kê đầy đủ ở bảng "Chi phí Quảng Cáo Từng Sản Phẩm" bên dưới.
+            {t("overview.kpitab.brand", { amount: fmtVND(brandAwareness.totalSpend) })}
           </div>
         )}
       </div>
@@ -645,7 +662,7 @@ export function KpiTab() {
 
       {!selectedRow && !loading && rows.length > 0 && (
         <p className="text-center text-xs text-slate-400 py-2">
-          Click vào dòng sản phẩm để xem trend 6 tháng
+          {t("overview.kpitab.clickHint")}
         </p>
       )}
     </div>

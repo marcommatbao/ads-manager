@@ -3,6 +3,8 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Bot, X, Send, Loader2, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/messages";
 
 // ── Types ──
 interface ChatMessage {
@@ -11,11 +13,11 @@ interface ChatMessage {
 }
 
 // ── Quick actions ──
-const QUICK_ACTIONS = [
-  { label: "📊 Phân tích hôm nay", prompt: "Phân tích tổng quan performance campaigns hôm nay, highlight metric nào tốt/xấu." },
-  { label: "🔥 Campaign nào nên tắt?", prompt: "Campaign nào đang lãng phí budget nhất? Nên pause hay tối ưu?" },
-  { label: "💡 Gợi ý tối ưu", prompt: "Gợi ý top 5 hành động tối ưu quan trọng nhất nên làm ngay hôm nay." },
-  { label: "💰 Budget pacing", prompt: "Tình hình chi tiêu budget tháng này như thế nào? Có vượt không?" },
+const QUICK_ACTIONS: { label: MessageKey; prompt: MessageKey }[] = [
+  { label: "panels.chatbot.qa1.label", prompt: "panels.chatbot.qa1.prompt" },
+  { label: "panels.chatbot.qa2.label", prompt: "panels.chatbot.qa2.prompt" },
+  { label: "panels.chatbot.qa3.label", prompt: "panels.chatbot.qa3.prompt" },
+  { label: "panels.chatbot.qa4.label", prompt: "panels.chatbot.qa4.prompt" },
 ];
 
 // Escape HTML special chars before any markdown substitution below —
@@ -76,6 +78,7 @@ function saveHistory(msgs: ChatMessage[]) {
 }
 
 export default function AIChatbot() {
+  const t = useT();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -121,8 +124,8 @@ export default function AIChatbot() {
       });
 
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: "Lỗi server" }));
-        const errMsg: ChatMessage = { role: "model", content: `❌ ${err.error || "Không thể kết nối AI"}` };
+        const err = await res.json().catch(() => ({ error: t("panels.chatbot.serverError") }));
+        const errMsg: ChatMessage = { role: "model", content: `❌ ${err.error || t("panels.chatbot.noConnect")}` };
         const updated = [...newMessages, errMsg];
         setMessages(updated);
         saveHistory(updated);
@@ -155,14 +158,14 @@ export default function AIChatbot() {
       setMessages(final);
       saveHistory(final);
     } catch (err) {
-      const errMsg: ChatMessage = { role: "model", content: `❌ Lỗi kết nối: ${err instanceof Error ? err.message : "Unknown"}` };
+      const errMsg: ChatMessage = { role: "model", content: `❌ ${t("panels.chatbot.connError", { msg: err instanceof Error ? err.message : "Unknown" })}` };
       const updated = [...newMessages, errMsg];
       setMessages(updated);
       saveHistory(updated);
     } finally {
       setIsLoading(false);
     }
-  }, [messages, isLoading]);
+  }, [messages, isLoading, t]);
 
   const clearHistory = () => {
     setMessages([]);
@@ -188,7 +191,7 @@ export default function AIChatbot() {
             ? "bg-slate-700 text-white"
             : "bg-gradient-to-br from-amber-500 to-orange-600 text-amber-950 animate-pulse hover:animate-none"
         )}
-        title="AdsBot — AI tư vấn quảng cáo"
+        title={t("panels.chatbot.fabTitle")}
       >
         {isOpen ? <X className="h-5 w-5 lg:h-6 lg:w-6" /> : <Bot className="h-5 w-5 lg:h-6 lg:w-6" />}
       </button>
@@ -213,7 +216,7 @@ export default function AIChatbot() {
               </div>
               <div>
                 <p className="text-sm font-bold text-white">AdsBot</p>
-                <p className="text-[10px] text-amber-100">AI Agent tư vấn quảng cáo</p>
+                <p className="text-[10px] text-amber-100">{t("panels.chatbot.subtitle")}</p>
               </div>
             </div>
             <div className="flex items-center gap-1">
@@ -221,7 +224,7 @@ export default function AIChatbot() {
                 <button
                   onClick={clearHistory}
                   className="p-1.5 rounded-lg hover:bg-white/20 text-white/70 hover:text-white transition-colors"
-                  title="Xóa lịch sử chat"
+                  title={t("panels.chatbot.clear")}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
@@ -239,23 +242,23 @@ export default function AIChatbot() {
             {!hasInteracted && messages.length === 0 && (
               <div className="space-y-3">
                 <div className="rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-100 p-3">
-                  <p className="text-xs font-semibold text-amber-900 mb-1">👋 Xin chào!</p>
+                  <p className="text-xs font-semibold text-amber-900 mb-1">{t("panels.chatbot.hello")}</p>
                   <p className="text-[11px] text-amber-800 leading-relaxed">
-                    Mình là <strong>AdsBot</strong> — AI Agent phân tích campaign, gợi ý tối ưu dựa trên dữ liệu thực của bạn. Hãy hỏi bất cứ điều gì!
+                    {t("panels.chatbot.introA")} <strong>AdsBot</strong> {t("panels.chatbot.introB")}
                   </p>
                 </div>
 
                 {/* Quick actions */}
                 <div>
-                  <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-2">Câu hỏi nhanh</p>
+                  <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-2">{t("panels.chatbot.quick")}</p>
                   <div className="grid grid-cols-2 gap-1.5">
                     {QUICK_ACTIONS.map((action, i) => (
                       <button
                         key={i}
-                        onClick={() => sendMessage(action.prompt)}
+                        onClick={() => sendMessage(t(action.prompt))}
                         className="text-left rounded-lg border border-slate-200 bg-white p-2 text-[11px] text-slate-600 hover:border-amber-300 hover:bg-amber-50/50 transition-all leading-snug"
                       >
-                        {action.label}
+                        {t(action.label)}
                       </button>
                     ))}
                   </div>
@@ -291,7 +294,7 @@ export default function AIChatbot() {
                     ) : (
                       <div className="flex items-center gap-1.5 text-slate-400">
                         <Loader2 className="h-3 w-3 animate-spin" />
-                        <span className="text-[11px]">Đang phân tích...</span>
+                        <span className="text-[11px]">{t("panels.chatbot.analyzing")}</span>
                       </div>
                     )
                   ) : (
@@ -307,7 +310,7 @@ export default function AIChatbot() {
                 <div className="rounded-xl bg-slate-100 border border-slate-200 px-3 py-2 rounded-bl-sm">
                   <div className="flex items-center gap-1.5 text-slate-400">
                     <Loader2 className="h-3 w-3 animate-spin" />
-                    <span className="text-[11px]">Đang phân tích dữ liệu...</span>
+                    <span className="text-[11px]">{t("panels.chatbot.analyzingData")}</span>
                   </div>
                 </div>
               </div>
@@ -322,10 +325,10 @@ export default function AIChatbot() {
               {QUICK_ACTIONS.slice(0, 3).map((action, i) => (
                 <button
                   key={i}
-                  onClick={() => sendMessage(action.prompt)}
+                  onClick={() => sendMessage(t(action.prompt))}
                   className="whitespace-nowrap rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] text-slate-500 hover:border-amber-300 hover:text-amber-700 transition-colors shrink-0"
                 >
-                  {action.label}
+                  {t(action.label)}
                 </button>
               ))}
             </div>
@@ -339,7 +342,7 @@ export default function AIChatbot() {
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(input); } }}
-              placeholder="Hỏi về campaign, budget, performance..."
+              placeholder={t("panels.chatbot.placeholder")}
               className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[12px] text-slate-700 placeholder:text-slate-400 outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 transition-all"
               disabled={isLoading}
             />

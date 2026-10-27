@@ -23,6 +23,8 @@ import { cn } from "@/lib/utils";
 import { ROLE_CONFIG } from "@/lib/permissions";
 import type { Role } from "@/lib/permissions";
 import type { MemberStatus, CompanyAccess } from "@/lib/team";
+import { useT } from "@/lib/i18n/client";
+import type { TFunction } from "@/lib/i18n/translate";
 
 // ─────────────────────────────────────────────
 // Types
@@ -55,15 +57,15 @@ const fetcher = (url: string) =>
 // Helpers
 // ─────────────────────────────────────────────
 
-function formatRelative(iso: string): string {
+function formatRelative(iso: string, t: TFunction): string {
   try {
     const diff = Date.now() - new Date(iso).getTime();
     const mins = Math.floor(diff / 60000);
-    if (mins < 60) return `${mins} phút trước`;
+    if (mins < 60) return t("creative.settingsTeam.rel.min", { n: mins });
     const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `${hrs} giờ trước`;
+    if (hrs < 24) return t("creative.settingsTeam.rel.hour", { n: hrs });
     const days = Math.floor(hrs / 24);
-    return `${days} ngày trước`;
+    return t("creative.settingsTeam.rel.day", { n: days });
   } catch {
     return iso;
   }
@@ -94,19 +96,20 @@ function RoleBadge({ role }: { role: Role }) {
 // ─────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: MemberStatus }) {
+  const t = useT();
   const map: Record<MemberStatus, { label: string; classes: string; dot: string }> = {
     active: {
-      label: "Hoạt động",
+      label: t("creative.settingsTeam.status.active"),
       classes: "bg-emerald-50 text-emerald-700 border-emerald-200",
       dot: "bg-emerald-500",
     },
     pending: {
-      label: "Chờ duyệt",
+      label: t("creative.settingsTeam.status.pending"),
       classes: "bg-amber-50 text-amber-700 border-amber-200",
       dot: "bg-amber-500",
     },
     disabled: {
-      label: "Vô hiệu",
+      label: t("creative.settingsTeam.status.disabled"),
       classes: "bg-red-50 text-red-600 border-red-200",
       dot: "bg-red-500",
     },
@@ -153,6 +156,7 @@ function TableSkeleton() {
 // ─────────────────────────────────────────────
 
 export default function TeamSettingsPage() {
+  const t = useT();
   const { data: users, error, isLoading } = useSWR<SafeUser[]>(
     "/api/settings/users",
     fetcher
@@ -169,17 +173,17 @@ export default function TeamSettingsPage() {
           <div className="flex items-center gap-3">
             <span className="flex h-3 w-3 rounded-full bg-amber-500" />
             <CardTitle className="text-lg font-semibold text-slate-800">
-              Quản lý Team
+              {t("creative.settingsTeam.title")}
             </CardTitle>
           </div>
           <CardDescription className="text-sm text-slate-500 mt-1">
-            Thêm, chỉnh sửa và phân quyền nhân viên trong hệ thống AdsCommand.
+            {t("creative.settingsTeam.desc")}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Link href="/settings/users">
             <Button className="gap-2 bg-amber-500 text-amber-950 hover:bg-amber-600">
-              Đi đến Quản lý Users
+              {t("creative.settingsTeam.goUsers")}
               <ArrowRight className="h-4 w-4" />
             </Button>
           </Link>
@@ -192,13 +196,13 @@ export default function TeamSettingsPage() {
           <div className="flex items-center justify-between gap-4">
             <CardTitle className="flex items-center gap-2 text-base font-semibold text-slate-800">
               <Users className="h-4 w-4 text-blue-600" />
-              Nhân viên gần đây{" "}
+              {t("creative.settingsTeam.recent")}{" "}
               {users && (
                 <Badge
                   variant="outline"
                   className="border-slate-200 text-xs text-slate-500"
                 >
-                  {users.length} người
+                  {t("creative.settingsTeam.count", { n: users.length })}
                 </Badge>
               )}
             </CardTitle>
@@ -207,7 +211,7 @@ export default function TeamSettingsPage() {
                 href="/settings/users"
                 className="text-xs font-medium text-amber-700 hover:text-amber-800 hover:underline"
               >
-                Xem tất cả →
+                {t("creative.settingsTeam.viewAll")}
               </Link>
             )}
           </div>
@@ -218,18 +222,18 @@ export default function TeamSettingsPage() {
           {error && (
             <div className="flex items-center justify-center gap-2 py-12 text-red-500">
               <AlertTriangle className="h-4 w-4" />
-              <span className="text-sm">Không thể tải danh sách nhân viên.</span>
+              <span className="text-sm">{t("creative.settingsTeam.err.load")}</span>
             </div>
           )}
 
           {!isLoading && !error && previewUsers.length === 0 && (
             <div className="flex flex-col items-center justify-center gap-2 py-12 text-slate-400">
               <Users className="h-8 w-8 text-slate-200" />
-              <p className="text-sm">Chưa có nhân viên nào.</p>
+              <p className="text-sm">{t("creative.settingsTeam.empty")}</p>
               <Link href="/settings/users">
                 <Button variant="outline" size="sm" className="mt-1 gap-2 border-slate-200">
                   <Users className="h-3.5 w-3.5" />
-                  Thêm nhân viên
+                  {t("creative.settingsTeam.add")}
                 </Button>
               </Link>
             </div>
@@ -240,7 +244,7 @@ export default function TeamSettingsPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50/50">
-                    {["Tên", "Email", "Role", "Trạng thái", "Lần đăng nhập cuối"].map(
+                    {[t("creative.settingsTeam.th.name"), t("creative.settingsTeam.th.email"), t("creative.settingsTeam.th.role"), t("creative.settingsTeam.th.status"), t("creative.settingsTeam.th.lastLogin")].map(
                       (h) => (
                         <th
                           key={h}
@@ -272,8 +276,8 @@ export default function TeamSettingsPage() {
                         <span className="flex items-center gap-1 text-xs text-slate-400">
                           <Clock className="h-3 w-3 shrink-0" />
                           {user.last_login
-                            ? formatRelative(user.last_login)
-                            : "Chưa đăng nhập"}
+                            ? formatRelative(user.last_login, t)
+                            : t("creative.settingsTeam.neverLogin")}
                         </span>
                       </td>
                     </tr>
@@ -291,7 +295,7 @@ export default function TeamSettingsPage() {
                   size="sm"
                   className="gap-2 border-slate-200 text-slate-600 hover:text-amber-700"
                 >
-                  Xem tất cả {users?.length} nhân viên
+                  {t("creative.settingsTeam.viewAllN", { n: users?.length ?? 0 })}
                   <ArrowRight className="h-3.5 w-3.5" />
                 </Button>
               </Link>

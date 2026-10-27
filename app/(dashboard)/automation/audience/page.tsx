@@ -5,6 +5,8 @@ import {
   Users, Search, ChevronDown, Copy, Check,
   Loader2, Tag, Briefcase, ShoppingBag, Cpu,
   Rocket, AlertCircle, CheckCircle2, X, Eye } from "lucide-react";
+import { useT } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/messages";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -78,11 +80,19 @@ function fmtAudience(n?: number) {
 }
 
 /** Nhãn tiếng Việt cho ô đích trong flexible_spec (khớp lib/audience-targeting-merge). */
-const BUCKET_LABEL_VI: Record<string, string> = {
-  interests: "Sở thích", behaviors: "Hành vi", life_events: "Sự kiện trong đời",
-  industries: "Ngành nghề", income: "Thu nhập", family_statuses: "Tình trạng gia đình",
-  work_positions: "Chức danh", work_employers: "Nơi làm việc",
-  education_majors: "Ngành học", education_schools: "Trường học",
+const BUCKET_LABEL_KEY: Record<string, MessageKey> = {
+  interests: "creative.audience.bucket.interests", behaviors: "creative.audience.bucket.behaviors", life_events: "creative.audience.bucket.lifeEvents",
+  industries: "creative.audience.bucket.industries", income: "creative.audience.bucket.income", family_statuses: "creative.audience.bucket.familyStatuses",
+  work_positions: "creative.audience.bucket.workPositions", work_employers: "creative.audience.bucket.workEmployers",
+  education_majors: "creative.audience.bucket.educationMajors", education_schools: "creative.audience.bucket.educationSchools",
+};
+
+// Nhãn hiển thị cho nhóm gợi ý (giá trị category từ API vẫn là khoá logic).
+const CATEGORY_LABEL_KEY: Record<string, MessageKey> = {
+  "Nghề nghiệp": "creative.audience.cat.job",
+  "Hành vi": "creative.audience.cat.behavior",
+  "Công nghệ": "creative.audience.cat.tech",
+  "Meta Suggestion": "creative.audience.cat.metaSuggestion",
 };
 
 const CATEGORY_ICON: Record<string, React.ReactNode> = {
@@ -102,6 +112,7 @@ const CATEGORY_COLOR: Record<string, string> = {
 // ─── Copy Button ──────────────────────────────────────────────────────────────
 
 function CopyButton({ text, label }: { text: string; label?: string }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
   const copy = () => {
     navigator.clipboard.writeText(text).then(() => {
@@ -112,7 +123,7 @@ function CopyButton({ text, label }: { text: string; label?: string }) {
   return (
     <button
       onClick={copy}
-      title={`Copy ${label ?? text}`}
+      title={t("creative.audience.copyTitle", { v: label ?? text })}
       className="flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-mono bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors"
     >
       {copied ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
@@ -132,6 +143,7 @@ function InterestCard({
   selected: boolean;
   onToggle: () => void;
 }) {
+  const t = useT();
   const colorClass = CATEGORY_COLOR[item.category] ?? "bg-slate-50 text-slate-700 border-slate-200";
   const icon = CATEGORY_ICON[item.category] ?? <Tag className="h-3.5 w-3.5" />;
   const audience = fmtAudience(item.audienceSize);
@@ -152,7 +164,7 @@ function InterestCard({
         {/* Category badge */}
         <div className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold ${colorClass}`}>
           {icon}
-          {item.category}
+          {CATEGORY_LABEL_KEY[item.category] ? t(CATEGORY_LABEL_KEY[item.category]) : item.category}
         </div>
 
         {/* Checkbox */}
@@ -178,14 +190,14 @@ function InterestCard({
           nên phải nhìn ra được chứ không chỉ hệ thống biết. */}
       {item.targetingType && item.targetingType !== "interests" && (
         <p className="text-[11px] text-slate-500 mb-1">
-          Loại: <span className="font-medium">{BUCKET_LABEL_VI[item.targetingType] ?? item.targetingType}</span>
+          {t("creative.audience.typeLabel")} <span className="font-medium">{BUCKET_LABEL_KEY[item.targetingType] ? t(BUCKET_LABEL_KEY[item.targetingType]) : item.targetingType}</span>
         </p>
       )}
 
       {/* Căn cứ — để người đọc biết gợi ý này dựa trên cái gì, thay vì phải tin suông */}
       {item.basis && (
         <p className="text-[11px] text-slate-400 mb-3">
-          Dựa trên: <span className="font-medium text-slate-500">{item.basis}</span>
+          {t("creative.audience.basedOn")} <span className="font-medium text-slate-500">{item.basis}</span>
         </p>
       )}
       {!item.basis && <div className="mb-3" />}
@@ -199,7 +211,7 @@ function InterestCard({
           </div>
           {audience && (
             <p className="text-xs text-slate-400">
-              Reach: <span className="font-semibold text-slate-600">{audience}+</span>
+              {t("creative.audience.reach")} <span className="font-semibold text-slate-600">{audience}+</span>
             </p>
           )}
           {item.path && item.path.length > 0 && (
@@ -211,7 +223,7 @@ function InterestCard({
       ) : (
         <div className="flex items-center gap-1 text-xs text-amber-600">
           <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-400 shrink-0" />
-          Không tìm được Interest ID — không thể áp dụng
+          {t("creative.audience.noInterestId")}
         </div>
       )}
     </div>
@@ -227,6 +239,7 @@ function ApplyToast({
   results: ApplyResult[];
   onClose: () => void;
 }) {
+  const t = useT();
   const allOk = results.every(r => r.success);
   return (
     <div className={`rounded-xl border p-4 flex gap-3 ${
@@ -249,20 +262,20 @@ function ApplyToast({
               <div key={pv.adsetId} className="mt-2 rounded-lg border border-slate-200 bg-white p-3">
                 <p className="text-xs font-semibold text-slate-700">{pv.adsetName}</p>
                 {pv.added.length === 0 && (
-                  <p className="text-xs text-slate-500 mt-1">Không có gì để thêm — adset này đã nhắm sẵn các mục đã chọn.</p>
+                  <p className="text-xs text-slate-500 mt-1">{t("creative.audience.nothingToAdd")}</p>
                 )}
                 {pv.added.map(a => (
                   <p key={a.bucket} className="text-xs text-slate-600 mt-1">
-                    → ô <span className="font-medium">{a.bucketLabel}</span>: {a.items.join(", ")}
+                    {t("creative.audience.toBucket")} <span className="font-medium">{a.bucketLabel}</span>: {a.items.join(", ")}
                   </p>
                 ))}
                 {pv.skipped.length > 0 && (
                   <p className="text-xs text-amber-700 mt-1">
-                    Bỏ qua: {pv.skipped.map(sk => `${sk.name} (${sk.reason})`).join("; ")}
+                    {t("creative.audience.skipped")} {pv.skipped.map(sk => `${sk.name} (${sk.reason})`).join("; ")}
                   </p>
                 )}
                 <details className="mt-1">
-                  <summary className="text-[11px] text-slate-400 cursor-pointer">Xem JSON sẽ gửi lên Meta</summary>
+                  <summary className="text-[11px] text-slate-400 cursor-pointer">{t("creative.audience.viewJson")}</summary>
                   <pre className="mt-1 max-h-48 overflow-auto rounded bg-slate-50 p-2 text-[10px] text-slate-600">
 {JSON.stringify(pv.flexibleSpecAfter, null, 2)}
                   </pre>
@@ -282,6 +295,7 @@ function ApplyToast({
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function AudiencePage() {
+  const t = useT();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
   const [topSegment, setTopSegment] = useState("");
@@ -343,12 +357,12 @@ export default function AudiencePage() {
       });
       const json = await res.json();
       if (!json.success) {
-        setError(json.error ?? "Phân tích thất bại");
+        setError(json.error ?? t("creative.audience.analyzeFailed"));
       } else {
         setResult(json.data as AnalyzeResult);
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Lỗi kết nối");
+      setError(e instanceof Error ? e.message : t("creative.audience.connectionError"));
     } finally {
       setAnalyzing(false);
     }
@@ -376,7 +390,7 @@ export default function AudiencePage() {
           dryRun,
           actions: [{
             type: "add_interests",
-            label: `${dryRun ? "Xem trước" : "Thêm"} ${interests.length} mục nhắm từ AI`,
+            label: t(dryRun ? "creative.audience.actionLabelPreview" : "creative.audience.actionLabelAdd", { n: interests.length }),
             params: { interests },
           }],
         }),
@@ -386,10 +400,10 @@ export default function AudiencePage() {
         setApplyResults(json.data.results as ApplyResult[]);
         setSelectedIds(new Set()); // clear selection after apply
       } else {
-        setError(json.error ?? "Áp dụng thất bại");
+        setError(json.error ?? t("creative.audience.applyFailed"));
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Lỗi kết nối");
+      setError(e instanceof Error ? e.message : t("creative.audience.connectionError"));
     } finally {
       setApplying(false);
     }
@@ -427,24 +441,24 @@ export default function AudiencePage() {
           <div className="rounded-xl bg-gradient-to-br from-blue-500 to-cyan-600 p-2.5 shadow-lg shadow-blue-200">
             <Users className="h-5 w-5 text-white" />
           </div>
-          Phân Tích Đối Tượng
+          {t("creative.audience.title")}
         </h1>
         <p className="text-sm text-slate-500 mt-1">
-          AI gợi ý interests → tự resolve Meta Interest ID → áp dụng thẳng lên campaign
+          {t("creative.audience.subtitle")}
         </p>
       </div>
 
       {/* Step 1 + 2: Campaign & Segment */}
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
         <div>
-          <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Bước 1 — Chọn Campaign</p>
+          <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">{t("creative.audience.step1")}</p>
           <div className="relative">
             <button
               onClick={() => { setShowDropdown(!showDropdown); loadCampaigns(); }}
               className="w-full flex items-center justify-between rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-700 hover:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-200 transition"
             >
               <span className={selectedCampaign ? "text-slate-800 font-medium" : "text-slate-400"}>
-                {selectedCampaign ? selectedCampaign.name : "Chọn campaign Facebook..."}
+                {selectedCampaign ? selectedCampaign.name : t("creative.audience.pickCampaign")}
               </span>
               {loadingCampaigns
                 ? <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
@@ -473,21 +487,21 @@ export default function AudiencePage() {
 
         <div>
           <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
-            Bước 2 — Segment context <span className="normal-case font-normal">(tuỳ chọn)</span>
+            {t("creative.audience.step2")} <span className="normal-case font-normal">{t("creative.audience.optional")}</span>
           </p>
           <div className="space-y-2">
             <input
               type="text"
               value={topSegment}
               onChange={e => setTopSegment(e.target.value)}
-              placeholder="VD: Kế toán trưởng SME, 30-45 tuổi, Hà Nội"
+              placeholder={t("creative.audience.segmentPlaceholder")}
               className="w-full rounded-lg border border-slate-300 px-3.5 py-2 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-200"
             />
             <input
               type="text"
               value={topSegmentReason}
               onChange={e => setTopSegmentReason(e.target.value)}
-              placeholder="Lý do: VD: CPL thấp nhất, CR cao nhất trong 30 ngày"
+              placeholder={t("creative.audience.reasonPlaceholder")}
               className="w-full rounded-lg border border-slate-300 px-3.5 py-2 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-200"
             />
           </div>
@@ -499,7 +513,7 @@ export default function AudiencePage() {
           className="flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2.5 text-sm font-semibold text-amber-950 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {analyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-          {analyzing ? "Đang phân tích & resolve Meta IDs..." : "Phân tích & Gợi ý interests"}
+          {analyzing ? t("creative.audience.analyzing") : t("creative.audience.analyzeBtn")}
         </button>
       </div>
 
@@ -522,30 +536,30 @@ export default function AudiencePage() {
           {/* Targeting summary */}
           <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
             <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4">
-              Targeting hiện tại — {result.adsets.length} adset ({result.targeting.activeCount} ACTIVE)
+              {t("creative.audience.currentTargeting", { n: result.adsets.length, m: result.targeting.activeCount })}
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
               <div>
-                <p className="text-xs text-slate-400 mb-1">Độ tuổi</p>
+                <p className="text-xs text-slate-400 mb-1">{t("creative.audience.age")}</p>
                 <p className="text-sm font-medium text-slate-700">{result.targeting.ageRanges.join(", ") || "—"}</p>
               </div>
               <div>
-                <p className="text-xs text-slate-400 mb-1">Giới tính</p>
-                <p className="text-sm font-medium text-slate-700">{result.targeting.genders.join(", ") || "Tất cả"}</p>
+                <p className="text-xs text-slate-400 mb-1">{t("creative.audience.gender")}</p>
+                <p className="text-sm font-medium text-slate-700">{result.targeting.genders.join(", ") || t("creative.audience.all")}</p>
               </div>
               <div>
-                <p className="text-xs text-slate-400 mb-1">Khu vực</p>
+                <p className="text-xs text-slate-400 mb-1">{t("creative.audience.location")}</p>
                 <p className="text-sm font-medium text-slate-700">{result.targeting.locations.countries.join(", ") || "—"}</p>
               </div>
               <div>
-                <p className="text-xs text-slate-400 mb-1">Placements</p>
+                <p className="text-xs text-slate-400 mb-1">{t("creative.audience.placements")}</p>
                 <p className="text-sm font-medium text-slate-700">{result.targeting.placements.platforms.join(", ") || "—"}</p>
               </div>
             </div>
 
             {result.targeting.interests.length > 0 && (
               <div>
-                <p className="text-xs text-slate-400 mb-2">Interests hiện có ({result.targeting.interests.length})</p>
+                <p className="text-xs text-slate-400 mb-2">{t("creative.audience.existingInterests", { n: result.targeting.interests.length })}</p>
                 <div className="flex flex-wrap gap-1.5">
                   {result.targeting.interests.map(i => (
                     <span key={i.id} className="rounded-full bg-slate-100 border border-slate-200 px-2.5 py-0.5 text-xs text-slate-600 font-medium">
@@ -558,7 +572,7 @@ export default function AudiencePage() {
 
             {result.targeting.isBroadTargeting && (
               <div className="mt-3 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700">
-                <strong>Broad targeting</strong> — không có interest/behavior. Thêm interests bên dưới để thu hẹp đúng đối tượng.
+                <strong>{t("creative.audience.broadStrong")}</strong> {t("creative.audience.broadRest")}
               </div>
             )}
           </div>
@@ -570,23 +584,23 @@ export default function AudiencePage() {
               <div className="flex items-start justify-between gap-4 mb-4">
                 <div>
                   <p className="text-sm font-semibold text-slate-700">
-                    Gợi ý interests
+                    {t("creative.audience.suggestTitle")}
                   </p>
                   <p className="text-xs text-slate-400 mt-0.5">
                     {/* Nói rõ mỗi nguồn bao nhiêu mục. Trước đây cả khối đều
                         mang tiêu đề "từ AI" trong khi phần lớn là danh sách
                         chung của Meta — không có cách nào nhìn ra. */}
-                    {aiCount > 0 && `${aiCount} từ AI (theo sản phẩm + targeting của chiến dịch này)`}
+                    {aiCount > 0 && t("creative.audience.fromAi", { n: aiCount })}
                     {aiCount > 0 && metaCount > 0 && " · "}
-                    {metaCount > 0 && `${metaCount} từ Meta`}
+                    {metaCount > 0 && t("creative.audience.fromMeta", { n: metaCount })}
                     {(aiCount > 0 || metaCount > 0) && " — "}
-                    {resolvedCount}/{result.interestSuggestions.length} có Meta ID hợp lệ
-                    {resolvedCount > 0 && " — tick chọn rồi nhấn \"Áp dụng\" để thêm vào campaign"}
+                    {t("creative.audience.validIds", { n: resolvedCount, total: result.interestSuggestions.length })}
+                    {resolvedCount > 0 && ` — ${t("creative.audience.tickHint")}`}
                     {/* Nói ra số bị loại: im lặng bỏ thì người dùng tưởng AI
                         chỉ nghĩ được bấy nhiêu, còn hiện thẻ không áp dụng được
                         thì tốn chỗ. Nói số là đủ. */}
                     {!!result.aiDropped && result.aiDropped > 0 &&
-                      ` · đã bỏ ${result.aiDropped} gợi ý vì Facebook không có interest tương ứng`}
+                      ` · ${t("creative.audience.dropped", { n: result.aiDropped })}`}
                   </p>
                 </div>
 
@@ -598,10 +612,10 @@ export default function AudiencePage() {
                       onClick={() => applyInterests(true)}
                       disabled={applying}
                       className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
-                      title="Dựng đúng targeting sẽ ghi rồi cho xem — không gọi Meta, không đổi gì"
+                      title={t("creative.audience.previewTitle")}
                     >
                       {applying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
-                      Xem trước
+                      {t("creative.audience.previewBtn")}
                     </button>
                     <button
                       onClick={() => applyInterests(false)}
@@ -610,8 +624,8 @@ export default function AudiencePage() {
                     >
                       {applying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
                       {applying
-                        ? "Đang áp dụng..."
-                        : `Áp dụng ${selectedIds.size} mục nhắm`
+                        ? t("creative.audience.applying")
+                        : t("creative.audience.applyN", { n: selectedIds.size })
                       }
                     </button>
                   </div>
@@ -625,14 +639,14 @@ export default function AudiencePage() {
                     onClick={() => setSelectedIds(new Set(resolvableItems.map(i => i.metaId!)))}
                     className="text-xs text-amber-700 hover:underline"
                   >
-                    Chọn tất cả ({resolvedCount})
+                    {t("creative.audience.selectAll", { n: resolvedCount })}
                   </button>
                   {selectedIds.size > 0 && (
                     <button
                       onClick={() => setSelectedIds(new Set())}
                       className="text-xs text-slate-400 hover:text-slate-600 hover:underline"
                     >
-                      Bỏ chọn
+                      {t("creative.audience.clearSel")}
                     </button>
                   )}
                 </div>
@@ -657,11 +671,11 @@ export default function AudiencePage() {
 
               {/* Note about what happens when applied */}
               <div className="rounded-xl border border-blue-100 bg-blue-50 p-4">
-                <p className="text-xs font-semibold text-blue-800 mb-1.5">Khi nhấn "Áp dụng":</p>
+                <p className="text-xs font-semibold text-blue-800 mb-1.5">{t("creative.audience.noteTitle")}</p>
                 <ul className="text-xs text-blue-700 space-y-1 list-disc list-inside">
-                  <li>Mỗi mục được chọn sẽ vào ĐÚNG ô của nó trong <code className="bg-blue-100 px-1 rounded">flexible_spec[0]</code> của các adset ACTIVE — Sở thích vào interests, Hành vi vào behaviors, Chức danh vào work_positions</li>
-                  <li>Mục nhắm hiện tại KHÔNG bị xoá — chỉ thêm vào. Bấm <strong>Xem trước</strong> để soi JSON sẽ gửi trước khi ghi thật</li>
-                  <li>Thay đổi có hiệu lực ngay, campaign có thể vào learning phase lại</li>
+                  <li>{t("creative.audience.note1a")} <code className="bg-blue-100 px-1 rounded">flexible_spec[0]</code> {t("creative.audience.note1b")}</li>
+                  <li>{t("creative.audience.note2a")} <strong>{t("creative.audience.previewBtn")}</strong> {t("creative.audience.note2b")}</li>
+                  <li>{t("creative.audience.note3")}</li>
                 </ul>
               </div>
             </div>

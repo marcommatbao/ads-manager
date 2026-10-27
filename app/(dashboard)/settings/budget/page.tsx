@@ -15,6 +15,8 @@ import { Button } from "@/components/ui/button";
 import { Loader2, Save, CheckCircle2, AlertCircle, Info, History, RotateCcw, Link2 } from "lucide-react";
 import NextLink from "next/link";
 import { cn } from "@/lib/utils";
+import { useIntlLocale, useT } from "@/lib/i18n/client";
+import type { TFunction } from "@/lib/i18n/translate";
 
 // ─────────────────────────────────────────────
 // Types
@@ -80,8 +82,8 @@ function Toggle({
 // computation, not typed in here directly.
 // ─────────────────────────────────────────────
 
-function fmtVndFull(v: number): string {
-  return new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(v);
+function fmtVndFull(v: number, loc: string): string {
+  return new Intl.NumberFormat(loc, { style: "currency", currency: "VND" }).format(v);
 }
 
 function DerivedCurrencyField({
@@ -93,11 +95,12 @@ function DerivedCurrencyField({
   value: number;
   note: React.ReactNode;
 }) {
+  const loc = useIntlLocale();
   return (
     <div className="space-y-1.5">
       <label className="text-sm font-medium text-slate-700">{label}</label>
       <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-800">
-        {fmtVndFull(value)}
+        {fmtVndFull(value, loc)}
       </div>
       <p className="text-xs text-slate-400">{note}</p>
     </div>
@@ -131,17 +134,19 @@ function CompanyBudgetCard({
   kpiLoading: boolean;
   onChange: (patch: Partial<CompanyBudget>) => void;
 }) {
+  const t = useT();
+  const loc = useIntlLocale();
   return (
     <Card className="border border-slate-200 bg-white shadow-sm rounded-xl">
       <CardHeader className="pb-3">
         <div className="flex items-center gap-3">
           <span className={`flex h-3 w-3 rounded-full ${color}`} />
           <CardTitle className="text-lg font-semibold text-slate-800">
-            Ngân sách {company}
+            {t("creative.settingsBudget.card.title", { company })}
           </CardTitle>
         </div>
         <CardDescription className="text-sm text-slate-500 mt-1">
-          Cấu hình giới hạn chi tiêu hàng ngày và hàng tháng cho công ty {company}.
+          {t("creative.settingsBudget.card.desc", { company })}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
@@ -149,38 +154,38 @@ function CompanyBudgetCard({
           <div className="h-16 rounded-lg bg-slate-100 animate-pulse" />
         ) : kpiMonthlyBudget === null || kpiMonthlyBudget <= 0 ? (
           <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800">
-            Chưa đặt Ngân sách QC (KPI) cho {company} tháng {monthLabel} —{" "}
+            {t("creative.settingsBudget.notSet", { company, month: monthLabel })}{" "}
             <NextLink href="/settings/kpi" className="inline-flex items-center gap-1 font-medium underline underline-offset-2">
-              vào Settings → KPI để đặt <Link2 className="h-3 w-3" />
+              {t("creative.settingsBudget.goSet")} <Link2 className="h-3 w-3" />
             </NextLink>
           </div>
         ) : (
           <>
             <DerivedCurrencyField
-              label="Giới hạn ngân sách tháng"
+              label={t("creative.settingsBudget.cap.label")}
               value={data.monthly_cap}
               note={
                 <>
-                  Tự động lấy từ Ngân sách QC (KPI) {company} tháng {monthLabel} —{" "}
-                  <NextLink href="/settings/kpi" className="underline underline-offset-2">sửa ở Settings → KPI</NextLink>
+                  {t("creative.settingsBudget.cap.note", { company, month: monthLabel })}{" "}
+                  <NextLink href="/settings/kpi" className="underline underline-offset-2">{t("creative.settingsBudget.cap.edit")}</NextLink>
                 </>
               }
             />
             <DerivedCurrencyField
-              label="Ngân sách ngày mục tiêu"
+              label={t("creative.settingsBudget.daily.label")}
               value={data.daily_budget}
-              note={`= ${fmtVndFull(data.monthly_cap)} ÷ ${daysInMonth} ngày (tháng ${monthLabel})`}
+              note={t("creative.settingsBudget.daily.note", { cap: fmtVndFull(data.monthly_cap, loc), days: daysInMonth, month: monthLabel })}
             />
             <div className="grid grid-cols-2 gap-3">
               <DerivedCurrencyField
-                label="Chi phí Google"
+                label={t("creative.settingsBudget.google")}
                 value={data.daily_budget * GOOGLE_SHARE}
-                note={`${Math.round(GOOGLE_SHARE * 100)}% ngân sách ngày`}
+                note={t("creative.settingsBudget.share", { pct: Math.round(GOOGLE_SHARE * 100) })}
               />
               <DerivedCurrencyField
-                label="Chi phí Facebook"
+                label={t("creative.settingsBudget.facebook")}
                 value={data.daily_budget * FACEBOOK_SHARE}
-                note={`${Math.round(FACEBOOK_SHARE * 100)}% ngân sách ngày`}
+                note={t("creative.settingsBudget.share", { pct: Math.round(FACEBOOK_SHARE * 100) })}
               />
             </div>
           </>
@@ -188,7 +193,7 @@ function CompanyBudgetCard({
 
         <div className="space-y-1.5">
           <label className="text-sm font-medium text-slate-700">
-            Ngưỡng hiệu suất để phân phối lại (%)
+            {t("creative.settingsBudget.thr.label")}
           </label>
           <div className="flex items-center gap-2">
             <Input
@@ -204,14 +209,14 @@ function CompanyBudgetCard({
             <span className="text-sm font-semibold text-slate-500">%</span>
           </div>
           <p className="text-xs text-slate-400">
-            Khi hiệu suất đạt {data.redistribution_threshold}%, ngân sách sẽ được tự động phân phối lại.
+            {t("creative.settingsBudget.thr.note", { pct: data.redistribution_threshold })}
           </p>
         </div>
 
         <Toggle
           checked={data.auto_redistribute}
           onChange={(v) => onChange({ auto_redistribute: v })}
-          label="Tự động phân phối lại ngân sách"
+          label={t("creative.settingsBudget.auto")}
         />
       </CardContent>
     </Card>
@@ -243,17 +248,17 @@ interface AuditSnapshot {
 // Audit changelog + rollback panel
 // ─────────────────────────────────────────────
 
-function fmtVal(v: unknown): string {
+function fmtVal(v: unknown, loc: string, t: TFunction): string {
   if (v === null || v === undefined) return "—";
   if (typeof v === "number")
-    return new Intl.NumberFormat("vi-VN").format(v);
-  if (typeof v === "boolean") return v ? "Bật" : "Tắt";
+    return new Intl.NumberFormat(loc).format(v);
+  if (typeof v === "boolean") return v ? t("creative.settingsBudget.on") : t("creative.settingsBudget.off");
   return String(v);
 }
 
-function fmtTs(ts: string): string {
+function fmtTs(ts: string, loc: string): string {
   try {
-    return new Intl.DateTimeFormat("vi-VN", {
+    return new Intl.DateTimeFormat(loc, {
       day: "2-digit", month: "2-digit", year: "numeric",
       hour: "2-digit", minute: "2-digit",
     }).format(new Date(ts));
@@ -265,6 +270,8 @@ function AuditPanel({
 }: {
   onRollback: () => void;
 }) {
+  const t = useT();
+  const loc = useIntlLocale();
   const [entries,   setEntries]   = useState<AuditEntry[]>([]);
   const [snapshots, setSnapshots] = useState<AuditSnapshot[]>([]);
   const [loading,   setLoading]   = useState(false);
@@ -290,7 +297,7 @@ function AuditPanel({
   };
 
   const handleRollback = async (snapshotId: string) => {
-    if (!confirm("Khôi phục cấu hình về thời điểm này? Thay đổi hiện tại sẽ bị ghi đè.")) return;
+    if (!confirm(t("creative.settingsBudget.rb.confirm"))) return;
     setRolling(snapshotId);
     setMsg(null);
     try {
@@ -301,14 +308,14 @@ function AuditPanel({
       });
       const data = await res.json() as { success?: boolean; error?: string; restored_from?: string };
       if (data.success) {
-        setMsg({ ok: true, text: `Đã khôi phục về ${fmtTs(data.restored_from ?? "")}` });
+        setMsg({ ok: true, text: t("creative.settingsBudget.rb.done", { ts: fmtTs(data.restored_from ?? "", loc) }) });
         onRollback();
         await load();
       } else {
-        setMsg({ ok: false, text: data.error ?? "Rollback thất bại" });
+        setMsg({ ok: false, text: data.error ?? t("creative.settingsBudget.rb.fail") });
       }
     } catch {
-      setMsg({ ok: false, text: "Lỗi mạng" });
+      setMsg({ ok: false, text: t("creative.settingsBudget.rb.net") });
     } finally {
       setRolling(null);
     }
@@ -323,14 +330,14 @@ function AuditPanel({
       >
         <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
           <History className="h-4 w-4 text-slate-400" />
-          Lịch sử thay đổi
+          {t("creative.settingsBudget.hist.title")}
           {entries.length > 0 && (
             <span className="ml-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
               {entries.length}
             </span>
           )}
         </div>
-        <span className="text-xs text-slate-400">{open ? "Thu gọn ▲" : "Xem ▼"}</span>
+        <span className="text-xs text-slate-400">{open ? t("creative.settingsBudget.hist.collapse") : t("creative.settingsBudget.hist.view")}</span>
       </button>
 
       {open && (
@@ -357,14 +364,14 @@ function AuditPanel({
           {snapshots.length > 0 && (
             <div>
               <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
-                Điểm khôi phục
+                {t("creative.settingsBudget.snap.title")}
               </p>
               <div className="space-y-1.5">
                 {snapshots.slice(0, 5).map(snap => (
                   <div key={snap.id} className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50/50 px-3 py-2">
                     <div>
-                      <p className="text-xs font-medium text-slate-700">{fmtTs(snap.timestamp)}</p>
-                      <p className="text-[11px] text-slate-400">bởi {snap.actor_email}</p>
+                      <p className="text-xs font-medium text-slate-700">{fmtTs(snap.timestamp, loc)}</p>
+                      <p className="text-[11px] text-slate-400">{t("creative.settingsBudget.snap.by", { email: snap.actor_email })}</p>
                     </div>
                     <Button
                       variant="outline"
@@ -376,7 +383,7 @@ function AuditPanel({
                       {rolling === snap.id
                         ? <Loader2 className="h-3 w-3 animate-spin" />
                         : <RotateCcw className="h-3 w-3" />}
-                      Khôi phục
+                      {t("creative.settingsBudget.snap.restore")}
                     </Button>
                   </div>
                 ))}
@@ -386,12 +393,12 @@ function AuditPanel({
 
           {/* Audit entries */}
           {entries.length === 0 && !loading && (
-            <p className="text-center text-sm text-slate-400 py-4">Chưa có thay đổi nào được ghi nhận.</p>
+            <p className="text-center text-sm text-slate-400 py-4">{t("creative.settingsBudget.hist.empty")}</p>
           )}
           {entries.length > 0 && (
             <div>
               <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
-                Lịch sử chi tiết
+                {t("creative.settingsBudget.hist.detail")}
               </p>
               <div className="divide-y divide-slate-100 rounded-lg border border-slate-100">
                 {entries.map(entry => (
@@ -400,7 +407,7 @@ function AuditPanel({
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-xs font-mono font-medium text-slate-700">{entry.field}</span>
                         <span className="text-xs text-slate-400">
-                          {fmtVal(entry.old_value)} → {fmtVal(entry.new_value)}
+                          {fmtVal(entry.old_value, loc, t)} → {fmtVal(entry.new_value, loc, t)}
                         </span>
                         <span className={cn(
                           "text-[10px] rounded px-1.5 py-0.5 font-semibold",
@@ -412,7 +419,7 @@ function AuditPanel({
                         </span>
                       </div>
                       <div className="mt-0.5 flex items-center gap-2 text-[11px] text-slate-400">
-                        <span>{fmtTs(entry.timestamp)}</span>
+                        <span>{fmtTs(entry.timestamp, loc)}</span>
                         <span>·</span>
                         <span>{entry.actor_email}</span>
                       </div>
@@ -439,6 +446,7 @@ const MONTH_NAMES_VN = [
 ];
 
 export default function BudgetSettingsPage() {
+  const t = useT();
   const perms = useSettingsPermission();
   const [config, setConfig] = useState<BudgetConfig>(DEFAULT_CONFIG);
   const [loading, setLoading] = useState(true);
@@ -537,16 +545,16 @@ export default function BudgetSettingsPage() {
     <div className="space-y-6 max-w-3xl">
       {/* Read-only banner for viewers */}
       {!perms.isLoading && !perms.canEditBudget && (
-        <ReadOnlyBanner message="Bạn đang ở chế độ xem ngân sách — không thể chỉnh sửa. Liên hệ Super Admin." />
+        <ReadOnlyBanner message={t("creative.settingsBudget.ro")} />
       )}
 
       {/* Info banner */}
       <div className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50/50 p-4">
         <Info className="mt-0.5 h-5 w-5 text-blue-500 shrink-0" />
         <div>
-          <p className="text-sm font-medium text-blue-800">Phân phối tự động</p>
+          <p className="text-sm font-medium text-blue-800">{t("creative.settingsBudget.auto.title")}</p>
           <p className="mt-0.5 text-xs text-blue-600">
-            Ngân sách được phân phối tự động lúc 06:00 hàng ngày dựa trên hiệu suất hôm trước.
+            {t("creative.settingsBudget.auto.desc")}
           </p>
         </div>
       </div>
@@ -583,13 +591,13 @@ export default function BudgetSettingsPage() {
       {saveStatus === "success" && (
         <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
           <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-          <p className="text-sm text-emerald-700">Đã lưu cấu hình ngân sách thành công.</p>
+          <p className="text-sm text-emerald-700">{t("creative.settingsBudget.saved")}</p>
         </div>
       )}
       {saveStatus === "error" && (
         <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
           <AlertCircle className="h-4 w-4 text-red-600 shrink-0" />
-          <p className="text-sm text-red-700">Lưu thất bại. Vui lòng thử lại.</p>
+          <p className="text-sm text-red-700">{t("creative.settingsBudget.saveFail")}</p>
         </div>
       )}
 
@@ -598,18 +606,18 @@ export default function BudgetSettingsPage() {
         <Button
           onClick={handleSave}
           disabled={saveStatus === "saving" || !perms.canEditBudget}
-          title={!perms.canEditBudget ? "Bạn không có quyền lưu ngân sách" : undefined}
+          title={!perms.canEditBudget ? t("creative.settingsBudget.noPerm") : undefined}
           className="gap-2 rounded-lg bg-amber-500 text-amber-950 hover:bg-amber-600 disabled:opacity-40"
         >
           {saveStatus === "saving" ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
-              Đang lưu...
+              {t("creative.settingsBudget.saving")}
             </>
           ) : (
             <>
               <Save className="h-4 w-4" />
-              Lưu cài đặt ngân sách
+              {t("creative.settingsBudget.saveBtn")}
             </>
           )}
         </Button>

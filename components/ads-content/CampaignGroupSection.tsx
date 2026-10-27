@@ -8,6 +8,7 @@ import { CreativeStatusBadge } from "./CreativeStatusBadge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn, formatCurrency, formatNumber } from "@/lib/utils";
 import { getCampaignDuration } from "@/lib/campaign-utils";
+import { useT } from "@/lib/i18n/client";
 import type { CampaignCreativeGroup, CreativeItem } from "@/types/creative-content.types";
 
 function formatShortDate(iso: string): string {
@@ -35,6 +36,7 @@ export function CampaignGroupSection({
   onViewDetail,
   defaultOpen = true,
 }: CampaignGroupSectionProps) {
+  const t = useT();
   const [open, setOpen] = useState(defaultOpen);
   const groupItemIds = group.items.map((i) => i.id);
   const allSelected = groupItemIds.length > 0 && groupItemIds.every((id) => selectedIds.has(id));
@@ -46,7 +48,7 @@ export function CampaignGroupSection({
         <div
           className="shrink-0"
           onClick={(e) => e.stopPropagation()}
-          title="Chọn tất cả creative trong campaign này"
+          title={t("creative.adsContent.group.selectAll")}
         >
           <Checkbox checked={allSelected} onCheckedChange={() => onToggleSelectGroup(groupItemIds, !allSelected)} />
         </div>
@@ -76,10 +78,10 @@ export function CampaignGroupSection({
           </div>
 
           <div className="flex shrink-0 items-center gap-4 text-xs text-slate-500">
-            <span>{group.creativeCount} creative</span>
+            <span>{t("creative.adsContent.group.creativeCount", { n: group.creativeCount })}</span>
             <span className="font-semibold text-slate-700">{formatCurrency(group.totalSpend, currency, false)}</span>
-            <span>{formatNumber(group.totalClicks)} clicks</span>
-            <span className="hidden sm:inline">Gần nhất: {formatShortDate(group.latestActiveDate)}</span>
+            <span>{t("creative.adsContent.group.clicks", { n: formatNumber(group.totalClicks) })}</span>
+            <span className="hidden sm:inline">{t("creative.adsContent.group.latest", { date: formatShortDate(group.latestActiveDate) })}</span>
             <span
               className={cn("hidden md:inline font-medium", duration.hasEnded ? "text-slate-400" : "text-slate-600")}
               title={duration.detail}

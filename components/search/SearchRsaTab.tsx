@@ -24,6 +24,8 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose,
 } from "@/components/ui/dialog";
 import type { RsaAd, RsaLine, RsaEdit } from "@/lib/search/rsa";
+import { useT } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/messages";
 
 type Company = string;
 type Range = { from: string; to: string };
@@ -36,20 +38,20 @@ interface RsaResponse {
 }
 
 const TEXT_LIMIT: Record<Field, number> = { HEADLINE: 30, DESCRIPTION: 90 };
-const FIELD_LABEL: Record<Field, string> = { HEADLINE: "Tiêu đề", DESCRIPTION: "Mô tả" };
-const STRENGTH_META: Record<string, { label: string; cls: string }> = {
-  EXCELLENT: { label: "Xuất sắc", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-  GOOD: { label: "Tốt", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-  AVERAGE: { label: "Trung bình", cls: "bg-amber-50 text-amber-700 border-amber-200" },
-  POOR: { label: "Yếu", cls: "bg-red-50 text-red-700 border-red-200" },
+const FIELD_LABEL: Record<Field, MessageKey> = { HEADLINE: "google.searchRsa.field.headline", DESCRIPTION: "google.searchRsa.field.description" };
+const STRENGTH_META: Record<string, { label: MessageKey; cls: string }> = {
+  EXCELLENT: { label: "google.searchRsa.strength.excellent", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  GOOD: { label: "google.searchRsa.strength.good", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  AVERAGE: { label: "google.searchRsa.strength.average", cls: "bg-amber-50 text-amber-700 border-amber-200" },
+  POOR: { label: "google.searchRsa.strength.poor", cls: "bg-red-50 text-red-700 border-red-200" },
 };
-const STRENGTH_FALLBACK = { label: "Chưa rõ", cls: "bg-slate-100 text-slate-500 border-slate-200" };
-const APPROVAL_META: Record<string, { label: string; cls: string }> = {
-  APPROVED: { label: "Đã duyệt", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-  APPROVED_LIMITED: { label: "Duyệt có giới hạn", cls: "bg-amber-50 text-amber-700 border-amber-200" },
-  DISAPPROVED: { label: "Bị từ chối", cls: "bg-red-50 text-red-700 border-red-200" },
-  UNDER_REVIEW: { label: "Đang xét duyệt", cls: "bg-slate-100 text-slate-500 border-slate-200" },
-  PENDING_REVIEW: { label: "Chờ xét duyệt", cls: "bg-slate-100 text-slate-500 border-slate-200" },
+const STRENGTH_FALLBACK: { label: MessageKey; cls: string } = { label: "google.searchRsa.unknown", cls: "bg-slate-100 text-slate-500 border-slate-200" };
+const APPROVAL_META: Record<string, { label: MessageKey; cls: string }> = {
+  APPROVED: { label: "google.searchRsa.approval.approved", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  APPROVED_LIMITED: { label: "google.searchRsa.approval.limited", cls: "bg-amber-50 text-amber-700 border-amber-200" },
+  DISAPPROVED: { label: "google.searchRsa.approval.disapproved", cls: "bg-red-50 text-red-700 border-red-200" },
+  UNDER_REVIEW: { label: "google.searchRsa.approval.underReview", cls: "bg-slate-100 text-slate-500 border-slate-200" },
+  PENDING_REVIEW: { label: "google.searchRsa.approval.pending", cls: "bg-slate-100 text-slate-500 border-slate-200" },
 };
 const lineKey = (l: { field: string; text: string }) => `${l.field}|${l.text}`;
 
@@ -60,10 +62,11 @@ function Badge({ cls, children }: { cls: string; children: React.ReactNode }) {
 // ── Kết quả một lần Kiểm trước / Ghi ──
 
 function EditResultCard({ edit, phase }: { edit: RsaEdit; phase: "validate" | "write" }) {
+  const t = useT();
   const ok = edit.status === "done";
   const title = phase === "validate"
-    ? ok ? "Google chấp nhận — CHƯA ghi gì" : "Google từ chối khi kiểm — chưa ghi gì"
-    : ok ? "Đã ghi và đọc lại khớp" : "Ghi thất bại — xem lỗi bên dưới";
+    ? ok ? t("google.searchRsa.result.validateOk") : t("google.searchRsa.result.validateFail")
+    : ok ? t("google.searchRsa.result.writeOk") : t("google.searchRsa.result.writeFail");
   return (
     <div className={cn("rounded-lg border p-2.5 text-xs", !ok ? "border-red-200 bg-red-50" : phase === "validate" ? "border-sky-200 bg-sky-50" : "border-emerald-200 bg-emerald-50")}>
       <div className={cn("flex items-center gap-1.5 font-semibold", !ok ? "text-red-700" : phase === "validate" ? "text-sky-800" : "text-emerald-700")}>
@@ -83,26 +86,27 @@ function EditResultCard({ edit, phase }: { edit: RsaEdit; phase: "validate" | "w
 // ── Một dòng trong bảng lines ──
 
 function LinesTable({ lines, weakKeys }: { lines: RsaLine[]; weakKeys: Set<string> }) {
+  const t = useT();
   return (
     <div className="overflow-x-auto rounded-lg border border-slate-100">
       <table className="w-full min-w-[520px] text-[11px]">
         <thead>
           <tr className="border-b border-slate-100 bg-slate-50 text-left text-slate-400">
-            <th className="px-2 py-1.5 font-medium">Trường</th>
-            <th className="px-2 py-1.5 font-medium">Nội dung</th>
-            <th className="px-2 py-1.5 text-right font-medium">Hiển thị</th>
-            <th className="px-2 py-1.5 text-right font-medium">Bấm</th>
-            <th className="px-2 py-1.5 text-right font-medium">CTR</th>
-            <th className="px-2 py-1.5 text-right font-medium">Chuyển đổi</th>
+            <th className="px-2 py-1.5 font-medium">{t("google.searchRsa.col.field")}</th>
+            <th className="px-2 py-1.5 font-medium">{t("google.searchRsa.col.content")}</th>
+            <th className="px-2 py-1.5 text-right font-medium">{t("google.searchRsa.col.impressions")}</th>
+            <th className="px-2 py-1.5 text-right font-medium">{t("google.searchRsa.col.clicks")}</th>
+            <th className="px-2 py-1.5 text-right font-medium">{t("google.searchRsa.col.ctr")}</th>
+            <th className="px-2 py-1.5 text-right font-medium">{t("google.searchRsa.col.conversions")}</th>
           </tr>
         </thead>
         <tbody>
           {lines.map((l, i) => (
             <tr key={i} className={cn("border-b border-slate-50 last:border-0", weakKeys.has(lineKey(l)) && "bg-amber-50/50")}>
-              <td className="px-2 py-1 text-slate-500">{FIELD_LABEL[l.field]}</td>
+              <td className="px-2 py-1 text-slate-500">{t(FIELD_LABEL[l.field])}</td>
               <td className="px-2 py-1 text-slate-700">
                 {l.text}
-                {l.pinned && <span className="ml-1.5 inline-flex items-center gap-0.5 rounded bg-slate-100 px-1 py-0.5 text-[9px] font-bold text-slate-500"><Pin className="h-2.5 w-2.5" aria-hidden="true" />Ghim {l.pinned}</span>}
+                {l.pinned && <span className="ml-1.5 inline-flex items-center gap-0.5 rounded bg-slate-100 px-1 py-0.5 text-[9px] font-bold text-slate-500"><Pin className="h-2.5 w-2.5" aria-hidden="true" />{t("google.searchRsa.pinned", { pos: l.pinned })}</span>}
               </td>
               <td className="px-2 py-1 text-right text-slate-500">{num(l.impressions)}</td>
               <td className="px-2 py-1 text-right text-slate-500">{num(l.clicks)}</td>
@@ -123,13 +127,14 @@ function ReplacementItemCard({
 }: {
   item: DraftItem; choice: string; onChoice: (v: string) => void; custom: string; onCustom: (v: string) => void; canEdit: boolean;
 }) {
+  const t = useT();
   const limit = TEXT_LIMIT[item.field];
   const customLen = [...custom].length;
   const customOver = customLen > limit;
   return (
     <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50/50 p-3 text-xs">
-      <p className="text-slate-500">{FIELD_LABEL[item.field]} đang có: <span className="text-slate-700 line-through">{item.oldText}</span></p>
-      {item.options.length === 0 && <p className="text-amber-700">AI không đưa ra được phương án hợp lệ — dùng ô &quot;Tự viết&quot; bên dưới.</p>}
+      <p className="text-slate-500">{t("google.searchRsa.current", { field: t(FIELD_LABEL[item.field]) })}<span className="text-slate-700 line-through">{item.oldText}</span></p>
+      {item.options.length === 0 && <p className="text-amber-700">{t("google.searchRsa.noOptions")}</p>}
       <div className="space-y-1.5">
         {item.options.map((o, i) => {
           const len = [...o.text].length;
@@ -138,7 +143,7 @@ function ReplacementItemCard({
               <input type="radio" className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-indigo-600" checked={choice === o.text} onChange={() => onChoice(o.text)} disabled={!canEdit} />
               <span className="min-w-0 flex-1 space-y-1">
                 <span className="block text-slate-800">{o.text}</span>
-                <span className={cn("text-[10px]", len > limit ? "font-semibold text-red-600" : "text-slate-400")}>{len}/{limit} ký tự</span>
+                <span className={cn("text-[10px]", len > limit ? "font-semibold text-red-600" : "text-slate-400")}>{t("google.searchRsa.charCount", { len, limit })}</span>
                 {o.findings.length > 0 && (
                   <span className="flex flex-wrap gap-1">
                     {o.findings.map((f, fi) => (
@@ -155,15 +160,15 @@ function ReplacementItemCard({
         <label className={cn("flex items-start gap-2 rounded-lg border p-2 cursor-pointer", choice === "custom" ? "border-indigo-300 bg-indigo-50/50" : "border-slate-100 bg-white", !canEdit && "cursor-default opacity-70")}>
           <input type="radio" className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-indigo-600" checked={choice === "custom"} onChange={() => onChoice("custom")} disabled={!canEdit} />
           <span className="min-w-0 flex-1 space-y-1">
-            <span className="block font-medium text-slate-600">Tự viết</span>
-            <Input value={custom} onChange={(e) => { onCustom(e.target.value); if (choice !== "custom") onChoice("custom"); }} disabled={!canEdit} className="h-8" placeholder={`Tối đa ${limit} ký tự`} />
-            <span className={cn("text-[10px]", customOver ? "font-semibold text-red-600" : "text-slate-400")}>{customLen}/{limit} ký tự</span>
+            <span className="block font-medium text-slate-600">{t("google.searchRsa.custom")}</span>
+            <Input value={custom} onChange={(e) => { onCustom(e.target.value); if (choice !== "custom") onChoice("custom"); }} disabled={!canEdit} className="h-8" placeholder={t("google.searchRsa.maxChars", { limit })} />
+            <span className={cn("text-[10px]", customOver ? "font-semibold text-red-600" : "text-slate-400")}>{t("google.searchRsa.charCount", { len: customLen, limit })}</span>
           </span>
         </label>
       </div>
       {item.rejected.length > 0 && (
         <details className="text-[11px] text-slate-400">
-          <summary className="cursor-pointer select-none">{item.rejected.length} phương án bị loại</summary>
+          <summary className="cursor-pointer select-none">{t("google.searchRsa.rejected", { n: item.rejected.length })}</summary>
           <ul className="mt-1 list-disc space-y-0.5 pl-4">{item.rejected.map((r, i) => <li key={i}>{r}</li>)}</ul>
         </details>
       )}
@@ -178,9 +183,13 @@ function AdCard({
 }: {
   ad: RsaAd; company: Company; range: Range; canEdit: boolean; confirmText: string; onApplied: () => void;
 }) {
+  const t = useT();
   const confirmId = useId();
   const strength = STRENGTH_META[ad.adStrength] ?? STRENGTH_FALLBACK;
-  const approval = APPROVAL_META[ad.approval] ?? { label: ad.approval || "Chưa rõ", cls: "bg-slate-100 text-slate-500 border-slate-200" };
+  const approvalMeta = APPROVAL_META[ad.approval];
+  const approval: { label: MessageKey | null; raw: string; cls: string } = approvalMeta
+    ? { ...approvalMeta, raw: "" }
+    : { label: ad.approval ? null : "google.searchRsa.unknown", raw: ad.approval, cls: "bg-slate-100 text-slate-500 border-slate-200" };
   const weakKeys = useMemo(() => new Set(ad.weak.map(lineKey)), [ad.weak]);
 
   const [linesOpen, setLinesOpen] = useState(false);
@@ -231,7 +240,7 @@ function AdCard({
       setChoice(nextChoice); setCustom({});
       setValidatedSig(null); setValidateEdit(null); setWriteEdit(null);
     } catch (e) {
-      setDraftErr(e instanceof ApiError ? e.message : "Không tạo được bản thay — thử lại sau");
+      setDraftErr(e instanceof ApiError ? e.message : t("google.searchRsa.draftFailed"));
     } finally { setDrafting(false); }
   }
 
@@ -244,7 +253,7 @@ function AdCard({
       setValidateEdit(edit);
       setValidatedSig(edit.status === "done" ? sig : null);
     } catch (e) {
-      setValidateErr(e instanceof ApiError ? e.message : "Không kiểm được — thử lại sau");
+      setValidateErr(e instanceof ApiError ? e.message : t("google.searchRsa.validateFailed"));
       setValidatedSig(null);
     } finally { setValidating(false); }
   }
@@ -260,10 +269,10 @@ function AdCard({
         setDraftItems(null); setCheckedWeak({});
         onApplied();
       } else {
-        setApplyErr("Google từ chối — xem chi tiết bên dưới, chưa đóng hộp thoại.");
+        setApplyErr(t("google.searchRsa.applyRejected"));
       }
     } catch (e) {
-      setApplyErr(e instanceof ApiError ? e.message : "Không ghi được — thử lại sau");
+      setApplyErr(e instanceof ApiError ? e.message : t("google.searchRsa.applyFailed"));
     } finally { setApplying(false); }
   }
 
@@ -275,21 +284,21 @@ function AdCard({
           <p className="truncate text-[11px] text-slate-400" title={ad.adGroup}>{ad.adGroup}</p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-1.5">
-          <Badge cls={strength.cls}>{strength.label}</Badge>
-          <Badge cls={approval.cls}>{approval.label}</Badge>
+          <Badge cls={strength.cls}>{t(strength.label)}</Badge>
+          <Badge cls={approval.cls}>{approval.label ? t(approval.label) : approval.raw}</Badge>
         </div>
       </div>
-      <p className="text-[11px] text-slate-500">Chi phí trong kỳ: <b className="text-slate-700">{vnd(ad.cost)}</b> · {num(ad.impressions)} lượt hiển thị</p>
+      <p className="text-[11px] text-slate-500">{t("google.searchRsa.costInRange")}<b className="text-slate-700">{vnd(ad.cost)}</b>{t("google.searchRsa.impressionsSuffix", { n: num(ad.impressions) })}</p>
 
       {ad.weak.length > 0 && (
         <div className="space-y-1.5">
-          <p className="text-[11px] font-semibold text-slate-600">Dòng yếu ({ad.weak.length})</p>
+          <p className="text-[11px] font-semibold text-slate-600">{t("google.searchRsa.weakLines", { n: ad.weak.length })}</p>
           <div className="space-y-1">
             {ad.weak.map((w) => (
               <label key={lineKey(w)} className={cn("flex items-start gap-2 rounded-lg border p-2 text-[11px]", checkedWeak[lineKey(w)] ? "border-indigo-200 bg-indigo-50/40" : "border-slate-100 bg-slate-50/40", !canEdit && "opacity-70")}>
                 <Checkbox checked={!!checkedWeak[lineKey(w)]} onCheckedChange={() => toggleWeak(lineKey(w))} disabled={!canEdit} className="mt-0.5" />
                 <span className="min-w-0 flex-1 space-y-0.5">
-                  <span className="block font-medium text-slate-800">{FIELD_LABEL[w.field]}: {w.text}</span>
+                  <span className="block font-medium text-slate-800">{t(FIELD_LABEL[w.field])}: {w.text}</span>
                   <span className="block text-slate-500">{w.why}</span>
                 </span>
               </label>
@@ -297,7 +306,7 @@ function AdCard({
           </div>
           {canEdit && (
             <Button type="button" variant="outline" size="sm" className="h-9 bg-white" onClick={doDraft} disabled={drafting || !Object.values(checkedWeak).some(Boolean)}>
-              {drafting ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />} Viết bản thay (Gemini)
+              {drafting ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />} {t("google.searchRsa.draftBtn")}
             </Button>
           )}
           {draftErr && <p className="text-xs text-red-600">{draftErr}</p>}
@@ -306,7 +315,7 @@ function AdCard({
 
       {draftItems && draftItems.length > 0 && (
         <div className="space-y-2 rounded-xl border border-indigo-200 bg-indigo-50/30 p-3">
-          <p className="text-xs font-semibold text-indigo-900">{draftItems.length} bản thay do Gemini viết</p>
+          <p className="text-xs font-semibold text-indigo-900">{t("google.searchRsa.draftCount", { n: draftItems.length })}</p>
           <div className="space-y-2">
             {draftItems.map((it) => (
               <ReplacementItemCard key={it.oldText} item={it}
@@ -319,11 +328,11 @@ function AdCard({
             <div className="space-y-2 border-t border-indigo-100 pt-2">
               <div className="flex flex-wrap items-center gap-2">
                 <Button type="button" variant="outline" size="sm" className="h-9 bg-white" onClick={doValidate} disabled={!changes.length || validating}>
-                  {validating ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : null} Kiểm trước (không ghi)
+                  {validating ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : null} {t("google.searchRsa.validateBtn")}
                 </Button>
                 <Button type="button" size="sm" className="h-9" onClick={() => { setConfirmInput(""); setApplyErr(null); setApplyOpen(true); }}
-                  disabled={!canApply} title={!canApply ? "Kiểm trước rồi mới áp dụng được" : undefined}>
-                  Áp dụng{changes.length > 0 ? ` (${changes.length})` : ""}
+                  disabled={!canApply} title={!canApply ? t("google.searchRsa.applyHint") : undefined}>
+                  {t("google.searchRsa.apply")}{changes.length > 0 ? ` (${changes.length})` : ""}
                 </Button>
               </div>
               {validateErr && <p className="text-xs text-red-600">{validateErr}</p>}
@@ -337,7 +346,7 @@ function AdCard({
       <div>
         <button type="button" onClick={() => setLinesOpen((o) => !o)} className="flex items-center gap-1 text-[11px] font-semibold text-indigo-600 hover:text-indigo-700">
           {linesOpen ? <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" /> : <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />}
-          {ad.lines.length} dòng trong quảng cáo
+          {t("google.searchRsa.linesInAd", { n: ad.lines.length })}
         </button>
         {linesOpen && <div className="mt-2"><LinesTable lines={ad.lines} weakKeys={weakKeys} /></div>}
       </div>
@@ -345,24 +354,24 @@ function AdCard({
       <Dialog open={applyOpen} onOpenChange={(o) => { setApplyOpen(o); if (!o) setConfirmInput(""); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Ghi {changes.length} dòng lên tài khoản thật {company}?</DialogTitle>
-            <DialogDescription>Sửa chữ làm quảng cáo được Google duyệt lại — thường mất vài giờ. Có thể hoàn tác sau nếu cần.</DialogDescription>
+            <DialogTitle>{t("google.searchRsa.applyTitle", { n: changes.length, company })}</DialogTitle>
+            <DialogDescription>{t("google.searchRsa.applyDesc")}</DialogDescription>
           </DialogHeader>
           <ul className="max-h-56 space-y-1.5 overflow-y-auto rounded-lg border border-slate-100 bg-slate-50 p-2.5 text-xs">
             {changes.map((c, i) => <li key={i} className="text-slate-700">&ldquo;{c.oldText}&rdquo; → &ldquo;{c.newText}&rdquo;</li>)}
           </ul>
           <div className="space-y-1.5">
             <label htmlFor={confirmId} className="text-xs font-medium text-slate-500">
-              Gõ <code className="rounded bg-slate-100 px-1 py-0.5">{confirmText}</code> để xác nhận
+              {t("google.searchRsa.typePrefix")}<code className="rounded bg-slate-100 px-1 py-0.5">{confirmText}</code>{t("google.searchRsa.typeSuffix")}
             </label>
             <Input id={confirmId} value={confirmInput} onChange={(e) => setConfirmInput(e.target.value)} placeholder={confirmText} autoComplete="off" className="h-10" />
           </div>
           {applyErr && <p className="text-xs text-red-600">{applyErr}</p>}
           {writeEdit && writeEdit.status !== "done" && <EditResultCard edit={writeEdit} phase="write" />}
           <DialogFooter>
-            <DialogClose render={<Button className="h-10" variant="outline" />}>Huỷ</DialogClose>
+            <DialogClose render={<Button className="h-10" variant="outline" />}>{t("google.searchRsa.cancel")}</DialogClose>
             <Button className="h-10" onClick={doApply} disabled={applying || confirmInput.trim() !== confirmText}>
-              {applying && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} Ghi thật
+              {applying && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} {t("google.searchRsa.writeLive")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -374,12 +383,13 @@ function AdCard({
 // ── Lịch sử sửa RSA ──
 
 function RsaHistoryRow({ h, onUndo }: { h: RsaEdit; onUndo: (id: string) => void }) {
+  const t = useT();
   const ok = h.status === "done";
   return (
     <div className={cn("rounded-lg border p-3 text-xs", ok ? "border-emerald-100 bg-emerald-50/30" : "border-red-100 bg-red-50/30")}>
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <span className={cn("flex items-center gap-1 font-semibold", ok ? "text-emerald-700" : "text-red-700")}>
-          {ok ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> : <XCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />} Đã ghi
+          {ok ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> : <XCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />} {t("google.searchRsa.written")}
         </span>
         <span className="text-slate-400">{datetimeVN(h.at)}</span>
         <span className="text-slate-500">{h.by}</span>
@@ -388,10 +398,10 @@ function RsaHistoryRow({ h, onUndo }: { h: RsaEdit; onUndo: (id: string) => void
       {h.changes.length > 0 && <ul className="mt-1.5 list-disc space-y-0.5 pl-4 text-slate-600">{h.changes.map((c, i) => <li key={i}>&ldquo;{c.oldText}&rdquo; → &ldquo;{c.newText}&rdquo;</li>)}</ul>}
       {h.errors.length > 0 && <ul className="mt-1.5 list-disc space-y-0.5 pl-4 text-red-700">{h.errors.map((e, i) => <li key={i}>{e}</li>)}</ul>}
       {h.undoneAt ? (
-        <p className="mt-2 rounded-md border border-slate-200 bg-white p-2 font-semibold text-slate-600">Đã hoàn tác lúc {datetimeVN(h.undoneAt)}</p>
+        <p className="mt-2 rounded-md border border-slate-200 bg-white p-2 font-semibold text-slate-600">{t("google.searchRsa.undoneAt", { time: datetimeVN(h.undoneAt) })}</p>
       ) : ok ? (
         <div className="mt-2 flex justify-end">
-          <Button variant="destructive" size="sm" className="h-8" onClick={() => onUndo(h.id)}><Undo2 className="h-3.5 w-3.5" aria-hidden="true" /> Hoàn tác</Button>
+          <Button variant="destructive" size="sm" className="h-8" onClick={() => onUndo(h.id)}><Undo2 className="h-3.5 w-3.5" aria-hidden="true" /> {t("google.searchRsa.undo")}</Button>
         </div>
       ) : null}
     </div>
@@ -399,6 +409,7 @@ function RsaHistoryRow({ h, onUndo }: { h: RsaEdit; onUndo: (id: string) => void
 }
 
 function RsaHistorySection({ history, company, onChanged }: { history: RsaEdit[]; company: Company; onChanged: () => void }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [undoId, setUndoId] = useState<string | null>(null);
   const [undoing, setUndoing] = useState(false);
@@ -410,7 +421,7 @@ function RsaHistorySection({ history, company, onChanged }: { history: RsaEdit[]
       await postJson("/api/google/search/rsa", { company, op: "undo", id });
       setUndoId(null); onChanged();
     } catch (e) {
-      setUndoErr(e instanceof ApiError ? e.message : "Không hoàn tác được — thử lại sau");
+      setUndoErr(e instanceof ApiError ? e.message : t("google.searchRsa.undoFailed"));
     } finally { setUndoing(false); }
   }
 
@@ -419,21 +430,21 @@ function RsaHistorySection({ history, company, onChanged }: { history: RsaEdit[]
   return (
     <div>
       <button type="button" onClick={() => setOpen((o) => !o)} className="flex items-center gap-1 text-xs font-semibold text-slate-600 hover:text-slate-800">
-        {open ? <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" /> : <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />} Lịch sử sửa RSA ({history.length})
+        {open ? <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" /> : <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />} {t("google.searchRsa.history", { n: history.length })}
       </button>
       {undoErr && <p className="mt-1 text-xs text-red-600">{undoErr}</p>}
       {open && <div className="mt-2 space-y-2">{history.map((h) => <RsaHistoryRow key={h.id} h={h} onUndo={setUndoId} />)}</div>}
       <Dialog open={!!undoId} onOpenChange={(o) => { if (!o) { setUndoId(null); setUndoErr(null); } }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle className="text-red-600">Hoàn tác lần sửa này?</DialogTitle>
-            <DialogDescription>Trả lại đúng nội dung cũ cho quảng cáo — quảng cáo sẽ được Google duyệt lại lần nữa.</DialogDescription>
+            <DialogTitle className="text-red-600">{t("google.searchRsa.undoTitle")}</DialogTitle>
+            <DialogDescription>{t("google.searchRsa.undoDesc")}</DialogDescription>
           </DialogHeader>
           {undoErr && <p className="text-xs text-red-600">{undoErr}</p>}
           <DialogFooter>
-            <DialogClose render={<Button className="h-10" variant="outline" />}>Giữ nguyên</DialogClose>
+            <DialogClose render={<Button className="h-10" variant="outline" />}>{t("google.searchRsa.keep")}</DialogClose>
             <Button className="h-10" variant="destructive" onClick={() => undoId && runUndo(undoId)} disabled={undoing}>
-              {undoing && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} Hoàn tác
+              {undoing && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} {t("google.searchRsa.undo")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -445,6 +456,7 @@ function RsaHistorySection({ history, company, onChanged }: { history: RsaEdit[]
 // ── Root ──
 
 export function SearchRsaTab({ company, range }: { company: Company; range: Range }) {
+  const t = useT();
   const [data, setData] = useState<RsaResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [reloading, setReloading] = useState(false);
@@ -457,7 +469,7 @@ export function SearchRsaTab({ company, range }: { company: Company; range: Rang
       const json = await getJson(`/api/google/search/rsa?company=${company}&from=${range.from}&to=${range.to}`);
       setData(json as RsaResponse);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Lỗi kết nối tới Google Ads");
+      setError(e instanceof ApiError ? e.message : t("google.searchRsa.connError"));
     } finally { setLoading(false); setReloading(false); }
   }, [company, range.from, range.to]);
 
@@ -468,9 +480,9 @@ export function SearchRsaTab({ company, range }: { company: Company; range: Rang
   return (
     <section className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs text-slate-500">Số theo từng dòng quảng cáo (Google đã bỏ nhãn hiệu suất theo dòng) — chấm dòng yếu theo tỉ lệ bấm trong cùng quảng cáo.</p>
+        <p className="text-xs text-slate-500">{t("google.searchRsa.intro")}</p>
         <Button type="button" variant="outline" size="sm" className="h-9 bg-white" onClick={refresh} disabled={loading || reloading}>
-          {reloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />} Tải lại
+          {reloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />} {t("google.searchRsa.reload")}
         </Button>
       </div>
 
@@ -485,14 +497,14 @@ export function SearchRsaTab({ company, range }: { company: Company; range: Rang
       ) : !data ? null : (
         <>
           {!data.canEdit && (
-            <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">🔒 Cần quyền sửa để viết lại quảng cáo — xem được, không ghi được.</p>
+            <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">{t("google.searchRsa.readOnly")}</p>
           )}
           {data.errors.length > 0 && (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">⚠ Đọc thiếu một phần dữ liệu: {data.errors.join(" · ")}</div>
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">{t("google.searchRsa.partialData", { errors: data.errors.join(" · ") })}</div>
           )}
 
           {data.ads.length === 0 ? (
-            <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-6 text-center text-xs text-slate-400">Không có quảng cáo RSA nào đang chạy trong khoảng này.</p>
+            <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-6 text-center text-xs text-slate-400">{t("google.searchRsa.noAds")}</p>
           ) : (
             <div className="space-y-3">
               {data.ads.map((a) => (

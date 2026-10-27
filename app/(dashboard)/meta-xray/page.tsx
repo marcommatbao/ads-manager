@@ -16,6 +16,7 @@ import { DateRangeControl, type DateRangeValue } from "@/components/DateRangeCon
 import { DEFAULT_VIEW_DAYS, MAX_RANGE_DAYS, isYmd, lastDays } from "@/lib/case/dates";
 import { MetaXrayView } from "@/components/meta/MetaXrayView";
 import { companyIds, orderedCompanyIds } from "@/lib/companies/registry";
+import { useT } from "@/lib/i18n/client";
 
 type Company = string;
 
@@ -38,6 +39,7 @@ export default function MetaXrayPage() {
 }
 
 function MetaXrayPageInner() {
+  const t = useT();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [company, setCompany] = useState<Company>(() => orderedCompanyIds(["MBC"])[0] ?? "MBC") // Đợt 25: công ty theo bản cài (bản Mắt Bão y như cũ);
@@ -53,10 +55,10 @@ function MetaXrayPageInner() {
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            🩻 Meta X-quang
+            {t("meta.xray.page.title")}
           </h1>
           <p className="text-sm text-slate-500 mt-1 max-w-2xl">
-            Đơn &quot;Mua hàng&quot; Meta báo tách theo bấm thật vs chỉ xem quảng cáo, đối chiếu GA4, cài đặt ghi nhận — và việc nên làm cho từng chiến dịch.
+            {t("meta.xray.page.subtitle")}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">

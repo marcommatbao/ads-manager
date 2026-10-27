@@ -20,6 +20,8 @@ import type { Company } from "@/lib/case/types";
 import type { TargetBasis } from "@/lib/case/verdict";
 import { companyIds, companyLabel, hasPack } from "@/lib/companies/registry";
 import { useCompaniesVersion } from "@/lib/companies/use-companies";
+import { useT } from "@/lib/i18n/client";
+import type { TFunction } from "@/lib/i18n/translate";
 
 interface TargetRow { company: Company; group: ProductGroup; basis: TargetBasis; target: number; ceiling: number; cplTarget?: number | null; cplCeiling?: number | null }
 // Đợt 23 (3a): + CPL mục tiêu / CPL trần cho chiến dịch thu lead (tuỳ chọn).
@@ -34,14 +36,20 @@ const groupsOf = (company: Company): ProductGroup[] => (hasPack(company, "matbao
 
 function keyOf(company: Company, group: ProductGroup) { return `${company}:${group}`; }
 
-function validateDraft(basis: TargetBasis, target: number, ceiling: number): string | null {
-  if (!(target > 0) || !(ceiling > 0)) return "Mục tiêu và trần phải > 0";
-  if (basis === "cpa" && target > ceiling) return "Chi phí/đơn mục tiêu phải ≤ trần";
-  if (basis === "roas" && target < ceiling) return "ROAS mục tiêu phải ≥ ROAS trần";
+// Chuỗi từ điển có <b>…</b> → in đậm (chỉ chuỗi tĩnh do mình viết trong lib/i18n/messages).
+function rich(s: string): React.ReactNode[] {
+  return s.split(/<b>(.*?)<\/b>/).map((part, i) => (i % 2 ? <b key={i}>{part}</b> : part));
+}
+
+function validateDraft(t: TFunction, basis: TargetBasis, target: number, ceiling: number): string | null {
+  if (!(target > 0) || !(ceiling > 0)) return t("overview.xuly.goal.errPositive");
+  if (basis === "cpa" && target > ceiling) return t("overview.xuly.goal.errCpa");
+  if (basis === "roas" && target < ceiling) return t("overview.xuly.goal.errRoas");
   return null;
 }
 
 export default function CaseTargetsPage() {
+  const t = useT();
   const { data, error, isLoading, mutate } = useSWR<{ success: true; rows: TargetRow[] }>("/api/case-targets", getJson);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [prefilled, setPrefilled] = useState(false);
@@ -84,18 +92,18 @@ export default function CaseTargetsPage() {
       const hasCpl = !!d && (!!d.cplTarget?.trim() || !!d.cplCeiling?.trim());
       if (!d || (!hasSales && !hasCpl)) continue; // bỏ trống = chưa muốn đặt
       const target = hasSales ? Number(d.target) : 0, ceiling = hasSales ? Number(d.ceiling) : 0;
-      const err = hasSales ? validateDraft(d.basis, target, ceiling) : null;
+      const err = hasSales ? validateDraft(t, d.basis, target, ceiling) : null;
       if (err) { errors.push(`${PRODUCT_LABEL[group]}: ${err}`); continue; }
       let cplTarget: number | null = null, cplCeiling: number | null = null;
       if (hasCpl) {
         cplTarget = Number(d.cplTarget); cplCeiling = Number(d.cplCeiling);
-        if (!(cplTarget > 0) || !(cplCeiling > 0)) { errors.push(`${PRODUCT_LABEL[group]}: CPL mục tiêu và CPL trần phải cùng > 0`); continue; }
-        if (cplTarget > cplCeiling) { errors.push(`${PRODUCT_LABEL[group]}: CPL mục tiêu phải ≤ CPL trần`); continue; }
+        if (!(cplTarget > 0) || !(cplCeiling > 0)) { errors.push(`${PRODUCT_LABEL[group]}: ${t("overview.xuly.goal.errCplPositive")}`); continue; }
+        if (cplTarget > cplCeiling) { errors.push(`${PRODUCT_LABEL[group]}: ${t("overview.xuly.goal.errCplOrder")}`); continue; }
       }
       rows.push({ company, group, basis: d.basis, target, ceiling, cplTarget, cplCeiling });
     }
     if (errors.length > 0) { setSaveErr((p) => ({ ...p, [company]: errors.join(" · ") })); return; }
-    if (rows.length === 0) { setSaveErr((p) => ({ ...p, [company]: "Chưa có dòng nào để lưu — điền ít nhất một sản phẩm" })); return; }
+    if (rows.length === 0) { setSaveErr((p) => ({ ...p, [company]: t("overview.xuly.goal.errNoRows") })); return; }
 
     setSavingCompany(company);
     setSaveErr((p) => ({ ...p, [company]: null }));
@@ -105,7 +113,7 @@ export default function CaseTargetsPage() {
       await mutate();
       setSaveOk((p) => ({ ...p, [company]: true }));
     } catch (e) {
-      setSaveErr((p) => ({ ...p, [company]: e instanceof ApiError ? e.message : "Không lưu được mục tiêu" }));
+      setSaveErr((p) => ({ ...p, [company]: e instanceof ApiError ? e.message : t("overview.xuly.goal.saveFailed") }));
     } finally {
       setSavingCompany(null);
     }
@@ -120,10 +128,9 @@ export default function CaseTargetsPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-5 p-6">
       <div>
-        <h1 className="text-xl font-bold text-slate-900">Mục tiêu theo sản phẩm</h1>
+        <h1 className="text-xl font-bold text-slate-900">{t("overview.xuly.goal.title")}</h1>
         <p className="mt-1 max-w-2xl text-sm text-slate-500">
-          Mỗi sản phẩm có 2 ngưỡng: <b>mục tiêu</b> (muốn đạt) và <b>trần</b> (vượt là cắt). cpa: chi phí/đơn mục tiêu và trần ·
-          roas: ROAS mục tiêu và ROAS tối thiểu (dưới là đỏ). Mục tiêu cuối cho cả Google và Facebook: <b>Mua hàng</b>.
+          {rich(t("overview.xuly.goal.subtitle"))}
         </p>
       </div>
 
@@ -136,9 +143,9 @@ export default function CaseTargetsPage() {
       {!isLoading && error && (
         <EmptyState
           icon={AlertTriangle}
-          title="Không tải được mục tiêu hiện có"
-          description={error instanceof ApiError ? error.message : "Có lỗi khi tải dữ liệu."}
-          action={<Button className="h-10" onClick={() => mutate()}>Thử lại</Button>}
+          title={t("overview.xuly.goal.loadFailed")}
+          description={error instanceof ApiError ? error.message : t("overview.xuly.goal.loadError")}
+          action={<Button className="h-10" onClick={() => mutate()}>{t("overview.xuly.goal.retry")}</Button>}
         />
       )}
 
@@ -146,17 +153,17 @@ export default function CaseTargetsPage() {
         <div key={company} className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-2.5">
             <span className="text-sm font-semibold text-slate-800">{company === "MBC" || company === "MBI" ? company : companyLabel(company)}</span>
-            <span className="text-xs text-slate-400">{(rowsByCompany[company] ?? []).length} sản phẩm đã có mục tiêu</span>
+            <span className="text-xs text-slate-400">{t("overview.xuly.goal.productsWithGoal", { n: (rowsByCompany[company] ?? []).length })}</span>
           </div>
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100 text-left text-xs text-slate-500">
-                <th className="px-4 py-2 font-medium">Sản phẩm</th>
-                <th className="px-3 py-2 font-medium">Cách chấm</th>
-                <th className="px-3 py-2 text-right font-medium">Mục tiêu</th>
-                <th className="px-3 py-2 text-right font-medium">Trần</th>
-                <th className="px-3 py-2 text-right font-medium" title="Chiến dịch thu lead (khách hàng tiềm năng) — tuỳ chọn">CPL mục tiêu</th>
-                <th className="px-3 py-2 text-right font-medium" title="Chi phí mỗi lead tối đa — vượt mức này bị chấm đỏ">CPL trần</th>
+                <th className="px-4 py-2 font-medium">{t("overview.xuly.goal.thProduct")}</th>
+                <th className="px-3 py-2 font-medium">{t("overview.xuly.goal.thBasis")}</th>
+                <th className="px-3 py-2 text-right font-medium">{t("overview.xuly.goal.thTarget")}</th>
+                <th className="px-3 py-2 text-right font-medium">{t("overview.xuly.goal.thCeiling")}</th>
+                <th className="px-3 py-2 text-right font-medium" title={t("overview.xuly.goal.cplTargetTip")}>{t("overview.xuly.goal.cplTarget")}</th>
+                <th className="px-3 py-2 text-right font-medium" title={t("overview.xuly.goal.cplCeilingTip")}>{t("overview.xuly.goal.cplCeiling")}</th>
               </tr>
             </thead>
             <tbody>
@@ -186,7 +193,7 @@ export default function CaseTargetsPage() {
                     <td className="px-3 py-2 text-right">
                       <Input
                         inputMode="numeric"
-                        aria-label={`Mục tiêu ${PRODUCT_LABEL[group]} ${company}`}
+                        aria-label={t("overview.xuly.goal.ariaTarget", { product: PRODUCT_LABEL[group], company })}
                         value={d.target}
                         onChange={(e) => setDraft(company, group, { target: e.target.value })}
                         className="ml-auto w-28 text-right tabular-nums"
@@ -195,7 +202,7 @@ export default function CaseTargetsPage() {
                     <td className="px-3 py-2 text-right">
                       <Input
                         inputMode="numeric"
-                        aria-label={`Trần ${PRODUCT_LABEL[group]} ${company}`}
+                        aria-label={t("overview.xuly.goal.ariaCeiling", { product: PRODUCT_LABEL[group], company })}
                         value={d.ceiling}
                         onChange={(e) => setDraft(company, group, { ceiling: e.target.value })}
                         className="ml-auto w-28 text-right tabular-nums"
@@ -204,7 +211,7 @@ export default function CaseTargetsPage() {
                     <td className="px-3 py-2 text-right">
                       <Input
                         inputMode="numeric"
-                        aria-label={`CPL mục tiêu ${PRODUCT_LABEL[group]} ${company}`}
+                        aria-label={t("overview.xuly.goal.ariaCplTarget", { product: PRODUCT_LABEL[group], company })}
                         placeholder="—"
                         value={d.cplTarget ?? ""}
                         onChange={(e) => setDraft(company, group, { cplTarget: e.target.value })}
@@ -214,7 +221,7 @@ export default function CaseTargetsPage() {
                     <td className="px-3 py-2 text-right">
                       <Input
                         inputMode="numeric"
-                        aria-label={`CPL trần ${PRODUCT_LABEL[group]} ${company}`}
+                        aria-label={t("overview.xuly.goal.ariaCplCeiling", { product: PRODUCT_LABEL[group], company })}
                         placeholder="—"
                         value={d.cplCeiling ?? ""}
                         onChange={(e) => setDraft(company, group, { cplCeiling: e.target.value })}
@@ -229,10 +236,10 @@ export default function CaseTargetsPage() {
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 bg-slate-50/60 px-4 py-3">
             <div className="text-sm">
               {saveErr[company] && <span className="text-red-600">{saveErr[company]}</span>}
-              {!saveErr[company] && saveOk[company] && <span className="text-emerald-600">Đã lưu — bảng tổng quan sẽ chấm lại theo ngưỡng mới.</span>}
+              {!saveErr[company] && saveOk[company] && <span className="text-emerald-600">{t("overview.xuly.goal.saved")}</span>}
             </div>
             <Button className="h-10" onClick={() => saveCompany(company)} disabled={savingCompany === company}>
-              {savingCompany === company && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} Lưu mục tiêu {company}
+              {savingCompany === company && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} {t("overview.xuly.goal.save", { company })}
             </Button>
           </div>
         </div>
@@ -240,7 +247,7 @@ export default function CaseTargetsPage() {
 
       <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
         <div className="mb-1 font-semibold text-slate-800">Facebook</div>
-        Mục tiêu cuối: <b>Mua hàng</b> (sự kiện Purchase của pixel) — MBI và MBC. Dự kiến dùng chung ngưỡng theo sản phẩm với Google (đợt 3).
+        {rich(t("overview.xuly.goal.fbNote"))}
       </div>
     </div>
   );

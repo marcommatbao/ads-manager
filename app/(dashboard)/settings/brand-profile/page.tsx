@@ -11,6 +11,7 @@ import { companyIds, companyLabel } from "@/lib/companies/registry";
 import { useCompaniesVersion } from "@/lib/companies/use-companies";
 import type { BrandProfile, BrandProduct } from "@/lib/brand/types";
 import { deriveCatalog, type CompanyInfo, type ProductCatalog } from "@/lib/case/product-catalog";
+import { useIntlLocale, useT } from "@/lib/i18n/client";
 
 interface Resp { profile: BrandProfile; saved: boolean; legacy: boolean; canEdit: boolean
   lexicon?: { fixed: ProductCatalog | null; self: CompanyInfo | null; others: CompanyInfo[] } }
@@ -22,6 +23,7 @@ function Chips({ items, empty }: { items: string[]; empty: string }) {
 
 /** 19/10 — tool xếp lượt tìm thế nào cho công ty này (xem trước theo nội dung đang gõ; áp dụng sau khi Lưu). */
 function IntentPreview({ data, p }: { data: Resp; p: BrandProfile }) {
+  const t = useT();
   const lx = data.lexicon;
   if (!lx) return null;
   const cat = lx.fixed ?? (lx.self ? deriveCatalog({ ...lx.self, brandName: p.brandName, domain: p.domain || lx.self.domain, industry: p.industry, products: p.products.map((x) => x.name).filter(Boolean) }, lx.others) : null);
@@ -29,19 +31,19 @@ function IntentPreview({ data, p }: { data: Resp; p: BrandProfile }) {
   return (
     <div className="space-y-3 rounded-lg border border-sky-200 bg-sky-50/50 p-3 md:col-span-2">
       <div>
-        <div className="text-sm font-medium text-slate-700">Tool phân biệt lượt tìm Brand / dịch vụ thế nào</div>
+        <div className="text-sm font-medium text-slate-700">{t("creative.settingsBrandProfile.intent.title")}</div>
         <p className="text-xs text-slate-500">
           {lx.fixed
-            ? "Gói Mắt Bão dùng bảng sản phẩm cố định (Mắt Bão matbao.net ↔ matbao.in)."
-            : "Dựng từ hồ sơ này + Từ khoá thương hiệu / Đối thủ ở trang Thiết lập. Dùng khi chẩn đoán chiến dịch, đề xuất phủ định và tách chiến dịch Brand. Xem trước theo nội dung đang gõ — áp dụng sau khi Lưu."}
+            ? t("creative.settingsBrandProfile.intent.fixed")
+            : t("creative.settingsBrandProfile.intent.derived")}
         </p>
       </div>
-      <div className="space-y-1"><div className="text-xs font-semibold text-slate-600">Có các chữ này → luôn là lượt tìm Brand</div><Chips items={cat.brand} empty="Chưa nhận ra tên thương hiệu — điền Tên thương hiệu / Tên miền, hoặc Từ khoá thương hiệu ở trang Thiết lập." /></div>
-      <div className="space-y-1"><div className="text-xs font-semibold text-slate-600">Sản phẩm / dịch vụ của công ty (không bao giờ bị phủ định là “sản phẩm khác”)</div><Chips items={cat.own} empty="Chưa có — thêm Sản phẩm / dịch vụ chính hoặc Ngành để tool phân biệt lượt tìm dịch vụ." /></div>
+      <div className="space-y-1"><div className="text-xs font-semibold text-slate-600">{t("creative.settingsBrandProfile.intent.brandLabel")}</div><Chips items={cat.brand} empty={t("creative.settingsBrandProfile.intent.brandEmpty")} /></div>
+      <div className="space-y-1"><div className="text-xs font-semibold text-slate-600">{t("creative.settingsBrandProfile.intent.ownLabel")}</div><Chips items={cat.own} empty={t("creative.settingsBrandProfile.intent.ownEmpty")} /></div>
       {(cat.sibling.products.length > 0 || cat.sibling.brand.length > 0) && (
-        <div className="space-y-1"><div className="text-xs font-semibold text-slate-600">Của công ty khác trong bản cài{cat.sibling.site ? ` (${cat.sibling.site})` : ""} → “sản phẩm khác”</div><Chips items={[...cat.sibling.brand, ...cat.sibling.products]} empty="" /></div>
+        <div className="space-y-1"><div className="text-xs font-semibold text-slate-600">{t("creative.settingsBrandProfile.intent.siblingLabel", { site: cat.sibling.site ? ` (${cat.sibling.site})` : "" })}</div><Chips items={[...cat.sibling.brand, ...cat.sibling.products]} empty="" /></div>
       )}
-      <div className="space-y-1"><div className="text-xs font-semibold text-slate-600">Đối thủ</div><Chips items={cat.competitors} empty="Chưa có — thêm ở trang Thiết lập nếu muốn tool nhận ra lượt tìm tên đối thủ." /></div>
+      <div className="space-y-1"><div className="text-xs font-semibold text-slate-600">{t("creative.settingsBrandProfile.intent.competitorsLabel")}</div><Chips items={cat.competitors} empty={t("creative.settingsBrandProfile.intent.competitorsEmpty")} /></div>
     </div>
   );
 }
@@ -58,6 +60,8 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 }
 
 export default function BrandProfilePage() {
+  const t = useT();
+  const loc = useIntlLocale();
   useCompaniesVersion();
   const ids = companyIds();
   const [company, setCompany] = useState(ids[0] ?? "");
@@ -75,9 +79,9 @@ export default function BrandProfilePage() {
     getJson(`/api/settings/brand-profile?company=${company}`).then((j: Resp) => {
       if (!alive) return;
       setData(j); setP(j.profile); setStrengths(j.profile.strengths.join("\n")); setForbidden(j.profile.forbidden.join("\n"));
-    }).catch((e) => alive && setMsg({ ok: false, text: e instanceof ApiError ? e.message : "Không tải được" }));
+    }).catch((e) => alive && setMsg({ ok: false, text: e instanceof ApiError ? e.message : t("creative.settingsBrandProfile.err.load") }));
     return () => { alive = false };
-  }, [company]);
+  }, [company, t]);
 
   const set = <K extends keyof BrandProfile>(k: K, v: BrandProfile[K]) => setP((x) => (x ? { ...x, [k]: v } : x));
   const setProduct = (i: number, patch: Partial<BrandProduct>) => set("products", (p?.products ?? []).map((x, j) => (j === i ? { ...x, ...patch } : x)));
@@ -88,10 +92,10 @@ export default function BrandProfilePage() {
     try {
       const res = await fetch("/api/settings/brand-profile", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ company, profile: { ...p, strengths: lines(strengths), forbidden: lines(forbidden) } }) });
       const j = await res.json();
-      if (!res.ok || !j.success) throw new Error(j.error ?? "Không lưu được");
+      if (!res.ok || !j.success) throw new Error(j.error ?? t("creative.settingsBrandProfile.err.save"));
       setData((d) => (d ? { ...d, saved: true, legacy: false, profile: j.profile } : d)); setP(j.profile);
-      setMsg({ ok: true, text: "Đã lưu — từ giờ AI viết quảng cáo cho công ty này theo hồ sơ." });
-    } catch (e) { setMsg({ ok: false, text: e instanceof Error ? e.message : "Không lưu được" }); }
+      setMsg({ ok: true, text: t("creative.settingsBrandProfile.saved") });
+    } catch (e) { setMsg({ ok: false, text: e instanceof Error ? e.message : t("creative.settingsBrandProfile.err.save") }); }
     finally { setBusy(false); }
   }
 
@@ -100,8 +104,8 @@ export default function BrandProfilePage() {
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle>Hồ sơ doanh nghiệp</CardTitle>
-          <CardDescription>AI dùng hồ sơ này khi viết quảng cáo Google (tiêu đề, mô tả, asset PMax) và khi giới thiệu thương hiệu. Chỉ ghi điểm mạnh CÓ THẬT — AI chỉ được dùng đúng những ý bạn ghi.</CardDescription>
+          <CardTitle>{t("creative.settingsBrandProfile.title")}</CardTitle>
+          <CardDescription>{t("creative.settingsBrandProfile.desc")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {ids.length > 1 && (
@@ -111,42 +115,42 @@ export default function BrandProfilePage() {
               ))}
             </div>
           )}
-          {!data && !msg && <div className="flex items-center gap-2 text-sm text-slate-500"><Loader2 className="h-4 w-4 animate-spin" /> Đang tải…</div>}
+          {!data && !msg && <div className="flex items-center gap-2 text-sm text-slate-500"><Loader2 className="h-4 w-4 animate-spin" />{t("creative.settingsBrandProfile.loading")}</div>}
           {data?.legacy && (
             <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              Chưa lưu hồ sơ cho {companyLabel(company)} — AI đang dùng nội dung mặc định có sẵn. Bấm “Lưu hồ sơ” thì AI chuyển sang dùng nội dung dưới đây.
+              {t("creative.settingsBrandProfile.legacy", { company: companyLabel(company) })}
             </p>
           )}
           {p && (
             <div className="grid gap-4 md:grid-cols-2">
-              <Field label="Tên thương hiệu" hint="Tên dùng trong quảng cáo."><Input value={p.brandName} disabled={ro} onChange={(e) => set("brandName", e.target.value)} /></Field>
-              <Field label="Tên miền" hint="Vd matbao.ws (không cần https://)."><Input value={p.domain} disabled={ro} onChange={(e) => set("domain", e.target.value)} /></Field>
-              <Field label="Đường dẫn hiển thị quảng cáo Search" hint="Tối đa 15 ký tự, vd “matbao ws”."><Input value={p.displayPath ?? ""} maxLength={15} disabled={ro} onChange={(e) => set("displayPath", e.target.value)} /></Field>
-              <Field label="Ngành / nhóm sản phẩm" hint="Vd “tên miền, hosting, email doanh nghiệp”."><Input value={p.industry} disabled={ro} onChange={(e) => set("industry", e.target.value)} /></Field>
-              <div className="md:col-span-2"><Field label="Giới thiệu ngắn" hint="1–2 câu."><textarea className="min-h-16 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" value={p.description ?? ""} disabled={ro} onChange={(e) => set("description", e.target.value)} /></Field></div>
-              <Field label="Khách hàng mục tiêu" hint="Vd “Chủ doanh nghiệp SME, phụ trách IT”."><Input value={p.persona} disabled={ro} onChange={(e) => set("persona", e.target.value)} /></Field>
-              <Field label="Giọng văn" hint="Vd “chuyên nghiệp, gần gũi, không phóng đại”."><Input value={p.tone ?? ""} disabled={ro} onChange={(e) => set("tone", e.target.value)} /></Field>
-              <Field label="Điểm mạnh / cam kết CÓ THẬT" hint="Mỗi dòng một ý. AI không được thêm con số, khuyến mãi hay cam kết ngoài danh sách này."><textarea className="min-h-28 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" value={strengths} disabled={ro} onChange={(e) => setStrengths(e.target.value)} /></Field>
-              <Field label="Điều KHÔNG được nói" hint="Mỗi dòng một ý, vd “không hứa miễn phí”, “không nêu tên đối thủ”."><textarea className="min-h-28 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" value={forbidden} disabled={ro} onChange={(e) => setForbidden(e.target.value)} /></Field>
+              <Field label={t("creative.settingsBrandProfile.f.brandName")} hint={t("creative.settingsBrandProfile.f.brandName.hint")}><Input value={p.brandName} disabled={ro} onChange={(e) => set("brandName", e.target.value)} /></Field>
+              <Field label={t("creative.settingsBrandProfile.f.domain")} hint={t("creative.settingsBrandProfile.f.domain.hint")}><Input value={p.domain} disabled={ro} onChange={(e) => set("domain", e.target.value)} /></Field>
+              <Field label={t("creative.settingsBrandProfile.f.displayPath")} hint={t("creative.settingsBrandProfile.f.displayPath.hint")}><Input value={p.displayPath ?? ""} maxLength={15} disabled={ro} onChange={(e) => set("displayPath", e.target.value)} /></Field>
+              <Field label={t("creative.settingsBrandProfile.f.industry")} hint={t("creative.settingsBrandProfile.f.industry.hint")}><Input value={p.industry} disabled={ro} onChange={(e) => set("industry", e.target.value)} /></Field>
+              <div className="md:col-span-2"><Field label={t("creative.settingsBrandProfile.f.description")} hint={t("creative.settingsBrandProfile.f.description.hint")}><textarea className="min-h-16 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" value={p.description ?? ""} disabled={ro} onChange={(e) => set("description", e.target.value)} /></Field></div>
+              <Field label={t("creative.settingsBrandProfile.f.persona")} hint={t("creative.settingsBrandProfile.f.persona.hint")}><Input value={p.persona} disabled={ro} onChange={(e) => set("persona", e.target.value)} /></Field>
+              <Field label={t("creative.settingsBrandProfile.f.tone")} hint={t("creative.settingsBrandProfile.f.tone.hint")}><Input value={p.tone ?? ""} disabled={ro} onChange={(e) => set("tone", e.target.value)} /></Field>
+              <Field label={t("creative.settingsBrandProfile.f.strengths")} hint={t("creative.settingsBrandProfile.f.strengths.hint")}><textarea className="min-h-28 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" value={strengths} disabled={ro} onChange={(e) => setStrengths(e.target.value)} /></Field>
+              <Field label={t("creative.settingsBrandProfile.f.forbidden")} hint={t("creative.settingsBrandProfile.f.forbidden.hint")}><textarea className="min-h-28 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" value={forbidden} disabled={ro} onChange={(e) => setForbidden(e.target.value)} /></Field>
               <div className="space-y-2 md:col-span-2">
-                <span className="text-sm font-medium text-slate-700">Sản phẩm / dịch vụ chính</span>
-                <p className="text-xs text-slate-400">Khi tạo quảng cáo Google với “sản phẩm tự nhập” đúng tên ở đây, tool dùng trang đích của sản phẩm đó.</p>
+                <span className="text-sm font-medium text-slate-700">{t("creative.settingsBrandProfile.products.title")}</span>
+                <p className="text-xs text-slate-400">{t("creative.settingsBrandProfile.products.hint")}</p>
                 {p.products.map((x, i) => (
                   <div key={i} className="grid gap-2 rounded-lg border border-slate-200 p-2 md:grid-cols-[1fr_2fr_2fr_auto]">
-                    <Input placeholder="Tên" value={x.name} disabled={ro} onChange={(e) => setProduct(i, { name: e.target.value })} />
-                    <Input placeholder="Mô tả ngắn" value={x.description ?? ""} disabled={ro} onChange={(e) => setProduct(i, { description: e.target.value })} />
-                    <Input placeholder="https://… trang đích" value={x.url ?? ""} disabled={ro} onChange={(e) => setProduct(i, { url: e.target.value })} />
-                    <Button type="button" variant="ghost" size="sm" disabled={ro} onClick={() => set("products", p.products.filter((_, j) => j !== i))} aria-label="Xoá"><Trash2 className="h-4 w-4" /></Button>
+                    <Input placeholder={t("creative.settingsBrandProfile.products.name")} value={x.name} disabled={ro} onChange={(e) => setProduct(i, { name: e.target.value })} />
+                    <Input placeholder={t("creative.settingsBrandProfile.products.desc")} value={x.description ?? ""} disabled={ro} onChange={(e) => setProduct(i, { description: e.target.value })} />
+                    <Input placeholder={t("creative.settingsBrandProfile.products.url")} value={x.url ?? ""} disabled={ro} onChange={(e) => setProduct(i, { url: e.target.value })} />
+                    <Button type="button" variant="ghost" size="sm" disabled={ro} onClick={() => set("products", p.products.filter((_, j) => j !== i))} aria-label={t("creative.settingsBrandProfile.products.remove")}><Trash2 className="h-4 w-4" /></Button>
                   </div>
                 ))}
-                {!ro && <Button type="button" variant="outline" size="sm" onClick={() => set("products", [...p.products, { name: "" }])}><Plus className="h-4 w-4" /> Thêm sản phẩm</Button>}
+                {!ro && <Button type="button" variant="outline" size="sm" onClick={() => set("products", [...p.products, { name: "" }])}><Plus className="h-4 w-4" />{t("creative.settingsBrandProfile.products.add")}</Button>}
               </div>
               {data && <IntentPreview data={data} p={p} />}
             </div>
           )}
           {msg && <p className={`flex items-center gap-1.5 text-sm ${msg.ok ? "text-emerald-700" : "text-red-600"}`}>{msg.ok ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}{msg.text}</p>}
-          {p && !ro && <Button type="button" onClick={save} disabled={busy}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Lưu hồ sơ</Button>}
-          {data?.saved && p?.updatedAt && <p className="text-xs text-slate-400">Lưu lần cuối {new Date(p.updatedAt).toLocaleString("vi-VN")}{p.updatedBy ? ` · ${p.updatedBy}` : ""}</p>}
+          {p && !ro && <Button type="button" onClick={save} disabled={busy}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{t("creative.settingsBrandProfile.btn.save")}</Button>}
+          {data?.saved && p?.updatedAt && <p className="text-xs text-slate-400">{t("creative.settingsBrandProfile.lastSaved", { time: new Date(p.updatedAt).toLocaleString(loc) })}{p.updatedBy ? ` · ${p.updatedBy}` : ""}</p>}
         </CardContent>
       </Card>
     </div>

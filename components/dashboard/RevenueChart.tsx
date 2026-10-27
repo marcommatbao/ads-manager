@@ -21,6 +21,9 @@ import {
 } from "recharts";
 import { TrendingUp, ShoppingCart, RefreshCw, AlertTriangle, BarChart3, Calendar } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useIntlLocale, useT } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/messages";
+import type { TFunction } from "@/lib/i18n/translate";
 
 // ─────────────────────────────────────────────
 // Types
@@ -44,9 +47,9 @@ interface MonthlyReport {
 }
 
 const RANGE_OPTIONS = [
-  { key: 6,  label: "6 tháng"  },
-  { key: 12, label: "12 tháng" },
-] as const;
+  { key: 6,  label: "overview.revchart.range6"  },
+  { key: 12, label: "overview.revchart.range12" },
+] as const satisfies ReadonlyArray<{ key: number; label: MessageKey }>;
 
 type ViewMode = "preset" | "range";
 
@@ -63,14 +66,19 @@ function monthValue(offset: number): string {
 // ─────────────────────────────────────────────
 
 /** Full VND with VN thousand separators, e.g. "8.442.011.743 ₫". */
-function fmtVND(v: number): string {
-  return `${Math.round(v).toLocaleString("vi-VN")} ₫`;
+function fmtVNDLoc(v: number, loc: string): string {
+  return `${Math.round(v).toLocaleString(loc)} ₫`;
+}
+
+function useFmt() {
+  const loc = useIntlLocale();
+  return { loc, fmtVND: (v: number) => fmtVNDLoc(v, loc) };
 }
 
 /** Compact format — only for the Y-axis scale ticks. */
-function fmtAxis(v: number): string {
-  if (v >= 1_000_000_000) return `${(v / 1_000_000_000).toFixed(1)} tỷ`;
-  if (v >= 1_000_000)     return `${(v / 1_000_000).toFixed(0)} tr`;
+function fmtAxis(v: number, t: TFunction): string {
+  if (v >= 1_000_000_000) return t("overview.revchart.axisB", { v: (v / 1_000_000_000).toFixed(1) });
+  if (v >= 1_000_000)     return t("overview.revchart.axisM", { v: (v / 1_000_000).toFixed(0) });
   if (v >= 1_000)         return `${(v / 1_000).toFixed(0)}k`;
   return `${v}`;
 }
@@ -83,15 +91,17 @@ function pctClass(p: number): string {
   return p >= 100 ? "text-emerald-600" : p >= 80 ? "text-amber-600" : "text-red-500";
 }
 function KpiNote({ actual, target, isMoney }: { actual: number; target?: number | null; isMoney?: boolean }) {
+  const t = useT();
+  const { loc, fmtVND } = useFmt();
   if (!target) return null;
   const pct = Math.round((actual / target) * 100);
   const diff = actual - target;
-  const diffStr = isMoney ? fmtVND(Math.abs(diff)) : Math.abs(diff).toLocaleString("vi-VN");
+  const diffStr = isMoney ? fmtVND(Math.abs(diff)) : Math.abs(diff).toLocaleString(loc);
   return (
     <p className="text-[10px] mt-0.5 pl-3.5">
-      <span className="text-slate-400">KPI {isMoney ? fmtVND(target) : target.toLocaleString("vi-VN")} · </span>
+      <span className="text-slate-400">KPI {isMoney ? fmtVND(target) : target.toLocaleString(loc)} · </span>
       <span className={cn("font-bold", pctClass(pct))}>{pct}%</span>
-      <span className="text-slate-400"> ({diff >= 0 ? "vượt" : "thiếu"} {diffStr})</span>
+      <span className="text-slate-400"> ({diff >= 0 ? t("overview.revchart.over") : t("overview.revchart.under")} {diffStr})</span>
     </p>
   );
 }
@@ -105,6 +115,8 @@ function ChartTooltip({
   payload?: Array<{ value: number; dataKey: string; payload: MonthRevenue & { revenueTarget?: number | null; ordersTarget?: number | null } }>;
   label?: string;
 }) {
+  const t = useT();
+  const { loc, fmtVND } = useFmt();
   if (!active || !payload?.length) return null;
   const row = payload[0].payload;
   return (
@@ -112,21 +124,21 @@ function ChartTooltip({
       <p className="text-slate-500 font-semibold mb-2">{label}</p>
       <div className="flex items-center justify-between gap-3">
         <span className="flex items-center gap-1.5 text-slate-600">
-          <span className="inline-block w-2 h-2 rounded-full bg-blue-600" /> Doanh thu MBC
+          <span className="inline-block w-2 h-2 rounded-full bg-blue-600" /> {t("overview.revchart.ttRevenue")}
         </span>
         <span className="font-bold text-slate-800">{fmtVND(row.revenue)}</span>
       </div>
       <KpiNote actual={row.revenue} target={row.revenueTarget} isMoney />
       <div className="flex items-center justify-between gap-3 mt-1.5">
         <span className="flex items-center gap-1.5 text-slate-600">
-          <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" /> Đơn MBI
+          <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" /> {t("overview.revchart.ttOrders")}
         </span>
-        <span className="font-bold text-slate-800">{row.orders.toLocaleString("vi-VN")}</span>
+        <span className="font-bold text-slate-800">{row.orders.toLocaleString(loc)}</span>
       </div>
       <KpiNote actual={row.orders} target={row.ordersTarget} />
       <div className="flex items-center justify-between gap-3 mt-1.5 pt-1 border-t border-slate-100">
-        <span className="text-slate-500">Số hoá đơn</span>
-        <span className="font-semibold text-slate-600">{row.invoiceCount.toLocaleString("vi-VN")}</span>
+        <span className="text-slate-500">{t("overview.revchart.ttInvoices")}</span>
+        <span className="font-semibold text-slate-600">{row.invoiceCount.toLocaleString(loc)}</span>
       </div>
     </div>
   );
@@ -137,6 +149,8 @@ function ChartTooltip({
 // ─────────────────────────────────────────────
 
 export default function RevenueChart() {
+  const t = useT();
+  const { loc, fmtVND } = useFmt();
   const [mode,      setMode]      = useState<ViewMode>("preset");
   const [months,    setMonths]    = useState(6);
   const [fromMonth, setFromMonth] = useState(() => monthValue(5)); // 6 tháng gần nhất
@@ -158,7 +172,7 @@ export default function RevenueChart() {
     try {
       const res  = await fetch(`/api/odoo/revenue-monthly?${query}`);
       const json = (await res.json()) as { success: boolean; data?: MonthlyReport; error?: string };
-      if (!json.success || !json.data) throw new Error(json.error ?? "Lỗi không xác định");
+      if (!json.success || !json.data) throw new Error(json.error ?? t("overview.revchart.errUnknown"));
       setData(json.data);
 
       // KPI targets cho các năm xuất hiện trong dữ liệu
@@ -178,11 +192,11 @@ export default function RevenueChart() {
       }));
       setKpiMap(map);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Lỗi kết nối");
+      setError(err instanceof Error ? err.message : t("overview.revchart.errConn"));
     } finally {
       setLoading(false);
     }
-  }, [query]);
+  }, [query, t]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -215,18 +229,18 @@ export default function RevenueChart() {
             <BarChart3 className="h-4 w-4 text-blue-600" />
           </div>
           <div>
-            <h2 className="text-base font-semibold text-slate-800">Doanh Thu &amp; Đơn Hàng theo tháng</h2>
-            <p className="text-[11px] text-slate-400">Nguồn: Odoo ERP · Doanh thu MBC + Đơn MBI</p>
+            <h2 className="text-base font-semibold text-slate-800">{t("overview.revchart.title")}</h2>
+            <p className="text-[11px] text-slate-400">{t("overview.revchart.source")}</p>
           </div>
         </div>
 
         <div className="flex items-center gap-2 sm:ml-auto flex-wrap">
           {hasKpi && (
             <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl">
-              {([["value", "Giá trị"], ["pct", "% đạt KPI"]] as const).map(([k, l]) => (
+              {([["value", "overview.revchart.modeValue"], ["pct", "overview.revchart.modePct"]] as const).map(([k, l]) => (
                 <button key={k} onClick={() => setChartMode(k)}
                   className={cn("px-3 py-1.5 rounded-lg text-xs font-semibold transition-all", chartMode === k ? "bg-white text-violet-700 shadow-sm" : "text-slate-500 hover:text-slate-700")}>
-                  {l}
+                  {t(l)}
                 </button>
               ))}
             </div>
@@ -243,7 +257,7 @@ export default function RevenueChart() {
                     : "text-slate-500 hover:text-slate-700"
                 )}
               >
-                {r.label}
+                {t(r.label)}
               </button>
             ))}
             <button
@@ -253,14 +267,14 @@ export default function RevenueChart() {
                 mode === "range" ? "bg-white text-blue-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
               )}
             >
-              <Calendar className="h-3 w-3" /> Tùy chọn
+              <Calendar className="h-3 w-3" /> {t("overview.revchart.custom")}
             </button>
           </div>
           <button
             onClick={fetchData}
             disabled={loading}
             className="p-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 transition-colors disabled:opacity-50"
-            aria-label="Làm mới"
+            aria-label={t("overview.revchart.refresh")}
           >
             <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
           </button>
@@ -271,7 +285,7 @@ export default function RevenueChart() {
       {mode === "range" && (
         <div className="flex flex-wrap items-end gap-3 mb-4 rounded-xl border border-slate-100 bg-slate-50/60 p-3">
           <div>
-            <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Từ tháng</label>
+            <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">{t("overview.revchart.fromMonth")}</label>
             <input
               type="month"
               value={fromMonth}
@@ -282,7 +296,7 @@ export default function RevenueChart() {
           </div>
           <span className="pb-2 text-slate-400">→</span>
           <div>
-            <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Đến tháng</label>
+            <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">{t("overview.revchart.toMonth")}</label>
             <input
               type="month"
               value={toMonth}
@@ -291,7 +305,7 @@ export default function RevenueChart() {
               className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:border-blue-400"
             />
           </div>
-          <p className="pb-2 text-[11px] text-slate-400">Tối đa 24 tháng</p>
+          <p className="pb-2 text-[11px] text-slate-400">{t("overview.revchart.max24")}</p>
         </div>
       )}
 
@@ -300,21 +314,21 @@ export default function RevenueChart() {
         <div className="grid grid-cols-3 gap-3 mb-5">
           <SummaryStat
             icon={<TrendingUp className="h-3.5 w-3.5" />}
-            label="Tổng doanh thu MBC"
+            label={t("overview.revchart.sumRevenue")}
             value={loading ? null : fmtVND(data?.totalRevenue ?? 0)}
             accent="text-blue-600 bg-blue-50"
           />
           <SummaryStat
             icon={<BarChart3 className="h-3.5 w-3.5" />}
-            label="TB DT MBC / tháng"
+            label={t("overview.revchart.sumAvg")}
             value={loading ? null : fmtVND(data?.avgRevenue ?? 0)}
             accent="text-violet-600 bg-violet-50"
             trend={!loading && trend !== 0 ? trend : undefined}
           />
           <SummaryStat
             icon={<ShoppingCart className="h-3.5 w-3.5" />}
-            label="Tổng đơn MBI"
-            value={loading ? null : (data?.totalOrders ?? 0).toLocaleString("vi-VN")}
+            label={t("overview.revchart.sumOrders")}
+            value={loading ? null : (data?.totalOrders ?? 0).toLocaleString(loc)}
             accent="text-emerald-600 bg-emerald-50"
           />
         </div>
@@ -324,13 +338,13 @@ export default function RevenueChart() {
       {error ? (
         <div className="h-[300px] flex flex-col items-center justify-center text-center gap-2">
           <AlertTriangle className="h-6 w-6 text-amber-500" />
-          <p className="text-sm font-semibold text-slate-600">Không tải được doanh thu</p>
+          <p className="text-sm font-semibold text-slate-600">{t("overview.revchart.loadFail")}</p>
           <p className="text-xs text-slate-400 max-w-sm">{error}</p>
           <button
             onClick={fetchData}
             className="mt-1 text-xs font-semibold text-blue-600 hover:text-blue-700"
           >
-            Thử lại
+            {t("overview.revchart.retry")}
           </button>
         </div>
       ) : loading ? (
@@ -342,8 +356,8 @@ export default function RevenueChart() {
       ) : chartData.length === 0 ? (
         <div className="h-[300px] flex flex-col items-center justify-center text-center gap-2">
           <BarChart3 className="h-6 w-6 text-slate-300" />
-          <p className="text-sm font-semibold text-slate-500">Chưa có dữ liệu doanh thu</p>
-          <p className="text-xs text-slate-400 max-w-sm">Đổi khoảng thời gian hoặc kiểm tra kết nối Odoo ở Settings.</p>
+          <p className="text-sm font-semibold text-slate-500">{t("overview.revchart.empty")}</p>
+          <p className="text-xs text-slate-400 max-w-sm">{t("overview.revchart.emptyHint")}</p>
         </div>
       ) : chartMode === "pct" ? (
         <div className="h-[300px]">
@@ -358,10 +372,10 @@ export default function RevenueChart() {
                 labelStyle={{ color: "#64748b", fontWeight: 600 }}
                 contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 12 }}
               />
-              <Line type="monotone" dataKey="revenuePct" name="% DT MBC" stroke="#2563eb" strokeWidth={2.5} dot={{ r: 3, fill: "#2563eb", strokeWidth: 0 }} connectNulls animationDuration={600}>
+              <Line type="monotone" dataKey="revenuePct" name={t("overview.revchart.pctRevenueName")} stroke="#2563eb" strokeWidth={2.5} dot={{ r: 3, fill: "#2563eb", strokeWidth: 0 }} connectNulls animationDuration={600}>
                 <LabelList dataKey="revenuePct" position="top" offset={8} formatter={(v) => v != null ? `${v}%` : ""} style={{ fontSize: 10, fontWeight: 700, fill: "#1e3a8a" }} />
               </Line>
-              <Line type="monotone" dataKey="ordersPct" name="% Đơn MBI" stroke="#10b981" strokeWidth={2.5} dot={{ r: 3, fill: "#10b981", strokeWidth: 0 }} connectNulls animationDuration={600}>
+              <Line type="monotone" dataKey="ordersPct" name={t("overview.revchart.pctOrdersName")} stroke="#10b981" strokeWidth={2.5} dot={{ r: 3, fill: "#10b981", strokeWidth: 0 }} connectNulls animationDuration={600}>
                 <LabelList dataKey="ordersPct" position="bottom" offset={8} formatter={(v) => v != null ? `${v}%` : ""} style={{ fontSize: 10, fontWeight: 700, fill: "#047857" }} />
               </Line>
             </ComposedChart>
@@ -384,7 +398,7 @@ export default function RevenueChart() {
                 axisLine={false}
                 tickLine={false}
                 tick={{ fontSize: 10, fill: "#94a3b8" }}
-                tickFormatter={(v: number) => fmtAxis(v)}
+                tickFormatter={(v: number) => fmtAxis(v, t)}
                 width={56}
               />
               <YAxis yAxisId="right" orientation="right" hide />
@@ -410,7 +424,7 @@ export default function RevenueChart() {
                   dataKey="revenue"
                   position="top"
                   offset={8}
-                  formatter={(v) => Number(v).toLocaleString("vi-VN")}
+                  formatter={(v) => Number(v).toLocaleString(loc)}
                   style={{ fontSize: 10, fontWeight: 700, fill: "#1e3a8a" }}
                 />
               </Bar>
@@ -426,7 +440,7 @@ export default function RevenueChart() {
                   dataKey="orders"
                   position="top"
                   offset={8}
-                  formatter={(v) => Number(v).toLocaleString("vi-VN")}
+                  formatter={(v) => Number(v).toLocaleString(loc)}
                   style={{ fontSize: 10, fontWeight: 700, fill: "#047857" }}
                 />
               </Bar>
@@ -449,20 +463,20 @@ export default function RevenueChart() {
       {/* ── Legend ── */}
       {!error && !loading && chartMode === "pct" ? (
         <div className="flex items-center justify-center gap-5 mt-3 text-[11px] text-slate-500">
-          <span className="flex items-center gap-1.5"><span className="inline-block w-4 border-t-2 border-blue-600" /> % đạt DT MBC</span>
-          <span className="flex items-center gap-1.5"><span className="inline-block w-4 border-t-2 border-emerald-500" /> % đạt Đơn MBI</span>
-          <span className="flex items-center gap-1.5"><span className="inline-block w-4 border-t-2 border-dashed border-slate-400" /> Mốc KPI 100%</span>
+          <span className="flex items-center gap-1.5"><span className="inline-block w-4 border-t-2 border-blue-600" /> {t("overview.revchart.legPctRevenue")}</span>
+          <span className="flex items-center gap-1.5"><span className="inline-block w-4 border-t-2 border-emerald-500" /> {t("overview.revchart.legPctOrders")}</span>
+          <span className="flex items-center gap-1.5"><span className="inline-block w-4 border-t-2 border-dashed border-slate-400" /> {t("overview.revchart.legKpi100")}</span>
         </div>
       ) : !error && !loading && (
         <div className="flex items-center justify-center gap-5 mt-3 text-[11px] text-slate-500">
           <span className="flex items-center gap-1.5">
-            <span className="inline-block w-3 h-2 rounded-sm bg-blue-600" /> Doanh thu MBC (VND)
+            <span className="inline-block w-3 h-2 rounded-sm bg-blue-600" /> {t("overview.revchart.legRevenue")}
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="inline-block w-3 h-2 rounded-sm bg-emerald-500" /> Đơn hàng MBI
+            <span className="inline-block w-3 h-2 rounded-sm bg-emerald-500" /> {t("overview.revchart.legOrders")}
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="inline-block w-4 border-t-2 border-dashed border-slate-400" /> KPI mục tiêu
+            <span className="inline-block w-4 border-t-2 border-dashed border-slate-400" /> {t("overview.revchart.legTarget")}
           </span>
         </div>
       )}

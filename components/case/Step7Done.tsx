@@ -12,6 +12,8 @@ import { postJson, ApiError } from "./api";
 import type { CampaignCase } from "@/lib/case/store";
 import { NextStepsPanel } from "./NextStepsPanel";
 import { evidenceGoalKind } from "@/lib/case/goal-kind";
+import { useT } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/messages";
 
 const cpa = (n: number | null | undefined) => (n === null || n === undefined ? "—" : vnd(n));
 const freq = (n: number | null | undefined) => (n === null || n === undefined || !Number.isFinite(n) ? "—" : n.toFixed(2));
@@ -22,41 +24,41 @@ function ddmm(ymd: string): string {
   return `${d}/${m}`;
 }
 
-const MOC_LABELS = ["sau 7 ngày", "sau 14 ngày"];
+const MOC_LABELS: MessageKey[] = ["overview.step7.moc.7", "overview.step7.moc.14"];
 
 /** Đợt 6 · B2 — phiên Facebook có tạo nhóm mới (adset_created): mỗi mốc đo lại
  *  ĐÃ đo sẽ có thêm newCost/oldCost… trong `result` (xem lib/case/service.ts
  *  newAdsetComparison). Phát hiện qua chính `result` — không tự suy đoán field khác. */
 const hasAdsetKeys = (result?: Record<string, number | null>): boolean => !!result && "newCost" in result;
 
-interface RemeasureColumn { key: string; label: string; fmt: (n: number | null | undefined) => string }
+interface RemeasureColumn { key: string; label: MessageKey; fmt: (n: number | null | undefined) => string }
 
 const GOOGLE_REMEASURE_COLUMNS: RemeasureColumn[] = [
-  { key: "cost", label: "Chi phí", fmt: vnd },
-  { key: "orders", label: "Đơn", fmt: num },
-  { key: "cpa", label: "Chi phí/đơn", fmt: cpa },
-  { key: "competitorSpend", label: "Tiền vào đối thủ", fmt: vnd },
+  { key: "cost", label: "overview.step7.col.cost", fmt: vnd },
+  { key: "orders", label: "overview.step7.col.orders", fmt: num },
+  { key: "cpa", label: "overview.step7.col.cpo", fmt: cpa },
+  { key: "competitorSpend", label: "overview.step7.col.competitor", fmt: vnd },
 ];
 
 const META_REMEASURE_COLUMNS: RemeasureColumn[] = [
-  { key: "cost", label: "Chi phí", fmt: vnd },
-  { key: "orders", label: "Lượt mua", fmt: num },
-  { key: "cpa", label: "Chi phí/lượt mua", fmt: cpa },
-  { key: "orderValue", label: "Doanh thu Meta", fmt: vnd },
-  { key: "frequency", label: "Tần suất", fmt: freq },
+  { key: "cost", label: "overview.step7.col.cost", fmt: vnd },
+  { key: "orders", label: "overview.step7.col.purchases", fmt: num },
+  { key: "cpa", label: "overview.step7.col.cpp", fmt: cpa },
+  { key: "orderValue", label: "overview.step7.col.metaRevenue", fmt: vnd },
+  { key: "frequency", label: "overview.step7.col.frequency", fmt: freq },
 ];
 // Đợt 23 (3d): phiên thu lead — "orders"/"cpa" của kết quả đo lại là lead / chi phí mỗi lead.
 const META_LEAD_REMEASURE_COLUMNS: RemeasureColumn[] = [
-  { key: "cost", label: "Chi phí", fmt: vnd },
-  { key: "orders", label: "Lead", fmt: num },
-  { key: "cpa", label: "Chi phí/lead", fmt: cpa },
-  { key: "frequency", label: "Tần suất", fmt: freq },
+  { key: "cost", label: "overview.step7.col.cost", fmt: vnd },
+  { key: "orders", label: "overview.step7.col.leads", fmt: num },
+  { key: "cpa", label: "overview.step7.col.cpl", fmt: cpa },
+  { key: "frequency", label: "overview.step7.col.frequency", fmt: freq },
 ];
 const GOOGLE_LEAD_REMEASURE_COLUMNS: RemeasureColumn[] = [
-  { key: "cost", label: "Chi phí", fmt: vnd },
-  { key: "orders", label: "Lead", fmt: num },
-  { key: "cpa", label: "Chi phí/lead", fmt: cpa },
-  { key: "competitorSpend", label: "Tiền vào đối thủ", fmt: vnd },
+  { key: "cost", label: "overview.step7.col.cost", fmt: vnd },
+  { key: "orders", label: "overview.step7.col.leads", fmt: num },
+  { key: "cpa", label: "overview.step7.col.cpl", fmt: cpa },
+  { key: "competitorSpend", label: "overview.step7.col.competitor", fmt: vnd },
 ];
 
 export function Step7Done({
@@ -68,13 +70,14 @@ export function Step7Done({
   onRefresh: (next: CampaignCase) => void;
   onBack: () => void;
 }) {
+  const t = useT();
   const [closing, setClosing] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   const selected = c.actions.filter((a) => a.selected);
   const hasDone = c.executions.some((e) => e.status === "done");
   const doneCount = hasDone ? selected.length : 0;
-  const openTasks = c.manualTasks.filter((t) => t.status === "open").length;
+  const openTasks = c.manualTasks.filter((mt) => mt.status === "open").length;
   const doneTasks = c.manualTasks.length - openTasks;
   const leads = evidenceGoalKind(c.evidence) === "leads";
   const remeasureColumns = c.platform === "facebook"
@@ -88,7 +91,7 @@ export function Step7Done({
       const json = await postJson(`/api/cases/${c.id}/close`);
       onRefresh(json.case);
     } catch (e) {
-      setErr(e instanceof ApiError ? e.message : "Không đóng được phiên");
+      setErr(e instanceof ApiError ? e.message : t("overview.step7.err.close"));
     } finally {
       setClosing(false);
     }
@@ -97,25 +100,25 @@ export function Step7Done({
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Kpi label="Việc tool đã làm" value={`${doneCount}/${selected.length}`} />
-        <Kpi label="Việc giao cho người" value={`${openTasks} chưa xong`} sub={c.manualTasks.length > 0 ? `${doneTasks}/${c.manualTasks.length} đã xong` : undefined} />
+        <Kpi label={t("overview.step7.kpi.toolDone")} value={`${doneCount}/${selected.length}`} />
+        <Kpi label={t("overview.step7.kpi.assigned")} value={t("overview.step7.kpi.openTasks", { n: openTasks })} sub={c.manualTasks.length > 0 ? t("overview.step7.kpi.tasksDone", { done: doneTasks, total: c.manualTasks.length }) : undefined} />
         {c.remeasure.map((r, i) => (
-          <Kpi key={i} label={`Đo lại lần ${i + 1}`} value={ddmmyyyy(r.due)} sub={r.status === "done" ? "Đã đo" : "Đang chờ"} />
+          <Kpi key={i} label={t("overview.step7.kpi.remeasureN", { n: i + 1 })} value={ddmmyyyy(r.due)} sub={r.status === "done" ? t("overview.step7.measured") : t("overview.step7.pending")} />
         ))}
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-        <div className="border-b border-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-800">Phiên này có hiệu quả không? — tự đo lại</div>
+        <div className="border-b border-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-800">{t("overview.step7.effect")}</div>
         {c.remeasure.length === 0 ? (
-          <p className="px-4 py-4 text-sm text-slate-400">Chưa có lịch đo lại — lịch được tạo sau lần thực hiện thật đầu tiên.</p>
+          <p className="px-4 py-4 text-sm text-slate-400">{t("overview.step7.noSchedule")}</p>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100 text-left text-xs text-slate-500">
-                <th className="px-4 py-2 font-medium">Đo lại</th>
-                <th className="px-3 py-2 font-medium">Trạng thái</th>
+                <th className="px-4 py-2 font-medium">{t("overview.step7.th.remeasure")}</th>
+                <th className="px-3 py-2 font-medium">{t("overview.step7.th.status")}</th>
                 {remeasureColumns.map((col) => (
-                  <th key={col.key} className="px-3 py-2 text-right font-medium">{col.label}</th>
+                  <th key={col.key} className="px-3 py-2 text-right font-medium">{t(col.label)}</th>
                 ))}
               </tr>
             </thead>
@@ -125,9 +128,9 @@ export function Step7Done({
                   <td className="px-4 py-2.5 text-slate-800">{ddmmyyyy(r.due)}</td>
                   <td className="px-3 py-2.5">
                     {r.status === "done" ? (
-                      <span className="inline-flex items-center gap-1 text-emerald-700"><CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" /> Đã đo</span>
+                      <span className="inline-flex items-center gap-1 text-emerald-700"><CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" /> {t("overview.step7.measured")}</span>
                     ) : (
-                      <span className="text-slate-400">chờ {ddmmyyyy(r.due)}</span>
+                      <span className="text-slate-400">{t("overview.step7.waiting", { date: ddmmyyyy(r.due) })}</span>
                     )}
                   </td>
                   {r.status === "done" && r.result ? (
@@ -137,7 +140,7 @@ export function Step7Done({
                       ))}
                     </>
                   ) : (
-                    <td className="px-3 py-2.5 text-slate-400" colSpan={remeasureColumns.length}>chờ {ddmmyyyy(r.due)}</td>
+                    <td className="px-3 py-2.5 text-slate-400" colSpan={remeasureColumns.length}>{t("overview.step7.waiting", { date: ddmmyyyy(r.due) })}</td>
                   )}
                 </tr>
               ))}
@@ -146,7 +149,7 @@ export function Step7Done({
         )}
         <div className="flex items-start gap-2 border-t border-slate-100 bg-slate-50/60 px-4 py-2.5 text-xs text-slate-500">
           <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          Số &quot;sau&quot; chỉ hiện khi đã tới ngày đo — không ước đoán trước. Nếu sau lần đo cuối không cải thiện, phiên tự mở lại ở bước 4.
+          {t("overview.step7.note")}
         </div>
       </div>
 
@@ -155,7 +158,7 @@ export function Step7Done({
       {c.platform === "facebook" && c.remeasure.some((r) => r.status === "done" && hasAdsetKeys(r.result)) && (
         <div className="space-y-4">
           {c.remeasure.slice(0, 2).map((r, i) => (
-            <AdsetComparisonCard key={i} label={MOC_LABELS[i]} r={r} />
+            <AdsetComparisonCard key={i} label={t(MOC_LABELS[i])} r={r} />
           ))}
         </div>
       )}
@@ -163,11 +166,11 @@ export function Step7Done({
       {err && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{err}</div>}
 
       <div className="flex justify-between">
-        <Button className="h-10" variant="outline" onClick={onBack}>← Bước 6</Button>
+        <Button className="h-10" variant="outline" onClick={onBack}>{t("overview.step7.back")}</Button>
         <div className="flex gap-2">
           {c.status !== "done" && (
             <Button className="h-10" onClick={closeCase} disabled={closing}>
-              {closing && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} Đóng phiên
+              {closing && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} {t("overview.step7.closeCase")}
             </Button>
           )}
         </div>
@@ -188,36 +191,37 @@ function Kpi({ label, value, sub }: { label: string; value: string; sub?: string
 
 /** Đợt 6 · B2 — bảng "Nhóm mới vs Nhóm cũ" cho một mốc đo lại (7 hoặc 14 ngày). */
 function AdsetComparisonCard({ label, r }: { label: string; r: CampaignCase["remeasure"][number] }) {
+  const t = useT();
   const result = r.status === "done" ? r.result : undefined;
   const done = hasAdsetKeys(result);
 
   return (
     <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-      <div className="border-b border-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-800">Nhóm mới vs Nhóm cũ — {label}</div>
+      <div className="border-b border-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-800">{t("overview.step7.cmp.title", { label })}</div>
       {!done ? (
-        <p className="px-4 py-4 text-sm text-slate-400">Chưa tới ngày {ddmm(r.due)}</p>
+        <p className="px-4 py-4 text-sm text-slate-400">{t("overview.step7.cmp.notYet", { date: ddmm(r.due) })}</p>
       ) : (
         <>
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100 text-left text-xs text-slate-500">
-                <th className="px-4 py-2 font-medium">Nhóm</th>
-                <th className="px-3 py-2 text-right font-medium">Chi phí</th>
-                <th className="px-3 py-2 font-medium">Kết quả (sự kiện tối ưu)</th>
-                <th className="px-3 py-2 text-right font-medium">Chi phí/kết quả</th>
-                <th className="px-3 py-2 text-right font-medium">Lượt mua</th>
+                <th className="px-4 py-2 font-medium">{t("overview.step7.cmp.adset")}</th>
+                <th className="px-3 py-2 text-right font-medium">{t("overview.step7.col.cost")}</th>
+                <th className="px-3 py-2 font-medium">{t("overview.step7.cmp.results")}</th>
+                <th className="px-3 py-2 text-right font-medium">{t("overview.step7.cmp.cpr")}</th>
+                <th className="px-3 py-2 text-right font-medium">{t("overview.step7.col.purchases")}</th>
               </tr>
             </thead>
             <tbody>
               <tr className="border-b border-slate-50">
-                <td className="px-4 py-2.5 font-semibold text-slate-800">Nhóm mới</td>
+                <td className="px-4 py-2.5 font-semibold text-slate-800">{t("overview.step7.cmp.new")}</td>
                 <td className="px-3 py-2.5 text-right tabular-nums">{cpa(result!.newCost)}</td>
                 <td className="px-3 py-2.5 tabular-nums">{num(result!.newResults)}</td>
                 <td className="px-3 py-2.5 text-right tabular-nums">{cpa(result!.newCostPerResult)}</td>
                 <td className="px-3 py-2.5 text-right tabular-nums">{num(result!.newPurchases)}</td>
               </tr>
               <tr>
-                <td className="px-4 py-2.5 font-semibold text-slate-800">Nhóm cũ</td>
+                <td className="px-4 py-2.5 font-semibold text-slate-800">{t("overview.step7.cmp.old")}</td>
                 <td className="px-3 py-2.5 text-right tabular-nums">{cpa(result!.oldCost)}</td>
                 <td className="px-3 py-2.5 tabular-nums">{num(result!.oldResults)}</td>
                 <td className="px-3 py-2.5 text-right tabular-nums">{cpa(result!.oldCostPerResult)}</td>
@@ -233,13 +237,14 @@ function AdsetComparisonCard({ label, r }: { label: string; r: CampaignCase["rem
 }
 
 function AdsetVerdictLine({ result, label }: { result: Record<string, number | null>; label: string }) {
+  const t = useT();
   const n = result.newCostPerResult, o = result.oldCostPerResult;
   if (n === null || n === undefined || o === null || o === undefined || !o) return null;
   const pctChange = Math.round(((n - o) / o) * 100);
   const cheaper = pctChange <= 0;
   return (
     <div className={`border-t border-slate-100 px-4 py-2.5 text-sm ${cheaper ? "text-emerald-700" : "text-red-700"}`}>
-      <b>Nhóm mới {cheaper ? `rẻ hơn ${Math.abs(pctChange)}%` : `đắt hơn ${pctChange}%`} mỗi kết quả</b> — {vnd(o)} → {vnd(n)} mỗi kết quả {label}.
+      <b>{cheaper ? t("overview.step7.verdict.cheaper", { pct: Math.abs(pctChange) }) : t("overview.step7.verdict.pricier", { pct: pctChange })}</b> — {t("overview.step7.verdict.tail", { old: vnd(o), new: vnd(n), label })}
     </div>
   );
 }

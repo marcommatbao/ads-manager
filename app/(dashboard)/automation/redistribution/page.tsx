@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useIntlLocale, useT } from "@/lib/i18n/client";
 
 interface BudgetEvent {
   date?: string;
@@ -32,14 +33,14 @@ function PlatformBadge({ platform }: { platform?: string }) {
   );
 }
 
-function formatVND(value?: number): string {
+function formatVND(value: number | undefined, loc: string): string {
   if (value == null) return "—";
-  return value.toLocaleString("vi-VN") + "đ";
+  return value.toLocaleString(loc) + "đ";
 }
 
-function formatDate(value?: string): string {
+function formatDate(value: string | undefined, loc: string): string {
   if (!value) return "—";
-  return new Date(value).toLocaleDateString("vi-VN", {
+  return new Date(value).toLocaleDateString(loc, {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -47,6 +48,8 @@ function formatDate(value?: string): string {
 }
 
 export default function RedistributionPage() {
+  const t = useT();
+  const loc = useIntlLocale();
   const [events, setEvents] = useState<BudgetEvent[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -77,10 +80,10 @@ export default function RedistributionPage() {
           <div className="rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 p-2.5 shadow-lg shadow-emerald-200">
             <RefreshCw className="h-5 w-5 text-white" />
           </div>
-          Budget Redistribution
+          {t("creative.redistribution.title")}
         </h1>
         <p className="text-sm text-slate-500 mt-1">
-          Lịch sử phân bổ ngân sách tự động giữa các chiến dịch
+          {t("creative.redistribution.subtitle")}
         </p>
       </div>
 
@@ -107,10 +110,10 @@ export default function RedistributionPage() {
         <div className="flex flex-col items-center justify-center py-20 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/50">
           <RefreshCw className="h-12 w-12 text-slate-300 mb-4" />
           <p className="text-sm font-semibold text-slate-500">
-            Chưa có sự kiện phân bổ ngân sách nào
+            {t("creative.redistribution.emptyTitle")}
           </p>
           <p className="text-xs text-slate-400 mt-1">
-            Hệ thống sẽ ghi lại khi có thay đổi ngân sách tự động.
+            {t("creative.redistribution.emptyHint")}
           </p>
         </div>
       ) : (
@@ -118,13 +121,13 @@ export default function RedistributionPage() {
           <table className="w-full text-left border-collapse">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                {["Ngày", "Chiến dịch", "Ngân sách", "Nền tảng"].map(
+                {(["creative.redistribution.colDate", "creative.redistribution.colCampaign", "creative.redistribution.colBudget", "creative.redistribution.colPlatform"] as const).map(
                   (col) => (
                     <th
                       key={col}
                       className="px-5 py-3.5 text-[10px] font-bold uppercase tracking-wider text-slate-400"
                     >
-                      {col}
+                      {t(col)}
                     </th>
                   )
                 )}
@@ -137,7 +140,7 @@ export default function RedistributionPage() {
                   className="hover:bg-slate-50/50 transition-colors"
                 >
                   <td className="px-5 py-4 text-xs text-slate-500 whitespace-nowrap">
-                    {formatDate(ev.date ?? ev.appliedAt)}
+                    {formatDate(ev.date ?? ev.appliedAt, loc)}
                   </td>
                   <td className="px-5 py-4 text-sm font-medium text-slate-800">
                     {ev.campaignName ?? ev.campaign ?? "—"}
@@ -145,11 +148,11 @@ export default function RedistributionPage() {
                   <td className="px-5 py-4">
                     <div className="flex items-center gap-2 text-xs">
                       <span className="text-slate-400 line-through">
-                        {formatVND(ev.oldBudget)}
+                        {formatVND(ev.oldBudget, loc)}
                       </span>
                       <span className="text-slate-400">→</span>
                       <span className="font-bold text-amber-700">
-                        {formatVND(ev.newBudget)}
+                        {formatVND(ev.newBudget, loc)}
                       </span>
                     </div>
                   </td>

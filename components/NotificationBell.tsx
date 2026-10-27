@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from "react";
 import { Bell, Check, CheckCheck, ExternalLink, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
+import { useT } from "@/lib/i18n/client";
+import type { TFunction } from "@/lib/i18n/translate";
 
 interface AlertItem {
   id: string;
@@ -24,17 +26,17 @@ interface AlertItem {
 
 const CPL_ALERT_TYPES = new Set(["cpl_critical", "cpl_warning"]);
 
-function timeAgo(dateStr: string): string {
+function timeAgo(dateStr: string, t: TFunction): string {
   const now = Date.now();
   const then = new Date(dateStr).getTime();
   const diffMs = now - then;
   const mins = Math.floor(diffMs / 60000);
-  if (mins < 1) return "Vừa xong";
-  if (mins < 60) return `${mins} phút trước`;
+  if (mins < 1) return t("panels.bell.justNow");
+  if (mins < 60) return t("panels.bell.minAgo", { n: mins });
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours} giờ trước`;
+  if (hours < 24) return t("panels.bell.hourAgo", { n: hours });
   const days = Math.floor(hours / 24);
-  return `${days} ngày trước`;
+  return t("panels.bell.dayAgo", { n: days });
 }
 
 const SEVERITY_ICON: Record<string, { dot: string; ringColor: string }> = {
@@ -44,6 +46,7 @@ const SEVERITY_ICON: Record<string, { dot: string; ringColor: string }> = {
 };
 
 export default function NotificationBell() {
+  const t = useT();
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [open, setOpen] = useState(false);
@@ -118,7 +121,7 @@ export default function NotificationBell() {
             : "text-slate-400 hover:bg-slate-100 hover:text-slate-600",
           hasCritical && "animate-pulse"
         )}
-        aria-label="Notifications"
+        aria-label={t("panels.bell.aria")}
       >
         <Bell size={18} />
         {unreadCount > 0 && (
@@ -134,7 +137,7 @@ export default function NotificationBell() {
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50">
             <h3 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
-              🔔 Thông báo
+              {t("panels.bell.title")}
             </h3>
             {unreadCount > 0 && (
               <button
@@ -142,7 +145,7 @@ export default function NotificationBell() {
                 disabled={loading}
                 className="text-[11px] font-semibold text-amber-700 hover:text-amber-800 flex items-center gap-1"
               >
-                <CheckCheck className="h-3 w-3" /> Đọc tất cả
+                <CheckCheck className="h-3 w-3" /> {t("panels.bell.markAll")}
               </button>
             )}
           </div>
@@ -151,7 +154,7 @@ export default function NotificationBell() {
           <div className="max-h-[400px] overflow-y-auto divide-y divide-slate-100">
             {alerts.length === 0 ? (
               <div className="py-10 text-center">
-                <p className="text-sm text-slate-400">Không có thông báo mới 🎉</p>
+                <p className="text-sm text-slate-400">{t("panels.bell.empty")}</p>
               </div>
             ) : (
               alerts.slice(0, 5).map((alert) => {
@@ -172,7 +175,7 @@ export default function NotificationBell() {
                         </p>
                         {CPL_ALERT_TYPES.has(alert.type) && alert.root_cause?.likely_causes?.[0] && (
                           <p className="text-[11px] text-indigo-600 mt-1 leading-snug">
-                            <span className="font-semibold">Vì sao:</span> {alert.root_cause.likely_causes[0]}
+                            <span className="font-semibold">{t("panels.bell.why")}</span> {alert.root_cause.likely_causes[0]}
                           </p>
                         )}
                         <div className="flex items-center gap-2 mt-1.5">
@@ -183,7 +186,7 @@ export default function NotificationBell() {
                             {alert.company}
                           </span>
                           <span className="text-[10px] text-slate-400">
-                            {timeAgo(alert.created_at)}
+                            {timeAgo(alert.created_at, t)}
                           </span>
                         </div>
                         <div className="flex items-center gap-2 mt-2">
@@ -191,7 +194,7 @@ export default function NotificationBell() {
                             onClick={() => handleResolve(alert.id)}
                             className="text-[10px] font-semibold text-emerald-600 hover:text-emerald-700 flex items-center gap-0.5"
                           >
-                            <Check className="h-3 w-3" /> Giải quyết
+                            <Check className="h-3 w-3" /> {t("panels.bell.resolve")}
                           </button>
                         </div>
                       </div>
@@ -209,7 +212,7 @@ export default function NotificationBell() {
               onClick={() => setOpen(false)}
               className="text-xs font-semibold text-amber-700 hover:text-amber-800 flex items-center justify-center gap-1"
             >
-              Xem tất cả thông báo <ExternalLink className="h-3 w-3" />
+              {t("panels.bell.viewAll")} <ExternalLink className="h-3 w-3" />
             </Link>
           </div>
         </div>

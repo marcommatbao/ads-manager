@@ -27,21 +27,29 @@ import type { CardTone, FixItem, HealthOverview, StatusCard } from "@/lib/overvi
 import type { ChangeLevel, MonitorChange } from "@/lib/monitor/measure-monitor";
 import type { LeadFlow, LeadFlowStatus } from "@/lib/monitor/lead-flow";
 import { orderedCompanyIds, companyLabel } from "@/lib/companies/registry";
+import { useT } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/messages";
+import type { TFunction } from "@/lib/i18n/translate";
+
+// Chuỗi từ điển có <b>…</b> → in đậm (chỉ chuỗi tĩnh do mình viết trong lib/i18n/messages).
+function rich(s: string, cls?: string): React.ReactNode[] {
+  return s.split(/<b>(.*?)<\/b>/).map((part, i) => (i % 2 ? <b key={i} className={cls}>{part}</b> : part));
+}
 
 type CompanyFilter = string /* mã công ty hoặc "ALL" */;
 type HealthResponse = { success: true } & HealthOverview;
 
-const TONE_PILL: Record<CardTone, { tone: PillTone; text: string }> = {
-  ok: { tone: "green", text: "✓ Ổn" },
-  warn: { tone: "amber", text: "⚠ Cần chú ý" },
-  bad: { tone: "red", text: "✕ Cần sửa" },
-  unknown: { tone: "grey", text: "? Không đọc được" },
+const TONE_PILL: Record<CardTone, { tone: PillTone; text: MessageKey }> = {
+  ok: { tone: "green", text: "overview.healthtab.tone.ok" },
+  warn: { tone: "amber", text: "overview.healthtab.tone.warn" },
+  bad: { tone: "red", text: "overview.healthtab.tone.bad" },
+  unknown: { tone: "grey", text: "overview.healthtab.tone.unknown" },
 };
 
-const RANK_LABEL: Record<FixItem["rank"], string> = {
-  measurement: "Đo lường",
-  money: "Tiền",
-  overdue: "Quá hạn",
+const RANK_LABEL: Record<FixItem["rank"], MessageKey> = {
+  measurement: "overview.healthtab.rank.measurement",
+  money: "overview.healthtab.rank.money",
+  overdue: "overview.healthtab.rank.overdue",
 };
 const RANK_TONE: Record<FixItem["rank"], PillTone> = {
   measurement: "red",
@@ -50,6 +58,7 @@ const RANK_TONE: Record<FixItem["rank"], PillTone> = {
 };
 
 export function HealthOverviewTab() {
+  const t = useT();
   const { user } = useSession();
   const allowedCompanies = resolveCompanyScope(user?.companies, user?.role);
   const [companyFilter, setCompanyFilter] = useState<CompanyFilter>("ALL");
@@ -66,13 +75,13 @@ export function HealthOverviewTab() {
       setData(json);
     } catch (e) {
       // "Kéo lại" hỏng cũng KHÔNG giữ số cũ trên màn — số cũ có thể đã lỗi thời.
-      setError(e instanceof ApiError ? e.message : "Không tải được tình trạng & cảnh báo");
+      setError(e instanceof ApiError ? e.message : t("overview.healthtab.loadError"));
       setData(null);
     } finally {
       setLoading(false);
       setPulling(false);
     }
-  }, [companyFilter]);
+  }, [companyFilter, t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -80,21 +89,21 @@ export function HealthOverviewTab() {
     <div className="space-y-6 pt-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-bold text-slate-900">🩺 Tình trạng &amp; cảnh báo</h2>
+          <h2 className="text-lg font-bold text-slate-900">{t("overview.healthtab.title")}</h2>
           <p className="mt-1 max-w-2xl text-sm text-slate-500">
-            Một lần nhìn biết đang hỏng gì, sửa gì trước — gộp từ Sức khoẻ đo lường, Chẩn đoán gắn thẻ, Tổng quan chiến dịch và Theo dõi phiên xử lý.
+            {t("overview.healthtab.subtitle")}
           </p>
         </div>
         <Button className="h-10" variant="outline" size="sm" onClick={() => load(true)} disabled={loading || pulling}>
-          {pulling ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />} Kéo lại
+          {pulling ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />} {t("overview.healthtab.pull")}
         </Button>
       </div>
 
       <div>
-        <div className="mb-1 text-xs font-medium text-slate-400">Công ty</div>
-        <div role="tablist" aria-label="Công ty" className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
+        <div className="mb-1 text-xs font-medium text-slate-400">{t("overview.healthtab.company")}</div>
+        <div role="tablist" aria-label={t("overview.healthtab.company")} className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
           {([
-            { value: "ALL", label: "Tất cả" },
+            { value: "ALL", label: t("overview.healthtab.all") },
             { value: "MBI", label: "MBI" },
             { value: "MBC", label: "MBC" },
           ] as const).map((f) => {
@@ -124,35 +133,35 @@ export function HealthOverviewTab() {
         <EmptyState
           icon={AlertTriangle}
           title={error}
-          description="Số cũ không hiển thị để tránh xử lý trên dữ liệu lỗi thời."
-          action={<Button className="h-10" onClick={() => load()} disabled={loading}><RefreshCw className="h-4 w-4" aria-hidden="true" /> Thử lại</Button>}
+          description={t("overview.healthtab.staleHidden")}
+          action={<Button className="h-10" onClick={() => load()} disabled={loading}><RefreshCw className="h-4 w-4" aria-hidden="true" /> {t("overview.healthtab.retry")}</Button>}
         />
       )}
 
       {!loading && !error && data && (
         <>
           <section>
-            <h3 className="mb-1 text-base font-bold text-slate-900">Thẻ tình trạng</h3>
-            <p className="mb-3 text-sm text-slate-500">Mỗi thẻ đọc từ một nguồn sẵn có, đệm dùng lại 30 phút. Nguồn nào hỏng chỉ thẻ đó báo &ldquo;Không đọc được&rdquo; — các thẻ khác vẫn hiện.</p>
+            <h3 className="mb-1 text-base font-bold text-slate-900">{t("overview.healthtab.cards.title")}</h3>
+            <p className="mb-3 text-sm text-slate-500">{t("overview.healthtab.cards.desc")}</p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
               {data.cards.map((card) => <HealthCard key={card.id} card={card} />)}
             </div>
           </section>
 
           <section>
-            <h3 className="mb-1 text-base font-bold text-slate-900">Sửa gì trước</h3>
-            <p className="mb-3 text-sm text-slate-500">Xếp theo: (a) lỗi đo lường chặn mọi thứ khác → (b) tiền chi vượt trần lớn nhất → (c) việc quá hạn.</p>
+            <h3 className="mb-1 text-base font-bold text-slate-900">{t("overview.healthtab.fixes.title")}</h3>
+            <p className="mb-3 text-sm text-slate-500">{t("overview.healthtab.fixes.desc")}</p>
             {data.fixes.length === 0 ? (
-              <p className="rounded-xl border border-dashed border-slate-200 bg-white p-4 text-sm text-slate-400">Không có gì cần sửa gấp.</p>
+              <p className="rounded-xl border border-dashed border-slate-200 bg-white p-4 text-sm text-slate-400">{t("overview.healthtab.fixes.none")}</p>
             ) : (
               <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-slate-100 text-left text-xs text-slate-500">
                       <th className="w-8 px-3 py-2 font-medium">#</th>
-                      <th className="px-3 py-2 font-medium">Vấn đề</th>
-                      <th className="px-3 py-2 font-medium">Vì sao quan trọng</th>
-                      <th className="px-3 py-2 font-medium">Gợi ý sửa</th>
+                      <th className="px-3 py-2 font-medium">{t("overview.healthtab.fixes.colIssue")}</th>
+                      <th className="px-3 py-2 font-medium">{t("overview.healthtab.fixes.colWhy")}</th>
+                      <th className="px-3 py-2 font-medium">{t("overview.healthtab.fixes.colSuggestion")}</th>
                       <th className="px-3 py-2 font-medium" />
                     </tr>
                   </thead>
@@ -161,7 +170,7 @@ export function HealthOverviewTab() {
                       <tr key={fix.id} className="border-b border-slate-50 align-top last:border-0">
                         <td className="px-3 py-2.5 tabular-nums text-slate-400">{i + 1}</td>
                         <td className="px-3 py-2.5">
-                          <Pill tone={RANK_TONE[fix.rank]} className="mb-1">{RANK_LABEL[fix.rank]}</Pill>
+                          <Pill tone={RANK_TONE[fix.rank]} className="mb-1">{t(RANK_LABEL[fix.rank])}</Pill>
                           <div className="font-semibold text-slate-900">{fix.title}</div>
                           {fix.money !== undefined && <div className="mt-0.5 text-xs font-semibold tabular-nums text-red-600">{vnd(fix.money)}</div>}
                         </td>
@@ -181,8 +190,8 @@ export function HealthOverviewTab() {
           </section>
 
           <section>
-            <h3 className="mb-1 text-base font-bold text-slate-900">Điểm cần lưu ý</h3>
-            <p className="mb-3 text-sm text-slate-500">Không phải lỗi — nhưng phải biết khi đọc số ở các trang khác.</p>
+            <h3 className="mb-1 text-base font-bold text-slate-900">{t("overview.healthtab.notes.title")}</h3>
+            <p className="mb-3 text-sm text-slate-500">{t("overview.healthtab.notes.desc")}</p>
             <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
               {data.notes.map((n, i) => <div key={i}>ℹ {n}</div>)}
             </div>
@@ -213,16 +222,17 @@ interface LeadFlowsResponse {
   jobId: string;
 }
 
-const LEAD_STATUS_PILL: Record<LeadFlowStatus["status"], { tone: PillTone; text: string }> = {
-  ok: { tone: "green", text: "✓ Bình thường" },
-  broken: { tone: "red", text: "✕ ĐỨT" },
-  quiet: { tone: "grey", text: "◌ Yên" },
-  error: { tone: "amber", text: "? Không kiểm được" },
+const LEAD_STATUS_PILL: Record<LeadFlowStatus["status"], { tone: PillTone; text: MessageKey }> = {
+  ok: { tone: "green", text: "overview.healthtab.lead.status.ok" },
+  broken: { tone: "red", text: "overview.healthtab.lead.status.broken" },
+  quiet: { tone: "grey", text: "overview.healthtab.lead.status.quiet" },
+  error: { tone: "amber", text: "overview.healthtab.lead.status.error" },
 };
 
 const EMPTY_FLOW: LeadFlow = { id: "", company: "MBI", label: "", pixelId: "", pixelEvents: [], odooSourceIlike: "", minForms: 5, minExpectedLeads: 4, quietHours: 24, enabled: true };
 
 function LeadFlowSection() {
+  const t = useT();
   const { toast } = useToast();
   const [data, setData] = useState<LeadFlowsResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -239,12 +249,12 @@ function LeadFlowSection() {
       const json = await getJson("/api/overview/lead-flows");
       setData(json);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Không tải được đường lead");
+      setError(e instanceof ApiError ? e.message : t("overview.healthtab.lead.loadError"));
       setData(null);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -260,10 +270,10 @@ function LeadFlowSection() {
     setRunning(true);
     try {
       await postJson(`/api/jobs/${data.jobId}/trigger`);
-      toast({ title: "✅ Đã kiểm xong đường lead" });
+      toast({ title: t("overview.healthtab.lead.checkedToast") });
       await load();
     } catch (e) {
-      toast({ title: e instanceof ApiError ? `❌ ${e.message}` : "❌ Không chạy được job", variant: "error" });
+      toast({ title: e instanceof ApiError ? `❌ ${e.message}` : t("overview.healthtab.jobFailed"), variant: "error" });
     } finally {
       setRunning(false);
     }
@@ -285,10 +295,10 @@ function LeadFlowSection() {
     try {
       await putJson("/api/overview/lead-flows", { flows: draft });
       setEditing(false);
-      toast({ title: "✅ Đã lưu cấu hình đường lead" });
+      toast({ title: t("overview.healthtab.lead.savedToast") });
       await load();
     } catch (e) {
-      setSaveError(e instanceof ApiError ? e.message : "Không lưu được — thử lại sau");
+      setSaveError(e instanceof ApiError ? e.message : t("overview.healthtab.lead.saveError"));
     } finally {
       setSaving(false);
     }
@@ -298,14 +308,14 @@ function LeadFlowSection() {
     <section id="duong-lead" className="scroll-mt-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 className="mb-1 text-base font-bold text-slate-900">Đường lead</h3>
+          <h3 className="mb-1 text-base font-bold text-slate-900">{t("overview.healthtab.lead.title")}</h3>
           <p className="max-w-2xl text-sm text-slate-500">
-            So số lượt gửi form trên pixel với lead vào CRM mỗi 2 giờ; đứt quá ngưỡng → báo Teams kênh IT.
+            {t("overview.healthtab.lead.desc")}
           </p>
         </div>
         {data?.canRunNow && (
           <Button className="h-9" size="sm" onClick={runNow} disabled={running || loading}>
-            {running && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} Kiểm ngay
+            {running && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} {t("overview.healthtab.lead.checkNow")}
           </Button>
         )}
       </div>
@@ -316,7 +326,7 @@ function LeadFlowSection() {
       {!loading && !error && data && (
         <div className="mt-3 space-y-3">
           {data.statuses.length === 0 ? (
-            <EmptyState compact title="Chưa kiểm lần nào — bấm Kiểm ngay hoặc chờ lượt 2 giờ" />
+            <EmptyState compact title={t("overview.healthtab.lead.emptyState")} />
           ) : (
             data.flows.map((flow) => {
               const st = data.statuses.find((s) => s.flow.id === flow.id) ?? null;
@@ -326,25 +336,25 @@ function LeadFlowSection() {
 
           {data.canEdit && !editing && (
             <div className="rounded-xl border border-dashed border-slate-200 p-3 text-right">
-              <Button size="sm" variant="outline" onClick={startEdit}>Sửa cấu hình đường lead</Button>
+              <Button size="sm" variant="outline" onClick={startEdit}>{t("overview.healthtab.lead.editConfig")}</Button>
             </div>
           )}
           {data.canEdit && editing && (
             <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
-              <div className="text-sm font-semibold text-slate-800">Sửa cấu hình đường lead</div>
+              <div className="text-sm font-semibold text-slate-800">{t("overview.healthtab.lead.editConfig")}</div>
               {saveError && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{saveError}</div>}
-              {draft.length === 0 && <div className="text-sm text-slate-400">Chưa có đường nào — bấm &quot;Thêm đường&quot; để tạo.</div>}
+              {draft.length === 0 && <div className="text-sm text-slate-400">{t("overview.healthtab.lead.noRows")}</div>}
               <div className="space-y-3">
                 {draft.map((f, i) => (
                   <LeadFlowEditorRow key={i} flow={f} onChange={(patch) => patchRow(i, patch)} onRemove={() => removeRow(i)} />
                 ))}
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <Button size="sm" variant="outline" onClick={addRow}><Plus className="h-3.5 w-3.5" aria-hidden="true" /> Thêm đường</Button>
+                <Button size="sm" variant="outline" onClick={addRow}><Plus className="h-3.5 w-3.5" aria-hidden="true" /> {t("overview.healthtab.lead.addRow")}</Button>
                 <div className="flex-1" />
-                <Button size="sm" variant="outline" onClick={cancelEdit} disabled={saving}>Huỷ</Button>
+                <Button size="sm" variant="outline" onClick={cancelEdit} disabled={saving}>{t("overview.healthtab.cancel")}</Button>
                 <Button size="sm" onClick={save} disabled={saving}>
-                  {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} Lưu
+                  {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} {t("overview.healthtab.save")}
                 </Button>
               </div>
             </div>
@@ -356,31 +366,32 @@ function LeadFlowSection() {
 }
 
 function LeadFlowCard({ flow, status }: { flow: LeadFlow; status: LeadFlowStatus | null }) {
-  const pill = status ? LEAD_STATUS_PILL[status.status] : { tone: "grey" as PillTone, text: "? Chưa kiểm" };
+  const t = useT();
+  const pill: { tone: PillTone; text: MessageKey } = status ? LEAD_STATUS_PILL[status.status] : { tone: "grey", text: "overview.healthtab.lead.status.unchecked" };
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <span className="text-sm font-semibold text-slate-800">{flow.label}</span>
-          <span className="ml-2 text-xs text-slate-400">{flow.company}{!flow.enabled ? " · tắt" : ""}</span>
+          <span className="ml-2 text-xs text-slate-400">{flow.company}{!flow.enabled ? ` · ${t("overview.healthtab.lead.off")}` : ""}</span>
         </div>
-        <Pill tone={pill.tone}>{pill.text}</Pill>
+        <Pill tone={pill.tone}>{t(pill.text)}</Pill>
       </div>
       {status ? (
         <>
           <p className="mt-2 text-sm text-slate-600">{status.message}</p>
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
-            <span>Lead cuối: <b className="font-semibold text-slate-700">{status.lastLeadAt ? datetimeVN(status.lastLeadAt) : "chưa có"}</b></span>
-            <span>Form sau đó: <b className="font-semibold tabular-nums text-slate-700">{num(status.formsSinceLead)}</b></span>
-            {status.expectedLeads !== null && <span>Lẽ ra ~<b className="font-semibold tabular-nums text-slate-700">{num(status.expectedLeads)}</b> lead</span>}
+            <span>{t("overview.healthtab.lead.lastLead")} <b className="font-semibold text-slate-700">{status.lastLeadAt ? datetimeVN(status.lastLeadAt) : t("overview.healthtab.lead.none")}</b></span>
+            <span>{t("overview.healthtab.lead.formsSince")} <b className="font-semibold tabular-nums text-slate-700">{num(status.formsSinceLead)}</b></span>
+            {status.expectedLeads !== null && <span>{rich(t("overview.healthtab.lead.expected", { n: num(status.expectedLeads) }), "font-semibold tabular-nums text-slate-700")}</span>}
           </div>
           <div className="mt-3 overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
                 <tr className="text-left text-slate-400">
-                  <th className="py-1 pr-4 font-medium">Ngày</th>
-                  <th className="py-1 pr-4 font-medium">Form</th>
-                  <th className="py-1 font-medium">Lead</th>
+                  <th className="py-1 pr-4 font-medium">{t("overview.healthtab.lead.colDate")}</th>
+                  <th className="py-1 pr-4 font-medium">{t("overview.healthtab.lead.colForm")}</th>
+                  <th className="py-1 font-medium">{t("overview.healthtab.lead.colLead")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -396,19 +407,20 @@ function LeadFlowCard({ flow, status }: { flow: LeadFlow; status: LeadFlowStatus
           </div>
         </>
       ) : (
-        <p className="mt-2 text-sm text-slate-400">Chưa kiểm lần nào.</p>
+        <p className="mt-2 text-sm text-slate-400">{t("overview.healthtab.lead.notChecked")}</p>
       )}
     </div>
   );
 }
 
 function LeadFlowEditorRow({ flow, onChange, onRemove }: { flow: LeadFlow; onChange: (patch: Partial<LeadFlow>) => void; onRemove: () => void }) {
+  const t = useT();
   return (
     <div className="space-y-2 rounded-lg border border-slate-100 p-3">
       <div className="flex flex-wrap items-center gap-2">
-        <Input className="w-28" placeholder="Mã (a-z0-9_)" value={flow.id} onChange={(e) => onChange({ id: e.target.value })} />
-        <Input className="w-56 flex-1" placeholder="Tên hiển thị" value={flow.label} onChange={(e) => onChange({ label: e.target.value })} />
-        <div role="tablist" aria-label="Công ty" className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
+        <Input className="w-28" placeholder={t("overview.healthtab.lead.ph.id")} value={flow.id} onChange={(e) => onChange({ id: e.target.value })} />
+        <Input className="w-56 flex-1" placeholder={t("overview.healthtab.lead.ph.label")} value={flow.label} onChange={(e) => onChange({ label: e.target.value })} />
+        <div role="tablist" aria-label={t("overview.healthtab.company")} className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
           {(orderedCompanyIds(["MBI", "MBC"]) as ("MBI" | "MBC")[]).map((c) => (
             <button
               key={c}
@@ -423,9 +435,9 @@ function LeadFlowEditorRow({ flow, onChange, onRemove }: { flow: LeadFlow; onCha
           ))}
         </div>
         <label className="flex items-center gap-1.5 text-xs text-slate-600">
-          <input type="checkbox" checked={flow.enabled} onChange={(e) => onChange({ enabled: e.target.checked })} /> Bật
+          <input type="checkbox" checked={flow.enabled} onChange={(e) => onChange({ enabled: e.target.checked })} /> {t("overview.healthtab.lead.enabled")}
         </label>
-        <Button size="icon-sm" variant="ghost" aria-label="Xoá đường" onClick={onRemove}>
+        <Button size="icon-sm" variant="ghost" aria-label={t("overview.healthtab.lead.removeRow")} onClick={onRemove}>
           <Trash2 className="h-4 w-4 text-red-500" aria-hidden="true" />
         </Button>
       </div>
@@ -433,16 +445,16 @@ function LeadFlowEditorRow({ flow, onChange, onRemove }: { flow: LeadFlow; onCha
         <Input className="w-40" placeholder="Pixel ID" value={flow.pixelId} onChange={(e) => onChange({ pixelId: e.target.value })} />
         <Input
           className="min-w-[220px] flex-1"
-          placeholder="Tên sự kiện form, cách nhau bằng dấu phẩy"
+          placeholder={t("overview.healthtab.lead.ph.events")}
           value={flow.pixelEvents.join(", ")}
           onChange={(e) => onChange({ pixelEvents: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) })}
         />
-        <Input className="min-w-[180px] flex-1" placeholder="Nguồn lead Odoo chứa chuỗi này" value={flow.odooSourceIlike} onChange={(e) => onChange({ odooSourceIlike: e.target.value })} />
+        <Input className="min-w-[180px] flex-1" placeholder={t("overview.healthtab.lead.ph.odooSource")} value={flow.odooSourceIlike} onChange={(e) => onChange({ odooSourceIlike: e.target.value })} />
       </div>
       <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
-        <label className="flex items-center gap-1.5">Sàn form ≥ <Input className="w-16" type="number" min={1} value={flow.minForms} onChange={(e) => onChange({ minForms: Number(e.target.value) })} /></label>
-        <label className="flex items-center gap-1.5">Lead kỳ vọng ≥ <Input className="w-16" type="number" min={1} value={flow.minExpectedLeads} onChange={(e) => onChange({ minExpectedLeads: Number(e.target.value) })} /></label>
-        <label className="flex items-center gap-1.5">Yên (giờ) ≥ <Input className="w-16" type="number" min={2} value={flow.quietHours} onChange={(e) => onChange({ quietHours: Number(e.target.value) })} /></label>
+        <label className="flex items-center gap-1.5">{t("overview.healthtab.lead.minForms")} <Input className="w-16" type="number" min={1} value={flow.minForms} onChange={(e) => onChange({ minForms: Number(e.target.value) })} /></label>
+        <label className="flex items-center gap-1.5">{t("overview.healthtab.lead.minExpected")} <Input className="w-16" type="number" min={1} value={flow.minExpectedLeads} onChange={(e) => onChange({ minExpectedLeads: Number(e.target.value) })} /></label>
+        <label className="flex items-center gap-1.5">{t("overview.healthtab.lead.quietHours")} <Input className="w-16" type="number" min={2} value={flow.quietHours} onChange={(e) => onChange({ quietHours: Number(e.target.value) })} /></label>
       </div>
     </div>
   );
@@ -473,20 +485,21 @@ interface MonitorResponse {
   jobId: string;
 }
 
-const CHANGE_PILL: Record<ChangeLevel, { tone: PillTone; text: string }> = {
-  bad: { tone: "red", text: "✕ Hỏng mới" },
-  good: { tone: "green", text: "✓ Đã khỏi" },
-  info: { tone: "grey", text: "ℹ Thông tin" },
+const CHANGE_PILL: Record<ChangeLevel, { tone: PillTone; text: MessageKey }> = {
+  bad: { tone: "red", text: "overview.healthtab.monitor.change.bad" },
+  good: { tone: "green", text: "overview.healthtab.monitor.change.good" },
+  info: { tone: "grey", text: "overview.healthtab.monitor.change.info" },
 };
 
-function teamsNoteOf(t: MonitorTeamsStatus): string | null {
-  if (t.sent) return "đã gửi Teams ✓";
-  if (t.skipped) return t.skipped;
-  if (t.error) return `Teams lỗi: ${t.error}`;
+function teamsNoteOf(ts: MonitorTeamsStatus, t: TFunction): string | null {
+  if (ts.sent) return t("overview.healthtab.monitor.teamsSent");
+  if (ts.skipped) return ts.skipped;
+  if (ts.error) return t("overview.healthtab.monitor.teamsError", { error: ts.error });
   return null;
 }
 
 function MonitorSection() {
+  const t = useT();
   const { toast } = useToast();
   const [data, setData] = useState<MonitorResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -499,12 +512,12 @@ function MonitorSection() {
       const json = await getJson("/api/overview/monitor");
       setData(json);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Không tải được giám sát đo lường");
+      setError(e instanceof ApiError ? e.message : t("overview.healthtab.monitor.loadError"));
       setData(null);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -516,14 +529,14 @@ function MonitorSection() {
       const run = (json.result as { run?: { changes: { level: ChangeLevel }[]; teams: MonitorTeamsStatus } } | undefined)?.run;
       if (run) {
         const bad = run.changes.filter((c) => c.level === "bad").length;
-        const note = teamsNoteOf(run.teams);
-        toast({ title: `✅ Đã chạy xong — ${run.changes.length} thay đổi (${bad} hỏng mới)${note ? `, ${note}` : ""}` });
+        const note = teamsNoteOf(run.teams, t);
+        toast({ title: `${t("overview.healthtab.monitor.ranToast", { n: run.changes.length, bad })}${note ? `, ${note}` : ""}` });
       } else {
-        toast({ title: "✅ Đã gọi job measure_monitor — đang so ảnh chụp…" });
+        toast({ title: t("overview.healthtab.monitor.calledToast") });
       }
       await load();
     } catch (e) {
-      toast({ title: e instanceof ApiError ? `❌ ${e.message}` : "❌ Không chạy được job", variant: "error" });
+      toast({ title: e instanceof ApiError ? `❌ ${e.message}` : t("overview.healthtab.jobFailed"), variant: "error" });
     } finally {
       setRunning(false);
     }
@@ -531,9 +544,9 @@ function MonitorSection() {
 
   return (
     <section>
-      <h3 className="mb-1 text-base font-bold text-slate-900">Giám sát đo lường</h3>
+      <h3 className="mb-1 text-base font-bold text-slate-900">{t("overview.healthtab.monitor.title")}</h3>
       <p className="mb-3 text-sm text-slate-500">
-        Tự động so ảnh chụp sức khoẻ đo lường hôm nay với hôm qua — không cần ai mở trang này mới biết đã hỏng. Chỉ gửi Teams khi có thay đổi.
+        {t("overview.healthtab.monitor.desc")}
       </p>
 
       {loading && <div className="h-32 animate-pulse rounded-xl bg-slate-100" />}
@@ -546,28 +559,28 @@ function MonitorSection() {
         <div className="space-y-3">
           {!data.teamsConfigured && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">
-              ⚠ Chưa có kênh Teams — thay đổi chỉ hiện ở đây.
+              {t("overview.healthtab.monitor.noTeams")}
             </div>
           )}
 
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4">
             <div className="text-sm">
-              <div className="text-xs text-slate-400">Lần chạy gần nhất · chạy mỗi ngày 09:00 (giờ VN)</div>
+              <div className="text-xs text-slate-400">{t("overview.healthtab.monitor.lastRun")}</div>
               {data.runs.length === 0 ? (
-                <div className="mt-0.5 font-semibold text-slate-700">Chưa chạy lần nào — job chạy mỗi ngày 09:00.</div>
+                <div className="mt-0.5 font-semibold text-slate-700">{t("overview.healthtab.monitor.neverRun")}</div>
               ) : (
                 <div className="mt-0.5 font-semibold text-slate-800">
                   {data.runs[0].at} · {data.runs[0].date}
-                  {teamsNoteOf(data.runs[0].teams) && <span className="ml-2 font-normal text-slate-500">{teamsNoteOf(data.runs[0].teams)}</span>}
+                  {teamsNoteOf(data.runs[0].teams, t) && <span className="ml-2 font-normal text-slate-500">{teamsNoteOf(data.runs[0].teams, t)}</span>}
                 </div>
               )}
             </div>
             {data.canRunNow && (
               <div className="text-right">
                 <Button className="h-9" size="sm" onClick={runNow} disabled={running}>
-                  {running && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} Chạy ngay
+                  {running && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} {t("overview.healthtab.monitor.runNow")}
                 </Button>
-                <div className="mt-1 text-xs text-slate-400">Chỉ super admin bấm được</div>
+                <div className="mt-1 text-xs text-slate-400">{t("overview.healthtab.monitor.superAdminOnly")}</div>
               </div>
             )}
           </div>
@@ -579,20 +592,20 @@ function MonitorSection() {
                   <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 px-4 py-2.5 text-sm">
                     <span>
                       <b className="text-slate-800">{run.date} · {run.at}</b>{" "}
-                      <span className="text-slate-600">{run.changes.length === 0 ? "— không có thay đổi" : `— ${run.changes.length} thay đổi`}</span>{" "}
-                      <span className="text-xs text-slate-400">{run.comparedTo ? `so với ${run.comparedTo}` : "lần chạy đầu — chỉ lưu"}</span>
+                      <span className="text-slate-600">{run.changes.length === 0 ? t("overview.healthtab.monitor.noChangesDash") : t("overview.healthtab.monitor.nChangesDash", { n: run.changes.length })}</span>{" "}
+                      <span className="text-xs text-slate-400">{run.comparedTo ? t("overview.healthtab.monitor.comparedTo", { date: run.comparedTo }) : t("overview.healthtab.monitor.firstRun")}</span>
                     </span>
-                    <Pill tone={run.teams.sent ? "green" : "grey"}>{run.teams.sent ? "✓ Đã gửi Teams" : "– Không gửi Teams"}</Pill>
+                    <Pill tone={run.teams.sent ? "green" : "grey"}>{run.teams.sent ? t("overview.healthtab.monitor.pillSent") : t("overview.healthtab.monitor.pillNotSent")}</Pill>
                   </summary>
                   <div className="space-y-1.5 border-t border-slate-100 px-4 py-3 text-sm">
                     {run.changes.length === 0 ? (
-                      <p className="text-slate-400">Không có thay đổi</p>
+                      <p className="text-slate-400">{t("overview.healthtab.monitor.noChanges")}</p>
                     ) : (
                       run.changes.map((c, i) => {
                         const pill = CHANGE_PILL[c.level];
                         return (
                           <div key={i} className="flex flex-wrap items-start gap-2">
-                            <Pill tone={pill.tone}>{pill.text}</Pill>
+                            <Pill tone={pill.tone}>{t(pill.text)}</Pill>
                             <span className="text-slate-700">{c.text}</span>
                           </div>
                         );
@@ -610,26 +623,28 @@ function MonitorSection() {
 }
 
 function HealthCard({ card }: { card: StatusCard }) {
+  const t = useT();
   const pill = TONE_PILL[card.tone];
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-3.5">
       <div className="flex items-center justify-between gap-2">
         <span className="text-sm font-semibold text-slate-800">{card.title}</span>
-        <Pill tone={pill.tone}>{pill.text}</Pill>
+        <Pill tone={pill.tone}>{t(pill.text)}</Pill>
       </div>
       <p className="mt-2 text-sm text-slate-500">{card.text}</p>
       {card.error && <p className="mt-1 text-xs text-red-600">{card.error}</p>}
       <Link href={card.href} className="mt-2 inline-block text-xs font-semibold text-blue-600 hover:underline">
-        Xem chi tiết →
+        {t("overview.healthtab.card.details")}
       </Link>
     </div>
   );
 }
 
 function HealthSkeleton() {
+  const t = useT();
   return (
     <div className="space-y-4">
-      <p className="text-sm text-slate-500">Đang tổng hợp từ 4 nguồn… lần tải đầu có thể mất tới 60 giây.</p>
+      <p className="text-sm text-slate-500">{t("overview.healthtab.skeleton")}</p>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-28 animate-pulse rounded-xl bg-slate-100" />)}
       </div>

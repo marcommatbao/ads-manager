@@ -14,6 +14,7 @@ import { formatCurrency } from "@/lib/utils";
 import type { Campaign } from "@/types/ads.types";
 import { useSession } from "@/components/SessionProvider";
 import { isHiddenPage } from "@/lib/hidden-pages";
+import { useIntlLocale, useT } from "@/lib/i18n/client";
 
 // ─────────────────────────────────────────────
 // Types
@@ -43,11 +44,11 @@ interface ComparisonRow {
 // Helpers
 // ─────────────────────────────────────────────
 
-function fmtVND(n: number): string {
+function fmtVNDWith(n: number, loc: string): string {
   if (n >= 1_000_000_000) return `₫${(n / 1_000_000_000).toFixed(1)}B`;
   if (n >= 1_000_000) return `₫${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `₫${(n / 1_000).toFixed(0)}K`;
-  return `₫${n.toLocaleString("vi-VN")}`;
+  return `₫${n.toLocaleString(loc)}`;
 }
 
 const STATUS_BADGES: Record<string, { bg: string; text: string; emoji: string }> = {
@@ -124,15 +125,18 @@ export default function CompanyComparison() {
   const [aiInsight, setAiInsight] = useState<string | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
   const [loadingAI, setLoadingAI] = useState(false);
+  const t = useT();
+  const loc = useIntlLocale();
 
   // Only super_admin can see this widget
   if (!user || user.role !== "super_admin") return null;
 
+  const fmtVND = (n: number) => fmtVNDWith(n, loc);
   const { mbc, mbi } = computeCompanyMetrics(campaigns);
 
   const rows: ComparisonRow[] = [
     {
-      label: "Tổng chi tiêu",
+      label: t("overview.compare.row.totalSpend"),
       icon: "💰",
       mbcValue: fmtVND(mbc.totalSpend),
       mbiValue: fmtVND(mbi.totalSpend),
@@ -140,7 +144,7 @@ export default function CompanyComparison() {
       mbiStatus: "neutral",
     },
     {
-      label: "CPL trung bình",
+      label: t("overview.compare.row.avgCpl"),
       icon: "🎯",
       mbcValue: mbc.cpl > 0 ? fmtVND(mbc.cpl) : "—",
       mbiValue: mbi.cpl > 0 ? fmtVND(mbi.cpl) : "—",
@@ -148,7 +152,7 @@ export default function CompanyComparison() {
       mbiStatus: mbi.cpl > 0 ? (mbi.cpl <= 250000 ? "good" : mbi.cpl <= 320000 ? "warn" : "bad") : "neutral",
     },
     {
-      label: "ROAS",
+      label: t("overview.compare.row.roas"),
       icon: "📈",
       mbcValue: `${mbc.roas.toFixed(1)}x`,
       mbiValue: `${mbi.roas.toFixed(1)}x`,
@@ -156,7 +160,7 @@ export default function CompanyComparison() {
       mbiStatus: mbi.roas >= 3 ? "good" : mbi.roas >= 2 ? "warn" : "bad",
     },
     {
-      label: "Campaigns active",
+      label: t("overview.compare.row.activeCampaigns"),
       icon: "📊",
       mbcValue: String(mbc.activeCampaigns),
       mbiValue: String(mbi.activeCampaigns),
@@ -164,7 +168,7 @@ export default function CompanyComparison() {
       mbiStatus: "neutral",
     },
     {
-      label: "Campaigns cần xử lý",
+      label: t("overview.compare.row.needAttention"),
       icon: "⚠️",
       mbcValue: String(mbc.needAttention),
       mbiValue: String(mbi.needAttention),
@@ -172,7 +176,7 @@ export default function CompanyComparison() {
       mbiStatus: mbi.needAttention > 3 ? "bad" : mbi.needAttention > 0 ? "warn" : "good",
     },
     {
-      label: "CTR trung bình",
+      label: t("overview.compare.row.avgCtr"),
       icon: "👆",
       mbcValue: `${mbc.avgCTR.toFixed(2)}%`,
       mbiValue: `${mbi.avgCTR.toFixed(2)}%`,
@@ -180,10 +184,10 @@ export default function CompanyComparison() {
       mbiStatus: mbi.avgCTR >= 2 ? "good" : mbi.avgCTR >= 1 ? "warn" : "bad",
     },
     {
-      label: "Conversions",
+      label: t("overview.compare.row.conversions"),
       icon: "🏆",
-      mbcValue: mbc.totalConversions.toLocaleString("vi-VN"),
-      mbiValue: mbi.totalConversions.toLocaleString("vi-VN"),
+      mbcValue: mbc.totalConversions.toLocaleString(loc),
+      mbiValue: mbi.totalConversions.toLocaleString(loc),
       mbcStatus: "neutral",
       mbiStatus: "neutral",
     },
@@ -193,10 +197,12 @@ export default function CompanyComparison() {
     setLoadingAI(true);
     setAiError(null);
     try {
-      const prompt = `Phân tích ngắn gọn (3 dòng, tiếng Việt) so sánh hiệu quả quảng cáo MBC vs MBI:
-MBC: Chi tiêu ${fmtVND(mbc.totalSpend)}, CPL ${fmtVND(mbc.cpl)}, ROAS ${mbc.roas.toFixed(1)}x, ${mbc.activeCampaigns} campaigns active, CTR ${mbc.avgCTR.toFixed(2)}%, ${mbc.totalConversions} conversions
-MBI: Chi tiêu ${fmtVND(mbi.totalSpend)}, CPL ${fmtVND(mbi.cpl)}, ROAS ${mbi.roas.toFixed(1)}x, ${mbi.activeCampaigns} campaigns active, CTR ${mbi.avgCTR.toFixed(2)}%, ${mbi.totalConversions} conversions
-Cho insight hành động cụ thể: chuyển ngân sách, tối ưu segment nào, gợi ý creative.`;
+      // Lời nhắc gửi AI cũng theo ngôn ngữ đang chọn để câu trả lời cùng ngôn ngữ với giao diện.
+      const line = (co: string, m: CompanyMetrics) => t("overview.compare.ai.line", {
+        co, spend: fmtVND(m.totalSpend), cpl: fmtVND(m.cpl), roas: m.roas.toFixed(1), active: m.activeCampaigns,
+        ctr: m.avgCTR.toFixed(2), conv: m.totalConversions,
+      });
+      const prompt = t("overview.compare.ai.prompt", { mbc: line("MBC", mbc), mbi: line("MBI", mbi) });
 
       const res = await fetch("/api/ai", {
         method: "POST",
@@ -208,11 +214,11 @@ Cho insight hành động cụ thể: chuyển ngân sách, tối ưu segment n�
         setAiInsight(json.data.text);
       } else {
         setAiInsight(null);
-        setAiError("Không thể tạo AI insight lúc này. Vui lòng thử lại sau.");
+        setAiError(t("overview.compare.ai.error"));
       }
     } catch {
       setAiInsight(null);
-      setAiError("Không thể tạo AI insight lúc này. Vui lòng thử lại sau.");
+      setAiError(t("overview.compare.ai.error"));
     } finally {
       setLoadingAI(false);
     }
@@ -238,12 +244,12 @@ Cho insight hành động cụ thể: chuyển ngân sách, tối ưu segment n�
             <Building2 className="h-4 w-4 text-white" />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-slate-800">⚔️ MBC vs MBI — Tháng này</h3>
-            <p className="text-[10px] text-slate-400">So sánh hiệu quả 2 công ty</p>
+            <h3 className="text-sm font-bold text-slate-800">{t("overview.compare.title")}</h3>
+            <p className="text-[10px] text-slate-400">{t("overview.compare.subtitle")}</p>
           </div>
         </div>
         <span className="rounded-full bg-indigo-100 px-2.5 py-0.5 text-[9px] font-bold text-indigo-600">
-          SUPER ADMIN
+          {t("overview.compare.superAdmin")}
         </span>
       </div>
 
@@ -252,7 +258,7 @@ Cho insight hành động cụ thể: chuyển ngân sách, tối ưu segment n�
         <div className="overflow-hidden rounded-xl border border-slate-200">
           {/* Table header */}
           <div className="grid grid-cols-[1fr,140px,140px] bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-            <div className="px-4 py-2.5">Chỉ số</div>
+            <div className="px-4 py-2.5">{t("overview.compare.colMetric")}</div>
             <div className="px-4 py-2.5 text-center border-l border-slate-200">
               <span className="inline-flex items-center gap-1">
                 <span className="h-2 w-2 rounded-full bg-blue-500" /> MBC
@@ -314,9 +320,9 @@ Cho insight hành động cụ thể: chuyển ngân sách, tối ưu segment n�
                 className="w-full rounded-xl border-2 border-dashed border-violet-200 py-3 text-xs font-semibold text-violet-500 hover:border-violet-400 hover:bg-violet-50 transition-all flex items-center justify-center gap-1.5"
               >
                 {loadingAI ? (
-                  <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Đang phân tích...</>
+                  <><Loader2 className="h-3.5 w-3.5 animate-spin" /> {t("overview.compare.ai.analyzing")}</>
                 ) : (
-                  <><Sparkles className="h-3.5 w-3.5" /> 💡 Tạo AI Insight so sánh MBC vs MBI</>
+                  <><Sparkles className="h-3.5 w-3.5" /> {t("overview.compare.ai.generate")}</>
                 )}
               </button>
               {aiError && (
@@ -335,12 +341,12 @@ Cho insight hành động cụ thể: chuyển ngân sách, tối ưu segment n�
             <>
               <Link href="/reports?company=MBC">
                 <Button variant="outline" size="sm" className="gap-1 text-[10px] h-7 border-blue-200 text-blue-600 hover:bg-blue-50">
-                  <BarChart2 className="h-3 w-3" /> Báo cáo MBC
+                  <BarChart2 className="h-3 w-3" /> {t("overview.compare.report", { co: "MBC" })}
                 </Button>
               </Link>
               <Link href="/reports?company=MBI">
                 <Button variant="outline" size="sm" className="gap-1 text-[10px] h-7 border-violet-200 text-violet-600 hover:bg-violet-50">
-                  <BarChart2 className="h-3 w-3" /> Báo cáo MBI
+                  <BarChart2 className="h-3 w-3" /> {t("overview.compare.report", { co: "MBI" })}
                 </Button>
               </Link>
             </>
@@ -350,7 +356,7 @@ Cho insight hành động cụ thể: chuyển ngân sách, tối ưu segment n�
               onClick={generateInsight}
               className="ml-auto text-[10px] text-violet-400 hover:text-violet-600 flex items-center gap-1"
             >
-              <Sparkles className="h-3 w-3" /> Phân tích lại
+              <Sparkles className="h-3 w-3" /> {t("overview.compare.ai.regenerate")}
             </button>
           )}
         </div>

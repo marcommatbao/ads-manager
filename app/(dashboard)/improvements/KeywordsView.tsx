@@ -5,6 +5,8 @@ import { KeywordTable } from "@/components/KeywordTable";
 import { cn } from "@/lib/utils";
 import type { KeywordInsight, KeywordInsightsResponse, IntentMatch, KwMatchType } from "@/types/keyword-insight";
 import { orderedCompanyIds } from "@/lib/companies/registry";
+import { useIntlLocale, useT } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/messages";
 
 interface KeywordsViewProps {
   company: string | "all";
@@ -36,22 +38,22 @@ const PACING_STYLE: Record<CampaignPacing["status"], string> = {
   on_track: "bg-emerald-100 text-emerald-700",
 };
 
-const PACING_LABEL: Record<CampaignPacing["status"], string> = {
-  over_pace: "Chi nhanh hơn dự kiến",
-  under_pace: "Chi chậm hơn dự kiến",
-  on_track: "Đúng nhịp",
+const PACING_LABEL: Record<CampaignPacing["status"], MessageKey> = {
+  over_pace: "overview.improvements.kw.pacing.over",
+  under_pace: "overview.improvements.kw.pacing.under",
+  on_track: "overview.improvements.kw.pacing.on",
 };
 
-const INTENT_OPTIONS: Array<{ value: IntentMatch | "ALL"; label: string }> = [
-  { value: "ALL", label: "Tất cả ý định" },
-  { value: "relevant", label: "Phù hợp" },
-  { value: "borderline", label: "Chưa chắc" },
-  { value: "off_intent", label: "Lệch ý định" },
-  { value: "unknown", label: "Chưa đủ dữ liệu" },
+const INTENT_OPTIONS: Array<{ value: IntentMatch | "ALL"; label: MessageKey }> = [
+  { value: "ALL", label: "overview.improvements.kw.intent.all" },
+  { value: "relevant", label: "overview.improvements.kw.intent.relevant" },
+  { value: "borderline", label: "overview.improvements.kw.intent.borderline" },
+  { value: "off_intent", label: "overview.improvements.kw.intent.off" },
+  { value: "unknown", label: "overview.improvements.kw.intent.unknown" },
 ];
 
 const MATCH_TYPE_OPTIONS: Array<{ value: KwMatchType | "ALL"; label: string }> = [
-  { value: "ALL", label: "Tất cả loại khớp" },
+  { value: "ALL", label: "" }, // nhãn "Tất cả loại khớp" lấy từ t() lúc render
   { value: "EXACT", label: "Exact" },
   { value: "PHRASE", label: "Phrase" },
   { value: "BROAD", label: "Broad" },
@@ -68,6 +70,8 @@ function SummaryCard({ label, value, sub }: { label: string; value: string; sub?
 }
 
 export function KeywordsView({ company, showToast }: KeywordsViewProps) {
+  const t = useT();
+  const loc = useIntlLocale();
   const [data, setData] = useState<KeywordInsightsResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [applyingId, setApplyingId] = useState<string | null>(null);
@@ -107,14 +111,14 @@ export function KeywordsView({ company, showToast }: KeywordsViewProps) {
       if (res.ok) {
         setData(json);
       } else {
-        showToast(json.error || "Lỗi khi tải dữ liệu từ khóa", "error");
+        showToast(json.error || t("overview.improvements.kw.loadError"), "error");
       }
     } catch (err: unknown) {
-      showToast(err instanceof Error ? err.message : "Lỗi kết nối", "error");
+      showToast(err instanceof Error ? err.message : t("overview.improvements.kw.connError"), "error");
     } finally {
       setLoading(false);
     }
-  }, [co, intentFilter, matchTypeFilter, showToast]);
+  }, [co, intentFilter, matchTypeFilter, showToast, t]);
 
   useEffect(() => {
     fetchKeywords();
@@ -142,13 +146,13 @@ export function KeywordsView({ company, showToast }: KeywordsViewProps) {
       );
       const okCount = results.filter(r => r.success).length;
       if (okCount > 0) {
-        showToast(`✅ Đã thêm ${okCount}/${terms.length} negative keyword cho "${kw.keyword}"`);
+        showToast(t("overview.improvements.kw.negAdded", { ok: okCount, total: terms.length, keyword: kw.keyword }));
         fetchKeywords();
       } else {
-        showToast(results[0]?.error || "Lỗi khi thêm negative", "error");
+        showToast(results[0]?.error || t("overview.improvements.kw.negError"), "error");
       }
     } catch (err: unknown) {
-      showToast(err instanceof Error ? err.message : "Lỗi kết nối", "error");
+      showToast(err instanceof Error ? err.message : t("overview.improvements.kw.connError"), "error");
     }
     setApplyingId(null);
   };
@@ -170,13 +174,13 @@ export function KeywordsView({ company, showToast }: KeywordsViewProps) {
       });
       const json = await res.json();
       if (json.success) {
-        showToast(`✅ Đã cập nhật CPC cho "${kw.keyword}"`);
+        showToast(t("overview.improvements.kw.cpcUpdated", { keyword: kw.keyword }));
         fetchKeywords();
       } else {
-        showToast(json.error || "Lỗi khi cập nhật CPC", "error");
+        showToast(json.error || t("overview.improvements.kw.cpcError"), "error");
       }
     } catch (err: unknown) {
-      showToast(err instanceof Error ? err.message : "Lỗi kết nối", "error");
+      showToast(err instanceof Error ? err.message : t("overview.improvements.kw.connError"), "error");
     }
     setApplyingId(null);
   };
@@ -204,32 +208,32 @@ export function KeywordsView({ company, showToast }: KeywordsViewProps) {
   return (
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        <SummaryCard label="Tổng từ khóa" value={total.toLocaleString("vi-VN")} />
+        <SummaryCard label={t("overview.improvements.kw.total")} value={total.toLocaleString(loc)} />
         <SummaryCard
-          label="Phù hợp ý định"
+          label={t("overview.improvements.kw.intentFit")}
           value={total > 0 ? `${Math.round((relevantCount / total) * 100)}%` : "—"}
-          sub={`${relevantCount}/${total} từ khóa`}
+          sub={t("overview.improvements.kw.keywordsCount", { ok: relevantCount, total })}
         />
-        <SummaryCard label="QS trung bình" value={avgQS !== null ? avgQS.toFixed(1) : "—"} />
-        <SummaryCard label="CPC trung bình" value={`₫${Math.round(avgCpc).toLocaleString("vi-VN")}`} />
-        <SummaryCard label="Có thể tiết kiệm/tháng" value={`₫${Math.round(savings * 30).toLocaleString("vi-VN")}`} sub="ước tính từ CPC vượt mức" />
+        <SummaryCard label={t("overview.improvements.kw.avgQs")} value={avgQS !== null ? avgQS.toFixed(1) : "—"} />
+        <SummaryCard label={t("overview.improvements.kw.avgCpc")} value={`₫${Math.round(avgCpc).toLocaleString(loc)}`} />
+        <SummaryCard label={t("overview.improvements.kw.savings")} value={`₫${Math.round(savings * 30).toLocaleString(loc)}`} sub={t("overview.improvements.kw.savingsSub")} />
       </div>
 
       {visibleCampaignPacing.length > 0 && (
         <div className="rounded-lg border border-border p-3">
           <p className="mb-2 text-xs font-medium text-muted-foreground">
-            Nhịp chi ngân sách tháng này theo chiến dịch (dữ liệu thật từ Google Ads):
+            {t("overview.improvements.kw.pacingTitle")}
           </p>
           <div className="flex flex-wrap gap-2">
             {visibleCampaignPacing.map(p => (
               <div
                 key={p.id}
                 className="flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5 text-xs"
-                title={`Chi ₫${p.spent.toLocaleString("vi-VN")} / ₫${p.budget.toLocaleString("vi-VN")} — thực tế ${p.actualPct}% so với kỳ vọng ${p.expectedPct}% theo ngày trong tháng`}
+                title={t("overview.improvements.kw.pacingTip", { spent: p.spent.toLocaleString(loc), budget: p.budget.toLocaleString(loc), actual: p.actualPct, expected: p.expectedPct })}
               >
                 <span className="max-w-[160px] truncate font-medium text-foreground">{p.name}</span>
                 <span className={cn("rounded-full px-2 py-0.5 font-medium", PACING_STYLE[p.status])}>
-                  {p.actualPct}%/{p.expectedPct}% — {PACING_LABEL[p.status]}
+                  {p.actualPct}%/{p.expectedPct}% — {t(PACING_LABEL[p.status])}
                 </span>
               </div>
             ))}
@@ -243,7 +247,7 @@ export function KeywordsView({ company, showToast }: KeywordsViewProps) {
           value={campaignFilter}
           onChange={e => setCampaignFilter(e.target.value)}
         >
-          <option value="ALL">Tất cả chiến dịch</option>
+          <option value="ALL">{t("overview.improvements.kw.allCampaigns")}</option>
           {campaigns.map(([id, name]) => (
             <option key={id} value={id}>{name}</option>
           ))}
@@ -253,20 +257,20 @@ export function KeywordsView({ company, showToast }: KeywordsViewProps) {
           value={intentFilter}
           onChange={e => setIntentFilter(e.target.value as IntentMatch | "ALL")}
         >
-          {INTENT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          {INTENT_OPTIONS.map(o => <option key={o.value} value={o.value}>{t(o.label)}</option>)}
         </select>
         <select
           className="h-9 rounded-md border border-border bg-background px-2 text-sm"
           value={matchTypeFilter}
           onChange={e => setMatchTypeFilter(e.target.value as KwMatchType | "ALL")}
         >
-          {MATCH_TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          {MATCH_TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.value === "ALL" ? t("overview.improvements.kw.allMatch") : o.label}</option>)}
         </select>
         <button
           onClick={fetchKeywords}
           className="ml-auto h-9 rounded-md border border-border bg-background px-3 text-sm hover:bg-muted"
         >
-          Làm mới
+          {t("overview.improvements.kw.refresh")}
         </button>
       </div>
 

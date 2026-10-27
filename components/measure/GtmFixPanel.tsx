@@ -26,13 +26,17 @@ import { Pill } from "@/components/measure/Pill";
 import { datetimeVN } from "@/components/case/format";
 import { postJson, ApiError } from "@/components/case/api";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/messages";
 import type { Company } from "@/lib/case/types";
 import type { GtmFixProposal } from "@/lib/measure/tag-doctor";
 import type { GtmFixExecution } from "@/lib/measure/gtm-fix";
 
-const KIND_CHIP: Record<GtmFixProposal["kind"], string> = {
-  tag_standard: "Đổi sang Standard",
-  tag_retrigger: "Đổi trigger",
+const rich = (s: string) => s.split(/<(b|code)>(.*?)<\/\1>/).map((part, i, a) => (i % 3 === 2 ? (a[i - 1] === "b" ? <b key={i} className="font-medium text-slate-700">{part}</b> : <code key={i}>{part}</code>) : i % 3 === 1 ? null : part));
+
+const KIND_CHIP: Record<GtmFixProposal["kind"], MessageKey> = {
+  tag_standard: "meta.measure.gx.kind.tag_standard",
+  tag_retrigger: "meta.measure.gx.kind.tag_retrigger",
 };
 
 /** Hình dạng của trường `gtm` trong GET /api/measure/tags — xem app/api/measure/tags/route.ts. */
@@ -59,6 +63,7 @@ export function GtmFixPanel({
   highlightIds: string[] | null;
   onChanged: (force?: boolean) => void | Promise<void>;
 }) {
+  const t = useT();
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [validating, setValidating] = useState(false);
   const [validateResult, setValidateResult] = useState<GtmFixExecution | null>(null);
@@ -107,7 +112,7 @@ export function GtmFixPanel({
       const json: { execution: GtmFixExecution } = await postJson("/api/measure/gtm-fix", { company, fixIds: selectedIds, validateOnly: true });
       setValidateResult(json.execution);
     } catch (e) {
-      setErr(e instanceof ApiError ? e.message : "Không kiểm được — thử lại sau");
+      setErr(e instanceof ApiError ? e.message : t("meta.measure.gx.validateFail"));
     } finally {
       setValidating(false);
     }
@@ -132,7 +137,7 @@ export function GtmFixPanel({
       setSelected({});
       await onChanged(true);
     } catch (e) {
-      setErr(e instanceof ApiError ? e.message : "Không publish được — thử lại sau");
+      setErr(e instanceof ApiError ? e.message : t("meta.measure.gx.publishFail"));
     } finally {
       setWriting(false);
     }
@@ -149,16 +154,16 @@ export function GtmFixPanel({
             <div className="flex items-start gap-2">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
               <div>
-                <div className="font-semibold">Publish GTM đổi mã theo dõi trên website THẬT ngay lập tức.</div>
+                <div className="font-semibold">{t("meta.measure.gx.warn.title")}</div>
                 <div className="mt-1">
-                  Tool tạo workspace riêng (không đụng Default Workspace), tạo phiên bản mới rồi publish; Hoàn tác = publish lại phiên bản trước.
+                  {t("meta.measure.gx.warn.desc")}
                 </div>
               </div>
             </div>
           </div>
 
           <p className="text-sm text-slate-500">
-            Không có việc nào được chọn sẵn — tự chọn từng việc muốn publish. Tối đa {gtm.maxFixes} việc một lần, cùng một container GTM.
+            {t("meta.measure.gx.hint", { max: gtm.maxFixes })}
           </p>
 
           <div className="space-y-2">
@@ -190,7 +195,7 @@ export function GtmFixPanel({
                   <div className="min-w-0 flex-1 text-sm">
                     <div className="flex flex-wrap items-center gap-1.5">
                       <Pill tone="blue">{f.container}</Pill>
-                      <Pill tone="grey">{KIND_CHIP[f.kind]}</Pill>
+                      <Pill tone="grey">{t(KIND_CHIP[f.kind])}</Pill>
                     </div>
                     <div className="mt-1 font-semibold text-slate-800">{f.label}</div>
                     {f.kind === "tag_retrigger" && f.signalWarning && (
@@ -206,13 +211,13 @@ export function GtmFixPanel({
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
-            <span className="text-xs text-slate-500">{!canEdit && "Cần quyền chỉnh sửa"}</span>
+            <span className="text-xs text-slate-500">{!canEdit && t("meta.measure.gx.needEdit")}</span>
             <div className="flex flex-wrap gap-2">
               <Button className="h-10" variant="outline" size="sm" onClick={runValidate} disabled={!canEdit || validating || writing || !canValidate}>
-                {validating && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} Kiểm trước (không publish)
+                {validating && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} {t("meta.measure.gx.validateBtn")}
               </Button>
               <Button className="h-10" variant="destructive" size="sm" onClick={openConfirm} disabled={!canEdit || validating || writing || !validatedOk}>
-                Publish lên GTM
+                {t("meta.measure.gx.publishBtn")}
               </Button>
             </div>
           </div>
@@ -221,24 +226,24 @@ export function GtmFixPanel({
 
           {validateResult && (
             <div>
-              <div className="mb-1.5 text-sm font-semibold text-slate-800">Kết quả kiểm trước (chưa publish)</div>
-              <GtmExecutionCard exec={validateResult} title={validatedOk ? "GTM biên dịch được — chưa publish" : "Kiểm trước thất bại — chưa publish"} />
+              <div className="mb-1.5 text-sm font-semibold text-slate-800">{t("meta.measure.gx.vr.title")}</div>
+              <GtmExecutionCard exec={validateResult} title={validatedOk ? t("meta.measure.gx.vr.ok") : t("meta.measure.gx.vr.fail")} />
             </div>
           )}
 
           {writeResult && (
             <div>
-              <div className="mb-1.5 text-sm font-semibold text-slate-800">Kết quả publish</div>
-              <GtmExecutionCard exec={writeResult} title={writeResult.status === "done" ? "Đã publish và đọc lại khớp" : "Publish thất bại — xem lỗi bên dưới"} />
+              <div className="mb-1.5 text-sm font-semibold text-slate-800">{t("meta.measure.gx.pr.title")}</div>
+              <GtmExecutionCard exec={writeResult} title={writeResult.status === "done" ? t("meta.measure.gx.pr.ok") : t("meta.measure.gx.pr.fail")} />
             </div>
           )}
 
           <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle className="text-red-600">Publish lên GTM thật?</DialogTitle>
+                <DialogTitle className="text-red-600">{t("meta.measure.gx.dlg.title")}</DialogTitle>
                 <DialogDescription>
-                  Đổi mã theo dõi trên website THẬT ngay lập tức. {selectedIds.length} việc sẽ publish lên container {selectedContainer}. Có thể hoàn tác (publish lại bản trước) nếu chưa có ai publish đè lên sau đó.
+                  {t("meta.measure.gx.dlg.desc", { n: selectedIds.length, container: selectedContainer ?? "" })}
                 </DialogDescription>
               </DialogHeader>
 
@@ -254,18 +259,18 @@ export function GtmFixPanel({
                   <div className="flex items-start gap-2 pl-0.5">
                     <Checkbox
                       id="gtm-fix-ack-signal-loss"
-                      aria-label="Tôi hiểu Google sẽ mất tín hiệu đặt giá và vẫn muốn publish"
+                      aria-label={t("meta.measure.gx.dlg.ack")}
                       checked={ackSignalLoss}
                       onCheckedChange={setAckSignalLoss}
                       className="mt-0.5"
                     />
-                    <span className="text-xs font-medium">Tôi hiểu Google sẽ mất tín hiệu đặt giá và vẫn muốn publish</span>
+                    <span className="text-xs font-medium">{t("meta.measure.gx.dlg.ack")}</span>
                   </div>
                 </div>
               )}
 
               <div>
-                <label htmlFor="gtm-fix-confirm-input" className="text-xs font-medium text-slate-600">Gõ <code>{gtm.confirmText}</code> để xác nhận</label>
+                <label htmlFor="gtm-fix-confirm-input" className="text-xs font-medium text-slate-600">{rich(t("meta.measure.gx.dlg.type", { confirm: gtm.confirmText }))}</label>
                 <input
                   id="gtm-fix-confirm-input"
                   className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
@@ -277,9 +282,9 @@ export function GtmFixPanel({
               </div>
 
               <DialogFooter>
-                <DialogClose render={<Button className="h-10" variant="outline" />}>Huỷ</DialogClose>
+                <DialogClose render={<Button className="h-10" variant="outline" />}>{t("meta.measure.gx.dlg.cancel")}</DialogClose>
                 <Button className="h-10" variant="destructive" onClick={runPublish} disabled={!canPublish || writing}>
-                  {writing && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} Publish lên GTM thật
+                  {writing && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} {t("meta.measure.gx.dlg.publish")}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -289,12 +294,12 @@ export function GtmFixPanel({
 
       {!gtm.apiConfigured && (
         <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
-          Chưa cấu hình khoá GTM — chỉ đọc gtm.js công khai, không sửa được.
+          {t("meta.measure.gx.noKey")}
         </div>
       )}
 
       {gtm.apiConfigured && gtmFixes.length === 0 && (
-        <EmptyState compact title="Không có việc GTM nào tool sửa được" description="Chẩn đoán hiện không đề xuất việc nào tool tự sửa được trên GTM." />
+        <EmptyState compact title={t("meta.measure.gx.emptyTitle")} description={t("meta.measure.gx.emptyDesc")} />
       )}
 
       <GtmFixHistory history={gtm.history} company={company} canEdit={canEdit} onChanged={onChanged} />
@@ -313,6 +318,7 @@ function GtmFixHistory({
   canEdit: boolean;
   onChanged: (force?: boolean) => void | Promise<void>;
 }) {
+  const t = useT();
   const [undoTarget, setUndoTarget] = useState<GtmFixExecution | null>(null);
   const [undoing, setUndoing] = useState(false);
   const [undoErr, setUndoErr] = useState<string | null>(null);
@@ -328,7 +334,7 @@ function GtmFixHistory({
       setUndoTarget(null);
       await onChanged(true);
     } catch (e) {
-      setUndoErr(e instanceof ApiError ? e.message : "Không hoàn tác được — thử lại sau");
+      setUndoErr(e instanceof ApiError ? e.message : t("meta.measure.gx.hist.undoFail"));
     } finally {
       setUndoing(false);
     }
@@ -336,9 +342,9 @@ function GtmFixHistory({
 
   return (
     <div>
-      <h4 className="mb-2 text-sm font-semibold text-slate-800">Lịch sử publish GTM</h4>
+      <h4 className="mb-2 text-sm font-semibold text-slate-800">{t("meta.measure.gx.hist.title")}</h4>
       {history.length === 0 ? (
-        <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-400">Chưa có lần publish GTM nào.</div>
+        <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-400">{t("meta.measure.gx.hist.none")}</div>
       ) : (
         <div className="space-y-3">
           {undoErr && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{undoErr}</div>}
@@ -346,7 +352,7 @@ function GtmFixHistory({
             <div key={ex.id} className="space-y-2">
               <GtmExecutionCard
                 exec={ex}
-                title={`${ex.mode === "validate" ? "Kiểm trước" : ex.status === "done" ? "Đã publish" : "Publish thất bại"} · ${ex.container} · bởi ${ex.by}`}
+                title={t("meta.measure.gx.hist.row", { what: ex.mode === "validate" ? t("meta.measure.gx.hist.validate") : ex.status === "done" ? t("meta.measure.gx.hist.published") : t("meta.measure.gx.hist.failed"), container: ex.container, by: ex.by })}
               />
               {undoReport?.id === ex.id && (
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-xs text-slate-600">
@@ -355,21 +361,21 @@ function GtmFixHistory({
               )}
               {ex.undoneAt ? (
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-xs text-slate-600">
-                  <div className="font-semibold">Đã hoàn tác lúc {datetimeVN(ex.undoneAt)}</div>
+                  <div className="font-semibold">{t("meta.measure.gx.hist.undoneAt", { time: datetimeVN(ex.undoneAt) })}</div>
                   {ex.undoReport && ex.undoReport.length > 0 && <ul className="mt-1 list-disc pl-4">{ex.undoReport.map((l, i) => <li key={i}>{l}</li>)}</ul>}
                 </div>
               ) : ex.mode === "write" && ex.newVersionId ? (
                 <div className="flex items-center justify-end gap-2">
-                  {!canEdit && <span className="text-xs text-slate-500">Cần quyền chỉnh sửa</span>}
+                  {!canEdit && <span className="text-xs text-slate-500">{t("meta.measure.gx.needEdit")}</span>}
                   <Button
                     className="h-10"
                     variant="destructive"
                     size="sm"
                     onClick={() => setUndoTarget(ex)}
                     disabled={!canEdit}
-                    title={!canEdit ? "Cần quyền chỉnh sửa" : undefined}
+                    title={!canEdit ? t("meta.measure.gx.needEdit") : undefined}
                   >
-                    <Undo2 className="h-3.5 w-3.5" aria-hidden="true" /> Hoàn tác
+                    <Undo2 className="h-3.5 w-3.5" aria-hidden="true" /> {t("meta.measure.gx.hist.undo")}
                   </Button>
                 </div>
               ) : null}
@@ -381,15 +387,15 @@ function GtmFixHistory({
       <Dialog open={!!undoTarget} onOpenChange={(o) => !o && setUndoTarget(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle className="text-red-600">Publish lại bản {undoTarget?.prevVersionId}?</DialogTitle>
+            <DialogTitle className="text-red-600">{t("meta.measure.gx.hist.dlgTitle", { version: undoTarget?.prevVersionId ?? "" })}</DialogTitle>
             <DialogDescription>
-              Publish lại phiên bản GTM trước khi tool sửa lần này (container {undoTarget?.container}). Nếu người khác đã publish bản khác sau đó, hệ thống sẽ từ chối để tránh đè lên thay đổi của họ.
+              {t("meta.measure.gx.hist.dlgDesc", { container: undoTarget?.container ?? "" })}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <DialogClose render={<Button className="h-10" variant="outline" />}>Giữ nguyên</DialogClose>
+            <DialogClose render={<Button className="h-10" variant="outline" />}>{t("meta.measure.gx.hist.keep")}</DialogClose>
             <Button className="h-10" variant="destructive" onClick={runUndo} disabled={undoing}>
-              {undoing && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} Hoàn tác
+              {undoing && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} {t("meta.measure.gx.hist.undo")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -402,6 +408,7 @@ function GtmFixHistory({
  *  before/after/expected như Google — chỉ label/ok/note — nên KHÔNG dùng chung
  *  ExecutionCard của TagDoctorFixPanel. */
 function GtmExecutionCard({ exec, title }: { exec: GtmFixExecution; title: string }) {
+  const t = useT();
   const ok = exec.status === "done";
   const validate = exec.mode === "validate";
   return (
@@ -414,12 +421,12 @@ function GtmExecutionCard({ exec, title }: { exec: GtmFixExecution; title: strin
 
       {(exec.prevVersionId || exec.newVersionId) && (
         <div className="mt-2 text-xs text-slate-500">
-          Phiên bản: <span className="font-medium text-slate-700">{exec.prevVersionId ?? "?"}</span> → <span className="font-medium text-slate-700">{exec.newVersionId ?? "chưa tạo"}</span>
+          {rich(t("meta.measure.gx.ex.versions", { prev: exec.prevVersionId ?? "?", next: exec.newVersionId ?? t("meta.measure.gx.ex.notCreated") }))}
         </div>
       )}
 
       {exec.applied.length > 0 && (
-        <div className="mt-2 text-xs text-slate-600">Việc đã áp: {exec.applied.map((a) => a.label).join("; ")}</div>
+        <div className="mt-2 text-xs text-slate-600">{t("meta.measure.gx.ex.applied", { list: exec.applied.map((a) => a.label).join("; ") })}</div>
       )}
 
       {exec.skipped.length > 0 && (
@@ -434,9 +441,9 @@ function GtmExecutionCard({ exec, title }: { exec: GtmFixExecution; title: strin
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b border-slate-100 text-left text-slate-500">
-                <th className="px-2.5 py-1.5 font-medium">Kiểm tra</th>
-                <th className="px-2.5 py-1.5 font-medium">Kết quả</th>
-                <th className="px-2.5 py-1.5 font-medium">Ghi chú</th>
+                <th className="px-2.5 py-1.5 font-medium">{t("meta.measure.gx.ex.check")}</th>
+                <th className="px-2.5 py-1.5 font-medium">{t("meta.measure.gx.ex.result")}</th>
+                <th className="px-2.5 py-1.5 font-medium">{t("meta.measure.gx.ex.note")}</th>
               </tr>
             </thead>
             <tbody>

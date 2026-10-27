@@ -22,6 +22,7 @@ import { CreativeTypeBadge } from "./CreativeTypeBadge";
 import { CreativeStatusBadge } from "./CreativeStatusBadge";
 import { formatCurrency, formatNumber } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 import type { CreativeItem } from "@/types/creative-content.types";
 import type { CompareResult, CompareSide, MetricVerdict, ComparabilityLevel } from "@/lib/creative-compare";
 
@@ -53,13 +54,14 @@ const LEVEL_STYLE: Record<ComparabilityLevel, { dot: string; text: string }> = {
 };
 
 function SideHeader({ item, side, label }: { item: CreativeItem; side: CompareSide | null; label: string }) {
+  const t = useT();
   return (
     <div className="min-w-0 flex-1">
       <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{label}</p>
       <div className="mt-1 flex flex-wrap items-center gap-1.5">
         <CreativeTypeBadge platform={item.platform} />
         <CreativeStatusBadge status={item.status} />
-        {side?.isVideo && <span className="rounded bg-violet-50 px-1.5 py-0.5 text-[10px] font-medium text-violet-700">Video</span>}
+        {side?.isVideo && <span className="rounded bg-violet-50 px-1.5 py-0.5 text-[10px] font-medium text-violet-700">{t("creative.adsContent.compare.video")}</span>}
       </div>
       <p className="mt-1.5 truncate text-sm font-semibold text-slate-800" title={side?.adName ?? item.name}>
         {side?.adName ?? item.name}
@@ -69,18 +71,18 @@ function SideHeader({ item, side, label }: { item: CreativeItem; side: CompareSi
       </p>
       {side?.window && (
         <p className="mt-1 text-[11px] text-slate-500">
-          Chạy {side.window.from} → {side.window.to} ({side.window.days} ngày)
+          {t("creative.adsContent.compare.window", { from: side.window.from, to: side.window.to, days: side.window.days })}
         </p>
       )}
       {side && (
         <p className="text-[11px] text-slate-500">
-          Đã tiêu {formatCurrency(side.metrics.spend, "VND", false)} · {formatNumber(side.metrics.impressions)} lượt hiển thị · {side.metrics.conversions} kết quả
+          {t("creative.adsContent.compare.spent", { spend: formatCurrency(side.metrics.spend, "VND", false), impressions: formatNumber(side.metrics.impressions), conversions: side.metrics.conversions })}
         </p>
       )}
       {side?.level === "campaign" && (
         <p className="text-[11px] text-slate-500">
-          Gồm {side.adCount ?? 0} quảng cáo · {side.videoCount ?? 0} video khác nhau
-          {(side.videoCount ?? 0) > 1 && <span className="text-amber-700"> — số liệu là của cả chiến dịch, không của riêng video nào</span>}
+          {t("creative.adsContent.compare.campaignScope", { ads: side.adCount ?? 0, videos: side.videoCount ?? 0 })}
+          {(side.videoCount ?? 0) > 1 && <span className="text-amber-700">{t("creative.adsContent.compare.campaignScopeWarn")}</span>}
         </p>
       )}
     </div>
@@ -88,6 +90,7 @@ function SideHeader({ item, side, label }: { item: CreativeItem; side: CompareSi
 }
 
 function VerdictRow({ v, currency }: { v: MetricVerdict; currency: string }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const aWins = v.winner === "a";
   const bWins = v.winner === "b";
@@ -123,16 +126,16 @@ function VerdictRow({ v, currency }: { v: MetricVerdict; currency: string }) {
         {v.winner === "unknown" && (
           <p className="flex items-start gap-1 text-[11px] text-amber-700">
             <CircleHelp className="mt-0.5 h-3 w-3 shrink-0" />
-            {v.insufficientReason ?? "Chưa đủ dữ liệu để kết luận."}
+            {v.insufficientReason ?? t("creative.adsContent.compare.insufficient")}
           </p>
         )}
         {v.winner === "tie" && (
-          <p className="flex items-center gap-1 text-[11px] text-slate-500"><Minus className="h-3 w-3" /> Hai bên ngang nhau.</p>
+          <p className="flex items-center gap-1 text-[11px] text-slate-500"><Minus className="h-3 w-3" /> {t("creative.adsContent.compare.tie")}</p>
         )}
         {(aWins || bWins) && (
           <p className="text-[11px] text-emerald-700">
-            {aWins ? "A" : "B"} tốt hơn {v.deltaPercent !== null ? `${v.deltaPercent.toFixed(0)}%` : ""}
-            {v.confidence !== null ? ` · độ tin cậy ${v.confidence}%` : " · không kiểm định thống kê được cho chỉ số này"}
+            {v.deltaPercent !== null ? t("creative.adsContent.compare.betterBy", { side: aWins ? "A" : "B", pct: `${v.deltaPercent.toFixed(0)}%` }) : t("creative.adsContent.compare.better", { side: aWins ? "A" : "B" })}
+            {v.confidence !== null ? t("creative.adsContent.compare.confidence", { n: v.confidence }) : t("creative.adsContent.compare.noTest")}
           </p>
         )}
         {open && <p className="mt-1 text-[11px] leading-relaxed text-slate-500">{v.meaning}</p>}
@@ -148,6 +151,7 @@ interface CompareDialogProps {
 }
 
 export function CompareDialog({ items, currency, onOpenChange }: CompareDialogProps) {
+  const t = useT();
   // Cấp so sánh: "creative" = đúng hai ad đã chọn; "campaign" = gộp cả chiến
   // dịch chứa chúng. Cùng một cặp đã chọn, chỉ đổi góc nhìn — nên đặt ngay
   // trong bảng thay vì bắt quay ra chọn lại.
@@ -171,7 +175,7 @@ export function CompareDialog({ items, currency, onOpenChange }: CompareDialogPr
     <Dialog open={Boolean(items)} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle>So sánh creative</DialogTitle>
+          <DialogTitle>{t("creative.adsContent.compare.title")}</DialogTitle>
         </DialogHeader>
 
         {items && (
@@ -189,39 +193,39 @@ export function CompareDialog({ items, currency, onOpenChange }: CompareDialogPr
                       : "border-slate-200 text-slate-500 hover:border-slate-300"
                   )}
                 >
-                  {lv === "creative" ? "So 2 creative" : "So 2 chiến dịch"}
+                  {lv === "creative" ? t("creative.adsContent.compare.levelCreative") : t("creative.adsContent.compare.levelCampaign")}
                 </button>
               ))}
               {level === "campaign" && sameCampaign && (
                 <span className="text-[11px] text-amber-700">
-                  ⚠️ Hai creative này thuộc CÙNG một chiến dịch — so ở cấp chiến dịch sẽ là so nó với chính nó.
+                  {t("creative.adsContent.compare.sameCampaign")}
                 </span>
               )}
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row">
-              <SideHeader item={items[0]} side={data?.a ?? null} label={level === "campaign" ? "A — chiến dịch" : "A"} />
+              <SideHeader item={items[0]} side={data?.a ?? null} label={level === "campaign" ? t("creative.adsContent.compare.sideACampaign") : "A"} />
               <div className="hidden w-px bg-slate-100 sm:block" />
-              <SideHeader item={items[1]} side={data?.b ?? null} label={level === "campaign" ? "B — chiến dịch" : "B"} />
+              <SideHeader item={items[1]} side={data?.b ?? null} label={level === "campaign" ? t("creative.adsContent.compare.sideBCampaign") : "B"} />
             </div>
 
             {!bothFacebook && (
               <p className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                So sánh chi tiết hiện chỉ hỗ trợ creative Facebook. Cặp đang chọn có ít nhất một creative Google nên không lấy được chỉ số giữ chân người xem và chuyển đổi theo cùng một cách.
+                {t("creative.adsContent.compare.facebookOnly")}
               </p>
             )}
 
             {isLoading && (
               <p className="flex items-center gap-2 py-6 text-sm text-slate-400">
-                <Loader2 className="h-4 w-4 animate-spin" /> Đang lấy số liệu trọn vòng đời của hai creative…
+                <Loader2 className="h-4 w-4 animate-spin" /> {t("creative.adsContent.compare.loading")}
               </p>
             )}
 
             {error && (
               <p className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                Không lấy được dữ liệu so sánh: {error instanceof Error ? error.message : String(error)}
+                {t("creative.adsContent.compare.error", { message: error instanceof Error ? error.message : String(error) })}
               </p>
             )}
 
@@ -233,13 +237,13 @@ export function CompareDialog({ items, currency, onOpenChange }: CompareDialogPr
                     : data.decidedBy ? "border-emerald-200 bg-emerald-50 text-emerald-900"
                     : "border-amber-200 bg-amber-50 text-amber-900"
                 )}>
-                  <p className="font-semibold">Kết luận</p>
+                  <p className="font-semibold">{t("creative.adsContent.compare.conclusion")}</p>
                   <p className="mt-0.5 leading-relaxed">{data.summary}</p>
                 </div>
 
                 <div className="rounded-lg border border-slate-100">
                   <div className="grid grid-cols-[1fr_auto_auto] gap-2 border-b border-slate-100 bg-slate-50 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                    <span>Chỉ số</span>
+                    <span>{t("creative.adsContent.compare.metric")}</span>
                     <span className="text-right">A</span>
                     <span className="text-right">B</span>
                   </div>
@@ -249,22 +253,22 @@ export function CompareDialog({ items, currency, onOpenChange }: CompareDialogPr
                 {data.narrative?.text && (
                   <div className="rounded-lg border border-violet-200 bg-violet-50/60 px-3 py-2.5">
                     <p className="flex items-center gap-1.5 text-xs font-semibold text-violet-800">
-                      <Sparkles className="h-3.5 w-3.5" /> Diễn giải
+                      <Sparkles className="h-3.5 w-3.5" /> {t("creative.adsContent.compare.narrative")}
                     </p>
                     <p className="mt-1 text-sm leading-relaxed text-violet-900">{data.narrative.text}</p>
                     <p className="mt-1.5 text-[10px] text-violet-500">
-                      AI diễn đạt lại từ đúng các con số ở trên — mọi kết luận và số liệu đều do phần tính toán bên dưới đưa ra, không phải AI tự nghĩ.
+                      {t("creative.adsContent.compare.narrativeNote")}
                     </p>
                   </div>
                 )}
                 {data.narrative && !data.narrative.text && data.narrative.note && (
-                  <p className="text-[11px] text-slate-400">Không có đoạn diễn giải: {data.narrative.note}</p>
+                  <p className="text-[11px] text-slate-400">{t("creative.adsContent.compare.noNarrative", { note: data.narrative.note })}</p>
                 )}
 
                 {data.recommendations.length > 0 && (
                   <div>
                     <p className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-slate-700">
-                      <Lightbulb className="h-3.5 w-3.5 text-amber-500" /> Nên làm gì tiếp theo
+                      <Lightbulb className="h-3.5 w-3.5 text-amber-500" /> {t("creative.adsContent.compare.nextSteps")}
                     </p>
                     <div className="flex flex-col gap-2">
                       {data.recommendations.map((r, i) => (
@@ -273,10 +277,10 @@ export function CompareDialog({ items, currency, onOpenChange }: CompareDialogPr
                             {i + 1}. {r.title}
                           </p>
                           <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500">
-                            <span className="font-medium text-slate-600">Vì sao: </span>{r.evidence}
+                            <span className="font-medium text-slate-600">{t("creative.adsContent.compare.why")}</span>{r.evidence}
                           </p>
                           <p className="mt-0.5 text-[11px] leading-relaxed text-emerald-800">
-                            <span className="font-medium">Làm gì: </span>{r.action}
+                            <span className="font-medium">{t("creative.adsContent.compare.action")}</span>{r.action}
                           </p>
                         </div>
                       ))}
@@ -285,7 +289,7 @@ export function CompareDialog({ items, currency, onOpenChange }: CompareDialogPr
                 )}
 
                 <div>
-                  <p className="mb-1.5 text-xs font-semibold text-slate-700">Mức độ so sánh được</p>
+                  <p className="mb-1.5 text-xs font-semibold text-slate-700">{t("creative.adsContent.compare.comparability")}</p>
                   <div className="flex flex-col gap-1.5">
                     {data.comparability.map((c) => (
                       <div key={c.key} className="flex items-start gap-2 text-[11px]">

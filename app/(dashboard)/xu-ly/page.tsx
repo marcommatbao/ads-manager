@@ -24,6 +24,7 @@ import { DEFAULT_VIEW_DAYS, MAX_RANGE_DAYS, MIN_CASE_DAYS, isYmd, lastDays, rang
 import type { Company } from "@/lib/case/types";
 import type { OverviewRow, Platform } from "@/lib/case/service";
 import { orderedCompanyIds, companyLabel } from "@/lib/companies/registry";
+import { useT } from "@/lib/i18n/client";
 
 /** Đọc `?from=&to=` từ URL ở LẦN RENDER ĐẦU (reload/back) — không hợp lệ thì về mặc định 30 ngày. */
 function initialRange(sp: ReturnType<typeof useSearchParams>): DateRangeValue {
@@ -43,7 +44,13 @@ export default function XuLyOverviewPage() {
   );
 }
 
+// Chuỗi từ điển có <b>…</b> → in đậm (chỉ chuỗi tĩnh do mình viết trong lib/i18n/messages).
+function rich(s: string): React.ReactNode[] {
+  return s.split(/<b>(.*?)<\/b>/).map((part, i) => (i % 2 ? <b key={i}>{part}</b> : part));
+}
+
 function XuLyOverviewPageInner() {
+  const t = useT();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useSession();
@@ -76,7 +83,7 @@ function XuLyOverviewPageInner() {
 
   async function openCase(row: OverviewRow) {
     if (rangeTooShortForCase) {
-      setOpenErr((prev) => ({ ...prev, [row.campaignId]: `Mở phiên cần khoảng ít nhất ${MIN_CASE_DAYS} ngày — khoảng này được lưu làm mốc "trước" để so với đo lại 7/14 ngày.` }));
+      setOpenErr((prev) => ({ ...prev, [row.campaignId]: t("overview.xuly.list.rangeShortErr", { days: MIN_CASE_DAYS }) }));
       return;
     }
     setOpeningId(row.campaignId);
@@ -85,7 +92,7 @@ function XuLyOverviewPageInner() {
       const json = await postJson("/api/cases", { company: effectiveCompany, campaignId: row.campaignId, platform: channel, from: range.from, to: range.to });
       router.push(`/xu-ly/${json.case.id}`);
     } catch (e) {
-      setOpenErr((prev) => ({ ...prev, [row.campaignId]: e instanceof ApiError ? e.message : "Không mở được phiên" }));
+      setOpenErr((prev) => ({ ...prev, [row.campaignId]: e instanceof ApiError ? e.message : t("overview.xuly.list.openFailed") }));
     } finally {
       setOpeningId(null);
     }
@@ -96,30 +103,30 @@ function XuLyOverviewPageInner() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="flex items-center gap-2 text-xl font-bold text-slate-900">
-            <Stethoscope className="h-5 w-5 text-blue-600" aria-hidden="true" /> Xử lý chiến dịch
+            <Stethoscope className="h-5 w-5 text-blue-600" aria-hidden="true" /> {t("overview.xuly.list.title")}
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-slate-500">
-            Chiến dịch nào đang tiêu tiền vượt mục tiêu — xếp theo số tiền chi vượt trần, lớn nhất lên đầu.
+            {t("overview.xuly.list.subtitle")}
           </p>
         </div>
         <div className="flex items-center gap-2">
           <DateRangeControl value={range} onChange={handleRangeChange} maxDays={MAX_RANGE_DAYS} />
           <Button className="h-10" variant="outline" size="sm" onClick={() => mutate()} disabled={isLoading}>
-            <RefreshCw className={cn("h-3.5 w-3.5", isLoading && "animate-spin")} aria-hidden="true" /> Tải lại
+            <RefreshCw className={cn("h-3.5 w-3.5", isLoading && "animate-spin")} aria-hidden="true" /> {t("overview.xuly.list.reload")}
           </Button>
         </div>
       </div>
 
       {rangeTooShortForCase && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
-          Khoảng đang xem chỉ {rangeDays(range)} ngày — mở phiên xử lý cần ít nhất {MIN_CASE_DAYS} ngày (khoảng này được lưu làm mốc &quot;trước&quot; để so với đo lại 7/14 ngày). Chọn khoảng dài hơn để mở phiên.
+          {t("overview.xuly.list.rangeShortWarn", { current: rangeDays(range), min: MIN_CASE_DAYS })}
         </div>
       )}
 
       <div className="flex flex-wrap gap-4">
         <div>
-          <div className="mb-1 text-xs font-medium text-slate-400">Kênh</div>
-          <div role="tablist" aria-label="Kênh" className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
+          <div className="mb-1 text-xs font-medium text-slate-400">{t("overview.xuly.list.channel")}</div>
+          <div role="tablist" aria-label={t("overview.xuly.list.channel")} className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
             <button
               role="tab"
               aria-selected={channel === "google"}
@@ -145,8 +152,8 @@ function XuLyOverviewPageInner() {
           </div>
         </div>
         <div>
-          <div className="mb-1 text-xs font-medium text-slate-400">Công ty</div>
-          <div role="tablist" aria-label="Công ty" className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
+          <div className="mb-1 text-xs font-medium text-slate-400">{t("overview.xuly.list.company")}</div>
+          <div role="tablist" aria-label={t("overview.xuly.list.company")} className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
             {(orderedCompanyIds(["MBI", "MBC"]) as Company[]).map((v) => {
               const allowed = allowedCompanies.includes(v);
               return (
@@ -170,7 +177,7 @@ function XuLyOverviewPageInner() {
       </div>
 
       {allowedCompanies.length === 0 && (
-        <EmptyState icon={AlertTriangle} title="Tài khoản của bạn chưa được gán công ty nào" description="Liên hệ quản trị để được cấp quyền MBI hoặc MBC." />
+        <EmptyState icon={AlertTriangle} title={t("overview.xuly.list.noCompanyTitle")} description={t("overview.xuly.list.noCompanyDesc")} />
       )}
 
       {allowedCompanies.length > 0 && isLoading && <OverviewSkeleton />}
@@ -178,46 +185,46 @@ function XuLyOverviewPageInner() {
       {allowedCompanies.length > 0 && !isLoading && error && (
         <EmptyState
           icon={AlertTriangle}
-          title={`Không đọc được số liệu ${channelLabel}`}
-          description={error instanceof ApiError ? error.message : "Có lỗi khi tải dữ liệu — số liệu cũ không được hiển thị để tránh xử lý trên dữ liệu lỗi thời."}
-          action={<Button className="h-10" onClick={() => mutate()}><RefreshCw className="h-4 w-4" aria-hidden="true" /> Thử lại</Button>}
+          title={t("overview.xuly.list.readFailed", { channel: channelLabel })}
+          description={error instanceof ApiError ? error.message : t("overview.xuly.list.loadError")}
+          action={<Button className="h-10" onClick={() => mutate()}><RefreshCw className="h-4 w-4" aria-hidden="true" /> {t("overview.xuly.list.retry")}</Button>}
         />
       )}
 
       {allowedCompanies.length > 0 && !isLoading && !error && data && (
         <>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Kpi label="Tổng chi" value={vnd(data.totals.cost)} sub={`${rows.length} chiến dịch có chi tiêu`} />
-            <Kpi label="Đơn mua" value={num(data.totals.orders)} sub={data.totals.leads ? `Mục tiêu cuối: Mua hàng · thêm ${num(data.totals.leads)} lead (chấm riêng theo CPL)` : "Mục tiêu cuối: Mua hàng"} />
+            <Kpi label={t("overview.xuly.list.kpiSpend")} value={vnd(data.totals.cost)} sub={t("overview.xuly.list.kpiSpendSub", { n: rows.length })} />
+            <Kpi label={t("overview.xuly.list.kpiPurchases")} value={num(data.totals.orders)} sub={data.totals.leads ? t("overview.xuly.list.kpiPurchasesSubLeads", { leads: num(data.totals.leads) }) : t("overview.xuly.list.kpiPurchasesSub")} />
             {showRoas ? (
-              <Kpi label="ROAS chung" value={data.totals.cost > 0 ? fmtRoas(data.totals.orderValue / data.totals.cost) : "—"} sub={`Giá trị ${vnd(data.totals.orderValue)}`} />
+              <Kpi label={t("overview.xuly.list.kpiRoas")} value={data.totals.cost > 0 ? fmtRoas(data.totals.orderValue / data.totals.cost) : "—"} sub={t("overview.xuly.list.kpiRoasSub", { value: vnd(data.totals.orderValue) })} />
             ) : (
-              <Kpi label="Chi phí/đơn" value={data.totals.orders > 0 ? vnd(data.totals.cost / data.totals.orders) : "—"} bad={data.totals.orders === 0 && data.totals.cost > 0} />
+              <Kpi label={t("overview.xuly.list.kpiCpo")} value={data.totals.orders > 0 ? vnd(data.totals.cost / data.totals.orders) : "—"} bad={data.totals.orders === 0 && data.totals.cost > 0} />
             )}
-            <Kpi label="Chi vượt trần" value={vnd(data.totals.overCeiling)} sub={`Ở ${data.totals.redCount} chiến dịch cần xử lý`} bad={data.totals.overCeiling > 0} />
+            <Kpi label={t("overview.xuly.list.kpiOver")} value={vnd(data.totals.overCeiling)} sub={t("overview.xuly.list.kpiOverSub", { n: data.totals.redCount })} bad={data.totals.overCeiling > 0} />
           </div>
 
           {channel === "facebook" && (
             <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">
-              Chấm theo số Meta tự báo. Số Odoo đối chiếu trong từng phiên — Meta thường báo cao hơn Odoo nhiều lần.
+              {t("overview.xuly.list.metaNote")}
             </div>
           )}
 
           {rows.length === 0 ? (
-            <EmptyState title="Chưa có chiến dịch nào chi tiêu trong kỳ" description={`Đổi kỳ dữ liệu hoặc kiểm lại tài khoản ${channelLabel}.`} />
+            <EmptyState title={t("overview.xuly.list.emptyTitle")} description={t("overview.xuly.list.emptyDesc", { channel: channelLabel })} />
           ) : (
             <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-100 text-left text-xs text-slate-500">
-                    <th className="px-4 py-2.5 font-medium">Chiến dịch</th>
-                    <th className="px-3 py-2.5 text-right font-medium">Chi</th>
-                    <th className="px-3 py-2.5 text-right font-medium">Click</th>
-                    <th className="px-3 py-2.5 text-right font-medium">Đơn</th>
-                    <th className="px-3 py-2.5 text-right font-medium">Chi phí/đơn</th>
+                    <th className="px-4 py-2.5 font-medium">{t("overview.xuly.list.thCampaign")}</th>
+                    <th className="px-3 py-2.5 text-right font-medium">{t("overview.xuly.list.thSpend")}</th>
+                    <th className="px-3 py-2.5 text-right font-medium">{t("overview.xuly.list.thClicks")}</th>
+                    <th className="px-3 py-2.5 text-right font-medium">{t("overview.xuly.list.thOrders")}</th>
+                    <th className="px-3 py-2.5 text-right font-medium">{t("overview.xuly.list.kpiCpo")}</th>
                     <th className="px-3 py-2.5 text-right font-medium">ROAS</th>
-                    <th className="px-3 py-2.5 text-right font-medium">Chi vượt trần</th>
-                    <th className="px-3 py-2.5 font-medium">Tình trạng</th>
+                    <th className="px-3 py-2.5 text-right font-medium">{t("overview.xuly.list.kpiOver")}</th>
+                    <th className="px-3 py-2.5 font-medium">{t("overview.xuly.list.thStatus")}</th>
                     <th className="px-3 py-2.5 font-medium"></th>
                   </tr>
                 </thead>
@@ -226,12 +233,12 @@ function XuLyOverviewPageInner() {
                     <tr key={r.campaignId} className="border-b border-slate-50 last:border-0 align-top">
                       <td className="px-4 py-2.5">
                         <div className="font-semibold text-slate-800">{r.name}</div>
-                        <div className="text-xs text-slate-400">{channel === "facebook" ? metaObjectiveLabel(r.channel) : r.channel} · {r.groupLabel}{r.status === "PAUSED" && <span className="font-semibold text-slate-600"> · Đã dừng</span>}</div>
+                        <div className="text-xs text-slate-400">{channel === "facebook" ? metaObjectiveLabel(r.channel) : r.channel} · {r.groupLabel}{r.status === "PAUSED" && <span className="font-semibold text-slate-600"> · {t("overview.xuly.list.paused")}</span>}</div>
                       </td>
                       <td className="px-3 py-2.5 text-right tabular-nums">{vnd(r.perf.cost)}</td>
                       <td className="px-3 py-2.5 text-right tabular-nums">{num(r.perf.clicks)}</td>
                       {/* Đợt 23 (3d): chiến dịch thu lead (Google + Meta) — cột này là số LEAD, chấm theo chi phí mỗi lead; không có ROAS. */}
-                      <td className="px-3 py-2.5 text-right tabular-nums">{num(r.perf.orders)}{r.goalKind === "leads" && <span className="ml-1 text-xs font-normal text-slate-400">lead</span>}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums">{num(r.perf.orders)}{r.goalKind === "leads" && <span className="ml-1 text-xs font-normal text-slate-400">{t("overview.xuly.list.lead")}</span>}</td>
                       <td className={cn("px-3 py-2.5 text-right tabular-nums", r.verdict.status === "red" && "font-semibold text-red-600")}>
                         {r.verdict.cpa !== null ? vnd(r.verdict.cpa) : "—"}
                       </td>
@@ -265,7 +272,7 @@ function XuLyOverviewPageInner() {
           )}
 
           <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">
-            <b>Cách xếp hạng:</b> &quot;Chi vượt trần&quot; = chi phí − (trần × số đơn). Chiến dịch 0 đơn chỉ bị đánh đỏ khi đã chi ≥ 2 lần trần (1–2 lần trần: vàng &quot;đáng lo&quot;); ít hơn thì ghi &quot;Chưa đủ dữ liệu&quot; thay vì kết luận vội.
+            {rich(t("overview.xuly.list.rankNote"))}
           </div>
         </>
       )}
@@ -274,17 +281,18 @@ function XuLyOverviewPageInner() {
 }
 
 function RowAction({ row, platform, busy, rangeTooShort, onOpen }: { row: OverviewRow; platform: Platform; busy: boolean; rangeTooShort: boolean; onOpen: () => void }) {
+  const t = useT();
   if (row.latestCase) {
     return (
       <Button className="h-10" size="sm" variant="outline" render={<Link href={`/xu-ly/${row.latestCase.id}`} />}>
-        Xem phiên
+        {t("overview.xuly.list.viewCase")}
       </Button>
     );
   }
   if (row.verdict.status === "no_target") {
     return (
       <Button className="h-10" size="sm" variant="outline" render={<Link href="/xu-ly/muc-tieu" />}>
-        Đặt mục tiêu
+        {t("overview.xuly.list.setGoal")}
       </Button>
     );
   }
@@ -295,13 +303,13 @@ function RowAction({ row, platform, busy, rangeTooShort, onOpen }: { row: Overvi
         size="sm"
         onClick={onOpen}
         disabled={busy || rangeTooShort}
-        title={rangeTooShort ? `Mở phiên cần khoảng ít nhất ${MIN_CASE_DAYS} ngày` : undefined}
+        title={rangeTooShort ? t("overview.xuly.list.rangeShortTitle", { days: MIN_CASE_DAYS }) : undefined}
       >
-        {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} Mở phiên xử lý
+        {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} {t("overview.xuly.list.openCase")}
       </Button>
     );
   }
-  return <span className="text-xs text-slate-400">{platform === "facebook" ? "Mục tiêu chưa hỗ trợ mở phiên" : "Pmax — đợt 2"}</span>;
+  return <span className="text-xs text-slate-400">{platform === "facebook" ? t("overview.xuly.list.unsupportedGoal") : t("overview.xuly.list.pmaxPhase2")}</span>;
 }
 
 function Kpi({ label, value, sub, bad }: { label: string; value: string; sub?: string; bad?: boolean }) {

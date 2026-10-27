@@ -9,6 +9,8 @@ import { useState, useEffect, useCallback } from "react";
 import { DollarSign, RefreshCw, AlertTriangle, TrendingUp, ShoppingCart, Percent, Calendar, ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BUILTIN_AD_CHANNELS, OTHER_CHANNEL, channelLabel, type AdChannelDef } from "@/lib/settings/ad-channels-def";
+import { useIntlLocale, useT } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/messages";
 
 /** Kênh đặt được trần ngân sách (Settings → KPI) — lấy từ sổ kênh dùng chung (`channels` của GET /api/settings/kpi). */
 type ChannelBudget = Record<string, number>;
@@ -74,11 +76,17 @@ interface ApiResponse {
   error?: string;
 }
 
-// Số đầy đủ (không rút gọn), chuẩn vi-VN + hậu tố đ. VD: 123.456.789đ
-function fmtVND(v: number): string {
-  return `${Math.round(v).toLocaleString("vi-VN")}đ`;
+// Số đầy đủ (không rút gọn), chuẩn theo ngôn ngữ đang chọn (vi-VN: 123.456.789đ) + hậu tố đ.
+function makeFmt(loc: string) {
+  return {
+    fmtVND: (v: number): string => `${Math.round(v).toLocaleString(loc)}đ`,
+    fmtNum: (v: number): string => v.toLocaleString(loc),
+  };
 }
-const fmtNum = (v: number) => v.toLocaleString("vi-VN");
+// Chuỗi từ điển có <strong>…</strong> → in đậm (chỉ chuỗi tĩnh do mình viết trong lib/i18n/messages).
+function rich(s: string, cls?: string): React.ReactNode[] {
+  return s.split(/<strong>(.*?)<\/strong>/).map((part, i) => (i % 2 ? <strong key={i} className={cls}>{part}</strong> : part));
+}
 function currentMonth(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -95,6 +103,7 @@ function mondayOf(d: Date): Date {
 function currentWeek(): string { return ymd(mondayOf(new Date())); }
 
 export default function CompanyPnL() {
+  const t = useT();
   const [mode, setMode] = useState<"month" | "week" | "rolling28">("month");
   const [month, setMonth] = useState(currentMonth());
   const [week, setWeek] = useState(currentWeek());
@@ -121,7 +130,7 @@ export default function CompanyPnL() {
       );
       const text = await res.text();
       const json = (text ? JSON.parse(text) : {}) as ApiResponse;
-      if (!res.ok || !json.success) throw new Error(json.error ?? `Lỗi tải dữ liệu (HTTP ${res.status})`);
+      if (!res.ok || !json.success) throw new Error(json.error ?? t("overview.pnl.loadError", { status: res.status }));
       setData(json);
       if (mode !== "month") {
         // Chế độ tuần: mục tiêu do server chia đều theo ngày (xử lý đúng cả tuần
@@ -149,9 +158,9 @@ export default function CompanyPnL() {
         } : null);
       } catch { setKpi(null); }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Lỗi kết nối");
+      setError(err instanceof Error ? err.message : t("overview.pnl.connError"));
     } finally { setLoading(false); }
-  }, [mode, month, week, compare]);
+  }, [mode, month, week, compare, t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -163,31 +172,31 @@ export default function CompanyPnL() {
       <div className="flex flex-wrap items-center gap-2 mb-4">
         <div className="rounded-full bg-emerald-50 p-2"><DollarSign className="h-4 w-4 text-emerald-600" /></div>
         <div className="flex-1 min-w-0">
-          <h2 className="text-base font-semibold text-slate-800">Hiệu quả chi phí theo công ty</h2>
+          <h2 className="text-base font-semibold text-slate-800">{t("overview.pnl.title")}</h2>
           <p className="text-[11px] text-slate-400">
-            Chi phí QC × Doanh thu/Đơn
-            {data ? ` · ${data.periodLabel ?? ""}${data.periodLabel ? " · " : ""}${data.daysElapsed}/${data.daysInMonth} ngày` : ""}
+            {t("overview.pnl.subtitle")}
+            {data ? ` · ${data.periodLabel ?? ""}${data.periodLabel ? " · " : ""}${t("overview.pnl.daysElapsed", { elapsed: data.daysElapsed, total: data.daysInMonth })}` : ""}
           </p>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex rounded-lg border border-slate-200 overflow-hidden text-xs font-medium">
             {([
-              { k: "month", label: "Tháng", hint: "Theo tháng dương lịch — khớp với KPI" },
-              { k: "week", label: "Tuần", hint: "Tuần thứ Hai đến Chủ nhật" },
-              { k: "rolling28", label: "4 tuần", hint: "28 ngày trọn gần nhất — hai kỳ cùng thành phần thứ trong tuần nên so chuẩn nhất" },
+              { k: "month", label: "overview.pnl.mode.month", hint: "overview.pnl.mode.monthHint" },
+              { k: "week", label: "overview.pnl.mode.week", hint: "overview.pnl.mode.weekHint" },
+              { k: "rolling28", label: "overview.pnl.mode.rolling28", hint: "overview.pnl.mode.rolling28Hint" },
             ] as const).map(m => (
-              <button key={m.k} onClick={() => setMode(m.k)} title={m.hint}
+              <button key={m.k} onClick={() => setMode(m.k)} title={t(m.hint)}
                 className={cn("px-2.5 py-1.5 transition-colors",
                   mode === m.k ? "bg-amber-500 text-white" : "bg-white text-slate-500 hover:bg-slate-50")}>
-                {m.label}
+                {t(m.label)}
               </button>
             ))}
           </div>
           <button onClick={() => setCompare(v => !v)}
-            title="So với kỳ trước, cùng số ngày đã trôi"
+            title={t("overview.pnl.compare.hint")}
             className={cn("px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors",
               compare ? "border-amber-400 bg-amber-50 text-amber-700" : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50")}>
-            So sánh
+            {t("overview.pnl.compare.btn")}
           </button>
           {mode !== "rolling28" && <Calendar className="h-3.5 w-3.5 text-slate-400" />}
           {mode === "rolling28" ? null : mode === "week" ? (
@@ -201,7 +210,7 @@ export default function CompanyPnL() {
             <input type="month" value={month} max={currentMonth()} onChange={e => setMonth(e.target.value)}
               className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm bg-white focus:outline-none focus:border-amber-400" />
           )}
-          <button onClick={load} disabled={loading} className="p-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 disabled:opacity-50" aria-label="Làm mới">
+          <button onClick={load} disabled={loading} className="p-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 disabled:opacity-50" aria-label={t("overview.pnl.refresh")}>
             <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
           </button>
         </div>
@@ -211,9 +220,7 @@ export default function CompanyPnL() {
         // Người dùng sẽ thấy số ở chế độ này lệch với chế độ Tháng và thắc mắc.
         // Nói trước lý do: cố ý bỏ hôm nay để hai kỳ đều là ngày trọn.
         <p className="mb-3 rounded-lg bg-indigo-50 border border-indigo-200 px-2.5 py-1.5 text-[10px] text-indigo-700">
-          <strong>28 ngày trọn gần nhất</strong>, kết thúc <strong>hôm qua</strong> — chưa tính hôm nay vì ngày còn đang chạy.
-          Chọn 28 ngày (đúng 4 tuần) để kỳ này và kỳ trước có cùng số ngày thường và cuối tuần, nên so ra con số sạch nhất.
-          Muốn xem số tới hôm nay và khớp KPI thì dùng chế độ <strong>Tháng</strong>.
+          {rich(t("overview.pnl.rolling.note"))}
         </p>
       )}
 
@@ -222,10 +229,9 @@ export default function CompanyPnL() {
         // mấy con số phần trăm bên dưới là số không rõ gốc — và người đọc sẽ mặc
         // định là "so với trọn kỳ trước", đúng cái hiểu nhầm cần tránh.
         <p className="mb-3 rounded-lg bg-slate-50 border border-slate-200 px-2.5 py-1.5 text-[10px] text-slate-500">
-          Đang so với <strong className="text-slate-700">{data.comparison.label}</strong> — lấy đúng{" "}
-          {data.comparison.comparedDays} ngày đầu kỳ để hai bên cùng số ngày, vì kỳ này chưa chạy hết.
+          {rich(t("overview.pnl.compare.note", { label: data.comparison.label, days: data.comparison.comparedDays }), "text-slate-700")}
           {data.comparison.truncated && (
-            <span className="text-amber-700"> Kỳ trước ngắn hơn nên đã cắt bớt — hai kỳ không cùng số ngày.</span>
+            <span className="text-amber-700"> {t("overview.pnl.compare.truncated")}</span>
           )}
         </p>
       )}
@@ -242,14 +248,14 @@ export default function CompanyPnL() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {mbc && <MbcCard d={mbc} adSpendTarget={kpi?.adSpendMbc} revenueTarget={kpi?.revenueMbc} channelTargets={kpi?.mbcByChannel} derived={data?.targets?.derived} manualExcluded={data?.manualExcluded} cmp={data?.comparison} channels={channels} />}
           {mbi && <MbiCard d={mbi} adSpendTarget={kpi?.adSpendMbi} ordersTarget={kpi?.ordersMbi} channelTargets={kpi?.mbiByChannel} derived={data?.targets?.derived} manualExcluded={data?.manualExcluded} cmp={data?.comparison} channels={channels} />}
-          {!mbc && !mbi && <p className="text-sm text-slate-400 py-6 text-center col-span-2">Không có dữ liệu công ty bạn được xem.</p>}
+          {!mbc && !mbi && <p className="text-sm text-slate-400 py-6 text-center col-span-2">{t("overview.pnl.noCompany")}</p>}
         </div>
       )}
     </div>
   );
 }
 
-function SpendRow({ g, f, t, accent, fbError, ggError, fbStaleAt, manualExcluded, spendDelta, byChannel, budget, channels }: {
+function SpendRow({ g, f, t: totalSpend, accent, fbError, ggError, fbStaleAt, manualExcluded, spendDelta, byChannel, budget, channels }: {
   channels: AdChannelDef[];
   g: number; f: number; t: number; accent: string;
   fbError?: string | null; ggError?: string | null;
@@ -264,6 +270,9 @@ function SpendRow({ g, f, t, accent, fbError, ggError, fbStaleAt, manualExcluded
   /** Trần ngân sách theo kênh, đặt ở Settings → KPI. Kênh để 0 = chưa đặt trần. */
   budget?: ChannelBudget;
 }) {
+  const t = useT();
+  const loc = useIntlLocale();
+  const { fmtVND } = makeFmt(loc);
   // "0đ" và "không lấy được số" là hai chuyện khác hẳn nhau. Meta chặn khi vượt
   // hạn mức gọi API (`Application request limit reached`) thì chi phí về 0 —
   // hiện thành "0đ" là báo sai một con số tiền, và tổng chi phí bên cạnh cũng
@@ -278,7 +287,7 @@ function SpendRow({ g, f, t, accent, fbError, ggError, fbStaleAt, manualExcluded
   // Một tài khoản đang chạy quảng cáo không tiêu đúng 0đ cả tháng.
   const staleUsable = !!fbStaleAt && f > 0;
   const staleLabel = staleUsable
-    ? new Date(fbStaleAt!).toLocaleString("vi-VN", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" })
+    ? new Date(fbStaleAt!).toLocaleString(loc, { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" })
     : null;
   // Có mốc giờ nhưng số bằng 0 → coi như không lấy được, để tổng bên cạnh được
   // đánh dấu THIẾU thay vì âm thầm cộng 0.
@@ -315,7 +324,7 @@ function SpendRow({ g, f, t, accent, fbError, ggError, fbStaleAt, manualExcluded
         {visibleChannels.map(ch => {
           const unavailable = (ch === "facebook" && fbUnavailable) || (ch === "google" && !!ggError);
           const label =
-            ch === "facebook" && staleLabel ? "Facebook (số cũ)" : channelLabel(channels, ch);
+            ch === "facebook" && staleLabel ? t("overview.pnl.facebookStale") : channelLabel(channels, ch);
           return (
             <ChannelCell
               key={ch}
@@ -332,37 +341,37 @@ function SpendRow({ g, f, t, accent, fbError, ggError, fbStaleAt, manualExcluded
       </div>
       <div className="grid grid-cols-1 gap-2">
         <Cell
-          label={anyError ? "Tổng chi phí (thiếu)" : `Tổng chi phí = ${visibleChannels.map(c => channelLabel(channels, c)).join(" + ")}`}
-          value={fmtVND(t)} strong accent={accent} delta={spendDelta} money
+          label={anyError ? t("overview.pnl.total.missing") : t("overview.pnl.total.sum", { channels: visibleChannels.map(c => channelLabel(channels, c)).join(" + ") })}
+          value={fmtVND(totalSpend)} strong accent={accent} delta={spendDelta} money
         />
       </div>
       {overspent.length > 0 && (
         // Vượt trần một kênh là chuyện phải đọc thấy ngay, không phải chuyện đi
         // dò từng ô — nên nhắc lại thành một dòng riêng.
         <p className="rounded-lg bg-red-50 border border-red-200 px-2.5 py-1.5 text-[10px] text-red-800">
-          Vượt trần kênh:{" "}
+          {t("overview.pnl.overspent.prefix")}{" "}
           {overspent.map(o => `${channelLabel(channels, o.ch)} +${fmtVND(o.over)}`).join(" · ")}
-          {" "}— trần đặt ở <strong>Settings → KPI</strong>.
+          {" "}{rich(t("overview.pnl.overspent.suffix"))}
         </p>
       )}
       {staleLabel && !fbError && (
         <p className="rounded-lg bg-sky-50 border border-sky-200 px-2.5 py-1.5 text-[10px] text-sky-800">
-          Chi phí Facebook là <strong>số đọc lúc {staleLabel}</strong> — Meta đang chặn nên chưa lấy được số mới.
-          Con số vẫn đúng tại thời điểm đó; chi tiêu cả tháng thay đổi rất chậm nên sai lệch không đáng kể.
+          {rich(t("overview.pnl.stale.note", { time: staleLabel }))}
         </p>
       )}
       {anyError && (
         <p className="rounded-lg bg-amber-50 border border-amber-200 px-2.5 py-1.5 text-[10px] text-amber-800">
-          Không lấy được chi phí {fbUnavailable ? "Facebook" : ""}{fbUnavailable && ggError ? " và " : ""}{ggError ? "Google" : ""} —{" "}
-          {fbError ?? ggError ?? "số cũ trong bộ đệm bằng 0 nên không dùng được"}. Tổng bên trên đang <strong>thiếu</strong> phần này, không phải chi 0đ.
+          {rich(t("overview.pnl.err.unavailable", {
+            names: `${fbUnavailable ? "Facebook" : ""}${fbUnavailable && ggError ? t("overview.pnl.err.and") : ""}${ggError ? "Google" : ""}`,
+            reason: fbError ?? ggError ?? t("overview.pnl.err.staleZero"),
+          }))}
         </p>
       )}
       {manualExcluded && (
         // Chi phí TikTok/Zalo chỉ nhập được theo tháng. Chia đều ra tuần là bịa
         // (tháng đó có thể chỉ chạy TikTok đúng một tuần), nên bỏ ra và nói rõ.
         <p className="rounded-lg bg-slate-50 border border-slate-200 px-2.5 py-1.5 text-[10px] text-slate-500">
-          Tổng tuần chỉ gồm Google + Facebook. Chi phí TikTok/Zalo nhập tay chỉ lưu được theo tháng nên chưa cộng vào —
-          xem đủ ở chế độ <strong>Tháng</strong>.
+          {rich(t("overview.pnl.manualExcluded"))}
         </p>
       )}
     </div>
@@ -377,12 +386,14 @@ function SpendRow({ g, f, t, accent, fbError, ggError, fbStaleAt, manualExcluded
  * to đùng — số vô nghĩa dạy người dùng ngừng tin cả khối.
  */
 function DeltaBadge({ d, money, higherIsBetter }: { d?: MetricDelta; money?: boolean; higherIsBetter?: boolean }) {
+  const t = useT();
+  const { fmtVND, fmtNum } = makeFmt(useIntlLocale());
   if (!d) return null;
   if (d.noBaseline) {
-    return <span className="text-[9px] font-medium text-slate-400">kỳ trước chưa có số để so</span>;
+    return <span className="text-[9px] font-medium text-slate-400">{t("overview.pnl.delta.noBaseline")}</span>;
   }
   if (d.lowBaseline) {
-    return <span className="text-[9px] font-medium text-slate-400">kỳ trước quá nhỏ để so tỉ lệ</span>;
+    return <span className="text-[9px] font-medium text-slate-400">{t("overview.pnl.delta.lowBaseline")}</span>;
   }
   if (d.pct === null) return null;
 
@@ -396,9 +407,9 @@ function DeltaBadge({ d, money, higherIsBetter }: { d?: MetricDelta; money?: boo
   const abs = Math.abs(d.diff);
   return (
     <span className={cn("inline-flex items-center gap-0.5 text-[9px] font-bold", tone)}
-      title={`Kỳ trước: ${money ? fmtVND(d.previous) : fmtNum(d.previous)}${d.clamped ? " (tỉ lệ đã kẹp ở ±300%)" : ""}`}>
+      title={`${t("overview.pnl.delta.prev", { value: money ? fmtVND(d.previous) : fmtNum(d.previous) })}${d.clamped ? t("overview.pnl.delta.clamped") : ""}`}>
       <Icon className="h-2.5 w-2.5" />
-      {flat ? "đi ngang" : `${d.pct > 0 ? "+" : ""}${d.pct}%`}
+      {flat ? t("overview.pnl.delta.flat") : `${d.pct > 0 ? "+" : ""}${d.pct}%`}
       <span className="font-medium text-slate-400">({money ? fmtVND(abs) : fmtNum(abs)})</span>
     </span>
   );
@@ -432,6 +443,8 @@ function ChannelCell({ label, value, actual, target, manual, unavailable, budget
    *  là "chưa đặt" — người đọc sẽ đi tìm ô nhập không tồn tại. */
   budgetable?: boolean;
 }) {
+  const t = useT();
+  const { fmtVND } = makeFmt(useIntlLocale());
   const hasTarget = target > 0 && !unavailable;
   const pct = hasTarget ? Math.round((actual / target) * 100) : 0;
   const diff = actual - target;
@@ -451,8 +464,8 @@ function ChannelCell({ label, value, actual, target, manual, unavailable, budget
           {label}
           {manual && (
             <span className="ml-1 normal-case font-normal text-[9px] text-slate-400"
-              title="Số do người khai ở Settings → Chi phí kênh khác, không phải hệ thống đo qua API">
-              (nhập tay)
+              title={t("overview.pnl.channel.manualHint")}>
+              {t("overview.pnl.channel.manual")}
             </span>
           )}
         </span>
@@ -465,14 +478,14 @@ function ChannelCell({ label, value, actual, target, manual, unavailable, budget
             <div className={cn("h-full rounded-full", tone.bar)} style={{ width: `${Math.min(100, pct)}%` }} />
           </div>
           <p className="text-[9px] text-slate-500">
-            trần {fmtVND(target)} ·{" "}
-            <span className={tone.text}>{diff > 0 ? `vượt ${fmtVND(diff)}` : `còn ${fmtVND(-diff)}`}</span>
+            {t("overview.pnl.channel.cap", { amount: fmtVND(target) })} ·{" "}
+            <span className={tone.text}>{diff > 0 ? t("overview.pnl.over", { amount: fmtVND(diff) }) : t("overview.pnl.left", { amount: fmtVND(-diff) })}</span>
           </p>
         </>
       )}
       {!hasTarget && !unavailable && (
         <p className="text-[9px] text-slate-300 mt-1.5">
-          {budgetable ? "chưa đặt trần" : "không đặt trần riêng"}
+          {budgetable ? t("overview.pnl.channel.noCap") : t("overview.pnl.channel.noCapOwn")}
         </p>
       )}
     </div>
@@ -484,6 +497,8 @@ function ChannelCell({ label, value, actual, target, manual, unavailable, budget
  * higherIsBetter=true (DT/Đơn): đạt cao = xanh, thiếu = đỏ.
  */
 function KpiBar({ label, actual, target, money, higherIsBetter, derived }: { label: string; actual: number; target?: number; money?: boolean; higherIsBetter?: boolean; derived?: boolean }) {
+  const t = useT();
+  const { fmtVND, fmtNum } = makeFmt(useIntlLocale());
   if (!target) return null;
   const pct = Math.round((actual / target) * 100);
   const diff = actual - target;
@@ -492,8 +507,8 @@ function KpiBar({ label, actual, target, money, higherIsBetter, derived }: { lab
     ? (pct >= 100 ? { bar: "bg-emerald-500", text: "text-emerald-600" } : pct >= 80 ? { bar: "bg-amber-500", text: "text-amber-600" } : { bar: "bg-red-500", text: "text-red-500" })
     : (pct > 100 ? { bar: "bg-red-500", text: "text-red-600" } : pct >= 80 ? { bar: "bg-amber-500", text: "text-amber-600" } : { bar: "bg-emerald-500", text: "text-emerald-600" });
   const note = higherIsBetter
-    ? (diff >= 0 ? `vượt ${f(diff)}` : `còn thiếu ${f(-diff)}`)
-    : (diff >= 0 ? `vượt ${f(diff)}` : `còn ${f(-diff)}`);
+    ? (diff >= 0 ? t("overview.pnl.over", { amount: f(diff) }) : t("overview.pnl.short", { amount: f(-diff) }))
+    : (diff >= 0 ? t("overview.pnl.over", { amount: f(diff) }) : t("overview.pnl.left", { amount: f(-diff) }));
   return (
     <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-2.5 mb-2">
       <div className="flex items-center justify-between mb-1">
@@ -504,9 +519,9 @@ function KpiBar({ label, actual, target, money, higherIsBetter, derived }: { lab
             // ngày. Không dán nhãn thì người đọc sẽ hiểu là cam kết của tuần.
             <span
               className="ml-1 normal-case font-normal text-[9px] text-amber-600"
-              title="Suy từ KPI tháng, chia đều theo ngày — không phải mục tiêu đặt riêng cho tuần này"
+              title={t("overview.pnl.kpi.derivedHint")}
             >
-              (suy từ KPI tháng)
+              {t("overview.pnl.kpi.derived")}
             </span>
           )}
         </span>
@@ -527,61 +542,67 @@ function KpiBar({ label, actual, target, money, higherIsBetter, derived }: { lab
 /** 12/10: chỉ hiện khi tháng có tiền đối tác hỗ trợ — tổng chi ở trên vẫn là chi tiêu gộp (so với trần đã cộng hỗ trợ);
  *  chi phí/đơn và tỉ lệ QC/DT bên dưới tính theo chi phí thật. */
 function SupportLine({ support, net }: { support?: number; net?: number }) {
+  const t = useT();
+  const { fmtVND } = makeFmt(useIntlLocale());
   if (!support || support <= 0) return null;
   return (
     <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[11px] rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 mb-2">
-      <span className="text-emerald-800">Đối tác hỗ trợ <b>−{fmtVND(support)}</b></span>
-      <span className="text-slate-700">Chi phí thật của công ty <b>{fmtVND(net ?? 0)}</b></span>
+      <span className="text-emerald-800">{t("overview.pnl.support.partner")} <b>−{fmtVND(support)}</b></span>
+      <span className="text-slate-700">{t("overview.pnl.support.net")} <b>{fmtVND(net ?? 0)}</b></span>
     </div>
   );
 }
 
 function MbcCard({ d, adSpendTarget, revenueTarget, channelTargets, derived, manualExcluded, cmp, channels }: { channels: AdChannelDef[]; d: MbcPnl; adSpendTarget?: number; revenueTarget?: number; channelTargets?: ChannelBudget; derived?: boolean; manualExcluded?: boolean; cmp?: PnlComparison }) {
+  const t = useT();
+  const { fmtVND, fmtNum } = makeFmt(useIntlLocale());
   return (
     <div className="rounded-2xl border border-blue-200 bg-blue-50/30 p-4" style={{ borderLeftWidth: 3, borderLeftColor: "#2563eb" }}>
-      <h3 className="text-sm font-bold text-blue-700 mb-3">🏢 MBC — đo theo doanh thu</h3>
+      <h3 className="text-sm font-bold text-blue-700 mb-3">{t("overview.pnl.mbc.title")}</h3>
       <SpendRow g={d.spendGoogle} f={d.spendFacebook} t={d.totalSpend} accent="text-blue-700" fbError={d.spendFacebookError} ggError={d.spendGoogleError} fbStaleAt={d.spendFacebookStaleAt} manualExcluded={manualExcluded} spendDelta={cmp?.MBC.totalSpend} byChannel={d.spendByChannel} budget={channelTargets} channels={channels} />
       <SupportLine support={d.partnerSupport} net={d.netSpend} />
       {d.revenueSourceError && (
         <div className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 mb-2">
           <AlertTriangle className="h-3 w-3 shrink-0" />
-          ⚠️ Không lấy được doanh thu thật — số liệu có thể chưa chính xác
+          {t("overview.pnl.mbc.revenueError")}
         </div>
       )}
-      <KpiBar label="KPI Doanh thu" actual={d.revenue} target={revenueTarget} money higherIsBetter derived={derived} />
-      <KpiBar label="Ngân sách QC (KPI)" actual={d.totalSpend} target={adSpendTarget} money derived={derived} />
+      <KpiBar label={t("overview.pnl.kpi.revenue")} actual={d.revenue} target={revenueTarget} money higherIsBetter derived={derived} />
+      <KpiBar label={t("overview.pnl.kpi.adBudget")} actual={d.totalSpend} target={adSpendTarget} money derived={derived} />
       <div className="grid grid-cols-2 gap-2">
-        <Cell label="Doanh thu" value={fmtVND(d.revenue)} icon={<TrendingUp className="h-3 w-3" />} delta={cmp?.MBC.revenue} money higherIsBetter />
-        <Cell label="Số đơn" value={fmtNum(d.orders)} icon={<ShoppingCart className="h-3 w-3" />} delta={cmp?.MBC.orders} higherIsBetter />
-        <Cell label="Giá trị TB/đơn" value={fmtVND(d.aov)} />
-        <Cell label="Chi phí TB/đơn" value={fmtVND(d.costPerOrder)} />
-        <Cell label="Tỉ lệ QC / Doanh thu" value={`${d.adCostRatioPct}%`} icon={<Percent className="h-3 w-3" />} accent={d.adCostRatioPct > 30 ? "text-red-600" : d.adCostRatioPct > 15 ? "text-amber-600" : "text-emerald-600"} />
-        <Cell label="DT dự kiến tháng" value={fmtVND(d.projectedRevenue)} accent="text-violet-700" />
+        <Cell label={t("overview.pnl.cell.revenue")} value={fmtVND(d.revenue)} icon={<TrendingUp className="h-3 w-3" />} delta={cmp?.MBC.revenue} money higherIsBetter />
+        <Cell label={t("overview.pnl.cell.orders")} value={fmtNum(d.orders)} icon={<ShoppingCart className="h-3 w-3" />} delta={cmp?.MBC.orders} higherIsBetter />
+        <Cell label={t("overview.pnl.cell.aov")} value={fmtVND(d.aov)} />
+        <Cell label={t("overview.pnl.cell.costPerOrder")} value={fmtVND(d.costPerOrder)} />
+        <Cell label={t("overview.pnl.cell.adRatio")} value={`${d.adCostRatioPct}%`} icon={<Percent className="h-3 w-3" />} accent={d.adCostRatioPct > 30 ? "text-red-600" : d.adCostRatioPct > 15 ? "text-amber-600" : "text-emerald-600"} />
+        <Cell label={t("overview.pnl.cell.projectedRevenue")} value={fmtVND(d.projectedRevenue)} accent="text-violet-700" />
       </div>
     </div>
   );
 }
 
 function MbiCard({ d, adSpendTarget, ordersTarget, channelTargets, derived, manualExcluded, cmp, channels }: { channels: AdChannelDef[]; d: MbiPnl; adSpendTarget?: number; ordersTarget?: number; channelTargets?: ChannelBudget; derived?: boolean; manualExcluded?: boolean; cmp?: PnlComparison }) {
+  const t = useT();
+  const { fmtVND, fmtNum } = makeFmt(useIntlLocale());
   return (
     <div className="rounded-2xl border border-violet-200 bg-violet-50/30 p-4" style={{ borderLeftWidth: 3, borderLeftColor: "#7c3aed" }}>
-      <h3 className="text-sm font-bold text-violet-700 mb-3">🏢 MBI — đo theo đơn hàng</h3>
+      <h3 className="text-sm font-bold text-violet-700 mb-3">{t("overview.pnl.mbi.title")}</h3>
       <SpendRow g={d.spendGoogle} f={d.spendFacebook} t={d.totalSpend} accent="text-violet-700" fbError={d.spendFacebookError} ggError={d.spendGoogleError} fbStaleAt={d.spendFacebookStaleAt} manualExcluded={manualExcluded} spendDelta={cmp?.MBI.totalSpend} byChannel={d.spendByChannel} budget={channelTargets} channels={channels} />
       <SupportLine support={d.partnerSupport} net={d.netSpend} />
       {d.ordersSourceError && (
         <div className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 mb-2">
           <AlertTriangle className="h-3 w-3 shrink-0" />
-          ⚠️ Không lấy được đơn hàng thật — số liệu có thể chưa chính xác
+          {t("overview.pnl.mbi.ordersError")}
         </div>
       )}
-      <KpiBar label="KPI Đơn hàng" actual={d.orders} target={ordersTarget} higherIsBetter derived={derived} />
-      <KpiBar label="Ngân sách QC (KPI)" actual={d.totalSpend} target={adSpendTarget} money derived={derived} />
+      <KpiBar label={t("overview.pnl.kpi.orders")} actual={d.orders} target={ordersTarget} higherIsBetter derived={derived} />
+      <KpiBar label={t("overview.pnl.kpi.adBudget")} actual={d.totalSpend} target={adSpendTarget} money derived={derived} />
       <div className="grid grid-cols-2 gap-2">
-        <Cell label="Số đơn" value={fmtNum(d.orders)} icon={<ShoppingCart className="h-3 w-3" />} delta={cmp?.MBI.orders} higherIsBetter />
-        <Cell label="Chi phí TB/đơn" value={fmtVND(d.costPerOrder)} accent={d.costPerOrder > 300000 ? "text-red-600" : "text-slate-800"} />
-        <Cell label="Đơn dự kiến tháng" value={fmtNum(d.projectedOrders)} accent="text-violet-700" />
+        <Cell label={t("overview.pnl.cell.orders")} value={fmtNum(d.orders)} icon={<ShoppingCart className="h-3 w-3" />} delta={cmp?.MBI.orders} higherIsBetter />
+        <Cell label={t("overview.pnl.cell.costPerOrder")} value={fmtVND(d.costPerOrder)} accent={d.costPerOrder > 300000 ? "text-red-600" : "text-slate-800"} />
+        <Cell label={t("overview.pnl.cell.projectedOrders")} value={fmtNum(d.projectedOrders)} accent="text-violet-700" />
       </div>
-      <p className="text-[10px] text-slate-400 mt-2">MBI KPI = đơn hàng (không có doanh thu để tính AOV / %QC).</p>
+      <p className="text-[10px] text-slate-400 mt-2">{t("overview.pnl.mbi.note")}</p>
     </div>
   );
 }

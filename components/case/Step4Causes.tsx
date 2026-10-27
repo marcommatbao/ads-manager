@@ -9,10 +9,12 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { vnd, pct } from "./format";
 import type { CampaignCase } from "@/lib/case/store";
+import { useT } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/messages";
 
-const SHARE_OF_LABEL: Record<string, string> = {
-  campaign_cost: "chi phí chiến dịch",
-  visible_terms: "phần thấy được",
+const SHARE_OF_LABEL: Record<string, MessageKey> = {
+  campaign_cost: "overview.step4.shareOf.campaign_cost",
+  visible_terms: "overview.step4.shareOf.visible_terms",
 };
 
 export function Step4Causes({
@@ -26,6 +28,7 @@ export function Step4Causes({
   onNext: () => void;
   busy?: boolean;
 }) {
+  const t = useT();
   const dx = c.diagnosis;
   const campaignCost = c.evidence?.campaign.cost ?? 0;
 
@@ -33,8 +36,8 @@ export function Step4Causes({
     return (
       <EmptyState
         icon={AlertTriangle}
-        title="Chưa có nguyên nhân để xem"
-        description="Chốt mục tiêu ở bước 3 trước — hệ thống chỉ xếp hạng nguyên nhân sau khi biết mục tiêu."
+        title={t("overview.step4.empty.title")}
+        description={t("overview.step4.empty.desc")}
       />
     );
   }
@@ -42,8 +45,8 @@ export function Step4Causes({
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-base font-bold text-slate-900">Nguyên nhân · xếp theo số tiền liên quan</h2>
-        <p className="mt-0.5 text-sm text-slate-500">Các khoản chồng lên nhau — không cộng dồn. Bấm từng dòng để xem bằng chứng.</p>
+        <h2 className="text-base font-bold text-slate-900">{t("overview.step4.title")}</h2>
+        <p className="mt-0.5 text-sm text-slate-500">{t("overview.step4.subtitle")}</p>
       </div>
 
       {dx.context.map((line, i) => (
@@ -54,7 +57,7 @@ export function Step4Causes({
       ))}
 
       {dx.causes.length === 0 ? (
-        <EmptyState compact title="Không tìm thấy nguyên nhân rõ ràng" description="Bằng chứng hiện có chưa chỉ ra khoản chi bất thường nào." />
+        <EmptyState compact title={t("overview.step4.none.title")} description={t("overview.step4.none.desc")} />
       ) : (
         <div className="space-y-2">
           {dx.causes.map((cause, i) => {
@@ -75,10 +78,10 @@ export function Step4Causes({
                   </div>
                   <div className="shrink-0 text-right">
                     <div className={`tabular-nums font-bold ${cause.money !== null ? "text-red-600" : "text-slate-700"}`}>
-                      {cause.money !== null ? vnd(cause.money) : "Không tách riêng được"}
+                      {cause.money !== null ? vnd(cause.money) : t("overview.step4.inseparable")}
                     </div>
                     {cause.share !== null && cause.shareOf && (
-                      <div className="text-xs text-slate-400">{pct(cause.share)} {SHARE_OF_LABEL[cause.shareOf] ?? cause.shareOf}</div>
+                      <div className="text-xs text-slate-400">{pct(cause.share)} {SHARE_OF_LABEL[cause.shareOf] ? t(SHARE_OF_LABEL[cause.shareOf]) : cause.shareOf}</div>
                     )}
                   </div>
                 </summary>
@@ -90,7 +93,7 @@ export function Step4Causes({
                         <span key={j} className="inline-flex items-center gap-1 rounded-full bg-slate-50 px-2 py-1 text-xs text-slate-600">
                           {e.label}
                           {e.cost !== undefined && <b className="tabular-nums">· {vnd(e.cost)}</b>}
-                          {e.clicks !== undefined && <span className="tabular-nums text-slate-400">· {e.clicks} click</span>}
+                          {e.clicks !== undefined && <span className="tabular-nums text-slate-400">· {t("overview.step4.clicks", { n: e.clicks })}</span>}
                         </span>
                       ))}
                     </div>
@@ -103,10 +106,10 @@ export function Step4Causes({
       )}
 
       <div className="rounded-xl border border-slate-200 bg-white">
-        <div className="border-b border-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-800">Đã kiểm — không phải nguyên nhân</div>
+        <div className="border-b border-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-800">{t("overview.step4.ruledOut")}</div>
         <div className="space-y-2 p-4 text-sm">
           {dx.notCauses.length === 0 ? (
-            <p className="text-slate-400">Chưa kiểm loại được giả thuyết nào.</p>
+            <p className="text-slate-400">{t("overview.step4.noneRuledOut")}</p>
           ) : (
             dx.notCauses.map((ok) => (
               <div key={ok.id} className="flex items-start gap-2 text-slate-700">
@@ -119,8 +122,8 @@ export function Step4Causes({
       </div>
 
       <div className="flex justify-between">
-        <Button className="h-10" variant="outline" onClick={onBack} disabled={busy}>← Bước 3</Button>
-        <Button className="h-10" onClick={onNext} disabled={busy}>Xem hướng xử lý →</Button>
+        <Button className="h-10" variant="outline" onClick={onBack} disabled={busy}>{t("overview.step4.back")}</Button>
+        <Button className="h-10" onClick={onNext} disabled={busy}>{t("overview.step4.next")}</Button>
       </div>
     </div>
   );

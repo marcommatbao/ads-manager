@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogC
 import { vnd, num } from "./format";
 import { patchJson, ApiError } from "./api";
 import type { CampaignCase } from "@/lib/case/store";
+import { useT } from "@/lib/i18n/client";
 
 export function Step5Actions({
   c,
@@ -28,6 +29,7 @@ export function Step5Actions({
   onNext: () => void;
   busy?: boolean;
 }) {
+  const t = useT();
   const [savingId, setSavingId] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [dialogFor, setDialogFor] = useState<string | null>(null);
@@ -39,7 +41,7 @@ export function Step5Actions({
       const json = await patchJson(`/api/cases/${c.id}/actions`, { selected: { [id]: checked } });
       onRefresh(json.case);
     } catch (e) {
-      setErr(e instanceof ApiError ? e.message : "Không lưu được lựa chọn");
+      setErr(e instanceof ApiError ? e.message : t("overview.step5.err.saveChoice"));
     } finally {
       setSavingId(null);
     }
@@ -53,7 +55,7 @@ export function Step5Actions({
       const json = await patchJson(`/api/cases/${c.id}/actions`, { selected: { [id]: currentSelected }, options: { [id]: { event } } });
       onRefresh(json.case);
     } catch (e) {
-      setErr(e instanceof ApiError ? e.message : "Không đổi được sự kiện");
+      setErr(e instanceof ApiError ? e.message : t("overview.step5.err.event"));
     } finally {
       setSavingId(null);
     }
@@ -67,7 +69,7 @@ export function Step5Actions({
       const json = await patchJson(`/api/cases/${c.id}/actions`, { selected: { [id]: currentSelected }, options: { [id]: { pauseSource } } });
       onRefresh(json.case);
     } catch (e) {
-      setErr(e instanceof ApiError ? e.message : "Không lưu được lựa chọn");
+      setErr(e instanceof ApiError ? e.message : t("overview.step5.err.saveChoice"));
     } finally {
       setSavingId(null);
     }
@@ -81,7 +83,7 @@ export function Step5Actions({
       const json = await patchJson(`/api/cases/${c.id}/actions`, { selected: { [id]: currentSelected }, options: { [id]: { lowSignalAck } } });
       onRefresh(json.case);
     } catch (e) {
-      setErr(e instanceof ApiError ? e.message : "Không lưu được lựa chọn");
+      setErr(e instanceof ApiError ? e.message : t("overview.step5.err.saveChoice"));
     } finally {
       setSavingId(null);
     }
@@ -92,16 +94,16 @@ export function Step5Actions({
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-base font-bold text-slate-900">Tool sẽ làm những việc này</h2>
+        <h2 className="text-base font-bold text-slate-900">{t("overview.step5.title")}</h2>
         <p className="mt-0.5 text-sm text-slate-500">{c.platform === "facebook"
-          ? "Không việc nào được chọn sẵn: dừng là cắt phân phối, đổi vị trí hoặc ngân sách làm Meta học lại từ đầu. Đọc cảnh báo của từng việc rồi tự chọn."
-          : "Mỗi việc đã chạy thử trên dữ liệu thật của kỳ — biết trước chặn bao nhiêu tiền và có chặn nhầm người mua không."}</p>
+          ? t("overview.step5.subtitle.meta")
+          : t("overview.step5.subtitle.google")}</p>
       </div>
 
       {err && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{err}</div>}
 
       {c.actions.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-slate-200 bg-white p-4 text-sm text-slate-400">Không có việc nào tool đề xuất cho chiến dịch này.</p>
+        <p className="rounded-xl border border-dashed border-slate-200 bg-white p-4 text-sm text-slate-400">{t("overview.step5.noActions")}</p>
       ) : (
         <div className="space-y-3">
           {c.actions.map((a) => (
@@ -120,7 +122,7 @@ export function Step5Actions({
               {a.type === "SET_CAMPAIGN_BUDGET" && (
                 <div className="mt-3 pl-7 text-sm text-slate-600">
                   <div>
-                    Trước → Sau: <span className="tabular-nums">{vnd(a.before)}</span> → <span className="tabular-nums font-semibold text-slate-900">{vnd(a.after)}</span>
+                    {t("overview.step5.beforeAfter")}: <span className="tabular-nums">{vnd(a.before)}</span> → <span className="tabular-nums font-semibold text-slate-900">{vnd(a.after)}</span>
                   </div>
                   <p className="mt-1 text-xs text-slate-500">{a.reason}</p>
                 </div>
@@ -133,11 +135,11 @@ export function Step5Actions({
               {a.type === "EXCLUDE_PLACEMENT" && (
                 <div className="mt-3 space-y-2 pl-7 text-sm">
                   <div className="text-slate-600">
-                    Chi phí ở vị trí này: <b className="tabular-nums">{vnd(a.cost)}</b> · <span className="tabular-nums">{num(a.results)}</span> {a.resultLabel}
+                    {t("overview.step5.placementCost")}: <b className="tabular-nums">{vnd(a.cost)}</b> · <span className="tabular-nums">{num(a.results)}</span> {a.resultLabel}
                   </div>
                   {a.automatic && (
                     <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-medium text-slate-600">
-                      Vị trí tự động → sẽ chuyển sang thủ công
+                      {t("overview.step5.autoToManual")}
                     </span>
                   )}
                   {a.warnings.length > 0 && (
@@ -151,24 +153,24 @@ export function Step5Actions({
               {a.type === "CREATE_ADSET_WITH_EVENT" && (
                 <div className="mt-3 space-y-3 pl-7 text-sm">
                   <div className="text-slate-600">
-                    Nhóm nguồn: <b className="text-slate-900">{a.sourceAdsetName}</b>
+                    {t("overview.step5.sourceAdset")}: <b className="text-slate-900">{a.sourceAdsetName}</b>
                   </div>
 
                   <div className="rounded-lg bg-slate-50 p-2.5">
-                    <div className="mb-1.5 text-xs font-semibold text-slate-700">Sự kiện đề xuất — đọc từ Chẩn đoán gắn thẻ</div>
+                    <div className="mb-1.5 text-xs font-semibold text-slate-700">{t("overview.step5.suggestedEvent")}</div>
                     <div className="text-slate-800">
-                      <b>{a.eventLabel}</b> — <span className="tabular-nums">{a.perWeek === null ? "—" : num(a.perWeek)}</span> lượt/tuần (7 ngày gần nhất)
+                      <b>{a.eventLabel}</b> — <span className="tabular-nums">{a.perWeek === null ? "—" : num(a.perWeek)}</span> {t("overview.step5.perWeekRecent")}
                     </div>
-                    <label className="mt-2.5 block text-xs text-slate-500" htmlFor={`event-select-${a.id}`}>Hoặc chọn sự kiện chuẩn khác</label>
+                    <label className="mt-2.5 block text-xs text-slate-500" htmlFor={`event-select-${a.id}`}>{t("overview.step5.otherEvent")}</label>
                     <Select
                       value={a.event}
                       onValueChange={(v) => { if (v) changeEvent(a.id, a.selected, v); }}
                       disabled={savingId === a.id}
                     >
-                      <SelectTrigger id={`event-select-${a.id}`} aria-label="Chọn sự kiện chuẩn khác" className="mt-1 w-full"><SelectValue>{(v: string) => { const alt = a.alternatives.find((x) => x.event === v); return alt ? `${alt.label} — ${num(alt.perWeek)} lượt/tuần` : a.eventLabel; }}</SelectValue></SelectTrigger>
+                      <SelectTrigger id={`event-select-${a.id}`} aria-label={t("overview.step5.otherEvent.aria")} className="mt-1 w-full"><SelectValue>{(v: string) => { const alt = a.alternatives.find((x) => x.event === v); return alt ? `${alt.label} — ${num(alt.perWeek)} ${t("overview.step5.perWeek")}` : a.eventLabel; }}</SelectValue></SelectTrigger>
                       <SelectContent>
                         {a.alternatives.map((alt) => (
-                          <SelectItem key={alt.event} value={alt.event}>{alt.label} — {num(alt.perWeek)} lượt/tuần</SelectItem>
+                          <SelectItem key={alt.event} value={alt.event}>{alt.label} — {num(alt.perWeek)} {t("overview.step5.perWeek")}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -183,17 +185,17 @@ export function Step5Actions({
                   {a.lowSignal && (
                     <div className="space-y-2 rounded-lg border border-red-200 bg-red-50 p-2.5 text-xs text-red-800">
                       <div>
-                        <b>Không sự kiện chuẩn nào đủ 50 lượt/tuần</b> — nhóm mới cũng có thể học thất bại như nhóm cũ.
+                        <b>{t("overview.step5.lowSignal.bold")}</b> — {t("overview.step5.lowSignal.rest")}
                       </div>
                       <div className="flex min-h-8 items-start gap-2">
                         <Checkbox
                           checked={!!a.lowSignalAck}
                           onCheckedChange={(v) => toggleLowSignalAck(a.id, a.selected, !!v)}
                           disabled={savingId === a.id}
-                          aria-label="Tôi hiểu nhóm mới có thể học thất bại vì sự kiện chưa đủ 50 lượt/tuần"
+                          aria-label={t("overview.step5.lowSignal.ack")}
                           className="mt-0.5"
                         />
-                        <span>Tôi hiểu nhóm mới có thể học thất bại vì sự kiện chưa đủ 50 lượt/tuần</span>
+                        <span>{t("overview.step5.lowSignal.ack")}</span>
                       </div>
                     </div>
                   )}
@@ -208,18 +210,18 @@ export function Step5Actions({
                       onCheckedChange={(v) => togglePauseSource(a.id, a.selected, !!v)}
                       disabled={savingId === a.id}
                     />
-                    Tạm dừng nhóm cũ cùng lúc
+                    {t("overview.step5.pauseOld")}
                   </label>
-                  <p className="text-xs text-slate-500">Khuyến nghị chạy song song ≥ 7 ngày rồi mới tắt nhóm cũ.</p>
+                  <p className="text-xs text-slate-500">{t("overview.step5.pauseOldHint")}</p>
                 </div>
               )}
 
               {a.type === "REMOVE_FROM_SHARED_LIST" && (
                 <div className="mt-3 pl-7">
                   <div className="rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-900">
-                    <div className="mb-1 font-semibold">Vì sao bỏ — mỗi từ chặn được một câu tìm của người mua:</div>
+                    <div className="mb-1 font-semibold">{t("overview.step5.whyRemove")}</div>
                     <ul className="space-y-0.5">{a.reasons.map((r, i) => <li key={i}>{r}</li>)}</ul>
-                    <div className="mt-1 text-amber-800/80">Hoàn tác sẽ thêm lại đúng các từ này vào danh sách.</div>
+                    <div className="mt-1 text-amber-800/80">{t("overview.step5.undoNote")}</div>
                   </div>
                 </div>
               )}
@@ -228,14 +230,14 @@ export function Step5Actions({
                   {a.type === "ATTACH_SHARED_LIST" && a.flagged && a.flagged.length > 0
                     && c.actions.some((x) => x.type === "REMOVE_FROM_SHARED_LIST" && x.selected) && (
                     <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-xs text-slate-600">
-                      {a.flagged.length} từ có thể chặn người mua sẽ được bỏ khỏi “{a.sharedSetName}” ở việc phía trên trước khi gắn — mô phỏng dưới đây đã tính trên danh sách sau khi bỏ.
+                      {t("overview.step5.flaggedRemoved", { n: a.flagged.length, list: a.sharedSetName })}
                     </div>
                   )}
                   {a.type === "ATTACH_SHARED_LIST" && a.flagged && a.flagged.length > 0
                     && !c.actions.some((x) => x.type === "REMOVE_FROM_SHARED_LIST" && x.selected) && (
                     <div className="rounded-lg border border-red-200 bg-red-50 p-2.5 text-xs text-red-800">
                       <div className="mb-1 font-semibold">
-                        {a.flagged.length} từ trong “{a.sharedSetName}” có thể chặn người MUA — việc bỏ chúng đang KHÔNG được chọn, gắn lúc này sẽ gắn cả các từ này
+                        {t("overview.step5.flaggedWarn", { n: a.flagged.length, list: a.sharedSetName })}
                       </div>
                       <ul className="space-y-0.5">
                         {a.flagged.map((f, i) => <li key={i}>{f}</li>)}
@@ -244,34 +246,34 @@ export function Step5Actions({
                   )}
                   {a.simulation && (
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                      <SimTile label="Lượt tìm sẽ bị chặn" value={num(a.simulation.blockedTerms)} />
-                      <SimTile label="Tiền lẽ ra đã chặn" value={vnd(a.simulation.blockedCost)} />
-                      <SimTile label="Đơn mua bị mất" value={num(a.simulation.blockedConversions)} tone={a.simulation.blockedConversions === 0 ? "good" : "bad"} />
-                      <SimTile label="Chuyển đổi phụ bị mất" value={num(a.simulation.blockedAllConversions, { maximumFractionDigits: 1 })} tone={a.simulation.blockedAllConversions === 0 ? "good" : "warn"} />
+                      <SimTile label={t("overview.step5.sim.blockedTerms")} value={num(a.simulation.blockedTerms)} />
+                      <SimTile label={t("overview.step5.sim.blockedCost")} value={vnd(a.simulation.blockedCost)} />
+                      <SimTile label={t("overview.step5.sim.lostOrders")} value={num(a.simulation.blockedConversions)} tone={a.simulation.blockedConversions === 0 ? "good" : "bad"} />
+                      <SimTile label={t("overview.step5.sim.lostSecondary")} value={num(a.simulation.blockedAllConversions, { maximumFractionDigits: 1 })} tone={a.simulation.blockedAllConversions === 0 ? "good" : "warn"} />
                     </div>
                   )}
 
                   {a.simulation?.moved && a.simulation.moved.terms > 0 && (
                     <div className="rounded-lg border border-sky-200 bg-sky-50 p-2.5 text-xs text-sky-800">
                       <div className="font-semibold">
-                        Chuyển sang “{a.simulation.moved.to}”: {num(a.simulation.moved.terms)} lượt tìm · {vnd(a.simulation.moved.cost)} · {num(a.simulation.moved.conversions, { maximumFractionDigits: 1 })} đơn, {num(a.simulation.moved.allConversions, { maximumFractionDigits: 1 })} chuyển đổi phụ
+                        {t("overview.step5.moved.title", { to: a.simulation.moved.to, terms: num(a.simulation.moved.terms), cost: vnd(a.simulation.moved.cost), orders: num(a.simulation.moved.conversions, { maximumFractionDigits: 1 }), secondary: num(a.simulation.moved.allConversions, { maximumFractionDigits: 1 }) })}
                       </div>
                       <div className="mt-0.5">
                         {a.simulation.moved.live
-                          ? "Chiến dịch đã tách — các lượt tìm này do bản “· Chung” nhận, không tính vào đơn bị mất."
-                          : "Chiến dịch đã tách nhưng CHƯA chuyển từ khoá — chỉ đúng khi bản “· Chung” đang BẬT. Kiểm trước khi duyệt."}
+                          ? t("overview.step5.moved.live")
+                          : t("overview.step5.moved.notLive")}
                       </div>
                     </div>
                   )}
 
                   {a.simulation && a.simulation.withConversions.length > 0 && (
                     <div className="rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-800">
-                      <div className="mb-1 font-semibold">Lượt tìm bị chặn nhưng CÓ đơn/chuyển đổi phụ — xem kỹ trước khi duyệt</div>
+                      <div className="mb-1 font-semibold">{t("overview.step5.withConv")}</div>
                       <ul className="space-y-0.5">
                         {a.simulation.withConversions.map((w, i) => (
                           <li key={i}>
-                            “{w.term}” · {vnd(w.cost)} · {num(w.conversions, { maximumFractionDigits: 1 })} đơn, {num(w.allConversions, { maximumFractionDigits: 1 })} chuyển đổi phụ
-                            {w.movedTo && <span className="text-sky-700"> → chuyển sang “{w.movedTo}”</span>}
+                            “{w.term}” · {vnd(w.cost)} · {t("overview.step5.termConv", { orders: num(w.conversions, { maximumFractionDigits: 1 }), secondary: num(w.allConversions, { maximumFractionDigits: 1 }) })}
+                            {w.movedTo && <span className="text-sky-700"> → {t("overview.step5.movedTo", { to: w.movedTo })}</span>}
                           </li>
                         ))}
                       </ul>
@@ -280,11 +282,11 @@ export function Step5Actions({
 
                   {a.simulation && a.simulation.ownKeywordsBlocked.length > 0 && (
                     <div className="rounded-lg border border-red-200 bg-red-50 p-2.5 text-xs text-red-800">
-                      <div className="mb-1 font-semibold">Từ khoá đang bật của chiến dịch sẽ bị chặn theo</div>
+                      <div className="mb-1 font-semibold">{t("overview.step5.ownKw")}</div>
                       <ul className="space-y-0.5">
                         {a.simulation.ownKeywordsBlocked.map((k, i) => (
                           <li key={i}>
-                            “{k.text}” ({k.match}) · {vnd(k.cost)} · {k.impressions} hiển thị — chặn theo “{k.by}”
+                            “{k.text}” ({k.match}) · {vnd(k.cost)} · {t("overview.step5.ownKwRow", { n: k.impressions, by: k.by })}
                           </li>
                         ))}
                       </ul>
@@ -293,7 +295,7 @@ export function Step5Actions({
 
                   {a.type === "ADD_NEGATIVES" && a.dropped && a.dropped.length > 0 && (
                     <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-xs text-slate-600">
-                      <div className="mb-1 font-semibold">Đã bỏ {a.dropped.length} từ khỏi gói phủ định (để không chặn chính chiến dịch này)</div>
+                      <div className="mb-1 font-semibold">{t("overview.step5.dropped", { n: a.dropped.length })}</div>
                       <ul className="space-y-0.5">
                         {a.dropped.map((d, i) => <li key={i}>“{d.text}” — {d.why}</li>)}
                       </ul>
@@ -301,12 +303,12 @@ export function Step5Actions({
                   )}
 
                   {"negatives" in a && (<>
-                  <Button className="h-10" variant="ghost" size="sm" onClick={() => setDialogFor(a.id)}>Xem đủ {a.negatives.length} từ</Button>
+                  <Button className="h-10" variant="ghost" size="sm" onClick={() => setDialogFor(a.id)}>{t("overview.step5.viewAll", { n: a.negatives.length })}</Button>
 
                   <Dialog open={dialogFor === a.id} onOpenChange={(o) => setDialogFor(o ? a.id : null)}>
                     <DialogContent className="sm:max-w-lg">
                       <DialogHeader>
-                        <DialogTitle>{a.negatives.length} từ khoá phủ định</DialogTitle>
+                        <DialogTitle>{t("overview.step5.negTitle", { n: a.negatives.length })}</DialogTitle>
                       </DialogHeader>
                       <div className="flex max-h-80 flex-wrap gap-1.5 overflow-y-auto text-sm">
                         {a.negatives.map((n, i) => (
@@ -314,7 +316,7 @@ export function Step5Actions({
                         ))}
                       </div>
                       <DialogFooter>
-                        <DialogClose render={<Button className="h-10" variant="outline" />}>Đóng</DialogClose>
+                        <DialogClose render={<Button className="h-10" variant="outline" />}>{t("overview.step5.close")}</DialogClose>
                       </DialogFooter>
                     </DialogContent>
                   </Dialog>
@@ -328,23 +330,23 @@ export function Step5Actions({
 
       <div>
         <h3 className="mb-2 flex items-center gap-1.5 text-sm font-bold text-slate-800">
-          Việc cần người làm <span className="font-normal text-slate-400">(tool chưa ghi được — giao việc để không bị bỏ quên)</span>
+          {t("overview.step5.manual.title")} <span className="font-normal text-slate-400">({t("overview.step5.manual.hint")})</span>
         </h3>
         {c.manualTasks.length === 0 ? (
-          <p className="text-sm text-slate-400">Không có việc nào cần người làm.</p>
+          <p className="text-sm text-slate-400">{t("overview.step5.manual.none")}</p>
         ) : (
           <div className="space-y-2">
-            {c.manualTasks.map((t) => (
-              <ManualTaskCard key={t.id} caseId={c.id} task={t} onRefresh={onRefresh} />
+            {c.manualTasks.map((mt) => (
+              <ManualTaskCard key={mt.id} caseId={c.id} task={mt} onRefresh={onRefresh} />
             ))}
           </div>
         )}
       </div>
 
       <div className="flex justify-between">
-        <Button className="h-10" variant="outline" onClick={onBack} disabled={busy}>← Bước 4</Button>
-        <Button className="h-10" onClick={onNext} disabled={busy || !anySelected} title={!anySelected ? "Chọn ít nhất một việc trước" : undefined}>
-          Chuyển sang duyệt →
+        <Button className="h-10" variant="outline" onClick={onBack} disabled={busy}>{t("overview.step5.back")}</Button>
+        <Button className="h-10" onClick={onNext} disabled={busy || !anySelected} title={!anySelected ? t("overview.step5.pickOne") : undefined}>
+          {t("overview.step5.next")}
         </Button>
       </div>
     </div>
@@ -370,6 +372,7 @@ function ManualTaskCard({
   task: CampaignCase["manualTasks"][number];
   onRefresh: (next: CampaignCase) => void;
 }) {
+  const t = useT();
   const [assignee, setAssignee] = useState(task.assignee ?? "");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -381,7 +384,7 @@ function ManualTaskCard({
       const json = await patchJson(`/api/cases/${caseId}/tasks/${task.id}`, body);
       onRefresh(json.case);
     } catch (e) {
-      setErr(e instanceof ApiError ? e.message : "Không lưu được việc này");
+      setErr(e instanceof ApiError ? e.message : t("overview.step5.manual.err"));
     } finally {
       setSaving(false);
     }
@@ -395,13 +398,13 @@ function ManualTaskCard({
           <div className="font-semibold text-slate-900">{task.title}</div>
           <p className="mt-0.5 text-sm text-slate-500">{task.detail}</p>
           <div className="mt-2 flex flex-wrap items-center gap-2">
-            <label htmlFor={`assignee-${task.id}`} className="text-xs text-slate-400">Giao cho</label>
+            <label htmlFor={`assignee-${task.id}`} className="text-xs text-slate-400">{t("overview.step5.manual.assignTo")}</label>
             <Input
               id={`assignee-${task.id}`}
               value={assignee}
               onChange={(e) => setAssignee(e.target.value)}
               onBlur={() => { if (assignee !== (task.assignee ?? "")) patch({ assignee: assignee.trim() || null }); }}
-              placeholder="Tên người phụ trách"
+              placeholder={t("overview.step5.manual.assigneePh")}
               className="h-7 w-48"
               disabled={saving}
             />
@@ -411,7 +414,7 @@ function ManualTaskCard({
                 onCheckedChange={(v) => patch({ status: v ? "done" : "open" })}
                 disabled={saving}
               />
-              Đã xong
+              {t("overview.step5.manual.done")}
             </label>
           </div>
           {err && <p className="mt-1 text-xs text-red-600">{err}</p>}

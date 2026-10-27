@@ -21,6 +21,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { AlertTriangle, Loader2, RefreshCw } from "lucide-react";
 import { getJson, ApiError } from "@/components/case/api";
+import { useT } from "@/lib/i18n/client";
 import { Button } from "@/components/ui/button";
 import { ExperimentPanel } from "./ExperimentPanel";
 import { BeforeAfterPanel } from "./BeforeAfterPanel";
@@ -43,6 +44,7 @@ interface SignalsResponse {
 }
 
 export function PmaxExperimentView({ company }: { company: Company }) {
+  const t = useT();
   const [data, setData] = useState<SignalsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [reloading, setReloading] = useState(false);
@@ -55,11 +57,11 @@ export function PmaxExperimentView({ company }: { company: Company }) {
       const json = await getJson(`/api/google/pmax/signals?company=${company}`);
       setData(json as SignalsResponse);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Lỗi kết nối tới Google Ads");
+      setError(e instanceof ApiError ? e.message : t("google.pmaxExpView.connErr"));
     } finally {
       setLoading(false); setReloading(false);
     }
-  }, [company]);
+  }, [company, t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -70,7 +72,7 @@ export function PmaxExperimentView({ company }: { company: Company }) {
       <div className="space-y-8 border-t border-slate-100 pt-8">
         <div className="flex justify-end">
           <Button type="button" variant="outline" size="sm" className="h-8 bg-white" onClick={() => load(true)} disabled={loading || reloading}>
-            {reloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />} Tải lại tín hiệu PMax
+            {reloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />} {t("google.pmaxExpView.reload")}
           </Button>
         </div>
 

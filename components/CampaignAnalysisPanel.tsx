@@ -32,6 +32,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/Toast";
 import { cn } from "@/lib/utils";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/messages";
+import type { TFunction } from "@/lib/i18n/translate";
 
 // ─────────────────────────────────────────────
 // Kiểu dữ liệu — khớp với app/api/campaigns/[id]/analysis
@@ -79,11 +82,11 @@ interface AnalysisResponse {
 // Trình bày
 // ─────────────────────────────────────────────
 
-const STATUS_STYLE: Record<PillarStatus, { chip: string; icon: React.ReactNode; label: string }> = {
-  good:    { chip: "bg-emerald-50 text-emerald-700 border-emerald-200", icon: <CheckCircle2 className="h-3.5 w-3.5" />,   label: "Tốt" },
-  warn:    { chip: "bg-amber-50 text-amber-700 border-amber-200",       icon: <AlertCircle className="h-3.5 w-3.5" />,     label: "Cần chú ý" },
-  bad:     { chip: "bg-red-50 text-red-700 border-red-200",             icon: <AlertTriangle className="h-3.5 w-3.5" />,   label: "Kém" },
-  unknown: { chip: "bg-slate-100 text-slate-500 border-slate-200",      icon: <HelpCircle className="h-3.5 w-3.5" />,      label: "Chưa chấm được" },
+const STATUS_STYLE: Record<PillarStatus, { chip: string; icon: React.ReactNode; label: MessageKey }> = {
+  good:    { chip: "bg-emerald-50 text-emerald-700 border-emerald-200", icon: <CheckCircle2 className="h-3.5 w-3.5" />,   label: "panels.analysis.st.good" },
+  warn:    { chip: "bg-amber-50 text-amber-700 border-amber-200",       icon: <AlertCircle className="h-3.5 w-3.5" />,     label: "panels.analysis.st.warn" },
+  bad:     { chip: "bg-red-50 text-red-700 border-red-200",             icon: <AlertTriangle className="h-3.5 w-3.5" />,   label: "panels.analysis.st.bad" },
+  unknown: { chip: "bg-slate-100 text-slate-500 border-slate-200",      icon: <HelpCircle className="h-3.5 w-3.5" />,      label: "panels.analysis.st.unknown" },
 };
 
 const SEVERITY_STYLE: Record<Severity, string> = {
@@ -92,8 +95,8 @@ const SEVERITY_STYLE: Record<Severity, string> = {
   info:     "border-slate-200 bg-slate-50/60",
 };
 
-const SEVERITY_LABEL: Record<Severity, string> = {
-  critical: "Nghiêm trọng", warning: "Cảnh báo", info: "Ghi chú",
+const SEVERITY_LABEL: Record<Severity, MessageKey> = {
+  critical: "panels.analysis.sev.critical", warning: "panels.analysis.sev.warning", info: "panels.analysis.sev.info",
 };
 
 function scoreTone(score: number | null, gated: boolean): string {
@@ -104,22 +107,22 @@ function scoreTone(score: number | null, gated: boolean): string {
   return "text-red-600";
 }
 
-const vnd = (n: number) => `₫${Math.round(n).toLocaleString("vi-VN")}`;
+const vnd = (n: number, loc: string) => `₫${Math.round(n).toLocaleString(loc)}`;
 
-function describeApply(a: ApplyAction): string {
+function describeApply(a: ApplyAction, t: TFunction, loc: string): string {
   switch (a.kind) {
-    case "PAUSE_CAMPAIGN":    return "Tạm dừng chiến dịch";
-    case "SET_DAILY_BUDGET":  return `Giảm ngân sách ngày xuống ${vnd(a.newDailyBudget)}`;
+    case "PAUSE_CAMPAIGN":    return t("panels.analysis.apply.pause");
+    case "SET_DAILY_BUDGET":  return t("panels.analysis.apply.budget", { amount: vnd(a.newDailyBudget, loc) });
   }
 }
 
 /** Câu xác nhận — phải nói rõ thay đổi gì trên tài khoản quảng cáo THẬT. */
-function confirmText(a: ApplyAction, campaignName: string): string {
+function confirmText(a: ApplyAction, campaignName: string, t: TFunction, loc: string): string {
   switch (a.kind) {
     case "PAUSE_CAMPAIGN":
-      return `Tạm dừng chiến dịch "${campaignName}" ngay trên tài khoản quảng cáo thật?\n\nChiến dịch sẽ ngừng phân phối và ngừng tiêu tiền cho tới khi được bật lại.`;
+      return t("panels.analysis.confirm.pause", { name: campaignName });
     case "SET_DAILY_BUDGET":
-      return `Đổi ngân sách ngày của "${campaignName}" từ ${vnd(a.currentDailyBudget)} xuống ${vnd(a.newDailyBudget)}?\n\nThay đổi có hiệu lực ngay trên tài khoản quảng cáo thật.`;
+      return t("panels.analysis.confirm.budget", { name: campaignName, from: vnd(a.currentDailyBudget, loc), to: vnd(a.newDailyBudget, loc) });
   }
 }
 
@@ -142,6 +145,8 @@ export function CampaignAnalysisPanel({
   const [applying, setApplying] = useState<string | null>(null);
   const [applied, setApplied] = useState<Set<string>>(new Set());
   const { toast } = useToast();
+  const t = useT();
+  const loc = useIntlLocale();
 
   const run = async () => {
     setLoading(true);
@@ -155,7 +160,7 @@ export function CampaignAnalysisPanel({
       setData(json);
       setApplied(new Set());
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Không phân tích được chiến dịch này");
+      setError(e instanceof Error ? e.message : t("panels.analysis.failAnalyze"));
     }
     setLoading(false);
   };
@@ -163,7 +168,7 @@ export function CampaignAnalysisPanel({
   const applyFinding = async (finding: Finding) => {
     const action = finding.apply;
     if (!action) return;
-    if (!window.confirm(confirmText(action, campaignName))) return;
+    if (!window.confirm(confirmText(action, campaignName, t, loc))) return;
 
     setApplying(finding.id);
     try {
@@ -212,26 +217,26 @@ export function CampaignAnalysisPanel({
       if (result.success) {
         setApplied(prev => new Set(prev).add(finding.id));
         toast({
-          title: `✅ ${describeApply(action)} — đã áp dụng`,
+          title: t("panels.analysis.toastApplied", { action: describeApply(action, t, loc) }),
           description: result.message ?? campaignName,
         });
         // Hệ thống tự động vừa đụng vào chiến dịch này. Không chặn (người dùng
         // đã quyết) nhưng PHẢI nói ra, nếu không họ vừa ghi đè lên thay đổi của
         // cron mà không biết, rồi vài giờ sau cron đè ngược lại.
         if (result.conflictWarning) {
-          toast({ title: `⚠️ Lưu ý: ${result.conflictWarning}`, variant: "error" });
+          toast({ title: t("panels.analysis.toastWarn", { msg: result.conflictWarning }), variant: "error" });
         }
         onMutated?.();
       } else {
         toast({
-          title: "❌ Không áp dụng được",
+          title: t("panels.analysis.toastFail"),
           description: result.error ?? `HTTP ${res.status}`,
           variant: "error",
         });
       }
     } catch (e) {
       toast({
-        title: "❌ Lỗi kết nối khi áp dụng",
+        title: t("panels.analysis.toastConn"),
         description: e instanceof Error ? e.message : undefined,
         variant: "error",
       });
@@ -248,14 +253,13 @@ export function CampaignAnalysisPanel({
             <Sparkles className="h-5 w-5" />
           </div>
           <div className="flex-1 min-w-[240px]">
-            <h2 className="text-sm font-bold text-slate-800">Phân tích hiệu quả bằng AI</h2>
+            <h2 className="text-sm font-bold text-slate-800">{t("panels.analysis.introTitle")}</h2>
             <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-              Chấm chiến dịch theo 5 trụ — mục tiêu so kết quả, giai đoạn học, chỗ nghẽn trong phễu,
-              xu hướng theo ngày, và so các nhóm bên trong với nhau. Mỗi kết luận đều kèm số liệu gốc để đối chiếu.
+              {t("panels.analysis.introText")}
             </p>
           </div>
           <Button onClick={run} className="gap-1.5 bg-violet-600 hover:bg-violet-700 text-white shrink-0">
-            <Sparkles className="h-3.5 w-3.5" /> Phân tích ngay
+            <Sparkles className="h-3.5 w-3.5" /> {t("panels.analysis.runNow")}
           </Button>
         </div>
       </div>
@@ -267,8 +271,8 @@ export function CampaignAnalysisPanel({
       <div className="rounded-xl border border-violet-200 bg-violet-50/40 p-6 flex items-center gap-3">
         <Loader2 className="h-5 w-5 animate-spin text-violet-600" />
         <div>
-          <p className="text-sm font-semibold text-slate-700">Đang chấm chiến dịch...</p>
-          <p className="text-xs text-slate-500 mt-0.5">Đọc số liệu, so ngưỡng, rồi nhờ AI diễn giải.</p>
+          <p className="text-sm font-semibold text-slate-700">{t("panels.analysis.scoring")}</p>
+          <p className="text-xs text-slate-500 mt-0.5">{t("panels.analysis.scoringSub")}</p>
         </div>
       </div>
     );
@@ -277,9 +281,9 @@ export function CampaignAnalysisPanel({
   if (error) {
     return (
       <div className="rounded-xl border border-red-200 bg-red-50 p-5">
-        <p className="text-sm font-semibold text-red-700">Không phân tích được</p>
+        <p className="text-sm font-semibold text-red-700">{t("panels.analysis.errTitle")}</p>
         <p className="text-xs text-red-600 mt-1">{error}</p>
-        <Button variant="outline" size="sm" onClick={run} className="mt-3">Thử lại</Button>
+        <Button variant="outline" size="sm" onClick={run} className="mt-3">{t("panels.analysis.retry")}</Button>
       </div>
     );
   }
@@ -297,13 +301,13 @@ export function CampaignAnalysisPanel({
               {analysis.score === null ? "—" : analysis.score}
             </p>
             <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-wide">
-              {analysis.score === null ? "chưa chấm" : "trên 100"}
+              {analysis.score === null ? t("panels.analysis.notScored") : t("panels.analysis.outOf")}
             </p>
           </div>
           <div className="flex-1 min-w-[240px]">
             <div className="flex items-center gap-2 mb-1">
               <Sparkles className="h-4 w-4 text-violet-600" />
-              <h2 className="text-sm font-bold text-slate-800">Phân tích hiệu quả</h2>
+              <h2 className="text-sm font-bold text-slate-800">{t("panels.analysis.title")}</h2>
               <span className="text-[10px] text-slate-400">
                 {data.period.from} → {data.period.to}
               </span>
@@ -311,7 +315,7 @@ export function CampaignAnalysisPanel({
             <p className="text-sm text-slate-700 leading-relaxed">{analysis.verdict}</p>
           </div>
           <Button variant="outline" size="sm" onClick={run} className="gap-1.5 shrink-0">
-            Chấm lại
+            {t("panels.analysis.rescore")}
           </Button>
         </div>
 
@@ -337,14 +341,14 @@ export function CampaignAnalysisPanel({
             <p key={i} className="text-sm text-slate-700 leading-relaxed mb-2 last:mb-0">{para}</p>
           ))}
           <p className="text-[10px] text-slate-400 mt-2 italic">
-            Đoạn trên do AI viết lại từ kết quả chấm bên dưới. Số liệu gốc nằm trong phần &ldquo;Dựa trên gì&rdquo; của từng trụ.
+            {t("panels.analysis.narrNote")}
           </p>
         </div>
       )}
       {data.narrativeError && (
         <div className="px-5 py-3 border-b border-slate-100 bg-amber-50/60">
           <p className="text-xs text-amber-800">
-            Phần diễn giải bằng AI không chạy được ({data.narrativeError}). Kết quả chấm điểm bên dưới vẫn đầy đủ và không phụ thuộc vào AI.
+            {t("panels.analysis.narrErr", { error: data.narrativeError })}
           </p>
         </div>
       )}
@@ -352,7 +356,7 @@ export function CampaignAnalysisPanel({
       {/* ── 5 trụ ── */}
       <div className="px-5 py-4 border-b border-slate-100">
         <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">
-          Dựa trên gì để đánh giá
+          {t("panels.analysis.basisHeading")}
         </h3>
         <div className="space-y-1.5">
           {analysis.pillars.map(p => {
@@ -370,7 +374,7 @@ export function CampaignAnalysisPanel({
                     "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold shrink-0",
                     st.chip
                   )}>
-                    {st.icon} {st.label}
+                    {st.icon} {t(st.label)}
                   </span>
                   <span className="text-xs font-semibold text-slate-600 shrink-0">{p.label}</span>
                   <span className="text-xs text-slate-500 truncate">— {p.headline}</span>
@@ -378,12 +382,12 @@ export function CampaignAnalysisPanel({
                 {open && (
                   <div className="px-3 pb-3 pt-1 bg-slate-50/70 border-t border-slate-100 space-y-2">
                     <div>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Thước đo</p>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">{t("panels.analysis.measure")}</p>
                       <p className="text-xs text-slate-600 leading-relaxed">{p.basis}</p>
                     </div>
                     {p.evidence.length > 0 && (
                       <div>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Số liệu</p>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">{t("panels.analysis.figures")}</p>
                         <ul className="space-y-0.5">
                           {p.evidence.map((e, i) => (
                             <li key={i} className="text-xs text-slate-600 font-mono">· {e}</li>
@@ -402,14 +406,14 @@ export function CampaignAnalysisPanel({
       {/* ── Việc cần làm ── */}
       <div className="px-5 py-4">
         <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">
-          Cần làm gì {analysis.findings.length > 0 && `(${analysis.findings.length})`}
+          {t("panels.analysis.todoHeading")} {analysis.findings.length > 0 && `(${analysis.findings.length})`}
         </h3>
 
         {analysis.findings.length === 0 ? (
           <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-3 flex gap-2">
             <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
             <p className="text-xs text-emerald-800">
-              Không phát hiện vấn đề nào theo 5 trụ ở trên. Tiếp tục theo dõi số liệu hằng ngày.
+              {t("panels.analysis.noIssues")}
             </p>
           </div>
         ) : (
@@ -425,13 +429,13 @@ export function CampaignAnalysisPanel({
                         : f.severity === "warning" ? "bg-amber-500 text-white"
                         : "bg-slate-400 text-white"
                     )}>
-                      {SEVERITY_LABEL[f.severity]}
+                      {t(SEVERITY_LABEL[f.severity])}
                     </span>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-slate-800">{f.title}</p>
                       <p className="text-xs text-slate-600 mt-1 leading-relaxed">{f.detail}</p>
                       <p className="text-xs text-slate-700 mt-1.5 leading-relaxed">
-                        <span className="font-semibold">Nên làm: </span>{f.recommendation}
+                        <span className="font-semibold">{t("panels.analysis.shouldDo")}</span>{f.recommendation}
                       </p>
 
                       <div className="mt-2.5 flex items-center gap-2 flex-wrap">
@@ -443,19 +447,19 @@ export function CampaignAnalysisPanel({
                             className="gap-1.5 bg-slate-800 hover:bg-slate-900 text-white text-xs"
                           >
                             {applying === f.id
-                              ? <><Loader2 className="h-3 w-3 animate-spin" /> Đang áp...</>
-                              : <>⚡ {describeApply(f.apply)}</>}
+                              ? <><Loader2 className="h-3 w-3 animate-spin" /> {t("panels.analysis.applying")}</>
+                              : <>⚡ {describeApply(f.apply, t, loc)}</>}
                           </Button>
                         )}
                         {isApplied && (
                           <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700">
-                            <CheckCircle2 className="h-3.5 w-3.5" /> Đã áp dụng
+                            <CheckCircle2 className="h-3.5 w-3.5" /> {t("panels.analysis.applied")}
                           </span>
                         )}
                         {!f.apply && f.manualHint && (
                           <span className="inline-flex items-start gap-1.5 text-[11px] text-slate-500 leading-relaxed">
                             <ExternalLink className="h-3 w-3 shrink-0 mt-0.5" />
-                            <span><span className="font-semibold">Làm tay: </span>{f.manualHint}</span>
+                            <span><span className="font-semibold">{t("panels.analysis.manual")}</span>{f.manualHint}</span>
                           </span>
                         )}
                       </div>

@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton-loader";
 import { useToast } from "@/components/Toast";
 import { CampaignAnalysisPanel } from "@/components/CampaignAnalysisPanel";
+import { useIntlLocale, useT } from "@/lib/i18n/client";
+import type { TFunction } from "@/lib/i18n/translate";
 import {
   LineChart,
   Line,
@@ -54,15 +56,15 @@ interface CampaignDetail {
   }>;
 }
 
-function fmtVND(n: number): string {
-  if (n >= 1_000_000_000) return `₫${(n / 1_000_000_000).toFixed(1)}T`;
-  if (n >= 1_000_000)     return `₫${(n / 1_000_000).toFixed(1)}Tr`;
-  if (n >= 1_000)         return `₫${(n / 1_000).toFixed(0)}K`;
-  return `₫${Math.round(n).toLocaleString("vi-VN")}`;
+function fmtVNDWith(n: number, loc: string, t: TFunction): string {
+  if (n >= 1_000_000_000) return `₫${(n / 1_000_000_000).toFixed(1)}${t("creative.campaignDetail.unitB")}`;
+  if (n >= 1_000_000)     return `₫${(n / 1_000_000).toFixed(1)}${t("creative.campaignDetail.unitM")}`;
+  if (n >= 1_000)         return `₫${(n / 1_000).toFixed(0)}${t("creative.campaignDetail.unitK")}`;
+  return `₫${Math.round(n).toLocaleString(loc)}`;
 }
 
-function fmt(n: number) {
-  return n.toLocaleString("vi-VN", { maximumFractionDigits: 0 });
+function fmtWith(n: number, loc: string) {
+  return n.toLocaleString(loc, { maximumFractionDigits: 0 });
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -97,13 +99,18 @@ export default function CampaignDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [toggling, setToggling] = useState(false);
   const { toast } = useToast();
+  const t = useT();
+  const loc = useIntlLocale();
+  const fmtVND = (n: number) => fmtVNDWith(n, loc, t);
+  const fmt = (n: number) => fmtWith(n, loc);
+  const costName = t("creative.campaignDetail.cost");
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       if (isGoogle && !company) {
-        throw new Error("Thiếu thông tin company (MBC/MBI) để tải chiến dịch Google");
+        throw new Error(t("creative.campaignDetail.missingCompany"));
       }
       const url = isGoogle
         ? `/api/google/campaigns/${id}?company=${company}`
@@ -113,10 +120,10 @@ export default function CampaignDetailPage() {
       if (json.error) throw new Error(json.error);
       setData(json);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Không thể tải dữ liệu chiến dịch");
+      setError(e instanceof Error ? e.message : t("creative.campaignDetail.loadFailed"));
     }
     setLoading(false);
-  }, [id, isGoogle, company]);
+  }, [id, isGoogle, company, t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -137,20 +144,20 @@ export default function CampaignDetailPage() {
       const result = await res.json().catch(() => ({})) as { success?: boolean; error?: string; message?: string };
       if (result.success) {
         setData((d) => d ? { ...d, campaign: { ...d.campaign, status: isActive ? "PAUSED" : "ACTIVE" } } : d);
-        toast({ title: result.message ?? (isActive ? "⏸ Đã tạm dừng" : "▶ Đã kích hoạt"), description: data.campaign.name });
+        toast({ title: result.message ?? (isActive ? t("creative.campaignDetail.paused") : t("creative.campaignDetail.activated")), description: data.campaign.name });
       } else {
         // Pausing a live campaign that silently stayed live was the worst
         // case here: the old code discarded the response entirely, so a 403
         // (no can_edit / wrong company) or a Meta/Google API error left the
         // button looking merely unresponsive.
         toast({
-          title: "❌ Không đổi được trạng thái",
+          title: t("creative.campaignDetail.statusChangeFailed"),
           description: result.error ?? `HTTP ${res.status}`,
           variant: "error",
         });
       }
     } catch {
-      toast({ title: "❌ Lỗi kết nối khi đổi trạng thái", variant: "error" });
+      toast({ title: t("creative.campaignDetail.statusConnError"), variant: "error" });
     }
     setToggling(false);
   };
@@ -172,13 +179,13 @@ export default function CampaignDetailPage() {
     return (
       <div className="p-6 max-w-5xl mx-auto">
         <button onClick={() => router.back()} className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 mb-6">
-          <ArrowLeft className="h-4 w-4" /> Quay lại
+          <ArrowLeft className="h-4 w-4" /> {t("creative.campaignDetail.back")}
         </button>
         <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-red-700">
-          <p className="font-medium">Không thể tải chiến dịch</p>
+          <p className="font-medium">{t("creative.campaignDetail.loadErrorTitle")}</p>
           <p className="text-sm mt-1 text-red-600">{error}</p>
           <Button variant="outline" size="sm" onClick={load} className="mt-3 gap-1.5">
-            <RefreshCw className="h-3.5 w-3.5" /> Thử lại
+            <RefreshCw className="h-3.5 w-3.5" /> {t("creative.campaignDetail.retry")}
           </Button>
         </div>
       </div>
@@ -196,7 +203,7 @@ export default function CampaignDetailPage() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <button onClick={() => router.push("/campaigns")} className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-600 mb-2 transition-colors">
-            <ArrowLeft className="h-4 w-4" /> Campaigns
+            <ArrowLeft className="h-4 w-4" /> {t("creative.campaignDetail.campaigns")}
           </button>
           <h1 className="text-2xl font-bold text-slate-800 leading-tight">{campaign.name}</h1>
           <div className="flex items-center gap-2 mt-2 flex-wrap">
@@ -224,7 +231,7 @@ export default function CampaignDetailPage() {
               ? "gap-1.5 bg-amber-500 hover:bg-amber-600 text-white"
               : "gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white"}
           >
-            {isActive ? <><Pause className="h-3.5 w-3.5" /> Tạm dừng</> : <><Play className="h-3.5 w-3.5" /> Kích hoạt</>}
+            {isActive ? <><Pause className="h-3.5 w-3.5" /> {t("creative.campaignDetail.pause")}</> : <><Play className="h-3.5 w-3.5" /> {t("creative.campaignDetail.activate")}</>}
           </Button>
           <a
             href={isGoogle
@@ -241,18 +248,18 @@ export default function CampaignDetailPage() {
 
       {/* Budget info */}
       <div className="bg-slate-50 rounded-xl border border-slate-200 px-4 py-3 flex gap-6 text-sm text-slate-600 flex-wrap">
-        {campaign.dailyBudget > 0 && <span>💰 Ngân sách ngày: <strong className="text-slate-800">{fmtVND(campaign.dailyBudget)}</strong></span>}
-        {campaign.lifetimeBudget > 0 && <span>💼 Ngân sách tổng: <strong className="text-slate-800">{fmtVND(campaign.lifetimeBudget)}</strong></span>}
-        {campaign.startTime && <span>📅 Bắt đầu: <strong className="text-slate-800">{new Date(campaign.startTime).toLocaleDateString("vi-VN")}</strong></span>}
-        {campaign.stopTime && <span>🏁 Kết thúc: <strong className="text-slate-800">{new Date(campaign.stopTime).toLocaleDateString("vi-VN")}</strong></span>}
-        <span className="ml-auto text-slate-400 text-xs">Số liệu: {data.period.from} → {data.period.to}</span>
+        {campaign.dailyBudget > 0 && <span>💰 {t("creative.campaignDetail.dailyBudget")} <strong className="text-slate-800">{fmtVND(campaign.dailyBudget)}</strong></span>}
+        {campaign.lifetimeBudget > 0 && <span>💼 {t("creative.campaignDetail.lifetimeBudget")} <strong className="text-slate-800">{fmtVND(campaign.lifetimeBudget)}</strong></span>}
+        {campaign.startTime && <span>📅 {t("creative.campaignDetail.start")} <strong className="text-slate-800">{new Date(campaign.startTime).toLocaleDateString(loc)}</strong></span>}
+        {campaign.stopTime && <span>🏁 {t("creative.campaignDetail.end")} <strong className="text-slate-800">{new Date(campaign.stopTime).toLocaleDateString(loc)}</strong></span>}
+        <span className="ml-auto text-slate-400 text-xs">{t("creative.campaignDetail.period", { from: data.period.from, to: data.period.to })}</span>
       </div>
 
       {/* Budget progress bar */}
       {campaign.dailyBudget > 0 && (
         <div className="bg-white rounded-xl border border-slate-200 px-4 py-3">
           <div className="flex justify-between text-xs text-slate-500 mb-1.5">
-            <span>Ngân sách ngày đã dùng</span>
+            <span>{t("creative.campaignDetail.budgetUsed")}</span>
             <span className="font-semibold text-slate-700">
               {Math.min(100, Math.round((metrics.spend / 30 / campaign.dailyBudget) * 100))}%
               {" · "}{fmtVND(metrics.spend / 30)} / {fmtVND(campaign.dailyBudget)}
@@ -269,8 +276,8 @@ export default function CampaignDetailPage() {
 
       {/* Metrics grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-        <MetricCard icon={<DollarSign className="h-4 w-4" />} label="Chi phí" value={fmtVND(metrics.spend)} />
-        <MetricCard icon={<Eye className="h-4 w-4" />} label="Lượt hiển thị" value={fmt(metrics.impressions)} sub={isGoogle ? undefined : `Reach: ${fmt(metrics.reach)}`} />
+        <MetricCard icon={<DollarSign className="h-4 w-4" />} label={t("creative.campaignDetail.cost")} value={fmtVND(metrics.spend)} />
+        <MetricCard icon={<Eye className="h-4 w-4" />} label={t("creative.campaignDetail.impressions")} value={fmt(metrics.impressions)} sub={isGoogle ? undefined : `${t("creative.campaignDetail.reach")}: ${fmt(metrics.reach)}`} />
         <MetricCard icon={<MousePointerClick className="h-4 w-4" />} label="Clicks" value={fmt(metrics.clicks)} sub={`CTR: ${metrics.ctr.toFixed(2)}%`} />
         <MetricCard icon={<DollarSign className="h-4 w-4" />} label="CPC" value={fmtVND(metrics.cpc)} sub={`CPM: ${fmtVND(metrics.cpm)}`} />
         {!isGoogle && (
@@ -282,7 +289,7 @@ export default function CampaignDetailPage() {
         )}
         <MetricCard
           icon={<DollarSign className="h-4 w-4" />}
-          label="CPL (Chi phí/Lead)"
+          label={t("creative.campaignDetail.cplLabel")}
           value={metrics.leads > 0 ? fmtVND(metrics.spend / metrics.leads) : "—"}
         />
         <MetricCard
@@ -303,9 +310,9 @@ export default function CampaignDetailPage() {
           }
           sub={
             metrics.revenue !== undefined && metrics.revenue > 0
-              ? `Doanh thu: ${fmtVND(metrics.revenue)}`
+              ? `${t("creative.campaignDetail.revenue")}: ${fmtVND(metrics.revenue)}`
               : metrics.conversions > 0
-              ? `${fmt(metrics.conversions)} chuyển đổi nhưng chưa nhận được giá trị đơn hàng`
+              ? t("creative.campaignDetail.noOrderValue", { n: fmt(metrics.conversions) })
               : undefined
           }
         />
@@ -323,7 +330,7 @@ export default function CampaignDetailPage() {
       {/* Trend Chart */}
       {data.daily && data.daily.length > 0 && (
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <h2 className="text-sm font-semibold text-slate-700 mb-4">Xu hướng theo ngày</h2>
+          <h2 className="text-sm font-semibold text-slate-700 mb-4">{t("creative.campaignDetail.dailyTrend")}</h2>
           <ResponsiveContainer width="100%" height={200}>
             <LineChart data={data.daily} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -344,12 +351,12 @@ export default function CampaignDetailPage() {
               />
               <Tooltip
                 formatter={(value, name) =>
-                  name === "Chi phí" ? fmtVND(Number(value)) : value
+                  name === costName ? fmtVND(Number(value)) : value
                 }
-                labelFormatter={(label) => `Ngày ${label}`}
+                labelFormatter={(label) => t("creative.campaignDetail.dayLabel", { d: String(label) })}
               />
               <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Line yAxisId="left" type="monotone" dataKey="spend" name="Chi phí" stroke="#3b82f6" strokeWidth={2} dot={false} />
+              <Line yAxisId="left" type="monotone" dataKey="spend" name={costName} stroke="#3b82f6" strokeWidth={2} dot={false} />
               <Line yAxisId="right" type="monotone" dataKey="leads" name="Leads" stroke="#10b981" strokeWidth={2} dot={{ r: 3 }} />
               <Line yAxisId="right" type="monotone" dataKey="clicks" name="Clicks" stroke="#f59e0b" strokeWidth={1.5} dot={false} />
             </LineChart>
@@ -360,14 +367,14 @@ export default function CampaignDetailPage() {
       {/* Daily Breakdown Table */}
       {data.daily && data.daily.length > 0 && (
         <div>
-          <h2 className="text-base font-semibold text-slate-700 mb-3">Breakdown theo ngày</h2>
+          <h2 className="text-base font-semibold text-slate-700 mb-3">{t("creative.campaignDetail.dailyBreakdown")}</h2>
           <div className="rounded-xl border border-slate-200 overflow-hidden bg-white">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50 text-xs text-slate-500 uppercase tracking-wide">
-                    <th className="text-left px-4 py-3 font-semibold">Ngày</th>
-                    <th className="text-right px-3 py-3 font-semibold">Chi phí</th>
+                    <th className="text-left px-4 py-3 font-semibold">{t("creative.campaignDetail.colDate")}</th>
+                    <th className="text-right px-3 py-3 font-semibold">{t("creative.campaignDetail.cost")}</th>
                     <th className="text-right px-3 py-3 font-semibold">Impressions</th>
                     <th className="text-right px-3 py-3 font-semibold">Clicks</th>
                     <th className="text-right px-3 py-3 font-semibold">CTR</th>
@@ -404,7 +411,7 @@ export default function CampaignDetailPage() {
         </h2>
         {adsets.length === 0 ? (
           <div className="text-center py-10 text-slate-400 bg-slate-50 rounded-xl border border-slate-200">
-            {isGoogle ? "Không có ad group nào" : "Không có ad set nào"}
+            {isGoogle ? t("creative.campaignDetail.noAdGroups") : t("creative.campaignDetail.noAdSets")}
           </div>
         ) : (
           <div className="rounded-xl border border-slate-200 overflow-hidden bg-white">
@@ -412,9 +419,9 @@ export default function CampaignDetailPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50 text-xs text-slate-500 uppercase tracking-wide">
-                    <th className="text-left px-4 py-3 font-semibold">{isGoogle ? "Tên Ad Group" : "Tên Ad Set"}</th>
+                    <th className="text-left px-4 py-3 font-semibold">{isGoogle ? t("creative.campaignDetail.adGroupName") : t("creative.campaignDetail.adSetName")}</th>
                     <th className="text-center px-3 py-3 font-semibold">Status</th>
-                    <th className="text-right px-3 py-3 font-semibold">Chi phí</th>
+                    <th className="text-right px-3 py-3 font-semibold">{t("creative.campaignDetail.cost")}</th>
                     <th className="text-right px-3 py-3 font-semibold">Impressions</th>
                     <th className="text-right px-3 py-3 font-semibold">Clicks</th>
                     <th className="text-right px-3 py-3 font-semibold">CTR</th>

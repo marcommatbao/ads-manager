@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { ToastMessage } from "@/components/Toast";
 import { SeverityBadge, PolicyPlatformBadge, OfficialSourceBadge } from "./badges";
-import { AFFECTED_AREA_LABELS, CATEGORY_LABELS, CHANGE_TYPE_LABELS, STATUS_LABELS } from "@/lib/policy-radar/labels";
+import { useIntlLocale, useT } from "@/lib/i18n/client";
 import type { PolicyReviewStatus, PolicyRadarItem } from "@/lib/policy-radar/types";
 
 const STATUS_OPTIONS: PolicyReviewStatus[] = ["unread", "reviewed", "flagged_for_followup", "archived"];
@@ -23,6 +23,8 @@ interface PolicyDetailPanelProps {
 }
 
 export function PolicyDetailPanel({ item, canManage, onUpdated, onToast, onPrev, onNext, hasPrev, hasNext }: PolicyDetailPanelProps) {
+  const t = useT();
+  const intl = useIntlLocale();
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -41,13 +43,13 @@ export function PolicyDetailPanel({ item, canManage, onUpdated, onToast, onPrev,
       const json = await res.json();
       if (json.success) {
         onUpdated(json.data);
-        if (!opts.silent) onToast({ title: "✅ Đã cập nhật trạng thái" });
-        else onToast({ title: "✅ Đã lưu ghi chú" });
+        if (!opts.silent) onToast({ title: t("meta.policy.detail.updated") });
+        else onToast({ title: t("meta.policy.detail.noteSaved") });
       } else {
         onToast({ title: `❌ ${json.error}`, variant: "error" });
       }
     } catch {
-      onToast({ title: "❌ Lỗi kết nối API", variant: "error" });
+      onToast({ title: t("meta.policy.apiError"), variant: "error" });
     } finally {
       setSaving(false);
     }
@@ -61,16 +63,16 @@ export function PolicyDetailPanel({ item, canManage, onUpdated, onToast, onPrev,
             <PolicyPlatformBadge platform={item.platform} />
             <SeverityBadge severity={item.severity} />
             <span className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-full px-2 py-0.5">
-              {CATEGORY_LABELS[item.category]} · {CHANGE_TYPE_LABELS[item.changeType]}
+              {t(`meta.policy.cat.${item.category}`)} · {t(`meta.policy.change.${item.changeType}`)}
             </span>
             {item.official && item.verifiedFromSource && <OfficialSourceBadge />}
           </div>
           {(onPrev || onNext) && (
             <div className="flex shrink-0 gap-1">
-              <Button variant="outline" size="icon-sm" disabled={!hasPrev} onClick={onPrev} title="Mục trước">
+              <Button variant="outline" size="icon-sm" disabled={!hasPrev} onClick={onPrev} title={t("meta.policy.detail.prev")}>
                 <ChevronUp className="h-3.5 w-3.5" />
               </Button>
-              <Button variant="outline" size="icon-sm" disabled={!hasNext} onClick={onNext} title="Mục sau">
+              <Button variant="outline" size="icon-sm" disabled={!hasNext} onClick={onNext} title={t("meta.policy.detail.next")}>
                 <ChevronDown className="h-3.5 w-3.5" />
               </Button>
             </div>
@@ -82,22 +84,21 @@ export function PolicyDetailPanel({ item, canManage, onUpdated, onToast, onPrev,
       <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
         {!item.verifiedFromSource && (
           <div className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
-            Nội dung chưa xác minh trực tiếp từ trang nguồn chính thức (trang render bằng JS, không fetch được).
-            Vui lòng kiểm tra link gốc phía dưới trước khi hành động dựa trên mục này.
+            {t("meta.policy.detail.unverifiedBox")}
           </div>
         )}
 
         <p className="text-[10px] uppercase tracking-wide text-slate-400">
-          Tóm tắt &amp; giải thích do AI viết — không phải trích nguyên văn từ nguồn, xem link nguồn phía dưới để đối chiếu
+          {t("meta.policy.detail.aiNotice")}
         </p>
 
         <section>
-          <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Tóm tắt</h4>
+          <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">{t("meta.policy.detail.summary")}</h4>
           <p className="text-sm text-slate-700">{item.summaryShort}</p>
         </section>
 
         <section>
-          <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Vì sao quan trọng</h4>
+          <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">{t("meta.policy.detail.why")}</h4>
           <p className="text-sm text-slate-700">{item.whyItMatters}</p>
         </section>
 
@@ -107,7 +108,7 @@ export function PolicyDetailPanel({ item, canManage, onUpdated, onToast, onPrev,
         {(item.aiSuggestedActions?.length ?? 0) > 0 && (
           <section>
             <h4 className="text-xs font-semibold text-emerald-700 uppercase tracking-wide mb-2">
-              Tối ưu — rút từ bài viết
+              {t("meta.policy.detail.aiActions")}
             </h4>
             <ul className="space-y-1.5">
               {item.aiSuggestedActions!.map((action) => (
@@ -122,7 +123,7 @@ export function PolicyDetailPanel({ item, canManage, onUpdated, onToast, onPrev,
 
         {item.recommendedActions.length > 0 && (
           <section>
-            <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Việc nên làm theo nhóm ảnh hưởng</h4>
+            <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">{t("meta.policy.detail.areaActions")}</h4>
             <ul className="space-y-1.5">
               {item.recommendedActions.map((action) => (
                 <li key={action} className="flex items-start gap-2 text-sm text-slate-700">
@@ -136,11 +137,11 @@ export function PolicyDetailPanel({ item, canManage, onUpdated, onToast, onPrev,
 
         {item.affectedAreas.length > 0 && (
           <section>
-            <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Ảnh hưởng đến khu vực nào</h4>
+            <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">{t("meta.policy.detail.areas")}</h4>
             <div className="flex flex-wrap gap-1.5">
               {item.affectedAreas.map((area) => (
                 <span key={area} className="text-xs bg-slate-100 text-slate-600 rounded-full px-2 py-0.5">
-                  {AFFECTED_AREA_LABELS[area]}
+                  {t(`meta.policy.area.${area}`)}
                 </span>
               ))}
             </div>
@@ -149,7 +150,7 @@ export function PolicyDetailPanel({ item, canManage, onUpdated, onToast, onPrev,
 
         {item.affectedModules.length > 0 && (
           <section>
-            <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Module liên quan trong AdsCommand</h4>
+            <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">{t("meta.policy.detail.modules")}</h4>
             <div className="flex flex-wrap gap-1.5">
               {item.affectedModules.map((mod) => (
                 <a key={mod} href={mod} className="text-xs bg-blue-50 text-blue-700 rounded-full px-2 py-0.5 hover:bg-blue-100">
@@ -161,19 +162,19 @@ export function PolicyDetailPanel({ item, canManage, onUpdated, onToast, onPrev,
         )}
 
         <section className="border-t border-slate-100 pt-4">
-          <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Nguồn</h4>
+          <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">{t("meta.policy.detail.source")}</h4>
           <a href={item.sourceUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline">
             {item.sourceLabel} <ExternalLink className="h-3 w-3" />
           </a>
           <p className="text-xs text-slate-400 mt-1">
             {item.publishedAt
-              ? `Cập nhật lúc ${new Date(item.publishedAt).toLocaleDateString("vi-VN")}`
-              : "Chưa xác định ngày cập nhật"}
+              ? t("meta.policy.detail.updatedAt", { date: new Date(item.publishedAt).toLocaleDateString(intl) })
+              : t("meta.policy.detail.noUpdateDate")}
           </p>
         </section>
 
         <section className="border-t border-slate-100 pt-4">
-          <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Trạng thái rà soát</h4>
+          <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">{t("meta.policy.detail.reviewStatus")}</h4>
           {canManage ? (
             <div className="flex flex-wrap gap-2">
               {STATUS_OPTIONS.map((status) => (
@@ -185,34 +186,34 @@ export function PolicyDetailPanel({ item, canManage, onUpdated, onToast, onPrev,
                   onClick={() => save(status)}
                 >
                   {saving && item.status !== status ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-                  {STATUS_LABELS[status]}
+                  {t(`meta.policy.status.${status}`)}
                 </Button>
               ))}
             </div>
           ) : (
             <p className="text-xs text-slate-400">
-              Trạng thái hiện tại: {STATUS_LABELS[item.status]}. Chỉ admin mới có quyền duyệt/ghi chú.
+              {t("meta.policy.detail.currentStatus", { status: t(`meta.policy.status.${item.status}`) })}
             </p>
           )}
           {item.reviewedBy && (
             <p className="text-xs text-slate-400 mt-2">
-              Duyệt lần cuối bởi {item.reviewedBy} · {item.reviewedAt ? new Date(item.reviewedAt).toLocaleString("vi-VN") : ""}
+              {t("meta.policy.detail.lastReviewed", { user: item.reviewedBy, time: item.reviewedAt ? new Date(item.reviewedAt).toLocaleString(intl) : "" })}
             </p>
           )}
         </section>
 
         <section>
-          <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Ghi chú nội bộ</h4>
+          <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">{t("meta.policy.detail.internalNote")}</h4>
           <Textarea
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            placeholder="Ghi chú cho team..."
+            placeholder={t("meta.policy.detail.notePlaceholder")}
             disabled={!canManage}
             className="mb-2"
           />
           {canManage && (
             <Button size="sm" variant="outline" disabled={saving} onClick={() => save(item.status, { silent: true })}>
-              {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null} Lưu ghi chú
+              {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null} {t("meta.policy.detail.saveNote")}
             </Button>
           )}
         </section>

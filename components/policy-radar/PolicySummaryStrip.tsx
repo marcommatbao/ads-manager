@@ -1,5 +1,6 @@
 "use client";
 
+import { useT } from "@/lib/i18n/client";
 import type { PolicyRadarItem } from "@/lib/policy-radar/types";
 
 // Mirrors components/dashboard/KpiCommandStrip.tsx's KpiCell visual pattern —
@@ -14,6 +15,7 @@ function Cell({ label, value, accent }: { label: string; value: number; accent?:
 }
 
 export function PolicySummaryStrip({ items }: { items: PolicyRadarItem[] }) {
+  const t = useT();
   const total = items.length;
   const google = items.filter((i) => i.platform === "google_ads").length;
   const meta = items.filter((i) => i.platform === "meta").length;
@@ -23,12 +25,12 @@ export function PolicySummaryStrip({ items }: { items: PolicyRadarItem[] }) {
 
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-      <Cell label="Tổng cập nhật" value={total} />
+      <Cell label={t("meta.policy.sum.total")} value={total} />
       <Cell label="Google Ads" value={google} accent="text-[#3B82F6]" />
       <Cell label="Meta" value={meta} accent="text-[#4338CA]" />
-      <Cell label="Mức độ cao" value={high} accent={high > 0 ? "text-red-600" : undefined} />
-      <Cell label="Cần rà soát" value={needsReview} accent={needsReview > 0 ? "text-amber-600" : undefined} />
-      <Cell label="Đã xử lý" value={handled} accent="text-emerald-600" />
+      <Cell label={t("meta.policy.sum.high")} value={high} accent={high > 0 ? "text-red-600" : undefined} />
+      <Cell label={t("meta.policy.sum.needsReview")} value={needsReview} accent={needsReview > 0 ? "text-amber-600" : undefined} />
+      <Cell label={t("meta.policy.sum.handled")} value={handled} accent="text-emerald-600" />
     </div>
   );
 }

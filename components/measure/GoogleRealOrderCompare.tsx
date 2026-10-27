@@ -10,59 +10,63 @@ import useSWR from "swr";
 import { CheckCircle2, CircleAlert, Loader2 } from "lucide-react";
 import { num, vnd } from "@/components/case/format";
 import { getJson, ApiError } from "@/components/case/api";
+import { useT } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/messages";
 import type { Company } from "@/lib/case/types";
 import type { CampaignCompare, Readiness } from "@/lib/conversions/google-compare";
 
+const bold = (s: string) => s.split(/<b>(.*?)<\/b>/).map((part, i) => (i % 2 ? <b key={i}>{part}</b> : part));
+
 interface Resp { range: { from: string; to: string }; daysOn: number | null; readiness: Readiness; campaigns: CampaignCompare[] }
 
-const VERDICT: Record<CampaignCompare["verdict"], { label: string; cls: string }> = {
-  gathering: { label: "Đang gom số", cls: "bg-slate-100 text-slate-600" },
-  few: { label: "Chưa đủ đơn", cls: "bg-amber-50 text-amber-700" },
-  no_match: { label: "Chưa khớp — kiểm cấu hình", cls: "bg-red-50 text-red-700" },
-  ready: { label: "Đủ để đưa lên chính", cls: "bg-emerald-50 text-emerald-700" },
+const VERDICT: Record<CampaignCompare["verdict"], { label: MessageKey; cls: string }> = {
+  gathering: { label: "meta.measure.gc.v.gathering", cls: "bg-slate-100 text-slate-600" },
+  few: { label: "meta.measure.gc.v.few", cls: "bg-amber-50 text-amber-700" },
+  no_match: { label: "meta.measure.gc.v.no_match", cls: "bg-red-50 text-red-700" },
+  ready: { label: "meta.measure.gc.v.ready", cls: "bg-emerald-50 text-emerald-700" },
 };
 
 export function GoogleRealOrderCompare({ company }: { company: Company }) {
+  const t = useT();
   const { data, error, isLoading } = useSWR<Resp>(`/api/conversions/real-orders?company=${company}&view=google`, getJson);
-  if (isLoading) return <div className="flex items-center gap-2 text-sm text-slate-500"><Loader2 className="h-4 w-4 animate-spin" /> Đang đọc Google Ads…</div>;
-  if (error || !data) return <p className="text-xs text-red-600">Không đọc được so sánh Google: {error instanceof ApiError ? error.message : "thử lại sau"}</p>;
+  if (isLoading) return <div className="flex items-center gap-2 text-sm text-slate-500"><Loader2 className="h-4 w-4 animate-spin" /> {t("meta.measure.gc.loading")}</div>;
+  if (error || !data) return <p className="text-xs text-red-600">{t("meta.measure.gc.err", { error: error instanceof ApiError ? error.message : t("meta.measure.tryLater") })}</p>;
   const { readiness: r } = data;
   const totals = data.campaigns.reduce((s, c) => ({ cost: s.cost + c.cost, g: s.g + c.googleConv, real: s.real + c.realOrders, v: s.v + c.realValue }), { cost: 0, g: 0, real: 0, v: 0 });
 
   return (
     <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
       <div>
-        <h2 className="font-semibold text-slate-900">4. Google học theo đơn thật</h2>
+        <h2 className="font-semibold text-slate-900">{t("meta.measure.gc.title")}</h2>
         <p className="text-sm text-slate-500">
-          Chạy song song ≥ 14 ngày ở mức PHỤ, so đơn Google tự báo với đơn thật Google khớp được, rồi mới đưa lên mục tiêu chính cho chiến dịch đủ số. Tool chỉ đề xuất, không tự đổi.
-          {data.daysOn != null && <> · Đã bật <b>{data.daysOn}</b> ngày.</>}
+          {t("meta.measure.gc.intro")}
+          {data.daysOn != null && <> · {bold(t("meta.measure.gc.daysOn", { n: data.daysOn }))}</>}
         </p>
       </div>
 
       <div className="rounded-lg border border-slate-200 p-3 text-xs">
-        <p className="mb-1.5 font-semibold text-slate-700">Sẵn sàng</p>
+        <p className="mb-1.5 font-semibold text-slate-700">{t("meta.measure.ready")}</p>
         <ul className="space-y-1">
-          <Check ok={r.action.exists === null ? null : r.action.exists && !r.action.primary} label={`Hành động “Lead chốt đơn”: ${r.action.exists === null ? "" : r.action.exists ? (r.action.primary ? "đang là CHÍNH" : "có, mức PHỤ") : "chưa có"}`} />
-          <Check ok={r.customerDataTerms} label="Điều khoản dữ liệu khách hàng đã chấp nhận" />
-          <Check ok={r.ecForLeads} label="Chuyển đổi nâng cao cho khách hàng tiềm năng đã bật (khớp theo email/SĐT)" />
+          <Check ok={r.action.exists === null ? null : r.action.exists && !r.action.primary} label={t("meta.measure.gc.action", { state: r.action.exists === null ? "" : r.action.exists ? (r.action.primary ? t("meta.measure.gc.actionPrimary") : t("meta.measure.gc.actionSecondary")) : t("meta.measure.gc.actionNone") })} />
+          <Check ok={r.customerDataTerms} label={t("meta.measure.gc.terms")} />
+          <Check ok={r.ecForLeads} label={t("meta.measure.gc.ec")} />
         </ul>
-        {r.errors?.map((e, i) => <p key={i} className="mt-1 text-red-600">Không đọc được — {e}</p>)}
+        {r.errors?.map((e, i) => <p key={i} className="mt-1 text-red-600">{t("meta.measure.gc.readErr", { error: e })}</p>)}
         {r.todo.length > 0 && (
-          <ol className="mt-2 list-decimal space-y-0.5 pl-4 text-amber-800">{r.todo.map((t, i) => <li key={i}>{t}</li>)}</ol>
+          <ol className="mt-2 list-decimal space-y-0.5 pl-4 text-amber-800">{r.todo.map((todo, i) => <li key={i}>{todo}</li>)}</ol>
         )}
       </div>
 
       {data.campaigns.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-slate-200 px-3 py-4 text-center text-xs text-slate-400">Chưa có số để so — {r.action.exists ? "chưa có chiến dịch chi tiền trong 30 ngày" : "tạo hành động “Lead chốt đơn” trước"}.</p>
+        <p className="rounded-lg border border-dashed border-slate-200 px-3 py-4 text-center text-xs text-slate-400">{t("meta.measure.gc.noData", { why: r.action.exists ? t("meta.measure.gc.noCampaigns") : t("meta.measure.gc.createAction") })}</p>
       ) : (
         <div className="overflow-x-auto">
           <p className="mb-1 text-xs text-slate-500">
-            {data.range.from} → {data.range.to}: Google tự báo <b>{num(Math.round(totals.g))}</b> đơn · đơn thật khớp được <b>{num(Math.round(totals.real))}</b> ({vnd(totals.v)}).
-            Đơn thật không khớp (khách tự vào, không qua quảng cáo) là bình thường.
+            {bold(t("meta.measure.gc.summary", { from: data.range.from, to: data.range.to, g: num(Math.round(totals.g)), real: num(Math.round(totals.real)), value: vnd(totals.v) }))}{" "}{t("meta.measure.gc.summaryNote")}
           </p>
           <table className="w-full min-w-[640px] text-left text-xs">
             <thead className="text-slate-400">
-              <tr><th className="py-1">Chiến dịch</th><th className="text-right">Chi</th><th className="text-right">Đơn Google báo</th><th className="text-right">CPA Google</th><th className="text-right">Đơn thật</th><th className="text-right">CPA thật</th><th className="pl-3">Kết luận</th></tr>
+              <tr><th className="py-1">{t("meta.measure.gc.th.campaign")}</th><th className="text-right">{t("meta.measure.gc.th.spend")}</th><th className="text-right">{t("meta.measure.gc.th.googleOrders")}</th><th className="text-right">{t("meta.measure.gc.th.cpaGoogle")}</th><th className="text-right">{t("meta.measure.gc.th.real")}</th><th className="text-right">{t("meta.measure.gc.th.cpaReal")}</th><th className="pl-3">{t("meta.measure.gc.th.verdict")}</th></tr>
             </thead>
             <tbody>
               {data.campaigns.slice(0, 40).map((c) => (
@@ -73,7 +77,7 @@ export function GoogleRealOrderCompare({ company }: { company: Company }) {
                   <td className="text-right tabular-nums">{c.cpaGoogle != null ? vnd(c.cpaGoogle) : "—"}</td>
                   <td className="text-right font-semibold tabular-nums">{num(Math.round(c.realOrders * 10) / 10)}</td>
                   <td className="text-right font-semibold tabular-nums">{c.cpaReal != null ? vnd(c.cpaReal) : "—"}</td>
-                  <td className="pl-3"><span className={`rounded-full px-2 py-0.5 font-semibold ${VERDICT[c.verdict].cls}`} title={c.note}>{VERDICT[c.verdict].label}</span></td>
+                  <td className="pl-3"><span className={`rounded-full px-2 py-0.5 font-semibold ${VERDICT[c.verdict].cls}`} title={c.note}>{t(VERDICT[c.verdict].label)}</span></td>
                 </tr>
               ))}
             </tbody>
@@ -90,10 +94,11 @@ export function GoogleRealOrderCompare({ company }: { company: Company }) {
 }
 
 function Check({ ok, label }: { ok: boolean | null; label: string }) {
+  const t = useT();
   return (
     <li className="flex items-start gap-1.5">
       {ok ? <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" aria-hidden="true" /> : <CircleAlert className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${ok === null ? "text-slate-400" : "text-amber-600"}`} aria-hidden="true" />}
-      <span className={ok === null ? "text-slate-400" : "text-slate-700"}>{label}{ok === null ? " — không đọc được" : ""}</span>
+      <span className={ok === null ? "text-slate-400" : "text-slate-700"}>{label}{ok === null ? ` — ${t("meta.measure.unreadable")}` : ""}</span>
     </li>
   );
 }

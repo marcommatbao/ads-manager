@@ -18,6 +18,7 @@ import { PolicyFilterChips } from "@/components/policy-radar/PolicyFilterChips";
 import { ViewModeToggle, type PolicyViewMode } from "@/components/policy-radar/ViewModeToggle";
 import { PolicyTimelineView } from "@/components/policy-radar/PolicyTimelineView";
 import { CATEGORY_LABELS, STATUS_LABELS } from "@/lib/policy-radar/labels";
+import { useIntlLocale, useT } from "@/lib/i18n/client";
 import ActionPlanPanel from "@/components/policy-radar/ActionPlanPanel";
 import type {
   PolicyCategory,
@@ -32,13 +33,9 @@ const fetcher = (url: string) => fetch(url).then((r) => {
   return r.json();
 });
 
-const SEVERITY_OPTIONS: { value: PolicySeverity; label: string }[] = [
-  { value: "high", label: "Cao" },
-  { value: "medium", label: "Trung bình" },
-  { value: "low", label: "Thấp" },
-];
-const STATUS_OPTIONS = (Object.entries(STATUS_LABELS) as [PolicyReviewStatus, string][]).map(([value, label]) => ({ value, label }));
-const CATEGORY_OPTIONS = (Object.entries(CATEGORY_LABELS) as [PolicyCategory, string][]).map(([value, label]) => ({ value, label }));
+const SEVERITY_VALUES: PolicySeverity[] = ["high", "medium", "low"];
+const STATUS_VALUES = Object.keys(STATUS_LABELS) as PolicyReviewStatus[];
+const CATEGORY_VALUES = Object.keys(CATEGORY_LABELS) as PolicyCategory[];
 
 // Sheet content is portaled to document.body, so wrapping it in a `lg:hidden`
 // div does NOT stop it from rendering on desktop — has to be gated in JS.
@@ -62,6 +59,11 @@ function useIsDesktop(): boolean {
 }
 
 export default function PolicyRadarPage() {
+  const t = useT();
+  const intl = useIntlLocale();
+  const SEVERITY_OPTIONS = SEVERITY_VALUES.map((value) => ({ value, label: t(`meta.policy.sev.${value}`) }));
+  const STATUS_OPTIONS = STATUS_VALUES.map((value) => ({ value, label: t(`meta.policy.status.${value}`) }));
+  const CATEGORY_OPTIONS = CATEGORY_VALUES.map((value) => ({ value, label: t(`meta.policy.cat.${value}`) }));
   const { user } = useSession();
   const canManage = !!user && hasPermission(user.role, "can_manage_policy_radar");
   const { toast } = useToast();
@@ -117,23 +119,23 @@ export default function PolicyRadarPage() {
 
   const list = (
     <div className="flex flex-col gap-3">
-      {isLoading && <div className="text-sm text-slate-400 py-8 text-center">Đang tải...</div>}
+      {isLoading && <div className="text-sm text-slate-400 py-8 text-center">{t("meta.policy.page.loading")}</div>}
 
       {error && !isLoading && (
         <EmptyState
           icon={AlertCircle}
-          title="Chưa thể tải dữ liệu nguồn chính sách"
-          description="Không kết nối được API Policy Radar."
-          action={<Button variant="outline" size="sm" onClick={() => mutate()}>Thử lại</Button>}
+          title={t("meta.policy.page.errTitle")}
+          description={t("meta.policy.page.errDesc")}
+          action={<Button variant="outline" size="sm" onClick={() => mutate()}>{t("meta.policy.page.retry")}</Button>}
         />
       )}
 
       {!isLoading && !error && items.length === 0 && (
         <EmptyState
           icon={Radar}
-          title="Hiện chưa có cập nhật mới trong bộ lọc này"
-          description="Thử bỏ bớt bộ lọc, hoặc thêm mục mới nếu bạn vừa thấy một thay đổi chính sách."
-          action={hasActiveFilters ? <Button variant="outline" size="sm" onClick={resetFilters}>Xóa bộ lọc</Button> : undefined}
+          title={t("meta.policy.page.emptyTitle")}
+          description={t("meta.policy.page.emptyDesc")}
+          action={hasActiveFilters ? <Button variant="outline" size="sm" onClick={resetFilters}>{t("meta.policy.page.clearFilters")}</Button> : undefined}
         />
       )}
 
@@ -149,15 +151,15 @@ export default function PolicyRadarPage() {
       <div className="flex items-start justify-between gap-4 mb-1">
         <div>
           <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <Radar className="h-5 w-5 text-blue-600" /> Radar Chính Sách
+            <Radar className="h-5 w-5 text-blue-600" /> {t("meta.policy.page.title")}
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            Theo dõi thay đổi mới từ Google Ads và Meta, kèm tác động thực tế đến chiến dịch.
+            {t("meta.policy.page.subtitle")}
           </p>
         </div>
         {canManage && (
           <Button onClick={() => setAddOpen(true)}>
-            <Plus className="h-4 w-4" /> Thêm mục
+            <Plus className="h-4 w-4" /> {t("meta.policy.page.add")}
           </Button>
         )}
       </div>
@@ -165,10 +167,10 @@ export default function PolicyRadarPage() {
       {healthData?.syncMode === "hybrid" && (
         <div className="flex items-center gap-2 text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 mt-4">
           <RefreshCw className="h-3.5 w-3.5" />
-          Google Ads được quét tự động (Thứ 2 &amp; Thứ 5) — Meta vẫn cần nhập tay (trang JS-rendered, chưa hỗ trợ auto-fetch).
+          {t("meta.policy.page.hybrid")}
           {healthData?.lastSyncAt && (
             <span className="text-slate-400">
-              Quét gần nhất: {new Date(healthData.lastSyncAt).toLocaleString("vi-VN")}
+              {t("meta.policy.page.lastScan", { time: new Date(healthData.lastSyncAt).toLocaleString(intl) })}
             </span>
           )}
         </div>
@@ -191,7 +193,7 @@ export default function PolicyRadarPage() {
       <div className="flex flex-wrap items-center justify-between gap-3 mt-5">
         <Tabs value={platform} onValueChange={(v) => setPlatform(v as PolicyPlatform | "all")}>
           <TabsList>
-            <TabsTrigger value="all">Tất cả</TabsTrigger>
+            <TabsTrigger value="all">{t("meta.policy.page.tabAll")}</TabsTrigger>
             <TabsTrigger value="google_ads">Google Ads</TabsTrigger>
             <TabsTrigger value="meta">Meta</TabsTrigger>
           </TabsList>
@@ -200,21 +202,21 @@ export default function PolicyRadarPage() {
       </div>
 
       <div className="mt-3">
-        <PolicyFilterChips options={CATEGORY_OPTIONS} value={category} onChange={setCategory} allLabel="Mọi danh mục" />
+        <PolicyFilterChips options={CATEGORY_OPTIONS} value={category} onChange={setCategory} allLabel={t("meta.policy.page.allCategories")} />
       </div>
 
       <div className="mt-4 grid grid-cols-1 lg:grid-cols-[1fr_400px] lg:gap-6 lg:items-start">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-3 mb-4">
-            <PolicyFilterChips options={SEVERITY_OPTIONS} value={severity} onChange={setSeverity} allLabel="Mọi mức ảnh hưởng" />
-            <PolicyFilterChips options={STATUS_OPTIONS} value={status} onChange={setStatus} allLabel="Mọi trạng thái" />
+            <PolicyFilterChips options={SEVERITY_OPTIONS} value={severity} onChange={setSeverity} allLabel={t("meta.policy.page.allSeverity")} />
+            <PolicyFilterChips options={STATUS_OPTIONS} value={status} onChange={setStatus} allLabel={t("meta.policy.page.allStatus")} />
             <label className="flex items-center gap-1.5 text-sm text-slate-600 px-1 shrink-0">
               <input type="checkbox" checked={officialOnly} onChange={(e) => setOfficialOnly(e.target.checked)} />
-              Chỉ nguồn chính thức
+              {t("meta.policy.page.officialOnly")}
             </label>
             {hasActiveFilters && (
               <button onClick={resetFilters} className="shrink-0 inline-flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600">
-                <X className="h-3 w-3" /> Xóa bộ lọc
+                <X className="h-3 w-3" /> {t("meta.policy.page.clearFilters")}
               </button>
             )}
           </div>
@@ -242,7 +244,7 @@ export default function PolicyRadarPage() {
           ) : (
             <div className="flex h-full flex-col items-center justify-center gap-2 text-center px-6">
               <Radar className="h-8 w-8 text-slate-300" />
-              <p className="text-sm text-slate-400">Chọn một mục để xem chi tiết</p>
+              <p className="text-sm text-slate-400">{t("meta.policy.page.pick")}</p>
             </div>
           )}
         </div>

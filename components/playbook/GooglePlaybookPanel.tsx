@@ -15,6 +15,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Undo2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 import { usePlaybookSuggest } from "@/hooks/usePlaybookSuggest";
 
 export interface GooglePlaybookLaunchState {
@@ -44,10 +45,11 @@ export interface GooglePlaybookPanelProps {
 }
 
 function ConfidenceChip({ c }: { c: "high" | "medium" }) {
+  const t = useT();
   return (
     <span className={cn("rounded-full px-1.5 py-0.5 text-[9px] font-semibold shrink-0",
       c === "high" ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500")}>
-      {c === "high" ? "Cao" : "Trung bình"}
+      {c === "high" ? t("overview.playbook.google.confHigh") : t("overview.playbook.google.confMed")}
     </span>
   );
 }
@@ -57,6 +59,7 @@ export default function GooglePlaybookPanel({
   negatives, onAddNegative, onRemoveNegativeByEntry,
   landingUrl, onUseLandingUrl, onStateChange,
 }: GooglePlaybookPanelProps) {
+  const t = useT();
   const { suggestions, loading, error } = usePlaybookSuggest(company, "google", productKey);
 
   const [kept, setKept] = useState<Set<string>>(new Set());
@@ -109,8 +112,8 @@ export default function GooglePlaybookPanel({
   }, [suggestions, kept, negatives, existingKeywords]);
 
   if (!productKey) return null;
-  if (error) return <p className="text-[11px] text-slate-400 italic">📒 Không đọc được Sổ kinh nghiệm — vẫn tạo chiến dịch bình thường.</p>;
-  if (loading || !suggestions) return <p className="text-[11px] text-slate-400">📒 Đang đọc Sổ kinh nghiệm…</p>;
+  if (error) return <p className="text-[11px] text-slate-400 italic">{t("overview.playbook.google.loadErr")}</p>;
+  if (loading || !suggestions) return <p className="text-[11px] text-slate-400">{t("overview.playbook.google.loading")}</p>;
 
   const themes = [...suggestions.apply.google.themes, ...suggestions.suggest.google.themes];
   const kws = [...suggestions.apply.google.keywords, ...suggestions.suggest.google.keywords];
@@ -121,8 +124,8 @@ export default function GooglePlaybookPanel({
   if (!themes.length && !kws.length && !negs.length && !timing.length && !landings.length) {
     return (
       <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-[11px] text-slate-400">
-        📒 Sổ kinh nghiệm chưa có kinh nghiệm nào cho sản phẩm này.{" "}
-        <a href="/so-kinh-nghiem" target="_blank" rel="noreferrer" className="text-red-700 underline">Xem Sổ kinh nghiệm</a>
+        {t("overview.playbook.google.none")}{" "}
+        <a href="/so-kinh-nghiem" target="_blank" rel="noreferrer" className="text-red-700 underline">{t("overview.playbook.google.viewPlaybook")}</a>
       </div>
     );
   }
@@ -130,26 +133,26 @@ export default function GooglePlaybookPanel({
   return (
     <div className="rounded-xl border border-amber-200 bg-amber-50/40 p-4 space-y-3">
       <div className="flex items-center justify-between">
-        <h4 className="text-xs font-bold text-amber-900">📒 Từ Sổ kinh nghiệm</h4>
-        <a href="/so-kinh-nghiem" target="_blank" rel="noreferrer" className="text-[10px] text-amber-700 underline">Xem Sổ</a>
+        <h4 className="text-xs font-bold text-amber-900">{t("overview.playbook.google.heading")}</h4>
+        <a href="/so-kinh-nghiem" target="_blank" rel="noreferrer" className="text-[10px] text-amber-700 underline">{t("overview.playbook.google.viewShort")}</a>
       </div>
       {!resultId && (
-        <p className="text-[10px] text-slate-400">Sinh nội dung trước — gợi ý dưới đây chỉ thêm được vào bộ từ khoá sau khi đã có creative.</p>
+        <p className="text-[10px] text-slate-400">{t("overview.playbook.google.needResult")}</p>
       )}
 
       {(themes.length > 0 || kws.length > 0) && (
         <div>
-          <p className="text-[10px] font-semibold text-slate-500 mb-1">🔎 Chủ đề / từ khoá đã thắng</p>
+          <p className="text-[10px] font-semibold text-slate-500 mb-1">{t("overview.playbook.google.winning")}</p>
           <div className="flex flex-wrap gap-1.5">
-            {themes.map((t) => {
-              const already = hasKeyword(t.text);
+            {themes.map((th) => {
+              const already = hasKeyword(th.text);
               return (
-                <button key={`${t.entryId}|${t.text}`} type="button" disabled={!resultId || already}
-                  onClick={() => addTheme(t.entryId, t.text)}
-                  title={`${t.why} · cụm trong Sổ: “${t.theme}”`}
+                <button key={`${th.entryId}|${th.text}`} type="button" disabled={!resultId || already}
+                  onClick={() => addTheme(th.entryId, th.text)}
+                  title={t("overview.playbook.google.themeTitle", { why: th.why, theme: th.theme })}
                   className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px]",
                     already ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-white border-slate-200 text-slate-600 hover:border-amber-300")}>
-                  {already && "✓ "}{t.text} <ConfidenceChip c={t.confidence} />
+                  {already && "✓ "}{th.text} <ConfidenceChip c={th.confidence} />
                 </button>
               );
             })}
@@ -171,7 +174,7 @@ export default function GooglePlaybookPanel({
 
       {negs.length > 0 && (
         <div>
-          <p className="text-[10px] font-semibold text-red-700 mb-1">🚫 Từ phủ định nên thêm</p>
+          <p className="text-[10px] font-semibold text-red-700 mb-1">{t("overview.playbook.google.negHeading")}</p>
           <div className="flex flex-wrap gap-1.5">
             {negs.map((n) => {
               const status = suggestions.avoid.find((a) => a.entryId === n.entryId)?.status;
@@ -186,7 +189,7 @@ export default function GooglePlaybookPanel({
                     <button type="button" onClick={() => undoNeg(n.entryId, n.text)} className="text-slate-400 hover:text-red-700"><Undo2 className="h-3 w-3" /></button>
                   ) : (
                     resultId && (status === "auto" || status === "approved" || status === "suggested") && (
-                      <button type="button" onClick={() => addNeg(n.entryId, n.text)} className="text-amber-700 font-semibold hover:text-amber-800">Thêm</button>
+                      <button type="button" onClick={() => addNeg(n.entryId, n.text)} className="text-amber-700 font-semibold hover:text-amber-800">{t("overview.playbook.google.add")}</button>
                     )
                   )}
                 </span>
@@ -198,24 +201,24 @@ export default function GooglePlaybookPanel({
 
       {landings.length > 0 && landingUrl !== landings[0].url && (
         <div className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 flex items-center justify-between gap-2">
-          <p className="text-[10px] text-slate-600">Trang đích đã chạy tốt: <b>{landings[0].url}</b></p>
+          <p className="text-[10px] text-slate-600">{t("overview.playbook.google.landing")} <b>{landings[0].url}</b></p>
           <button type="button" onClick={() => onUseLandingUrl(landings[0].url)}
             className="shrink-0 rounded bg-amber-500 text-amber-950 px-2 py-0.5 text-[10px] font-semibold hover:bg-amber-600">
-            Dùng link này
+            {t("overview.playbook.google.useLink")}
           </button>
         </div>
       )}
 
       {timing.length > 0 && (
         <p className="text-[10px] text-slate-500">
-          ⏱️ Thời điểm/thiết bị đáng chú ý: {timing.map((t) => t.value).join(", ")}
+          {t("overview.playbook.google.timing", { v: timing.map((x) => x.value).join(", ") })}
         </p>
       )}
 
       {(suggestions.hiddenNonIncremental > 0 || suggestions.hiddenLegacyMerged > 0) && (
         <p className="text-[9px] text-slate-400">
-          {suggestions.hiddenNonIncremental > 0 && `Ẩn ${suggestions.hiddenNonIncremental} kinh nghiệm tìm thương hiệu/khách cũ — không dùng cho chiến dịch tìm khách mới. `}
-          {suggestions.hiddenLegacyMerged > 0 && `${suggestions.hiddenLegacyMerged} kinh nghiệm cũ sẽ hiện sau lượt bóc Sổ kế tiếp.`}
+          {suggestions.hiddenNonIncremental > 0 && t("overview.playbook.google.hiddenBrand", { n: suggestions.hiddenNonIncremental })}
+          {suggestions.hiddenLegacyMerged > 0 && t("overview.playbook.google.hiddenLegacy", { n: suggestions.hiddenLegacyMerged })}
         </p>
       )}
     </div>

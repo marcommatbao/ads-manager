@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { vnd } from "@/components/case/format";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { useT } from "@/lib/i18n/client";
 
 export interface ProposalItem { id: string; label: string; campaignName?: string | null; why: string; warning?: string | null; cost: number | null }
 
@@ -18,6 +19,7 @@ const fold = (t: string) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/
 export function ProposalList({ proposals, checked, onToggle, canEdit }: {
   proposals: ProposalItem[]; checked: Record<string, boolean>; onToggle: (id: string) => void; canEdit: boolean;
 }) {
+  const t = useT();
   const [q, setQ] = useState("");
   const [onlyChecked, setOnlyChecked] = useState(false);
   const [limit, setLimit] = useState(PAGE);
@@ -34,21 +36,21 @@ export function ProposalList({ proposals, checked, onToggle, canEdit }: {
         {canEdit && shown.length > 1 && (
           <label className="flex items-center gap-1.5 rounded-md border border-indigo-200 bg-indigo-50/60 px-2 py-1 font-semibold text-indigo-700">
             <Checkbox checked={allOn} onCheckedChange={() => setAll(!allOn)} />
-            {allOn ? "Bỏ chọn" : "Chọn tất cả"} {filtered ? `${shown.length} đang lọc` : shown.length}
+            {allOn ? t("overview.proposal.deselect") : t("overview.proposal.selectAll")} {filtered ? t("overview.proposal.filtered", { n: shown.length }) : shown.length}
           </label>
         )}
         {big && (
           <>
-            <Input value={q} onChange={(e) => { setQ(e.target.value); setLimit(PAGE); }} placeholder="Lọc theo tên / chiến dịch…" className="h-8 w-56" />
+            <Input value={q} onChange={(e) => { setQ(e.target.value); setLimit(PAGE); }} placeholder={t("overview.proposal.filterPlaceholder")} className="h-8 w-56" />
             <label className="flex items-center gap-1.5 text-slate-600">
-              <Checkbox checked={onlyChecked} onCheckedChange={() => { setOnlyChecked((v) => !v); setLimit(PAGE); }} /> Chỉ hiện đã chọn
+              <Checkbox checked={onlyChecked} onCheckedChange={() => { setOnlyChecked((v) => !v); setLimit(PAGE); }} /> {t("overview.proposal.onlyChecked")}
             </label>
-            <span className="text-slate-400">{shown.length}/{proposals.length} việc</span>
+            <span className="text-slate-400">{t("overview.proposal.count", { shown: shown.length, total: proposals.length })}</span>
           </>
         )}
       </div>
       <div className={cn("space-y-1.5", big && "max-h-[420px] overflow-y-auto rounded-lg border border-slate-100 p-1.5")}>
-        {shown.length === 0 && <p className="px-2 py-3 text-center text-xs text-slate-400">Không có việc nào khớp bộ lọc.</p>}
+        {shown.length === 0 && <p className="px-2 py-3 text-center text-xs text-slate-400">{t("overview.proposal.noMatch")}</p>}
         {shown.slice(0, limit).map((p) => (
           <label key={p.id} className={cn("flex items-start gap-2 rounded-lg border p-2.5 text-xs",
             checked[p.id] ? "border-indigo-200 bg-indigo-50/40" : "border-slate-100 bg-slate-50/40", !canEdit && "opacity-70")}>
@@ -58,12 +60,12 @@ export function ProposalList({ proposals, checked, onToggle, canEdit }: {
               <span className="block text-slate-500">{p.why}</span>
               {p.warning && <span className="flex items-start gap-1 text-amber-700"><AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" /> {p.warning}</span>}
             </span>
-            {p.cost !== null && <span className="shrink-0 tabular-nums text-slate-500">{vnd(p.cost)} trong kỳ</span>}
+            {p.cost !== null && <span className="shrink-0 tabular-nums text-slate-500">{t("overview.proposal.costInPeriod", { cost: vnd(p.cost) })}</span>}
           </label>
         ))}
         {shown.length > limit && (
           <button type="button" onClick={() => setLimit((l) => l + PAGE)} className="w-full rounded-lg border border-dashed border-slate-200 py-2 text-xs font-semibold text-indigo-600 hover:bg-slate-50">
-            Xem thêm {Math.min(PAGE, shown.length - limit)} việc (còn {shown.length - limit})
+            {t("overview.proposal.more", { n: Math.min(PAGE, shown.length - limit), rest: shown.length - limit })}
           </button>
         )}
       </div>

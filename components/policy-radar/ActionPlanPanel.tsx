@@ -19,6 +19,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { ClipboardList, RefreshCw, AlertTriangle, Wrench, User, EyeOff, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useIntlLocale, useT } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/messages";
 
 interface PolicyAction {
   title: string;
@@ -56,13 +58,14 @@ function daysLeft(iso: string): number {
 }
 
 function DeadlineBadge({ deadline }: { deadline: string | null }) {
+  const t = useT();
   if (!deadline) {
     return (
-      <span className="text-[11px] text-slate-400 shrink-0">không có mốc thời gian</span>
+      <span className="text-[11px] text-slate-400 shrink-0">{t("meta.policy.plan.noDeadline")}</span>
     );
   }
   const n = daysLeft(deadline);
-  const label = n < 0 ? `quá hạn ${-n} ngày` : n === 0 ? "hôm nay" : `còn ${n} ngày`;
+  const label = n < 0 ? t("meta.policy.plan.overdue", { n: -n }) : n === 0 ? t("meta.policy.plan.today") : t("meta.policy.plan.daysLeft", { n });
   const tone =
     n < 0 ? "bg-red-100 text-red-700 border-red-200"
     : n <= 7 ? "bg-red-50 text-red-700 border-red-200"
@@ -76,9 +79,9 @@ function DeadlineBadge({ deadline }: { deadline: string | null }) {
 }
 
 const LANE_META = {
-  account: { label: "Việc trên tài khoản", icon: User, cls: "bg-blue-50 text-blue-700 border-blue-200" },
-  tool: { label: "Việc trong tool", icon: Wrench, cls: "bg-violet-50 text-violet-700 border-violet-200" },
-  ignore: { label: "Bỏ qua được", icon: EyeOff, cls: "bg-slate-100 text-slate-500 border-slate-200" },
+  account: { label: "meta.policy.plan.lane.account" as MessageKey, icon: User, cls: "bg-blue-50 text-blue-700 border-blue-200" },
+  tool: { label: "meta.policy.plan.lane.tool" as MessageKey, icon: Wrench, cls: "bg-violet-50 text-violet-700 border-violet-200" },
+  ignore: { label: "meta.policy.plan.lane.ignore" as MessageKey, icon: EyeOff, cls: "bg-slate-100 text-slate-500 border-slate-200" },
 } as const;
 
 export default function ActionPlanPanel({
@@ -89,6 +92,8 @@ export default function ActionPlanPanel({
   /** Bấm vào nguồn thì mở đúng thẻ gốc — để kiểm chứng, không phải tin suông. */
   onOpenItem?: (itemId: string) => void;
 }) {
+  const t = useT();
+  const intl = useIntlLocale();
   const [state, setState] = useState<ApiState | null>(null);
   const [building, setBuilding] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -99,12 +104,12 @@ export default function ActionPlanPanel({
     try {
       const res = await fetch("/api/policy-radar/action-plan");
       const json = (await res.json()) as ApiState & { error?: string };
-      if (!res.ok) throw new Error(json.error ?? "Không tải được kế hoạch");
+      if (!res.ok) throw new Error(json.error ?? t("meta.policy.plan.loadFail"));
       setState(json);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Không tải được kế hoạch");
+      setError(e instanceof Error ? e.message : t("meta.policy.plan.loadFail"));
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -118,15 +123,15 @@ export default function ActionPlanPanel({
         body: JSON.stringify({ force: true }),
       });
       const json = (await res.json()) as { plan?: PolicyActionPlan; error?: string };
-      if (!res.ok) throw new Error(json.error ?? "Không dựng được kế hoạch");
+      if (!res.ok) throw new Error(json.error ?? t("meta.policy.plan.buildFail"));
       if (json.plan?.error) throw new Error(json.plan.error);
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Không dựng được kế hoạch");
+      setError(e instanceof Error ? e.message : t("meta.policy.plan.buildFail"));
     } finally {
       setBuilding(false);
     }
-  }, [load]);
+  }, [load, t]);
 
   const plan = state?.plan ?? null;
   const actions = plan?.actions ?? [];
@@ -136,12 +141,12 @@ export default function ActionPlanPanel({
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-            <ClipboardList className="h-4 w-4 text-blue-600" /> Việc cần làm
+            <ClipboardList className="h-4 w-4 text-blue-600" /> {t("meta.policy.plan.title")}
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Gom {state?.openCount ?? 0} mục chưa xử lý thành một danh sách, xếp theo hạn chót.
+            {t("meta.policy.plan.desc", { open: state?.openCount ?? 0 })}
             {plan && !plan.error && (
-              <> Dựng lúc {new Date(plan.generatedAt).toLocaleString("vi-VN")} từ {plan.itemCount} mục.</>
+              <> {t("meta.policy.plan.builtAt", { time: new Date(plan.generatedAt).toLocaleString(intl), count: plan.itemCount })}</>
             )}
           </p>
         </div>
@@ -152,10 +157,10 @@ export default function ActionPlanPanel({
             className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-50 flex items-center gap-1.5 shrink-0"
             // Nói thẳng nó tốn tiền. Nút "làm mới" trông vô hại mà gọi AI mỗi
             // lần bấm là cách nhanh nhất để đốt token mà không ai để ý.
-            title="Gọi AI đọc lại toàn bộ mục chưa xử lý — tốn token, chỉ chạy khi bấm"
+            title={t("meta.policy.plan.rebuildTitle")}
           >
             <RefreshCw className={cn("h-3.5 w-3.5", building && "animate-spin")} />
-            {building ? "Đang đọc..." : plan ? "Dựng lại (gọi AI)" : "Dựng danh sách (gọi AI)"}
+            {building ? t("meta.policy.plan.reading") : plan ? t("meta.policy.plan.rebuild") : t("meta.policy.plan.build")}
           </button>
         )}
       </div>
@@ -164,8 +169,7 @@ export default function ActionPlanPanel({
         <div className="mt-3 flex items-start gap-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
           <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
           <span>
-            Danh sách này dựng từ một bộ mục KHÁC với hiện tại (có mục mới, hoặc trạng thái đã đổi).
-            Bấm &ldquo;Dựng lại&rdquo; để cập nhật — nếu không, việc mới sẽ không xuất hiện ở đây.
+            {t("meta.policy.plan.stale")}
           </span>
         </div>
       )}
@@ -178,22 +182,22 @@ export default function ActionPlanPanel({
 
       {plan?.error && !error && (
         <div className="mt-3 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-          Lần dựng gần nhất thất bại: {plan.error}. Danh sách dưới đây (nếu có) là bản cũ.
+          {t("meta.policy.plan.lastFailed", { error: plan.error })}
         </div>
       )}
 
       {state?.neverBuilt && !building && (
         <p className="mt-3 text-sm text-slate-500">
-          Chưa dựng lần nào.{" "}
-          {canManage ? "Bấm nút bên trên để AI đọc toàn bộ mục chưa xử lý và rút ra việc cần làm."
-                     : "Cần tài khoản có quyền chỉnh sửa để dựng."}
+          {t("meta.policy.plan.neverBuilt")}{" "}
+          {canManage ? t("meta.policy.plan.neverBuiltCan")
+                     : t("meta.policy.plan.neverBuiltCannot")}
         </p>
       )}
 
       {plan && !state?.neverBuilt && actions.length === 0 && !plan.error && (
         <p className="mt-3 text-sm text-slate-500">
-          Không có việc nào cần làm trong {plan.itemCount} mục đã đọc
-          {plan.ignored.length > 0 && <> — {plan.ignored.length} mục không rút ra được việc nào</>}.
+          {t("meta.policy.plan.none", { n: plan.itemCount })}
+          {plan.ignored.length > 0 && <> {t("meta.policy.plan.noneIgnored", { n: plan.ignored.length })}</>}.
         </p>
       )}
 
@@ -224,7 +228,7 @@ export default function ActionPlanPanel({
 
                 <div className="flex items-center gap-2 mt-2 flex-wrap">
                   <span className={cn("text-[11px] font-semibold px-2 py-0.5 rounded-full border flex items-center gap-1", meta.cls)}>
-                    <Icon className="h-3 w-3" /> {meta.label}
+                    <Icon className="h-3 w-3" /> {t(meta.label)}
                   </span>
                   {/* Neo về mục gốc: mọi câu ở trên phải kiểm chứng được, không
                       phải tin lời AI. Nhiều nguồn thì đánh số — lặp lại năm lần
@@ -235,7 +239,7 @@ export default function ActionPlanPanel({
                       onClick={() => onOpenItem?.(id)}
                       className="text-[11px] text-blue-600 hover:underline"
                     >
-                      {a.sourceItemIds.length > 1 ? `nguồn ${n + 1}` : "xem mục gốc"}
+                      {a.sourceItemIds.length > 1 ? t("meta.policy.plan.source", { n: n + 1 }) : t("meta.policy.plan.viewOrigin")}
                     </button>
                   ))}
                 </div>
@@ -251,7 +255,7 @@ export default function ActionPlanPanel({
             onClick={() => setShowIgnored((v) => !v)}
             className="text-xs font-semibold text-slate-500 hover:text-slate-700"
           >
-            {showIgnored ? "Ẩn" : "Xem"} {plan.ignored.length} mục không rút ra việc cần làm
+            {t(showIgnored ? "meta.policy.plan.hideIgnored" : "meta.policy.plan.showIgnored", { n: plan.ignored.length })}
           </button>
           {showIgnored && (
             <ul className="mt-2 space-y-1">
@@ -267,8 +271,7 @@ export default function ActionPlanPanel({
 
       {plan?.truncated && (
         <p className="text-[11px] text-amber-600 mt-3">
-          Chỉ đọc {plan.itemCount} mục mới nhất trong tổng số {state?.openCount ?? "?"} mục chưa xử lý —
-          phần còn lại chưa được đưa vào danh sách này.
+          {t("meta.policy.plan.truncated", { n: plan.itemCount, total: state?.openCount ?? "?" })}
         </p>
       )}
     </div>

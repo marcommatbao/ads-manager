@@ -5,6 +5,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Search } from "lucide-react";
 import { recentMonths } from "@/lib/ads-content/month-range";
 import type { AdsContentFilters } from "@/lib/ads-content/filtering";
+import { useT } from "@/lib/i18n/client";
+import type { TFunction } from "@/lib/i18n/translate";
 import { orderedCompanyIds, companyLabel } from "@/lib/companies/registry";
 
 // Đợt 25: công ty theo bản cài (bản Mắt Bão y như cũ)
@@ -20,11 +22,11 @@ interface AdsContentFilterBarProps {
 }
 
 // Base UI Select hiện GIÁ TRỊ thô ("all", "recent") trên nút nếu không có hàm đổi sang nhãn (crawl 15/10/2026).
-const SORT_LABEL: Record<string, string> = { recent: "Hoạt động gần nhất", spend_desc: "Chi tiêu cao nhất", clicks_desc: "Clicks cao nhất", name_asc: "Tên A → Z" };
+const sortLabel = (t: TFunction): Record<string, string> => ({ recent: t("creative.adsContent.filter.sortRecent"), spend_desc: t("creative.adsContent.filter.sortSpend"), clicks_desc: t("creative.adsContent.filter.sortClicks"), name_asc: t("creative.adsContent.filter.sortName") });
 
-function monthLabel(month: string): string {
+function monthLabel(month: string, t: TFunction): string {
   const [y, m] = month.split("-");
-  return `Tháng ${m}/${y}`;
+  return t("creative.adsContent.filter.month", { m, y });
 }
 
 export function AdsContentFilterBar({
@@ -35,6 +37,7 @@ export function AdsContentFilterBar({
   objectiveOptions,
   productOptions,
 }: AdsContentFilterBarProps) {
+  const t = useT();
   function set<K extends keyof AdsContentFilters>(key: K, value: AdsContentFilters[K]) {
     onFiltersChange({ ...filters, [key]: value });
   }
@@ -48,23 +51,23 @@ export function AdsContentFilterBar({
           className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-400"
         >
           {recentMonths(12).map((m) => (
-            <option key={m} value={m}>{monthLabel(m)}</option>
+            <option key={m} value={m}>{monthLabel(m, t)}</option>
           ))}
         </select>
 
         <Select value={filters.platform} onValueChange={(v) => set("platform", v as AdsContentFilters["platform"])}>
-          <SelectTrigger className="h-9 w-[160px] border-slate-200 text-sm"><SelectValue placeholder="Platform">{(v: string) => ({ all: "Tất cả Platform", facebook: "Facebook", google: "Google" } as Record<string, string>)[v] ?? v}</SelectValue></SelectTrigger>
+          <SelectTrigger className="h-9 w-[160px] border-slate-200 text-sm"><SelectValue placeholder={t("creative.adsContent.filter.platform")}>{(v: string) => ({ all: t("creative.adsContent.filter.platformAll"), facebook: "Facebook", google: "Google" } as Record<string, string>)[v] ?? v}</SelectValue></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Tất cả Platform</SelectItem>
+            <SelectItem value="all">{t("creative.adsContent.filter.platformAll")}</SelectItem>
             <SelectItem value="facebook">Facebook</SelectItem>
             <SelectItem value="google">Google</SelectItem>
           </SelectContent>
         </Select>
 
         <Select value={filters.creativeType} onValueChange={(v) => set("creativeType", v as AdsContentFilters["creativeType"])}>
-          <SelectTrigger className="h-9 w-[150px] border-slate-200 text-sm"><SelectValue placeholder="Loại creative">{(v: string) => ({ all: "Tất cả loại", facebook: "Facebook", google_search: "Google Search", google_pmax: "Google PMax" } as Record<string, string>)[v] ?? v}</SelectValue></SelectTrigger>
+          <SelectTrigger className="h-9 w-[150px] border-slate-200 text-sm"><SelectValue placeholder={t("creative.adsContent.filter.typePlaceholder")}>{(v: string) => ({ all: t("creative.adsContent.filter.typeAll"), facebook: "Facebook", google_search: "Google Search", google_pmax: "Google PMax" } as Record<string, string>)[v] ?? v}</SelectValue></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Tất cả loại</SelectItem>
+            <SelectItem value="all">{t("creative.adsContent.filter.typeAll")}</SelectItem>
             <SelectItem value="facebook">Facebook</SelectItem>
             <SelectItem value="google_search">Google Search</SelectItem>
             <SelectItem value="google_pmax">Google PMax</SelectItem>
@@ -72,7 +75,7 @@ export function AdsContentFilterBar({
         </Select>
 
         <Select value={filters.company} onValueChange={(v) => set("company", v as AdsContentFilters["company"])}>
-          <SelectTrigger className="h-9 w-[140px] border-slate-200 text-sm"><SelectValue placeholder="Công ty">{(v: string) => (v === "all" ? orderedCompanyIds(["MBC", "MBI"]).map(coText).join(" + ") : coText(v))}</SelectValue></SelectTrigger>
+          <SelectTrigger className="h-9 w-[140px] border-slate-200 text-sm"><SelectValue placeholder={t("creative.adsContent.filter.company")}>{(v: string) => (v === "all" ? orderedCompanyIds(["MBC", "MBI"]).map(coText).join(" + ") : coText(v))}</SelectValue></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">{orderedCompanyIds(["MBC", "MBI"]).map(coText).join(" + ")}</SelectItem>
             {orderedCompanyIds(["MBC", "MBI"]).map((c) => (
@@ -82,21 +85,21 @@ export function AdsContentFilterBar({
         </Select>
 
         <Select value={filters.status} onValueChange={(v) => set("status", v as AdsContentFilters["status"])}>
-          <SelectTrigger className="h-9 w-[150px] border-slate-200 text-sm"><SelectValue placeholder="Trạng thái">{(v: string) => ({ all: "Mọi trạng thái", ACTIVE: "Active", PAUSED: "Paused", ARCHIVED: "Archived" } as Record<string, string>)[v] ?? v}</SelectValue></SelectTrigger>
+          <SelectTrigger className="h-9 w-[150px] border-slate-200 text-sm"><SelectValue placeholder={t("creative.adsContent.filter.status")}>{(v: string) => ({ all: t("creative.adsContent.filter.statusAll"), ACTIVE: t("creative.adsContent.filter.active"), PAUSED: t("creative.adsContent.filter.paused"), ARCHIVED: t("creative.adsContent.filter.archived") } as Record<string, string>)[v] ?? v}</SelectValue></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Mọi trạng thái</SelectItem>
-            <SelectItem value="ACTIVE">Active</SelectItem>
-            <SelectItem value="PAUSED">Paused</SelectItem>
-            <SelectItem value="ARCHIVED">Archived</SelectItem>
+            <SelectItem value="all">{t("creative.adsContent.filter.statusAll")}</SelectItem>
+            <SelectItem value="ACTIVE">{t("creative.adsContent.filter.active")}</SelectItem>
+            <SelectItem value="PAUSED">{t("creative.adsContent.filter.paused")}</SelectItem>
+            <SelectItem value="ARCHIVED">{t("creative.adsContent.filter.archived")}</SelectItem>
           </SelectContent>
         </Select>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
         <Select value={filters.objective} onValueChange={(v) => set("objective", v ?? "all")}>
-          <SelectTrigger className="h-9 w-[160px] border-slate-200 text-sm"><SelectValue placeholder="Objective">{(v: string) => (v === "all" ? "Mọi objective" : v)}</SelectValue></SelectTrigger>
+          <SelectTrigger className="h-9 w-[160px] border-slate-200 text-sm"><SelectValue placeholder={t("creative.adsContent.filter.objective")}>{(v: string) => (v === "all" ? t("creative.adsContent.filter.objectiveAll") : v)}</SelectValue></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Mọi objective</SelectItem>
+            <SelectItem value="all">{t("creative.adsContent.filter.objectiveAll")}</SelectItem>
             {objectiveOptions.map((o) => (
               <SelectItem key={o} value={o}>{o}</SelectItem>
             ))}
@@ -104,9 +107,9 @@ export function AdsContentFilterBar({
         </Select>
 
         <Select value={filters.product} onValueChange={(v) => set("product", v ?? "all")}>
-          <SelectTrigger className="h-9 w-[200px] border-slate-200 text-sm"><SelectValue placeholder="Campaign / Product">{(v: string) => (v === "all" ? "Mọi campaign" : v)}</SelectValue></SelectTrigger>
+          <SelectTrigger className="h-9 w-[200px] border-slate-200 text-sm"><SelectValue placeholder={t("creative.adsContent.filter.campaignPlaceholder")}>{(v: string) => (v === "all" ? t("creative.adsContent.filter.campaignAll") : v)}</SelectValue></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Mọi campaign</SelectItem>
+            <SelectItem value="all">{t("creative.adsContent.filter.campaignAll")}</SelectItem>
             {productOptions.map((p) => (
               <SelectItem key={p} value={p}>{p}</SelectItem>
             ))}
@@ -118,18 +121,18 @@ export function AdsContentFilterBar({
           <Input
             value={filters.search}
             onChange={(e) => set("search", e.target.value)}
-            placeholder="Tìm campaign hoặc creative..."
+            placeholder={t("creative.adsContent.filter.search")}
             className="h-9 pl-8 text-sm border-slate-200"
           />
         </div>
 
         <Select value={filters.sort} onValueChange={(v) => set("sort", v as AdsContentFilters["sort"])}>
-          <SelectTrigger className="h-9 w-[190px] border-slate-200 text-sm"><SelectValue placeholder="Sắp xếp">{(v: string) => SORT_LABEL[v] ?? v}</SelectValue></SelectTrigger>
+          <SelectTrigger className="h-9 w-[190px] border-slate-200 text-sm"><SelectValue placeholder={t("creative.adsContent.filter.sort")}>{(v: string) => sortLabel(t)[v] ?? v}</SelectValue></SelectTrigger>
           <SelectContent>
-            <SelectItem value="recent">Hoạt động gần nhất</SelectItem>
-            <SelectItem value="spend_desc">Chi tiêu cao nhất</SelectItem>
-            <SelectItem value="clicks_desc">Clicks cao nhất</SelectItem>
-            <SelectItem value="name_asc">Tên A → Z</SelectItem>
+            <SelectItem value="recent">{t("creative.adsContent.filter.sortRecent")}</SelectItem>
+            <SelectItem value="spend_desc">{t("creative.adsContent.filter.sortSpend")}</SelectItem>
+            <SelectItem value="clicks_desc">{t("creative.adsContent.filter.sortClicks")}</SelectItem>
+            <SelectItem value="name_asc">{t("creative.adsContent.filter.sortName")}</SelectItem>
           </SelectContent>
         </Select>
       </div>

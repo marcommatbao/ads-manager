@@ -14,6 +14,7 @@ import { getJson, ApiError } from "@/components/case/api";
 import { vnd, num, pct, datetimeVN } from "@/components/case/format";
 import { Kpi } from "@/components/measure/Kpi";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/lib/i18n/client";
 import { MetaRecommendations } from "./MetaRecommendations";
 import { MetaCampaignTable } from "./MetaCampaignTable";
 import { MetaDetailSection } from "./MetaDetailSection";
@@ -32,12 +33,13 @@ interface XrayResponse extends MetaXray {
 // ── Section 2: cảnh báo ──
 
 function WarningBanner({ warnings }: { warnings: MetaXray["warnings"] }) {
+  const t = useT();
   const bad = warnings.filter((w) => w.level === "bad");
   const warn = warnings.filter((w) => w.level === "warn");
   if (bad.length === 0 && warn.length === 0) {
     return (
       <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
-        ✓ Không phát hiện cảnh báo bất thường nào trong khoảng này.
+        {t("meta.xray.view.noWarnings")}
       </p>
     );
   }
@@ -46,7 +48,7 @@ function WarningBanner({ warnings }: { warnings: MetaXray["warnings"] }) {
       {bad.length > 0 && (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4">
           <p className="flex items-center gap-1.5 text-sm font-bold text-red-700">
-            <AlertTriangle className="h-4 w-4" aria-hidden="true" /> Cảnh báo
+            <AlertTriangle className="h-4 w-4" aria-hidden="true" /> {t("meta.xray.view.warning")}
           </p>
           <ul className="mt-2 space-y-1.5 text-xs text-red-700">
             {bad.map((w) => <li key={w.id} className="flex gap-1.5"><span className="shrink-0 font-bold">✕</span><span>{w.text}</span></li>)}
@@ -75,6 +77,7 @@ function XraySkeleton() {
 // ── Root ──
 
 export function MetaXrayView({ company, range }: { company: Company; range: Range }) {
+  const t = useT();
   const [data, setData] = useState<XrayResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [reloading, setReloading] = useState(false);
@@ -93,13 +96,13 @@ export function MetaXrayView({ company, range }: { company: Company; range: Rang
       const json = await getJson(`/api/meta/xray?${qs.toString()}`);
       setData(json as XrayResponse);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Lỗi kết nối tới Meta");
+      setError(e instanceof ApiError ? e.message : t("meta.xray.view.connErr"));
     } finally {
       setLoading(false);
       setReloading(false);
       setDetailLoading(false);
     }
-  }, [company, range.from, range.to]);
+  }, [company, range.from, range.to, t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -111,9 +114,9 @@ export function MetaXrayView({ company, range }: { company: Company; range: Rang
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs text-slate-500">Chỉ đọc — số liệu từ Meta Graph API + đối chiếu GA4. Việc ghi (mở nhóm quảng cáo mới) đi qua phiên Xử lý chiến dịch ở khối &quot;Việc nên làm&quot;.</p>
+        <p className="text-xs text-slate-500">{t("meta.xray.view.readOnly")}</p>
         <Button type="button" variant="outline" size="sm" className="h-9 bg-white" onClick={refresh} disabled={loading || reloading}>
-          {reloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />} Tải lại số mới
+          {reloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />} {t("meta.xray.view.reload")}
         </Button>
       </div>
 
@@ -129,36 +132,36 @@ export function MetaXrayView({ company, range }: { company: Company; range: Rang
       ) : !data ? null : data.totals.spend === 0 ? (
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-10 text-center">
           <ScanLine className="mx-auto mb-3 h-10 w-10 text-slate-300" aria-hidden="true" />
-          <p className="text-sm font-semibold text-slate-500">Không có chi phí Meta trong khoảng này</p>
-          <p className="mt-1 text-xs text-slate-400">Đổi khoảng ngày hoặc kiểm tra chiến dịch Meta của {company}.</p>
+          <p className="text-sm font-semibold text-slate-500">{t("meta.xray.view.noSpendTitle")}</p>
+          <p className="mt-1 text-xs text-slate-400">{t("meta.xray.view.noSpendDesc", { company })}</p>
         </div>
       ) : (
         <>
           {data.errors.length > 0 && (
             <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              ⚠ Đọc thiếu một phần dữ liệu: {data.errors.join(" · ")}
+              {t("meta.xray.view.partial", { errors: data.errors.join(" · ") })}
             </p>
           )}
 
           {/* ── 1. Chỉ số lớn ── */}
           <section className="space-y-2">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-              <Kpi label="Chi phí" value={vnd(data.totals.spend)} />
-              <Kpi label={`"Mua hàng" Meta báo`} value={num(data.totals.purchases, { maximumFractionDigits: 1 })} />
-              <Kpi label="Từ lượt bấm (7 ngày)" value={num(data.totals.click, { maximumFractionDigits: 1 })} />
+              <Kpi label={t("meta.xray.kpi.spend")} value={vnd(data.totals.spend)} />
+              <Kpi label={t("meta.xray.kpi.metaPurchases")} value={num(data.totals.purchases, { maximumFractionDigits: 1 })} />
+              <Kpi label={t("meta.xray.kpi.click")} value={num(data.totals.click, { maximumFractionDigits: 1 })} />
               <Kpi
-                label="Chỉ xem (1 ngày)"
+                label={t("meta.xray.kpi.view")}
                 value={num(data.totals.view, { maximumFractionDigits: 1 })}
-                sub={data.totals.purchases > 0 ? `${pct(data.totals.view / data.totals.purchases, 0)} tổng đơn Meta báo` : undefined}
+                sub={data.totals.purchases > 0 ? t("meta.xray.kpi.viewSub", { pct: pct(data.totals.view / data.totals.purchases, 0) }) : undefined}
                 bad={data.warnings.some((w) => w.id === "view_heavy_account")}
               />
               <Kpi
-                label="GA4 đơn từ Facebook"
-                value={data.totals.ga4Facebook !== null ? num(data.totals.ga4Facebook, { maximumFractionDigits: 1 }) : "chưa đối chiếu"}
+                label={t("meta.xray.kpi.ga4")}
+                value={data.totals.ga4Facebook !== null ? num(data.totals.ga4Facebook, { maximumFractionDigits: 1 }) : t("meta.xray.kpi.notReconciled")}
               />
             </div>
             <p className="text-[11px] italic text-slate-400">
-              Chỉ xem = người thấy quảng cáo, KHÔNG bấm, rồi mua trong 1 ngày — gồm cả khách cũ/gia hạn đằng nào cũng mua.
+              {t("meta.xray.view.viewNote")}
             </p>
           </section>
 
@@ -167,14 +170,14 @@ export function MetaXrayView({ company, range }: { company: Company; range: Rang
 
           {/* ── 3. Việc nên làm ── */}
           <div>
-            <h3 className="text-base font-extrabold text-slate-900">✅ Việc nên làm</h3>
+            <h3 className="text-base font-extrabold text-slate-900">{t("meta.xray.view.todo")}</h3>
           </div>
           <MetaRecommendations recommendations={data.recommendations} company={company} range={range} />
 
           {/* ── 4. Bảng chiến dịch ── */}
           <div>
-            <h3 className="text-sm font-bold text-slate-800">Chiến dịch</h3>
-            <p className="mt-0.5 text-xs text-slate-500">Mặc định xếp theo chi phí — bấm cột khác để đổi, bấm một dòng để xem đầy đủ các cờ.</p>
+            <h3 className="text-sm font-bold text-slate-800">{t("meta.xray.view.campaigns")}</h3>
+            <p className="mt-0.5 text-xs text-slate-500">{t("meta.xray.view.campaignsHint")}</p>
           </div>
           <MetaCampaignTable campaigns={data.campaigns} />
 
@@ -184,9 +187,9 @@ export function MetaXrayView({ company, range }: { company: Company; range: Rang
           {/* ── 6. Ghi chú + lượt gọi ── */}
           <div className="space-y-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-500">
             {data.notes.map((n, i) => <p key={i}>{n}</p>)}
-            <p>Đã dùng {data.calls} lượt gọi Meta (giới hạn ~60/giờ).</p>
+            <p>{t("meta.xray.view.calls", { n: data.calls })}</p>
           </div>
-          <p className="text-right text-[10px] text-slate-300">Cập nhật lúc {datetimeVN(data.collectedAt)}</p>
+          <p className="text-right text-[10px] text-slate-300">{t("meta.xray.view.updatedAt", { time: datetimeVN(data.collectedAt) })}</p>
         </>
       )}
     </div>

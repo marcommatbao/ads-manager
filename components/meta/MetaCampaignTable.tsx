@@ -8,6 +8,7 @@
 import { useMemo, useState } from "react";
 import { ChevronDown, ChevronUp, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 import { vnd, num, pct } from "@/components/case/format";
 import type { MetaCampaignXray } from "@/lib/meta/xray";
 
@@ -61,6 +62,7 @@ function Th({ col, label, align = "left", sortKey, sortDir, onSort }: {
 }
 
 function CampaignRow({ c, open, onToggle }: { c: MetaCampaignXray; open: boolean; onToggle: () => void }) {
+  const t = useT();
   const wrongOpt = !!c.optEvent && c.optEvent !== "PURCHASE" && c.optEvent !== "LEAD";
   return (
     <>
@@ -76,13 +78,13 @@ function CampaignRow({ c, open, onToggle }: { c: MetaCampaignXray; open: boolean
         <td className="px-3 py-2.5">
           <div className="flex items-center gap-2">
             <ClickViewBar click={c.click} view={c.view} />
-            <span className="whitespace-nowrap tabular-nums text-slate-600">{c.click ?? "—"} bấm / {c.view ?? "—"} xem</span>
+            <span className="whitespace-nowrap tabular-nums text-slate-600">{t("meta.xray.tbl.clicksViews", { click: c.click ?? "—", view: c.view ?? "—" })}</span>
           </div>
-          {c.viewShare !== null && <span className="text-[10px] text-slate-400">{pct(c.viewShare, 0)} là chỉ xem</span>}
+          {c.viewShare !== null && <span className="text-[10px] text-slate-400">{t("meta.xray.tbl.viewShare", { pct: pct(c.viewShare, 0) })}</span>}
         </td>
         <td className="px-3 py-2.5 text-right">
           <div className="tabular-nums font-semibold text-slate-800">{vnd(c.cpaClick)}</div>
-          <div className="tabular-nums text-[10px] text-slate-400">Meta báo: {vnd(c.cpaMeta)}</div>
+          <div className="tabular-nums text-[10px] text-slate-400">{t("meta.xray.tbl.metaReports", { value: vnd(c.cpaMeta) })}</div>
         </td>
         <td className="px-3 py-2.5">
           <span className={cn(wrongOpt && "font-semibold text-amber-700")}>{c.optEventLabel ?? c.optEvent ?? "—"}</span>
@@ -91,7 +93,7 @@ function CampaignRow({ c, open, onToggle }: { c: MetaCampaignXray; open: boolean
         <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">{c.frequency !== null ? num(c.frequency, { maximumFractionDigits: 1 }) : "—"}</td>
         <td className="px-3 py-2.5">
           {c.utm.length ? <span className="text-slate-600">{c.utm.join(", ")}</span> : <span className="text-slate-300">—</span>}
-          {c.utmShared && <span className="ml-1 rounded-full border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] text-slate-500">dùng chung</span>}
+          {c.utmShared && <span className="ml-1 rounded-full border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] text-slate-500">{t("meta.xray.tbl.shared")}</span>}
           <div className="text-[10px] text-slate-400">GA4: {c.ga4Purchases !== null ? num(c.ga4Purchases, { maximumFractionDigits: 1 }) : "—"}</div>
         </td>
         <td className="px-3 py-2.5">
@@ -110,7 +112,7 @@ function CampaignRow({ c, open, onToggle }: { c: MetaCampaignXray; open: boolean
                 ))}
               </ul>
             ) : (
-              <p className="text-xs text-slate-400">Không có cờ cảnh báo nào cho chiến dịch này.</p>
+              <p className="text-xs text-slate-400">{t("meta.xray.tbl.noFlags")}</p>
             )}
           </td>
         </tr>
@@ -120,6 +122,7 @@ function CampaignRow({ c, open, onToggle }: { c: MetaCampaignXray; open: boolean
 }
 
 export function MetaCampaignTable({ campaigns }: { campaigns: MetaCampaignXray[] }) {
+  const t = useT();
   const [sortKey, setSortKey] = useState<SortKey>("spend");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [openId, setOpenId] = useState<string | null>(null);
@@ -150,7 +153,7 @@ export function MetaCampaignTable({ campaigns }: { campaigns: MetaCampaignXray[]
   }, [campaigns, sortKey, sortDir]);
 
   if (campaigns.length === 0) {
-    return <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-6 text-center text-xs text-slate-400">Không có chiến dịch Meta nào phát sinh chi phí trong khoảng này.</p>;
+    return <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-6 text-center text-xs text-slate-400">{t("meta.xray.tbl.empty")}</p>;
   }
 
   return (
@@ -158,16 +161,16 @@ export function MetaCampaignTable({ campaigns }: { campaigns: MetaCampaignXray[]
       <table className="w-full min-w-[1180px] text-xs">
         <thead>
           <tr className="border-b border-slate-100 text-left text-[11px] text-slate-500">
-            <Th col="name" label="Chiến dịch" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
-            <Th col="spend" label="Chi phí" align="right" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
-            <Th col="purchases" label="Đơn Meta báo" align="right" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
-            <th className="px-3 py-2 font-medium">Bấm / Chỉ xem</th>
-            <th className="px-3 py-2 text-right font-medium">CPA bấm · CPA Meta</th>
-            <th className="px-3 py-2 font-medium">Sự kiện tối ưu</th>
-            <th className="px-3 py-2 font-medium">Cài đặt ghi nhận</th>
-            <Th col="frequency" label="Tần suất" align="right" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+            <Th col="name" label={t("meta.xray.tbl.campaign")} sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+            <Th col="spend" label={t("meta.xray.tbl.spend")} align="right" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+            <Th col="purchases" label={t("meta.xray.tbl.metaOrders")} align="right" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+            <th className="px-3 py-2 font-medium">{t("meta.xray.tbl.clickView")}</th>
+            <th className="px-3 py-2 text-right font-medium">{t("meta.xray.tbl.cpa")}</th>
+            <th className="px-3 py-2 font-medium">{t("meta.xray.tbl.optEvent")}</th>
+            <th className="px-3 py-2 font-medium">{t("meta.xray.tbl.attribution")}</th>
+            <Th col="frequency" label={t("meta.xray.tbl.frequency")} align="right" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
             <th className="px-3 py-2 font-medium">UTM · GA4</th>
-            <th className="px-3 py-2 font-medium">Cờ</th>
+            <th className="px-3 py-2 font-medium">{t("meta.xray.tbl.flags")}</th>
           </tr>
         </thead>
         <tbody>

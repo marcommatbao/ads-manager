@@ -12,6 +12,9 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Pill } from "@/components/measure/Pill";
 import { vnd, num, datetimeVN } from "@/components/case/format";
+import { useT } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/messages";
+import type { TFunction } from "@/lib/i18n/translate";
 import {
   METRIC_LABEL,
   PLATFORM_LABEL,
@@ -25,38 +28,38 @@ import type { PlaybookEntry, EntryStatus } from "@/lib/playbook/store";
 type Decision = "approved" | "rejected" | "suggested";
 
 /** Các dòng văn bản ngắn giải thích "vì sao" — khác nhau giữa hướng dùng/tránh. */
-function reasonLines(e: PlaybookEntry): string[] {
+function reasonLines(e: PlaybookEntry, t: TFunction): string[] {
   const lines: string[] = [];
   if (e.direction === "avoid") {
-    lines.push(`Đã chi ${vnd(e.stat.cost)} · 0 kết quả · ${num(e.stat.loseUnits)} đơn vị thua`);
+    lines.push(t("overview.playbook.table.avoidLine", { cost: vnd(e.stat.cost), n: num(e.stat.loseUnits) }));
   } else {
     if (e.stat.cpr !== null && e.stat.lift !== null) {
-      lines.push(`Chi phí/kết quả ${vnd(e.stat.cpr)} khi có · rẻ hơn ×${e.stat.lift}`);
+      lines.push(t("overview.playbook.table.cprLift", { cpr: vnd(e.stat.cpr), lift: e.stat.lift }));
     } else if (e.stat.cpr !== null) {
-      lines.push(`Chi phí/kết quả ${vnd(e.stat.cpr)} khi có đặc điểm`);
+      lines.push(t("overview.playbook.table.cprOnly", { cpr: vnd(e.stat.cpr) }));
     }
-    lines.push(`${num(e.stat.winUnits)} đơn vị thắng · ${num(e.stat.campaigns)} chiến dịch`);
+    lines.push(t("overview.playbook.table.winLine", { win: num(e.stat.winUnits), n: num(e.stat.campaigns) }));
   }
-  lines.push(e.stat.halvesAgree ? "✓ đúng cả 2 nửa kỳ" : "chưa kiểm được 2 nửa kỳ");
+  lines.push(e.stat.halvesAgree ? t("overview.playbook.table.halvesYes") : t("overview.playbook.table.halvesNo"));
   return lines;
 }
 
-function actionsFor(status: EntryStatus): { label: string; decision: Decision; variant?: "outline" | "default" }[] {
+function actionsFor(status: EntryStatus): { label: MessageKey; decision: Decision; variant?: "outline" | "default" }[] {
   switch (status) {
     case "auto":
-      return [{ label: "Bỏ", decision: "rejected", variant: "outline" }];
+      return [{ label: "overview.playbook.table.drop", decision: "rejected", variant: "outline" }];
     case "suggested":
       return [
-        { label: "Duyệt", decision: "approved" },
-        { label: "Bỏ", decision: "rejected", variant: "outline" },
+        { label: "overview.playbook.table.approve", decision: "approved" },
+        { label: "overview.playbook.table.drop", decision: "rejected", variant: "outline" },
       ];
     case "approved":
       return [
-        { label: "Bỏ", decision: "rejected", variant: "outline" },
-        { label: "Trả về gợi ý", decision: "suggested", variant: "outline" },
+        { label: "overview.playbook.table.drop", decision: "rejected", variant: "outline" },
+        { label: "overview.playbook.table.backToSuggest", decision: "suggested", variant: "outline" },
       ];
     case "rejected":
-      return [{ label: "Trả về gợi ý", decision: "suggested", variant: "outline" }];
+      return [{ label: "overview.playbook.table.backToSuggest", decision: "suggested", variant: "outline" }];
     case "expired":
       return [];
   }
@@ -73,6 +76,7 @@ function Row({
   acting: boolean;
   onDecide: (decision: Decision) => void;
 }) {
+  const t = useT();
   const statusInfo = STATUS_LABEL[entry.status];
   const isIntermediate = entry.metric !== "purchase";
   const actions = canDecide ? actionsFor(entry.status) : [];
@@ -92,25 +96,25 @@ function Row({
         )}
         {entry.outcome && (
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-            <Pill tone="blue">✓ xác nhận {entry.outcome.confirmed} · ✕ bác {entry.outcome.refuted}</Pill>
+            <Pill tone="blue">{t("overview.playbook.table.outcome", { confirmed: entry.outcome.confirmed, refuted: entry.outcome.refuted })}</Pill>
             {entry.demoted ? (
-              <Pill tone="amber">⚠ Tạm hạ xuống gợi ý — bị bác ở ≥ 2 chiến dịch</Pill>
+              <Pill tone="amber">{t("overview.playbook.table.demoted")}</Pill>
             ) : entry.status === "approved" && entry.outcome.demoted ? (
-              <Pill tone="amber">⚠ Bị bác ≥ 2 chiến dịch — nên xem lại</Pill>
+              <Pill tone="amber">{t("overview.playbook.table.demotedWarn")}</Pill>
             ) : null}
           </div>
         )}
       </td>
       <td className="px-3 py-3 text-slate-600">
         <div className="space-y-0.5">
-          {reasonLines(entry).map((line, i) => (
-            <div key={i} className={i === reasonLines(entry).length - 1 ? "text-xs text-slate-400" : ""}>{line}</div>
+          {reasonLines(entry, t).map((line, i) => (
+            <div key={i} className={i === reasonLines(entry, t).length - 1 ? "text-xs text-slate-400" : ""}>{line}</div>
           ))}
         </div>
         {entry.evidence.length > 0 && (
           <details className="mt-2">
             <summary className="cursor-pointer text-xs font-semibold text-blue-600">
-              Bằng chứng ({entry.evidence.length})
+              {t("overview.playbook.table.evidence", { n: entry.evidence.length })}
             </summary>
             <div className="mt-1.5 space-y-1 text-xs text-slate-500">
               {entry.evidence.map((ev, i) => {
@@ -120,7 +124,7 @@ function Row({
                     <span className="font-medium text-slate-700">{ev.unitName}</span>
                     <span>· {ev.campaignName}</span>
                     <span>· {vnd(ev.cost)}</span>
-                    <span>· {num(ev.results)} kết quả</span>
+                    <span>{t("overview.playbook.table.evResults", { n: num(ev.results) })}</span>
                     <Pill tone={v.tone}>{v.text}</Pill>
                   </div>
                 );
@@ -133,7 +137,7 @@ function Row({
         <div className="font-medium text-slate-800">{METRIC_LABEL[entry.metric]}</div>
         {isIntermediate && (
           <div className="mt-1">
-            <Pill tone="amber">⚠ chỉ số trung gian</Pill>
+            <Pill tone="amber">{t("overview.playbook.table.intermediate")}</Pill>
           </div>
         )}
       </td>
@@ -161,7 +165,7 @@ function Row({
                 onClick={() => onDecide(a.decision)}
               >
                 {acting ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : null}
-                {a.label}
+                {t(a.label)}
               </Button>
             ))}
           </div>
@@ -192,6 +196,7 @@ export function PlaybookTable({
   emptyTitle: string;
   emptyDescription: string;
 }) {
+  const t = useT();
   return (
     <div className="space-y-2">
       <div>
@@ -212,11 +217,11 @@ export function PlaybookTable({
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-100 text-left text-xs text-slate-500">
-                  <th className="min-w-[200px] px-4 py-2.5 font-medium">Điều rút ra</th>
-                  <th className="min-w-[260px] px-3 py-2.5 font-medium">Vì sao</th>
-                  <th className="px-3 py-2.5 font-medium">Chỉ số</th>
-                  <th className="px-3 py-2.5 font-medium">Độ tin cậy</th>
-                  <th className="px-3 py-2.5 font-medium">Trạng thái</th>
+                  <th className="min-w-[200px] px-4 py-2.5 font-medium">{t("overview.playbook.table.thTakeaway")}</th>
+                  <th className="min-w-[260px] px-3 py-2.5 font-medium">{t("overview.playbook.table.thWhy")}</th>
+                  <th className="px-3 py-2.5 font-medium">{t("overview.playbook.table.thMetric")}</th>
+                  <th className="px-3 py-2.5 font-medium">{t("overview.playbook.table.thConfidence")}</th>
+                  <th className="px-3 py-2.5 font-medium">{t("overview.playbook.table.thStatus")}</th>
                   <th className="px-3 py-2.5 font-medium"></th>
                 </tr>
               </thead>

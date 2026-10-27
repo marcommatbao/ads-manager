@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { AdCreative, Platform } from "@/types/ads.types";
 import { useAdsStore } from "@/store/useAdsStore";
+import { useT } from "@/lib/i18n/client";
 import { ScoreBadge, CreativePlatformBadge } from "./ScoreBadge";
 
 // ─────────────────────────────────────────────
@@ -19,6 +20,7 @@ import { ScoreBadge, CreativePlatformBadge } from "./ScoreBadge";
 function LinkCampaignMini({
   creativeId, onClose, onLinked,
 }: { creativeId: string; onClose: () => void; onLinked: (name: string) => void }) {
+  const t = useT();
   const { campaigns } = useAdsStore();
   const [search, setSearch] = useState("");
   const [linking, setLinking] = useState(false);
@@ -43,14 +45,14 @@ function LinkCampaignMini({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
       <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl border border-slate-200">
         <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-          <h3 className="text-sm font-bold text-slate-800">🔗 Gắn với Campaign đang chạy</h3>
+          <h3 className="text-sm font-bold text-slate-800">{t("creative.wizard.card.linkTitle")}</h3>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600">✕</button>
         </div>
         <div className="p-4 space-y-3">
-          <Input placeholder="Tìm campaign..." value={search} onChange={(e) => setSearch(e.target.value)} className="h-9 text-sm" />
+          <Input placeholder={t("creative.wizard.card.searchCampaign")} value={search} onChange={(e) => setSearch(e.target.value)} className="h-9 text-sm" />
           <div className="max-h-56 overflow-y-auto space-y-1">
             {active.length === 0 ? (
-              <p className="text-center text-xs text-slate-400 py-4">Không có campaign đang chạy</p>
+              <p className="text-center text-xs text-slate-400 py-4">{t("creative.wizard.card.noActive")}</p>
             ) : active.map((c) => (
               <button key={c.id} onClick={() => handleLink(c.id, c.name)} disabled={linking}
                 className="w-full text-left rounded-lg border border-slate-200 px-3 py-2 text-xs hover:border-amber-300 hover:bg-amber-50/50 transition-colors">
@@ -78,6 +80,7 @@ export function CreativeCard({
   isSaved?: boolean;
   product?: string; selectedTones?: string[]; segment?: string;
 }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
   const [savedToLib, setSavedToLib] = useState(false);
   const [linkedCampaign, setLinkedCampaign] = useState<string | null>(null);
@@ -182,7 +185,7 @@ export function CreativeCard({
         {savedToLib && (
           <p className="text-[10px] text-emerald-600 font-medium flex items-center gap-1">
             <CheckCircle className="h-3 w-3" />
-            Đã lưu vào thư viện{linkedCampaign ? ` · Gắn: ${linkedCampaign}` : ""}
+            {t("creative.wizard.card.savedToLib")}{linkedCampaign ? ` · ${t("creative.wizard.card.linked", { name: linkedCampaign })}` : ""}
           </p>
         )}
       </div>
@@ -204,7 +207,7 @@ export function CreativeCard({
           )}
         >
           <BookOpen className="h-3.5 w-3.5" />
-          {savedToLib ? "Đã lưu" : savingToLib ? "Đang lưu..." : "Lưu thư viện"}
+          {savedToLib ? t("creative.wizard.card.saved") : savingToLib ? t("creative.wizard.card.saving") : t("creative.wizard.card.saveLib")}
         </button>
 
         {savedToLib && (
@@ -213,7 +216,7 @@ export function CreativeCard({
             className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-amber-700 transition-colors hover:bg-amber-50 hover:text-amber-800"
           >
             <Link2 className="h-3.5 w-3.5" />
-            {linkedCampaign ? "Re-link" : "Gắn campaign"}
+            {linkedCampaign ? "Re-link" : t("creative.wizard.card.linkCampaign")}
           </button>
         )}
 
@@ -224,7 +227,7 @@ export function CreativeCard({
         )}
         {onUpdate && !editing && (
           <button onClick={() => { setEditing(true); setEditData({ headline: creative.headline, primaryText: creative.primaryText, description: creative.description, cta: creative.cta }); }} className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-amber-700 transition-colors hover:bg-amber-50 hover:text-amber-800">
-            <Edit3 className="h-3.5 w-3.5" /> Chỉnh sửa
+            <Edit3 className="h-3.5 w-3.5" /> {t("creative.wizard.card.edit")}
           </button>
         )}
         {onRegenerate && (
@@ -251,8 +254,8 @@ export function CreativeCard({
       {editing && (
         <div className="mt-3 mx-3 mb-3 rounded-xl border-2 border-amber-200 bg-amber-50/50 p-4 space-y-3">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-bold text-amber-800 flex items-center gap-1"><Edit3 className="h-3.5 w-3.5" /> Chỉnh sửa Creative</p>
-            <button onClick={() => setEditing(false)} className="text-xs text-slate-400 hover:text-slate-600">✕ Huỷ</button>
+            <p className="text-xs font-bold text-amber-800 flex items-center gap-1"><Edit3 className="h-3.5 w-3.5" /> {t("creative.wizard.card.editTitle")}</p>
+            <button onClick={() => setEditing(false)} className="text-xs text-slate-400 hover:text-slate-600">✕ {t("creative.wizard.card.cancel")}</button>
           </div>
           <div className="space-y-2">
             <div>
@@ -275,12 +278,12 @@ export function CreativeCard({
             </div>
           </div>
           <div className="flex items-center gap-2 justify-end">
-            <Button variant="outline" size="sm" className="text-xs" onClick={() => setEditing(false)}>Huỷ</Button>
+            <Button variant="outline" size="sm" className="text-xs" onClick={() => setEditing(false)}>{t("creative.wizard.card.cancel")}</Button>
             <Button size="sm" className="gap-1 text-xs bg-amber-500 hover:bg-amber-600 text-amber-950" onClick={() => {
               onUpdate?.(editData);
               setEditing(false);
             }}>
-              <Check className="h-3 w-3" /> Lưu thay đổi
+              <Check className="h-3 w-3" /> {t("creative.wizard.card.saveChanges")}
             </Button>
           </div>
         </div>

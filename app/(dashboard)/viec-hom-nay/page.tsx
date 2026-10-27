@@ -23,11 +23,13 @@ import { Pill, type PillTone } from "@/components/measure/Pill";
 import { vnd } from "@/components/case/format";
 import { getJson, postJson, ApiError } from "@/components/case/api";
 import { useToast } from "@/components/Toast";
-import { KIND_LABEL, SOURCE_LABEL, STATUS_LABEL } from "@/lib/inbox/labels";
 import type { InboxKind, InboxSource } from "@/lib/inbox/build";
 import type { InboxStatus, InboxView } from "@/lib/inbox/store";
 import type { Company } from "@/lib/case/types";
 import { orderedCompanyIds, companyLabel } from "@/lib/companies/registry";
+import { useT } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/messages";
+import type { TFunction } from "@/lib/i18n/translate";
 
 // Đợt 25: công ty theo bản cài (bản Mắt Bão y như cũ)
 const coText = (id: string) => (id === "MBC" || id === "MBI" ? id : companyLabel(id));
@@ -44,11 +46,20 @@ interface InboxApiResponse {
 }
 
 const KIND_ORDER: InboxKind[] = [1, 2, 3];
-const KIND_EXPLAIN: Record<InboxKind, string> = {
-  1: "Mọi việc khác dựa trên số này — sửa trước khi tối ưu tiếp theo số đang sai.",
-  2: "Chi 30 ngày đang rơi vào phần không ra đơn.",
-  3: "Ước tính thêm — chưa chắc chắn như ① và ②, chỉ nên làm sau khi đã xử lý xong hai loại trên.",
+// Nhãn hiển thị (trước đây lấy từ lib/inbox/labels.ts — giờ tra từ điển để dịch được).
+const KIND_LABEL: Record<InboxKind, MessageKey> = { 1: "overview.today.kind1", 2: "overview.today.kind2", 3: "overview.today.kind3" };
+const SOURCE_LABEL: Record<InboxSource, MessageKey> = { pmax: "overview.today.srcPmax", search: "overview.today.srcSearch", meta: "overview.today.srcMeta", health: "overview.today.srcHealth", case: "overview.today.srcCase", nba: "overview.today.srcNba" };
+const STATUS_LABEL: Record<InboxStatus, MessageKey> = { new: "overview.today.stNew", seen: "overview.today.stSeen", snoozed: "overview.today.stSnoozed", done: "overview.today.stDone", dismissed: "overview.today.stDismissed" };
+const KIND_EXPLAIN: Record<InboxKind, MessageKey> = {
+  1: "overview.today.explain1",
+  2: "overview.today.explain2",
+  3: "overview.today.explain3",
 };
+
+// Chuỗi từ điển có <b>…</b> → in đậm (chỉ chuỗi tĩnh do mình viết trong lib/i18n/messages).
+function rich(s: string): React.ReactNode[] {
+  return s.split(/<b>(.*?)<\/b>/).map((part, i) => (i % 2 ? <b key={i}>{part}</b> : part));
+}
 const KIND_TONE: Record<InboxKind, PillTone> = { 1: "red", 2: "amber", 3: "blue" };
 
 const STATUS_TONE: Record<InboxStatus, PillTone> = { new: "blue", seen: "grey", snoozed: "amber", done: "green", dismissed: "grey" };
@@ -74,9 +85,9 @@ function ddmm(iso: string): string {
   return `${d}/${m}`;
 }
 /** Nhãn tiền: gắn "· 30 ngày" trừ khi nhãn đã tự ghi "/ tháng" (NBA). */
-function moneySuffix(label: string | null): string {
+function moneySuffix(label: string | null, t: TFunction): string {
   if (!label) return "";
-  return label.includes("tháng") ? label : `${label} · 30 ngày`;
+  return label.includes("tháng") ? label : t("overview.today.money30d", { label });
 }
 function todayPlusDays(n: number): string {
   const d = new Date();
@@ -87,6 +98,7 @@ function todayPlusDays(n: number): string {
 type DialogState = { type: "snooze" | "dismiss"; item: InboxView } | null;
 
 export default function ViecHomNayPage() {
+  const t = useT();
   const { data, error, isLoading, mutate } = useSWR<InboxApiResponse>("/api/inbox", getJson);
   const { toast } = useToast();
 
@@ -130,7 +142,7 @@ export default function ViecHomNayPage() {
       await mutate();
       toast({ title: successMsg, variant: "success" });
     } catch (e) {
-      const msg = e instanceof ApiError ? e.message : "Lỗi không xác định — thử lại";
+      const msg = e instanceof ApiError ? e.message : t("overview.today.unknownError");
       setActionError((prev) => ({ ...prev, [key]: msg }));
       toast({ title: msg, variant: "error" });
     } finally {
@@ -148,12 +160,12 @@ export default function ViecHomNayPage() {
   }
   async function submitSnooze() {
     if (!dialog) return;
-    await act(dialog.item.key, { status: "snoozed", until: snoozeDate }, "Đã hoãn — sẽ hiện lại đúng ngày, hoặc sớm hơn nếu tiền tăng >50%");
+    await act(dialog.item.key, { status: "snoozed", until: snoozeDate }, t("overview.today.snoozedToast"));
     setDialog(null);
   }
   async function submitDismiss() {
     if (!dialog || dismissReason.trim().length < 3) return;
-    await act(dialog.item.key, { status: "dismissed", reason: dismissReason.trim() }, "Đã bỏ qua — sẽ hiện lại nếu tiền tăng >50%");
+    await act(dialog.item.key, { status: "dismissed", reason: dismissReason.trim() }, t("overview.today.dismissedToast"));
     setDialog(null);
   }
 
@@ -164,14 +176,14 @@ export default function ViecHomNayPage() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="flex items-center gap-2 text-xl font-bold text-slate-900">
-            <InboxIcon className="h-5 w-5 text-blue-600" aria-hidden="true" /> Việc nên làm hôm nay
+            <InboxIcon className="h-5 w-5 text-blue-600" aria-hidden="true" /> {t("overview.today.title")}
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-slate-500">
-            Gộp từ PMax, Search, Meta, phiên xử lý &amp; sức khoẻ đo lường — xếp <b>① Số đo sai</b> trước (chặn mọi quyết định khác), rồi <b>② Lãng phí rõ</b>, rồi <b>③ Cơ hội</b>; trong mỗi loại xếp theo tiền.
+            {rich(t("overview.today.subtitle"))}
           </p>
         </div>
         <Button className="h-10" variant="outline" size="sm" onClick={() => mutate()} disabled={isLoading}>
-          <RefreshCw className={isLoading ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} aria-hidden="true" /> Tải lại
+          <RefreshCw className={isLoading ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} aria-hidden="true" /> {t("overview.today.reload")}
         </Button>
       </div>
 
@@ -185,8 +197,8 @@ export default function ViecHomNayPage() {
       {!isLoading && error && (
         <EmptyState
           icon={AlertTriangle}
-          title={error instanceof ApiError ? error.message : "Không tải được hộp việc"}
-          action={<Button className="h-10" onClick={() => mutate()}><RefreshCw className="h-4 w-4" aria-hidden="true" /> Thử lại</Button>}
+          title={error instanceof ApiError ? error.message : t("overview.today.loadFailed")}
+          action={<Button className="h-10" onClick={() => mutate()}><RefreshCw className="h-4 w-4" aria-hidden="true" /> {t("overview.today.retry")}</Button>}
         />
       )}
 
@@ -196,9 +208,9 @@ export default function ViecHomNayPage() {
           {data.builtAt === null ? (
             <EmptyState
               icon={InboxIcon}
-              title="Hộp việc chưa được dựng"
-              description="Job dựng hộp việc chạy lúc 07:45 mỗi ngày — quay lại sau, hoặc bấm Tải lại nếu vừa qua giờ đó."
-              action={<Button className="h-10" variant="outline" onClick={() => mutate()}><RefreshCw className="h-4 w-4" aria-hidden="true" /> Tải lại</Button>}
+              title={t("overview.today.notBuiltTitle")}
+              description={t("overview.today.notBuiltDesc")}
+              action={<Button className="h-10" variant="outline" onClick={() => mutate()}><RefreshCw className="h-4 w-4" aria-hidden="true" /> {t("overview.today.reload")}</Button>}
             />
           ) : (
             <>
@@ -206,15 +218,15 @@ export default function ViecHomNayPage() {
               <div className="flex items-start gap-2 rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">
                 <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
                 <div className="space-y-1">
-                  <div>Cập nhật <b>{hhmmDdMm(data.builtAt)}</b></div>
+                  <div>{rich(t("overview.today.updatedAt", { time: hhmmDdMm(data.builtAt) }))}</div>
                   {data.digest?.sent && (
-                    <div>Đã gửi <b>{data.digest.keys.length} việc</b> lên Teams lúc <b>{hhmm(data.digest.sentAt)}</b></div>
+                    <div>{rich(t("overview.today.digestSent", { n: data.digest.keys.length, time: hhmm(data.digest.sentAt) }))}</div>
                   )}
                   {data.digest?.notConfigured && (
-                    <div className="text-blue-600">Chưa cấu hình kênh Teams Ads — việc vẫn hiện ở đây, chỉ không gửi.</div>
+                    <div className="text-blue-600">{t("overview.today.teamsNotConfigured")}</div>
                   )}
                   {data.digest?.error && (
-                    <div className="flex items-center gap-1.5 text-amber-700"><AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> Không gửi được thẻ Teams: {data.digest.error}</div>
+                    <div className="flex items-center gap-1.5 text-amber-700"><AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> {t("overview.today.teamsSendFailed", { error: data.digest.error })}</div>
                   )}
                 </div>
               </div>
@@ -226,8 +238,8 @@ export default function ViecHomNayPage() {
                     <div key={i} className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
                       <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
                       <div>
-                        <div>Không đọc được <b>{SOURCE_LABEL[e.source]}</b> {e.company !== "ALL" ? e.company : ""}: {e.error}</div>
-                        <div className="text-xs text-red-500">Việc từ nguồn này không hiện ở đây để tránh xử lý trên số cũ — các nguồn khác bên dưới không bị ảnh hưởng.</div>
+                        <div>{rich(t("overview.today.sourceReadFailed", { source: t(SOURCE_LABEL[e.source]), company: e.company !== "ALL" ? e.company : "", error: e.error }))}</div>
+                        <div className="text-xs text-red-500">{t("overview.today.sourceStaleNote")}</div>
                       </div>
                     </div>
                   ))}
@@ -237,11 +249,11 @@ export default function ViecHomNayPage() {
               {/* Bộ lọc */}
               <div className="flex flex-wrap gap-3">
                 <div className="min-w-[140px]">
-                  <div className="mb-1 text-xs font-medium text-slate-400">Công ty</div>
+                  <div className="mb-1 text-xs font-medium text-slate-400">{t("overview.today.company")}</div>
                   <Select value={companyFilter} onValueChange={(v) => setCompanyFilter(v as "ALL" | Company)}>
-                    <SelectTrigger aria-label="Công ty"><SelectValue>{(v: string) => (v === "ALL" ? "Tất cả" : v)}</SelectValue></SelectTrigger>
+                    <SelectTrigger aria-label={t("overview.today.company")}><SelectValue>{(v: string) => (v === "ALL" ? t("overview.today.all") : v)}</SelectValue></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="ALL">Tất cả</SelectItem>
+                      <SelectItem value="ALL">{t("overview.today.all")}</SelectItem>
                       {orderedCompanyIds(["MBC", "MBI"]).map((c) => (
                         <SelectItem key={c} value={c}>{coText(c)}</SelectItem>
                       ))}
@@ -249,35 +261,35 @@ export default function ViecHomNayPage() {
                   </Select>
                 </div>
                 <div className="min-w-[180px]">
-                  <div className="mb-1 text-xs font-medium text-slate-400">Nguồn</div>
+                  <div className="mb-1 text-xs font-medium text-slate-400">{t("overview.today.source")}</div>
                   <Select value={sourceFilter} onValueChange={(v) => setSourceFilter(v as "ALL" | InboxSource)}>
-                    <SelectTrigger aria-label="Nguồn"><SelectValue>{(v: string) => (v === "ALL" ? "Tất cả" : SOURCE_LABEL[v as InboxSource] ?? v)}</SelectValue></SelectTrigger>
+                    <SelectTrigger aria-label={t("overview.today.source")}><SelectValue>{(v: string) => (v === "ALL" ? t("overview.today.all") : SOURCE_LABEL[v as InboxSource] ? t(SOURCE_LABEL[v as InboxSource]) : v)}</SelectValue></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="ALL">Tất cả</SelectItem>
-                      {(Object.keys(SOURCE_LABEL) as InboxSource[]).map((s) => <SelectItem key={s} value={s}>{SOURCE_LABEL[s]}</SelectItem>)}
+                      <SelectItem value="ALL">{t("overview.today.all")}</SelectItem>
+                      {(Object.keys(SOURCE_LABEL) as InboxSource[]).map((s) => <SelectItem key={s} value={s}>{t(SOURCE_LABEL[s])}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="min-w-[160px]">
-                  <div className="mb-1 text-xs font-medium text-slate-400">Loại</div>
+                  <div className="mb-1 text-xs font-medium text-slate-400">{t("overview.today.kind")}</div>
                   <Select value={String(kindFilter)} onValueChange={(v) => setKindFilter(v === "ALL" ? "ALL" : (Number(v) as InboxKind))}>
-                    <SelectTrigger aria-label="Loại"><SelectValue>{(v: string) => (v === "ALL" ? "Tất cả" : KIND_LABEL[Number(v) as InboxKind])}</SelectValue></SelectTrigger>
+                    <SelectTrigger aria-label={t("overview.today.kind")}><SelectValue>{(v: string) => (v === "ALL" ? t("overview.today.all") : t(KIND_LABEL[Number(v) as InboxKind]))}</SelectValue></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="ALL">Tất cả</SelectItem>
-                      {KIND_ORDER.map((k) => <SelectItem key={k} value={String(k)}>{KIND_LABEL[k]}</SelectItem>)}
+                      <SelectItem value="ALL">{t("overview.today.all")}</SelectItem>
+                      {KIND_ORDER.map((k) => <SelectItem key={k} value={String(k)}>{t(KIND_LABEL[k])}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="min-w-[180px]">
-                  <div className="mb-1 text-xs font-medium text-slate-400">Trạng thái</div>
+                  <div className="mb-1 text-xs font-medium text-slate-400">{t("overview.today.status")}</div>
                   <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
-                    <SelectTrigger aria-label="Trạng thái"><SelectValue>{(v: string) => STATUS_FILTER_LABEL[v as StatusFilter] ?? v}</SelectValue></SelectTrigger>
+                    <SelectTrigger aria-label={t("overview.today.status")}><SelectValue>{(v: string) => (STATUS_FILTER_LABEL[v as StatusFilter] ? t(STATUS_FILTER_LABEL[v as StatusFilter]) : v)}</SelectValue></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="open">Mới + Đã xem</SelectItem>
-                      <SelectItem value="snoozed">Hoãn</SelectItem>
-                      <SelectItem value="done">Đã làm</SelectItem>
-                      <SelectItem value="dismissed">Bỏ qua</SelectItem>
-                      <SelectItem value="all">Tất cả</SelectItem>
+                      <SelectItem value="open">{t("overview.today.fOpen")}</SelectItem>
+                      <SelectItem value="snoozed">{t("overview.today.stSnoozed")}</SelectItem>
+                      <SelectItem value="done">{t("overview.today.stDone")}</SelectItem>
+                      <SelectItem value="dismissed">{t("overview.today.stDismissed")}</SelectItem>
+                      <SelectItem value="all">{t("overview.today.all")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -285,13 +297,13 @@ export default function ViecHomNayPage() {
 
               {/* Danh sách việc, gộp theo loại */}
               {filtered.length === 0 ? (
-                <EmptyState compact title="Không có việc nào cần làm" description="Đổi lại bộ lọc ở trên, hoặc mọi việc trong bộ lọc này đã xử lý xong." />
+                <EmptyState compact title={t("overview.today.emptyTitle")} description={t("overview.today.emptyDesc")} />
               ) : (
                 KIND_ORDER.filter((k) => grouped.get(k)!.length > 0).map((k) => (
                   <section key={k} className="space-y-3">
                     <div>
-                      <h2 className="text-base font-bold text-slate-900">{KIND_LABEL[k]}</h2>
-                      <p className="text-xs text-slate-500">{KIND_EXPLAIN[k]}</p>
+                      <h2 className="text-base font-bold text-slate-900">{t(KIND_LABEL[k])}</h2>
+                      <p className="text-xs text-slate-500">{t(KIND_EXPLAIN[k])}</p>
                     </div>
                     <div className="grid gap-3">
                       {grouped.get(k)!.map((it) => (
@@ -301,9 +313,9 @@ export default function ViecHomNayPage() {
                           canEdit={canEdit}
                           pending={pendingKey === it.key}
                           error={actionError[it.key]}
-                          onSeen={() => act(it.key, { status: "seen" }, "Đã đánh dấu Đã xem")}
-                          onDone={() => act(it.key, { status: "done" }, "Đã đánh dấu Đã làm")}
-                          onReopen={() => act(it.key, { status: "new" }, "Đã mở lại — chuyển về Mới")}
+                          onSeen={() => act(it.key, { status: "seen" }, t("overview.today.toastSeen"))}
+                          onDone={() => act(it.key, { status: "done" }, t("overview.today.toastDone"))}
+                          onReopen={() => act(it.key, { status: "new" }, t("overview.today.toastReopen"))}
                           onSnooze={() => openSnooze(it)}
                           onDismiss={() => openDismiss(it)}
                         />
@@ -320,17 +332,17 @@ export default function ViecHomNayPage() {
       {/* Dialog: Hoãn */}
       <Dialog open={dialog?.type === "snooze"} onOpenChange={(o) => !o && setDialog(null)}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Hoãn việc này</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{t("overview.today.snoozeTitle")}</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-500" htmlFor="hoan-ngay">Hoãn đến ngày</label>
+              <label className="mb-1 block text-xs font-medium text-slate-500" htmlFor="hoan-ngay">{t("overview.today.snoozeUntil")}</label>
               <Input id="hoan-ngay" type="date" value={snoozeDate} min={todayPlusDays(1)} onChange={(e) => setSnoozeDate(e.target.value)} />
             </div>
-            <p className="text-xs text-slate-400">Việc hoãn sẽ tự hiện lại sớm hơn nếu tiền liên quan tăng &gt; 50%, hoặc khi hết hạn hoãn.</p>
+            <p className="text-xs text-slate-400">{t("overview.today.snoozeNote")}</p>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialog(null)} disabled={pendingKey === dialog?.item.key}>Huỷ</Button>
-            <Button onClick={submitSnooze} disabled={!snoozeDate || pendingKey === dialog?.item.key}>{pendingKey === dialog?.item.key ? "Đang lưu…" : "Hoãn việc"}</Button>
+            <Button variant="outline" onClick={() => setDialog(null)} disabled={pendingKey === dialog?.item.key}>{t("overview.today.cancel")}</Button>
+            <Button onClick={submitSnooze} disabled={!snoozeDate || pendingKey === dialog?.item.key}>{pendingKey === dialog?.item.key ? t("overview.today.saving") : t("overview.today.snoozeBtn")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -338,18 +350,18 @@ export default function ViecHomNayPage() {
       {/* Dialog: Bỏ qua */}
       <Dialog open={dialog?.type === "dismiss"} onOpenChange={(o) => !o && setDialog(null)}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Bỏ qua việc này</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{t("overview.today.dismissTitle")}</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-500" htmlFor="boqua-ly-do">Lý do <span className="text-red-500">*</span></label>
-              <Textarea id="boqua-ly-do" value={dismissReason} onChange={(e) => setDismissReason(e.target.value)} placeholder="Bắt buộc — vd: đã biết, chấp nhận trong mùa cao điểm" required />
+              <label className="mb-1 block text-xs font-medium text-slate-500" htmlFor="boqua-ly-do">{t("overview.today.reason")} <span className="text-red-500">*</span></label>
+              <Textarea id="boqua-ly-do" value={dismissReason} onChange={(e) => setDismissReason(e.target.value)} placeholder={t("overview.today.reasonPlaceholder")} required />
             </div>
-            <p className="text-xs text-slate-400">Việc bị bỏ qua vẫn <b>hiện lại</b> nếu tiền liên quan tăng hơn 50% so với lúc bỏ qua.</p>
+            <p className="text-xs text-slate-400">{rich(t("overview.today.dismissNote"))}</p>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialog(null)} disabled={pendingKey === dialog?.item.key}>Huỷ</Button>
+            <Button variant="outline" onClick={() => setDialog(null)} disabled={pendingKey === dialog?.item.key}>{t("overview.today.cancel")}</Button>
             <Button variant="destructive" onClick={submitDismiss} disabled={dismissReason.trim().length < 3 || pendingKey === dialog?.item.key}>
-              {pendingKey === dialog?.item.key ? "Đang lưu…" : "Bỏ qua"}
+              {pendingKey === dialog?.item.key ? t("overview.today.saving") : t("overview.today.stDismissed")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -358,7 +370,7 @@ export default function ViecHomNayPage() {
   );
 }
 
-const STATUS_FILTER_LABEL: Record<StatusFilter, string> = { open: "Mới + Đã xem", snoozed: "Hoãn", done: "Đã làm", dismissed: "Bỏ qua", all: "Tất cả" };
+const STATUS_FILTER_LABEL: Record<StatusFilter, MessageKey> = { open: "overview.today.fOpen", snoozed: "overview.today.stSnoozed", done: "overview.today.stDone", dismissed: "overview.today.stDismissed", all: "overview.today.all" };
 
 function ItemCard({
   item, canEdit, pending, error, onSeen, onDone, onReopen, onSnooze, onDismiss,
@@ -373,13 +385,14 @@ function ItemCard({
   onSnooze: () => void;
   onDismiss: () => void;
 }) {
+  const t = useT();
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 max-w-xl space-y-1">
           <div className="flex flex-wrap items-center gap-2">
-            <Pill tone={KIND_TONE[item.kind]}>{KIND_LABEL[item.kind]}</Pill>
-            <span className="text-xs text-slate-400">{item.company} · {SOURCE_LABEL[item.source]}</span>
+            <Pill tone={KIND_TONE[item.kind]}>{t(KIND_LABEL[item.kind])}</Pill>
+            <span className="text-xs text-slate-400">{item.company} · {t(SOURCE_LABEL[item.source])}</span>
           </div>
           <div className="text-sm font-semibold text-slate-800">{item.title}</div>
           <div className="text-xs text-slate-500">{item.why}</div>
@@ -389,19 +402,19 @@ function ItemCard({
             </div>
           )}
           {item.status === "dismissed" && item.state?.reason && (
-            <div className="text-xs text-slate-500"><b>Lý do bỏ qua:</b> {item.state.reason}</div>
+            <div className="text-xs text-slate-500"><b>{t("overview.today.dismissReasonLabel")}</b> {item.state.reason}</div>
           )}
         </div>
         <div className="w-full min-w-0 text-left sm:w-auto sm:max-w-xs sm:text-right">
           {item.money != null && (
             <>
               <div className="tabular-nums text-sm font-bold text-red-600">{vnd(item.money)}</div>
-              <div className="text-xs text-slate-400">{moneySuffix(item.moneyLabel)}</div>
+              <div className="text-xs text-slate-400">{moneySuffix(item.moneyLabel, t)}</div>
             </>
           )}
           <div className="mt-1.5">
             <Pill tone={STATUS_TONE[item.status]}>
-              {STATUS_SYMBOL[item.status]} {item.status === "snoozed" && item.state?.until ? `Hoãn đến ${ddmm(item.state.until)}` : STATUS_LABEL[item.status]}
+              {STATUS_SYMBOL[item.status]} {item.status === "snoozed" && item.state?.until ? t("overview.today.snoozedUntil", { date: ddmm(item.state.until) }) : t(STATUS_LABEL[item.status])}
             </Pill>
           </div>
         </div>
@@ -409,7 +422,7 @@ function ItemCard({
 
       {item.children && item.children.length > 0 && (
         <details className="mt-3 rounded-lg border border-slate-100 bg-slate-50 p-2 text-xs">
-          <summary className="cursor-pointer select-none font-medium text-slate-600">{item.children.length} mục bên trong — xem danh sách</summary>
+          <summary className="cursor-pointer select-none font-medium text-slate-600">{t("overview.today.childrenSummary", { n: item.children.length })}</summary>
           <ul className="mt-2 space-y-1.5">
             {item.children.map((c, i) => (
               <li key={i} className="flex items-start justify-between gap-3 border-t border-slate-100 pt-1.5 first:border-0 first:pt-0">
@@ -427,12 +440,12 @@ function ItemCard({
       {canEdit && (
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <Button size="sm" render={<Link href={item.href} />}>{item.hrefLabel} →</Button>
-          <Button size="sm" variant="outline" onClick={onSnooze} disabled={pending}>Hoãn…</Button>
-          <Button size="sm" variant="outline" onClick={onDismiss} disabled={pending}>Bỏ qua…</Button>
-          <Button size="sm" variant="ghost" onClick={onSeen} disabled={pending}>Đã xem</Button>
-          <Button size="sm" variant="ghost" onClick={onDone} disabled={pending}>Đã làm</Button>
+          <Button size="sm" variant="outline" onClick={onSnooze} disabled={pending}>{t("overview.today.btnSnooze")}</Button>
+          <Button size="sm" variant="outline" onClick={onDismiss} disabled={pending}>{t("overview.today.btnDismiss")}</Button>
+          <Button size="sm" variant="ghost" onClick={onSeen} disabled={pending}>{t("overview.today.stSeen")}</Button>
+          <Button size="sm" variant="ghost" onClick={onDone} disabled={pending}>{t("overview.today.stDone")}</Button>
           {!isOpenStatus(item.status) && (
-            <Button size="sm" variant="ghost" onClick={onReopen} disabled={pending}>Mở lại</Button>
+            <Button size="sm" variant="ghost" onClick={onReopen} disabled={pending}>{t("overview.today.btnReopen")}</Button>
           )}
           {error && <span className="text-xs text-red-600">{error}</span>}
         </div>

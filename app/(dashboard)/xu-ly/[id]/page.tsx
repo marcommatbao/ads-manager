@@ -25,8 +25,10 @@ import { Step6Execute } from "@/components/case/Step6Execute";
 import { Step7Done } from "@/components/case/Step7Done";
 import { getJson, patchJson, ApiError } from "@/components/case/api";
 import type { CampaignCase, CaseStep } from "@/lib/case/store";
+import { useT } from "@/lib/i18n/client";
 
 export default function CaseWorkspacePage() {
+  const t = useT();
   const { id } = useParams<{ id: string }>();
   const { data, error, isLoading, mutate } = useSWR<{ success: true; case: CampaignCase }>(
     id ? `/api/cases/${id}` : null,
@@ -43,7 +45,7 @@ export default function CaseWorkspacePage() {
       const json = await patchJson(`/api/cases/${id}`, { step });
       await mutate({ success: true, case: json.case }, { revalidate: false });
     } catch (e) {
-      setStepError(e instanceof ApiError ? e.message : "Không đổi được bước");
+      setStepError(e instanceof ApiError ? e.message : t("overview.xuly.detail.stepError"));
     } finally {
       setStepBusy(false);
     }
@@ -68,11 +70,11 @@ export default function CaseWorkspacePage() {
       <div className="mx-auto max-w-5xl p-6">
         <EmptyState
           icon={AlertTriangle}
-          title="Không tải được phiên xử lý"
-          description={error instanceof ApiError ? error.message : "Phiên không tồn tại hoặc đã bị xoá."}
+          title={t("overview.xuly.detail.loadFailed")}
+          description={error instanceof ApiError ? error.message : t("overview.xuly.detail.notFound")}
           action={
             <Button onClick={() => mutate()}>
-              <RefreshCw className="h-4 w-4" aria-hidden="true" /> Thử lại
+              <RefreshCw className="h-4 w-4" aria-hidden="true" /> {t("overview.xuly.detail.retry")}
             </Button>
           }
         />

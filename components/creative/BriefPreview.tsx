@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BriefStatusBadge } from "./BriefStatusBadge";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import type { CreativeBrief } from "@/lib/creative-brief/types";
 
 // ── Section wrapper ───────────────────────────────────────────
@@ -60,6 +61,8 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 // ── Main Component ────────────────────────────────────────────
 
 export function BriefPreview({ brief }: { brief: CreativeBrief }) {
+  const t = useT();
+  const intlLocale = useIntlLocale();
   const hasWarns = brief.complianceNotes.some(n => n.severity === "warn");
 
   return (
@@ -73,7 +76,7 @@ export function BriefPreview({ brief }: { brief: CreativeBrief }) {
               {brief.product.displayName} · {brief.company}
             </p>
             <p className="text-[10px] text-slate-400 mt-0.5">
-              Generated {new Date(brief.generatedAt).toLocaleString("vi-VN")}
+              {t("creative.brief.preview.generated", { time: new Date(brief.generatedAt).toLocaleString(intlLocale) })}
             </p>
           </div>
           <BriefStatusBadge brief={brief} />
@@ -87,7 +90,7 @@ export function BriefPreview({ brief }: { brief: CreativeBrief }) {
       {brief.complianceNotes.length > 0 && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-2">
           <p className="text-[10px] font-bold text-amber-700 flex items-center gap-1">
-            <AlertTriangle className="h-3 w-3" /> Compliance
+            <AlertTriangle className="h-3 w-3" /> {t("creative.brief.preview.compliance")}
           </p>
           {brief.complianceNotes.map((n, i) => (
             <div key={i} className="text-[10px] text-slate-700">
@@ -101,12 +104,12 @@ export function BriefPreview({ brief }: { brief: CreativeBrief }) {
       )}
 
       {/* Audience */}
-      <Section title="Audience" icon={<Users className="h-3.5 w-3.5 text-indigo-500" />}>
-        <Row label="Persona chính" value={brief.audienceSummary.primaryPersona} />
-        <Row label="Độ rộng" value={brief.audienceSummary.size} />
-        <Row label="Trình độ" value={brief.audienceSummary.sophistication} />
+      <Section title={t("creative.brief.preview.audience")} icon={<Users className="h-3.5 w-3.5 text-indigo-500" />}>
+        <Row label={t("creative.brief.preview.primaryPersona")} value={brief.audienceSummary.primaryPersona} />
+        <Row label={t("creative.brief.preview.reach")} value={brief.audienceSummary.size} />
+        <Row label={t("creative.brief.preview.sophistication")} value={brief.audienceSummary.sophistication} />
         <div>
-          <p className="text-[10px] text-slate-400 mb-1">Pain points (xếp theo tần suất)</p>
+          <p className="text-[10px] text-slate-400 mb-1">{t("creative.brief.preview.painRanked")}</p>
           <div className="space-y-1">
             {brief.audienceSummary.topPainPoints.map((p, i) => (
               <p key={i} className="text-xs text-slate-700 flex gap-1.5">
@@ -116,7 +119,7 @@ export function BriefPreview({ brief }: { brief: CreativeBrief }) {
           </div>
         </div>
         <div>
-          <p className="text-[10px] text-slate-400 mb-1">Motivators</p>
+          <p className="text-[10px] text-slate-400 mb-1">{t("creative.brief.preview.motivators")}</p>
           <div className="flex flex-wrap gap-1">
             {brief.audienceSummary.motivators.map((m, i) => <Tag key={i} text={m} color="emerald" />)}
           </div>
@@ -124,19 +127,19 @@ export function BriefPreview({ brief }: { brief: CreativeBrief }) {
       </Section>
 
       {/* Message Core */}
-      <Section title="Message Core" icon={<Target className="h-3.5 w-3.5 text-rose-500" />}>
+      <Section title={t("creative.brief.preview.messageCore")} icon={<Target className="h-3.5 w-3.5 text-rose-500" />}>
         <div className="rounded-lg bg-indigo-50 border border-indigo-200 px-3 py-2">
-          <p className="text-[10px] text-indigo-500 font-bold">USP chính</p>
+          <p className="text-[10px] text-indigo-500 font-bold">{t("creative.brief.preview.usp")}</p>
           <p className="text-sm font-semibold text-slate-800 mt-0.5">{brief.usp}</p>
         </div>
 
         <div>
-          <p className="text-[10px] text-slate-400 mb-1.5">Pain points sản phẩm</p>
+          <p className="text-[10px] text-slate-400 mb-1.5">{t("creative.brief.preview.productPain")}</p>
           <div className="space-y-1.5">
             {brief.painPoints.map((p, i) => (
               <div key={i} className="flex items-start gap-2 text-xs">
                 <span className={cn("shrink-0 rounded px-1 py-0.5 text-[9px] font-bold", p.severity === "critical" ? "bg-red-100 text-red-600" : "bg-slate-100 text-slate-500")}>
-                  {p.severity === "critical" ? "CRIT" : "MOD"}
+                  {p.severity === "critical" ? t("creative.brief.preview.crit") : t("creative.brief.preview.mod")}
                 </span>
                 <span className="text-slate-700">{p.text}</span>
               </div>
@@ -146,7 +149,7 @@ export function BriefPreview({ brief }: { brief: CreativeBrief }) {
 
         {brief.proofPoints.length > 0 && (
           <div>
-            <p className="text-[10px] text-slate-400 mb-1.5">Proof points</p>
+            <p className="text-[10px] text-slate-400 mb-1.5">{t("creative.brief.preview.proof")}</p>
             <div className="space-y-1">
               {brief.proofPoints.map((p, i) => (
                 <p key={i} className="text-xs text-slate-700 flex gap-1.5 items-start">
@@ -160,7 +163,7 @@ export function BriefPreview({ brief }: { brief: CreativeBrief }) {
       </Section>
 
       {/* Tone Strategy */}
-      <Section title="Tone Strategy" icon={<Mic2 className="h-3.5 w-3.5 text-violet-500" />}>
+      <Section title={t("creative.brief.preview.tone")} icon={<Mic2 className="h-3.5 w-3.5 text-violet-500" />}>
         <div className="flex flex-wrap gap-1.5">
           <Tag text={brief.toneStrategy.primaryTone} color="blue" />
           {brief.toneStrategy.secondaryTone && <Tag text={brief.toneStrategy.secondaryTone} color="slate" />}
@@ -170,7 +173,7 @@ export function BriefPreview({ brief }: { brief: CreativeBrief }) {
         </p>
         {brief.toneStrategy.avoid.length > 0 && (
           <div>
-            <p className="text-[10px] text-slate-400 mb-1">Tránh</p>
+            <p className="text-[10px] text-slate-400 mb-1">{t("creative.brief.preview.avoid")}</p>
             <div className="flex flex-wrap gap-1">
               {brief.toneStrategy.avoid.map((a, i) => <Tag key={i} text={a} color="red" />)}
             </div>
@@ -179,60 +182,60 @@ export function BriefPreview({ brief }: { brief: CreativeBrief }) {
       </Section>
 
       {/* CTA Strategy */}
-      <Section title="CTA Strategy" icon={<Zap className="h-3.5 w-3.5 text-amber-500" />}>
+      <Section title={t("creative.brief.preview.ctaStrategy")} icon={<Zap className="h-3.5 w-3.5 text-amber-500" />}>
         <div className="grid grid-cols-2 gap-2">
           <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-2 text-center">
-            <p className="text-[10px] text-emerald-500">CTA chính</p>
+            <p className="text-[10px] text-emerald-500">{t("creative.brief.preview.primaryCta")}</p>
             <p className="text-sm font-bold text-slate-800 mt-0.5">{brief.ctaStrategy.primaryCta}</p>
           </div>
           {brief.ctaStrategy.softCta && (
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-2 text-center">
-              <p className="text-[10px] text-slate-400">CTA phụ</p>
+              <p className="text-[10px] text-slate-400">{t("creative.brief.preview.softCta")}</p>
               <p className="text-sm font-semibold text-slate-700 mt-0.5">{brief.ctaStrategy.softCta}</p>
             </div>
           )}
         </div>
-        <Row label="Urgency frame" value={
-          brief.ctaStrategy.urgencyFrame === "hard" ? "🔥 HARD — countdown/deadline"
-          : brief.ctaStrategy.urgencyFrame === "soft" ? "⚡ SOFT — subtle urgency"
-          : "– Không urgency"
+        <Row label={t("creative.brief.preview.urgencyFrame")} value={
+          brief.ctaStrategy.urgencyFrame === "hard" ? t("creative.brief.preview.urgencyHard")
+          : brief.ctaStrategy.urgencyFrame === "soft" ? t("creative.brief.preview.urgencySoft")
+          : t("creative.brief.preview.urgencyNone")
         } />
         <p className="text-[10px] text-slate-400 italic">{brief.ctaStrategy.intent}</p>
       </Section>
 
       {/* Meta Config */}
       {brief.metaConfig && (
-        <Section title="Meta / Facebook" icon={<MessageSquare className="h-3.5 w-3.5 text-blue-500" />} defaultOpen={false}>
-          <Row label="Ad formats" value={<div className="flex gap-1 flex-wrap">{brief.metaConfig.adFormats.map(f => <Tag key={f} text={f} />)}</div>} />
-          <Row label="Cảm xúc anchor" value={brief.metaConfig.emotionalAnchor} />
+        <Section title={t("creative.brief.preview.meta")} icon={<MessageSquare className="h-3.5 w-3.5 text-blue-500" />} defaultOpen={false}>
+          <Row label={t("creative.brief.preview.adFormats")} value={<div className="flex gap-1 flex-wrap">{brief.metaConfig.adFormats.map(f => <Tag key={f} text={f} />)}</div>} />
+          <Row label={t("creative.brief.preview.emotionalAnchor")} value={brief.metaConfig.emotionalAnchor} />
           <div>
-            <p className="text-[10px] text-slate-400 mb-1">Hook (3 giây đầu)</p>
+            <p className="text-[10px] text-slate-400 mb-1">{t("creative.brief.preview.hook")}</p>
             <p className="text-xs text-slate-700 leading-relaxed bg-blue-50 rounded p-2">{brief.metaConfig.hookFrame}</p>
           </div>
           <div>
-            <p className="text-[10px] text-slate-400 mb-1">Visual direction</p>
+            <p className="text-[10px] text-slate-400 mb-1">{t("creative.brief.preview.visual")}</p>
             <p className="text-xs text-slate-600">{brief.metaConfig.visualDirection}</p>
           </div>
           <div>
-            <p className="text-[10px] text-slate-400 mb-1">Độ dài text</p>
-            <Row label="Headline" value={brief.metaConfig.textLengthGuidance.headline} />
-            <Row label="Primary" value={brief.metaConfig.textLengthGuidance.primary} />
-            <Row label="Description" value={brief.metaConfig.textLengthGuidance.description} />
+            <p className="text-[10px] text-slate-400 mb-1">{t("creative.brief.preview.textLength")}</p>
+            <Row label={t("creative.brief.preview.headline")} value={brief.metaConfig.textLengthGuidance.headline} />
+            <Row label={t("creative.brief.preview.primary")} value={brief.metaConfig.textLengthGuidance.primary} />
+            <Row label={t("creative.brief.preview.description")} value={brief.metaConfig.textLengthGuidance.description} />
           </div>
         </Section>
       )}
 
       {/* Google Config */}
       {brief.googleConfig && (
-        <Section title="Google Ads" icon={<Globe className="h-3.5 w-3.5 text-red-500" />} defaultOpen={false}>
+        <Section title={t("creative.brief.preview.google")} icon={<Globe className="h-3.5 w-3.5 text-red-500" />} defaultOpen={false}>
           <div>
-            <p className="text-[10px] text-slate-400 mb-1">Search intents</p>
+            <p className="text-[10px] text-slate-400 mb-1">{t("creative.brief.preview.searchIntents")}</p>
             <div className="flex flex-wrap gap-1">
               {brief.googleConfig.searchIntents.map((s, i) => <Tag key={i} text={s} color="blue" />)}
             </div>
           </div>
           <div>
-            <p className="text-[10px] text-slate-400 mb-1">Headline angles (RSA rotation)</p>
+            <p className="text-[10px] text-slate-400 mb-1">{t("creative.brief.preview.headlineAngles")}</p>
             <div className="space-y-1">
               {brief.googleConfig.headlineAngles.map((h, i) => (
                 <p key={i} className="text-xs text-slate-700 flex gap-1.5">
@@ -242,11 +245,11 @@ export function BriefPreview({ brief }: { brief: CreativeBrief }) {
             </div>
           </div>
           <div>
-            <p className="text-[10px] text-slate-400 mb-1">Description focus</p>
+            <p className="text-[10px] text-slate-400 mb-1">{t("creative.brief.preview.descFocus")}</p>
             <p className="text-xs text-slate-600 leading-relaxed">{brief.googleConfig.descriptionFocus}</p>
           </div>
           <div>
-            <p className="text-[10px] text-slate-400 mb-1">Extensions</p>
+            <p className="text-[10px] text-slate-400 mb-1">{t("creative.brief.preview.extensions")}</p>
             {brief.googleConfig.extensionSuggestions.map((ext, i) => (
               <div key={i} className="text-[10px] text-slate-600">
                 <b className="text-slate-700">{ext.type}:</b> {ext.examples.join(" · ")}
@@ -262,17 +265,17 @@ export function BriefPreview({ brief }: { brief: CreativeBrief }) {
         const used = brief.playbookReferences!.filter(r => r.direction === "use");
         const avoided = brief.playbookReferences!.filter(r => r.direction === "avoid");
         return (
-          <Section title="Mẫu từ Sổ kinh nghiệm (tham khảo, không tự chép)" icon={<span>📒</span>} defaultOpen={false}>
+          <Section title={t("creative.brief.preview.playbook")} icon={<span>📒</span>} defaultOpen={false}>
             {used.length > 0 && (
               <div>
-                <p className="text-[10px] text-slate-400 mb-1">Đã thắng</p>
+                <p className="text-[10px] text-slate-400 mb-1">{t("creative.brief.preview.won")}</p>
                 <div className="space-y-1.5">
                   {used.map((r, i) => (
                     <div key={i} className="rounded-lg border border-emerald-200 bg-emerald-50/50 px-2.5 py-1.5">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="text-[9px] text-slate-400 uppercase">{r.kind}</span>
                         <span className="text-xs text-slate-700 flex-1">{r.text}</span>
-                        <Tag text={r.confidence === "high" ? "Cao" : "Trung bình"} color={r.confidence === "high" ? "emerald" : "slate"} />
+                        <Tag text={r.confidence === "high" ? t("creative.brief.preview.confHigh") : t("creative.brief.preview.confMid")} color={r.confidence === "high" ? "emerald" : "slate"} />
                       </div>
                       <p className="text-[10px] text-slate-400 mt-0.5">{r.why}</p>
                     </div>
@@ -282,14 +285,14 @@ export function BriefPreview({ brief }: { brief: CreativeBrief }) {
             )}
             {avoided.length > 0 && (
               <div>
-                <p className="text-[10px] text-slate-400 mb-1">Nên tránh</p>
+                <p className="text-[10px] text-slate-400 mb-1">{t("creative.brief.preview.avoidThese")}</p>
                 <div className="space-y-1.5">
                   {avoided.map((r, i) => (
                     <div key={i} className="rounded-lg border border-red-200 bg-red-50/50 px-2.5 py-1.5">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="text-[9px] text-slate-400 uppercase">{r.kind}</span>
                         <span className="text-xs text-slate-700 flex-1">{r.text}</span>
-                        <Tag text={r.confidence === "high" ? "Cao" : "Trung bình"} color={r.confidence === "high" ? "red" : "slate"} />
+                        <Tag text={r.confidence === "high" ? t("creative.brief.preview.confHigh") : t("creative.brief.preview.confMid")} color={r.confidence === "high" ? "red" : "slate"} />
                       </div>
                       <p className="text-[10px] text-slate-400 mt-0.5">{r.why}</p>
                     </div>
@@ -303,24 +306,24 @@ export function BriefPreview({ brief }: { brief: CreativeBrief }) {
 
       {/* Sensitive terms */}
       {brief.sensitiveTerms.length > 0 && (
-        <Section title="Thuật ngữ cần tránh" icon={<ShieldAlert className="h-3.5 w-3.5 text-red-500" />} defaultOpen={false}>
+        <Section title={t("creative.brief.preview.sensitive")} icon={<ShieldAlert className="h-3.5 w-3.5 text-red-500" />} defaultOpen={false}>
           <div className="flex flex-wrap gap-1">
-            {brief.sensitiveTerms.map((t, i) => <Tag key={i} text={t} color="red" />)}
+            {brief.sensitiveTerms.map((term, i) => <Tag key={i} text={term} color="red" />)}
           </div>
         </Section>
       )}
 
       {/* Launch constraints */}
       {brief.launchConstraints && (
-        <Section title="Launch Constraints" icon={<BarChart3 className="h-3.5 w-3.5 text-slate-500" />} defaultOpen={false}>
+        <Section title={t("creative.brief.preview.launch")} icon={<BarChart3 className="h-3.5 w-3.5 text-slate-500" />} defaultOpen={false}>
           {brief.launchConstraints.dailyBudgetVnd && (
-            <Row label="Ngân sách/ngày" value={`₫${brief.launchConstraints.dailyBudgetVnd.toLocaleString("vi-VN")}`} />
+            <Row label={t("creative.brief.preview.dailyBudget")} value={`₫${brief.launchConstraints.dailyBudgetVnd.toLocaleString(intlLocale)}`} />
           )}
           {brief.launchConstraints.durationDays && (
-            <Row label="Thời gian" value={`${brief.launchConstraints.durationDays} ngày`} />
+            <Row label={t("creative.brief.preview.duration")} value={t("creative.brief.preview.days", { n: brief.launchConstraints.durationDays })} />
           )}
           {brief.launchConstraints.geoTarget && (
-            <Row label="Địa lý" value={brief.launchConstraints.geoTarget.join(", ")} />
+            <Row label={t("creative.brief.preview.geo")} value={brief.launchConstraints.geoTarget.join(", ")} />
           )}
           {brief.launchConstraints.budgetGuidance && (
             <p className="text-[10px] text-amber-600 bg-amber-50 rounded p-2">

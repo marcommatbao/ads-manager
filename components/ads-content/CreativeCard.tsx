@@ -7,6 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { CreativeTypeBadge } from "./CreativeTypeBadge";
 import { CreativeStatusBadge } from "./CreativeStatusBadge";
 import { cn, formatCurrency, formatNumber } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 import type { CreativeItem } from "@/types/creative-content.types";
 
 function formatShortDate(iso: string): string {
@@ -24,7 +25,8 @@ interface CreativeCardProps {
 }
 
 export function CreativeCard({ item, currency, selected, onToggleSelect, onViewDetail }: CreativeCardProps) {
-  const preview = item.primaryText || (item.descriptions ?? []).join(" · ") || "Không có nội dung preview.";
+  const t = useT();
+  const preview = item.primaryText || (item.descriptions ?? []).join(" · ") || t("creative.adsContent.card.noPreview");
 
   return (
     <div
@@ -46,7 +48,7 @@ export function CreativeCard({ item, currency, selected, onToggleSelect, onViewD
           // eslint-disable-next-line @next/next/no-img-element
           <img src={item.imageUrl} alt={item.headline || item.name} className="h-full w-full object-cover" />
         ) : item.platform === "google_search" ? (
-          <span className="text-[9px] font-semibold text-slate-300">TEXT</span>
+          <span className="text-[9px] font-semibold text-slate-300">{t("creative.adsContent.card.textBadge")}</span>
         ) : (
           <ImageOff className="h-5 w-5 text-slate-300" />
         )}
@@ -64,7 +66,7 @@ export function CreativeCard({ item, currency, selected, onToggleSelect, onViewD
               /campaigns/ads-content) was pure noise, not a bug report. */}
           {!item.assetAvailable && item.platform !== "google_search" && (
             <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-600">
-              {item.metrics.metricsAvailable ? "Chưa có ảnh" : "Metrics ở cấp campaign"}
+              {item.metrics.metricsAvailable ? t("creative.adsContent.card.noImage") : t("creative.adsContent.card.campaignLevelMetrics")}
             </span>
           )}
           {item.badges.map((b) => {
@@ -96,30 +98,30 @@ export function CreativeCard({ item, currency, selected, onToggleSelect, onViewD
           {item.metrics.metricsAvailable ? (
             <>
               <span className="font-medium text-slate-700">{formatCurrency(item.metrics.spend, currency, false)}</span>
-              <span>{formatNumber(item.metrics.clicks)} clicks</span>
+              <span>{t("creative.adsContent.card.clicks", { n: formatNumber(item.metrics.clicks) })}</span>
             </>
           ) : (
-            <span className="italic text-slate-400">Spend/clicks hiển thị ở cấp campaign</span>
+            <span className="italic text-slate-400">{t("creative.adsContent.card.campaignLevelSpend")}</span>
           )}
           {item.isVideo && item.video && (
             <>
               {item.video.hookRate !== undefined && (
-                <span>Hook: <span className="font-medium text-slate-700">{item.video.hookRate.toFixed(1)}%</span></span>
+                <span>{t("creative.adsContent.card.hook")} <span className="font-medium text-slate-700">{item.video.hookRate.toFixed(1)}%</span></span>
               )}
               {item.video.holdRate !== undefined && (
-                <span>Hold: <span className="font-medium text-slate-700">{item.video.holdRate.toFixed(1)}%</span></span>
+                <span>{t("creative.adsContent.card.hold")} <span className="font-medium text-slate-700">{item.video.holdRate.toFixed(1)}%</span></span>
               )}
             </>
           )}
-          <span>Hoạt động gần nhất: {formatShortDate(item.lastActiveDate)}</span>
+          <span>{t("creative.adsContent.card.lastActive", { date: formatShortDate(item.lastActiveDate) })}</span>
         </div>
 
         <div className="mt-2 flex flex-wrap items-center gap-1">
           <Button variant="ghost" size="xs" onClick={() => onViewDetail(item)}>
-            <Eye className="h-3.5 w-3.5" /> Chi tiết
+            <Eye className="h-3.5 w-3.5" /> {t("creative.adsContent.card.detail")}
           </Button>
           <Button variant="ghost" size="xs" render={<Link href={`/campaigns/${item.campaignId}`} />}>
-            <ExternalLink className="h-3.5 w-3.5" /> Campaign
+            <ExternalLink className="h-3.5 w-3.5" /> {t("creative.adsContent.card.campaign")}
           </Button>
           <Button
             variant="ghost"
@@ -130,7 +132,7 @@ export function CreativeCard({ item, currency, selected, onToggleSelect, onViewD
               />
             }
           >
-            <Sparkles className="h-3.5 w-3.5" /> Improve
+            <Sparkles className="h-3.5 w-3.5" /> {t("creative.adsContent.card.improve")}
           </Button>
         </div>
       </div>

@@ -15,6 +15,7 @@ import { Loader2, Save, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/Toast";
 import { orderedCompanyIds } from "@/lib/companies/registry";
+import { useIntlLocale, useT } from "@/lib/i18n/client";
 
 type Company = string;
 
@@ -39,10 +40,12 @@ const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
 // Đợt 25: công ty theo bản cài (bản Mắt Bão y như cũ)
 const COMPANIES: Company[] = orderedCompanyIds(["MBC", "MBI"]) as Company[];
 
-const fmt = (n: number) => n.toLocaleString("vi-VN");
+const fmt = (n: number, loc: string) => n.toLocaleString(loc);
 const keyOf = (month: string, company: string, channel: string) => `${month}|${company}|${channel}`;
 
 export default function ManualSpendPage() {
+  const t = useT();
+  const loc = useIntlLocale();
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [company, setCompany] = useState<Company>(() => orderedCompanyIds(["MBC"])[0] ?? "MBC");
@@ -62,14 +65,14 @@ export default function ManualSpendPage() {
       setDraft({});
     } catch (err) {
       toast({
-        title: "Không tải được chi phí đã khai",
+        title: t("creative.settingsManualSpend.err.load"),
         description: err instanceof Error ? err.message : undefined,
         variant: "error",
       });
     } finally {
       setLoading(false);
     }
-  }, [year, toast]);
+  }, [year, toast, t]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -96,11 +99,11 @@ export default function ManualSpendPage() {
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok || !json.success) throw new Error(json.error ?? `HTTP ${res.status}`);
-      toast({ title: amount > 0 ? `✅ Đã lưu ${fmt(amount)}đ` : "✅ Đã xoá khoản này" });
+      toast({ title: amount > 0 ? t("creative.settingsManualSpend.saved", { amount: fmt(amount, loc) }) : t("creative.settingsManualSpend.removed") });
       await load();
     } catch (err) {
       toast({
-        title: "❌ Không lưu được",
+        title: t("creative.settingsManualSpend.err.save"),
         description: err instanceof Error ? err.message : undefined,
         variant: "error",
       });
@@ -116,19 +119,18 @@ export default function ManualSpendPage() {
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-xl font-bold text-slate-800">Chi phí kênh khác</h2>
+        <h2 className="text-xl font-bold text-slate-800">{t("creative.settingsManualSpend.title")}</h2>
         <p className="text-sm text-slate-500 mt-1">
-          Khai chi phí các kênh không có API (TikTok, Zalo…) để tổng chi phí trên KPI Tổng Quan và
-          báo cáo Telegram không bị thiếu.
+          {t("creative.settingsManualSpend.subtitle")}
         </p>
       </div>
 
       <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 flex gap-2.5">
         <Info className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" />
         <div className="text-xs text-blue-900 space-y-1">
-          <p>Chi phí Meta và Google <strong>tự động lấy qua API</strong> — đừng nhập lại ở đây, sẽ bị tính hai lần.</p>
-          <p>Với tháng đang chạy, nhập <strong>số đã tiêu tới hiện tại</strong>; vào lại sửa khi tháng kết thúc.</p>
-          <p>Nhập 0 để xoá một khoản đã khai.</p>
+          <p>{t("creative.settingsManualSpend.info.api.pre")}<strong>{t("creative.settingsManualSpend.info.api.bold")}</strong>{t("creative.settingsManualSpend.info.api.post")}</p>
+          <p>{t("creative.settingsManualSpend.info.month.pre")}<strong>{t("creative.settingsManualSpend.info.month.bold")}</strong>{t("creative.settingsManualSpend.info.month.post")}</p>
+          <p>{t("creative.settingsManualSpend.info.zero")}</p>
         </div>
       </div>
 
@@ -154,31 +156,31 @@ export default function ManualSpendPage() {
           className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
         >
           {[now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1].map((y) => (
-            <option key={y} value={y}>Năm {y}</option>
+            <option key={y} value={y}>{t("creative.settingsManualSpend.year", { year: y })}</option>
           ))}
         </select>
 
         <span className="text-sm text-slate-500">
-          Tổng đã khai {year} ({company}): <strong className="text-slate-800">{fmt(yearTotal)}đ</strong>
+          {t("creative.settingsManualSpend.total.pre", { year, company })}<strong className="text-slate-800">{fmt(yearTotal, loc)}đ</strong>
         </span>
       </div>
 
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-slate-500 py-10">
-          <Loader2 className="h-4 w-4 animate-spin" /> Đang tải…
+          <Loader2 className="h-4 w-4 animate-spin" />{t("creative.settingsManualSpend.loading")}
         </div>
       ) : (
         <div className="rounded-xl border border-slate-200 bg-white overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50/60">
-                <th className="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">Tháng</th>
+                <th className="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">{t("creative.settingsManualSpend.th.month")}</th>
                 {channels.map((ch) => (
                   <th key={ch.id} className="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                     {ch.label}
                   </th>
                 ))}
-                <th className="px-4 py-2.5 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500">Tổng tháng</th>
+                <th className="px-4 py-2.5 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500">{t("creative.settingsManualSpend.th.total")}</th>
               </tr>
             </thead>
             <tbody>
@@ -189,7 +191,7 @@ export default function ManualSpendPage() {
                 );
                 return (
                   <tr key={month} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/40">
-                    <td className="px-4 py-2 font-medium text-slate-700 whitespace-nowrap">Tháng {m}</td>
+                    <td className="px-4 py-2 font-medium text-slate-700 whitespace-nowrap">{t("creative.settingsManualSpend.row.month", { m })}</td>
                     {channels.map((ch) => {
                       const k = keyOf(month, company, ch.id);
                       const current = saved[k];
@@ -210,7 +212,7 @@ export default function ManualSpendPage() {
                                 onClick={() => save(month, ch.id)}
                                 disabled={saving === k}
                                 className="rounded-md bg-amber-500 p-1.5 text-amber-950 hover:bg-amber-600 disabled:opacity-50"
-                                title="Lưu"
+                                title={t("creative.settingsManualSpend.save")}
                               >
                                 {saving === k
                                   ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -227,7 +229,7 @@ export default function ManualSpendPage() {
                       );
                     })}
                     <td className="px-4 py-2 text-right font-semibold text-slate-800 whitespace-nowrap">
-                      {rowTotal > 0 ? `${fmt(rowTotal)}đ` : "—"}
+                      {rowTotal > 0 ? `${fmt(rowTotal, loc)}đ` : "—"}
                     </td>
                   </tr>
                 );

@@ -17,6 +17,8 @@ import {
   CheckCircle2, Loader2, Pause, Play, Plus, Sparkles, Trash2, X, XCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/messages";
 import { postJson, ApiError } from "@/components/case/api";
 import { datetimeVN } from "@/components/case/format";
 import { Button } from "@/components/ui/button";
@@ -36,17 +38,18 @@ const LIMITS: Record<"HEADLINE" | "LONG_HEADLINE" | "DESCRIPTION", number> = { H
 function EditableTextList({ label, items, limit, onChange, canEdit }: {
   label: string; items: string[]; limit: number; onChange: (next: string[]) => void; canEdit: boolean;
 }) {
+  const t = useT();
   const [draftLine, setDraftLine] = useState("");
   return (
     <div className="space-y-1.5">
       <p className="text-[11px] font-semibold text-slate-600">{label} ({items.length})</p>
       <div className="space-y-1">
-        {items.map((t, i) => {
-          const len = [...t].length;
+        {items.map((tx, i) => {
+          const len = [...tx].length;
           return (
             <div key={i} className="flex items-center gap-1.5">
               <Input
-                value={t}
+                value={tx}
                 onChange={(e) => onChange(items.map((x, xi) => (xi === i ? e.target.value : x)))}
                 disabled={!canEdit}
                 className="h-8 flex-1"
@@ -63,7 +66,7 @@ function EditableTextList({ label, items, limit, onChange, canEdit }: {
       </div>
       {canEdit && (
         <div className="flex items-center gap-1.5">
-          <Input value={draftLine} onChange={(e) => setDraftLine(e.target.value)} placeholder="Thêm dòng…" className="h-8 flex-1"
+          <Input value={draftLine} onChange={(e) => setDraftLine(e.target.value)} placeholder={t("google.pmaxNewGroup.addLine")} className="h-8 flex-1"
             onKeyDown={(e) => { if (e.key === "Enter" && draftLine.trim()) { onChange([...items, draftLine.trim()]); setDraftLine(""); } }} />
           <Button type="button" variant="outline" size="sm" className="h-8 bg-white" disabled={!draftLine.trim()} onClick={() => { onChange([...items, draftLine.trim()]); setDraftLine(""); }}>
             <Plus className="h-3.5 w-3.5" aria-hidden="true" />
@@ -77,21 +80,22 @@ function EditableTextList({ label, items, limit, onChange, canEdit }: {
 // ── Search theme dạng chip sửa được ──
 
 function EditableChips({ items, onChange, canEdit }: { items: string[]; onChange: (next: string[]) => void; canEdit: boolean }) {
+  const t = useT();
   const [draftChip, setDraftChip] = useState("");
   function add() {
-    const t = draftChip.trim();
-    if (!t || items.includes(t)) return;
-    onChange([...items, t]); setDraftChip("");
+    const v = draftChip.trim();
+    if (!v || items.includes(v)) return;
+    onChange([...items, v]); setDraftChip("");
   }
   return (
     <div className="space-y-1.5">
-      <p className="text-[11px] font-semibold text-slate-600">Search theme ({items.length})</p>
+      <p className="text-[11px] font-semibold text-slate-600">{t("google.pmaxNewGroup.searchTheme")} ({items.length})</p>
       <div className="flex flex-wrap gap-1.5">
-        {items.map((t) => (
-          <span key={t} className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] text-slate-700">
-            {t}
+        {items.map((tx) => (
+          <span key={tx} className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] text-slate-700">
+            {tx}
             {canEdit && (
-              <button type="button" onClick={() => onChange(items.filter((x) => x !== t))} className="text-slate-400 hover:text-red-600">
+              <button type="button" onClick={() => onChange(items.filter((x) => x !== tx))} className="text-slate-400 hover:text-red-600">
                 <X className="h-3 w-3" aria-hidden="true" />
               </button>
             )}
@@ -100,7 +104,7 @@ function EditableChips({ items, onChange, canEdit }: { items: string[]; onChange
       </div>
       {canEdit && (
         <div className="flex items-center gap-1.5">
-          <Input value={draftChip} onChange={(e) => setDraftChip(e.target.value)} placeholder="Thêm search theme…" className="h-8 flex-1"
+          <Input value={draftChip} onChange={(e) => setDraftChip(e.target.value)} placeholder={t("google.pmaxNewGroup.addSearchTheme")} className="h-8 flex-1"
             onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }} />
           <Button type="button" variant="outline" size="sm" className="h-8 bg-white" disabled={!draftChip.trim()} onClick={add}>
             <Plus className="h-3.5 w-3.5" aria-hidden="true" />
@@ -113,11 +117,12 @@ function EditableChips({ items, onChange, canEdit }: { items: string[]; onChange
 
 // ── Đổi trạng thái asset group đã tạo (Bật / Tạm dừng / Gỡ) ──
 
-const ACTION_LABEL: Record<"enable" | "pause" | "remove", string> = { enable: "Bật", pause: "Tạm dừng", remove: "Gỡ" };
+const ACTION_LABEL: Record<"enable" | "pause" | "remove", MessageKey> = { enable: "google.pmaxNewGroup.actEnable", pause: "google.pmaxNewGroup.actPause", remove: "google.pmaxNewGroup.actRemove" };
 
 function NewAssetGroupRow({ rec, company, canEdit, confirmText, onChanged }: {
   rec: NewAssetGroupRecord; company: Company; canEdit: boolean; confirmText: string; onChanged: () => void;
 }) {
+  const t = useT();
   const confirmId = useId();
   const [action, setAction] = useState<"enable" | "pause" | "remove" | null>(null);
   const [confirmInput, setConfirmInput] = useState("");
@@ -127,7 +132,7 @@ function NewAssetGroupRow({ rec, company, canEdit, confirmText, onChanged }: {
   const created = rec.status === "done" && !!rec.resourceName;
   const removed = !!rec.removedAt;
   const enabled = !!rec.enabledAt && !removed;
-  const status = !created ? "Không tạo được" : removed ? "Đã gỡ" : enabled ? "Đang bật" : "Tạm dừng";
+  const status = !created ? t("google.pmaxNewGroup.stFailed") : removed ? t("google.pmaxNewGroup.stRemoved") : enabled ? t("google.pmaxNewGroup.stEnabled") : t("google.pmaxNewGroup.stPaused");
   const statusCls = !created ? "border-red-200 bg-red-50 text-red-700" : removed ? "border-slate-200 bg-slate-100 text-slate-500" : enabled ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700";
 
   async function run() {
@@ -138,7 +143,7 @@ function NewAssetGroupRow({ rec, company, canEdit, confirmText, onChanged }: {
       setAction(null); setConfirmInput("");
       onChanged();
     } catch (e) {
-      setErr(e instanceof ApiError ? e.message : "Không đổi được trạng thái — thử lại sau");
+      setErr(e instanceof ApiError ? e.message : t("google.pmaxNewGroup.stateErr"));
     } finally { setBusy(false); }
   }
 
@@ -154,36 +159,36 @@ function NewAssetGroupRow({ rec, company, canEdit, confirmText, onChanged }: {
         <div className="flex flex-wrap items-center gap-1.5 pt-1">
           {!enabled && (
             <Button type="button" variant="outline" size="sm" className="h-7 bg-white" onClick={() => { setAction("enable"); setConfirmInput(""); setErr(null); }}>
-              <Play className="h-3 w-3" aria-hidden="true" /> Bật
+              <Play className="h-3 w-3" aria-hidden="true" /> {t("google.pmaxNewGroup.actEnable")}
             </Button>
           )}
           {enabled && (
             <Button type="button" variant="outline" size="sm" className="h-7 bg-white" onClick={() => { setAction("pause"); setConfirmInput(""); setErr(null); }}>
-              <Pause className="h-3 w-3" aria-hidden="true" /> Tạm dừng
+              <Pause className="h-3 w-3" aria-hidden="true" /> {t("google.pmaxNewGroup.actPause")}
             </Button>
           )}
           <Button type="button" variant="destructive" size="sm" className="h-7" onClick={() => { setAction("remove"); setConfirmInput(""); setErr(null); }}>
-            <Trash2 className="h-3 w-3" aria-hidden="true" /> Gỡ
+            <Trash2 className="h-3 w-3" aria-hidden="true" /> {t("google.pmaxNewGroup.actRemove")}
           </Button>
         </div>
       )}
       <Dialog open={!!action} onOpenChange={(o) => { if (!o) { setAction(null); setConfirmInput(""); setErr(null); } }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{action ? ACTION_LABEL[action] : ""} asset group này trên tài khoản thật {company}?</DialogTitle>
+            <DialogTitle>{action ? t("google.pmaxNewGroup.rowDialogTitle", { action: t(ACTION_LABEL[action]), company }) : ""}</DialogTitle>
             <DialogDescription>{rec.name}</DialogDescription>
           </DialogHeader>
           <div className="space-y-1.5">
             <label htmlFor={confirmId} className="text-xs font-medium text-slate-500">
-              Gõ <code className="rounded bg-slate-100 px-1 py-0.5">{confirmText}</code> để xác nhận
+              {t("google.pmaxNewGroup.typePre")} <code className="rounded bg-slate-100 px-1 py-0.5">{confirmText}</code> {t("google.pmaxNewGroup.typePost")}
             </label>
             <Input id={confirmId} value={confirmInput} onChange={(e) => setConfirmInput(e.target.value)} placeholder={confirmText} autoComplete="off" className="h-10" />
           </div>
           {err && <p className="text-xs text-red-600">{err}</p>}
           <DialogFooter>
-            <DialogClose render={<Button className="h-10" variant="outline" />}>Huỷ</DialogClose>
+            <DialogClose render={<Button className="h-10" variant="outline" />}>{t("google.pmaxNewGroup.cancel")}</DialogClose>
             <Button className="h-10" variant={action === "remove" ? "destructive" : "default"} onClick={run} disabled={busy || confirmInput.trim() !== confirmText}>
-              {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} Ghi thật
+              {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} {t("google.pmaxNewGroup.writeReal")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -197,6 +202,7 @@ function NewAssetGroupRow({ rec, company, canEdit, confirmText, onChanged }: {
 export function NewAssetGroupPanel({ company, groups, newAssetGroups, canEdit, confirmText, onChanged }: {
   company: Company; groups: ThemeGroup[]; newAssetGroups: NewAssetGroupRecord[]; canEdit: boolean; confirmText: string; onChanged: () => void;
 }) {
+  const t = useT();
   const campaignIdField = useId(), sourceField = useId(), themeField = useId(), urlField = useId(), confirmId = useId();
 
   const campaigns = useMemo(() => {
@@ -230,7 +236,7 @@ export function NewAssetGroupPanel({ company, groups, newAssetGroups, canEdit, c
       setDraft(d);
       setValidatedSig(null); setValidateRec(null); setWriteRec(null);
     } catch (e) {
-      setDraftErr(e instanceof ApiError ? e.message : "Không soạn được — thử lại sau");
+      setDraftErr(e instanceof ApiError ? e.message : t("google.pmaxNewGroup.draftErr"));
     } finally { setDrafting(false); }
   }
 
@@ -264,7 +270,7 @@ export function NewAssetGroupPanel({ company, groups, newAssetGroups, canEdit, c
       setValidateRec(rec);
       setValidatedSig(rec.status === "done" ? sig : null);
     } catch (e) {
-      setValidateErr(e instanceof ApiError ? e.message : "Không kiểm được — thử lại sau");
+      setValidateErr(e instanceof ApiError ? e.message : t("google.pmaxNewGroup.validateErr"));
       setValidatedSig(null);
     } finally { setValidating(false); }
   }
@@ -282,10 +288,10 @@ export function NewAssetGroupPanel({ company, groups, newAssetGroups, canEdit, c
         setDraft(null); setTheme(""); setFinalUrl("");
         onChanged();
       } else {
-        setCreateErr(rec.errors.join(" · ") || "Google từ chối — chưa tạo gì.");
+        setCreateErr(rec.errors.join(" · ") || t("google.pmaxNewGroup.googleRejected"));
       }
     } catch (e) {
-      setCreateErr(e instanceof ApiError ? e.message : "Không tạo được — thử lại sau");
+      setCreateErr(e instanceof ApiError ? e.message : t("google.pmaxNewGroup.createErr"));
     } finally { setCreating(false); }
   }
 
@@ -293,44 +299,44 @@ export function NewAssetGroupPanel({ company, groups, newAssetGroups, canEdit, c
     <section className="space-y-3">
       <div>
         <h3 className="flex items-center gap-1.5 text-base font-extrabold text-slate-900">
-          <Sparkles className="h-4 w-4" aria-hidden="true" /> Asset group mới theo chủ đề
+          <Sparkles className="h-4 w-4" aria-hidden="true" /> {t("google.pmaxNewGroup.title")}
         </h3>
-        <p className="mt-1 text-xs text-slate-500">Gemini viết chữ, mượn ảnh/video/logo từ asset group nguồn cùng chiến dịch.</p>
+        <p className="mt-1 text-xs text-slate-500">{t("google.pmaxNewGroup.subtitle")}</p>
       </div>
 
       {!canEdit && (
-        <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">🔒 Cần quyền sửa để tạo asset group mới — vẫn xem được danh sách bên dưới.</p>
+        <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">{t("google.pmaxNewGroup.needEdit")}</p>
       )}
 
       {canEdit && (
         <div className="space-y-2.5 rounded-xl border border-slate-200 bg-white p-3.5">
           <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
             <div className="space-y-1">
-              <label htmlFor={campaignIdField} className="text-[11px] font-medium text-slate-500">Chiến dịch</label>
+              <label htmlFor={campaignIdField} className="text-[11px] font-medium text-slate-500">{t("google.pmaxNewGroup.campaign")}</label>
               <select id={campaignIdField} value={campaignId} onChange={(e) => setCampaignId(e.target.value)} className="h-8 w-full rounded-lg border border-slate-200 px-2.5 text-xs">
-                <option value="">— Chọn chiến dịch —</option>
+                <option value="">{t("google.pmaxNewGroup.pickCampaign")}</option>
                 {campaigns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
             <div className="space-y-1">
-              <label htmlFor={sourceField} className="text-[11px] font-medium text-slate-500">Asset group nguồn (mượn ảnh/video)</label>
+              <label htmlFor={sourceField} className="text-[11px] font-medium text-slate-500">{t("google.pmaxNewGroup.sourceGroup")}</label>
               <select id={sourceField} value={sourceAssetGroupId} onChange={(e) => setSourceAssetGroupId(e.target.value)} disabled={!campaignId} className="h-8 w-full rounded-lg border border-slate-200 px-2.5 text-xs disabled:opacity-50">
-                <option value="">— Chọn asset group —</option>
+                <option value="">{t("google.pmaxNewGroup.pickGroup")}</option>
                 {sources.map((s) => <option key={s.assetGroupId} value={s.assetGroupId}>{s.name}</option>)}
               </select>
             </div>
             <div className="space-y-1">
-              <label htmlFor={themeField} className="text-[11px] font-medium text-slate-500">Chủ đề</label>
-              <Input id={themeField} value={theme} onChange={(e) => setTheme(e.target.value)} placeholder="vd: Hosting WordPress" className="h-8" />
+              <label htmlFor={themeField} className="text-[11px] font-medium text-slate-500">{t("google.pmaxNewGroup.theme")}</label>
+              <Input id={themeField} value={theme} onChange={(e) => setTheme(e.target.value)} placeholder={t("google.pmaxNewGroup.themePh")} className="h-8" />
             </div>
             <div className="space-y-1">
-              <label htmlFor={urlField} className="text-[11px] font-medium text-slate-500">Trang đích</label>
+              <label htmlFor={urlField} className="text-[11px] font-medium text-slate-500">{t("google.pmaxNewGroup.finalUrl")}</label>
               <Input id={urlField} value={finalUrl} onChange={(e) => setFinalUrl(e.target.value)} placeholder="https://…" className="h-8" />
-              <p className="text-[10px] text-slate-400">Phải cùng tên miền với asset group nguồn{sourceGroup ? "" : " — chọn asset group nguồn trước"}.</p>
+              <p className="text-[10px] text-slate-400">{t("google.pmaxNewGroup.sameDomain")}{sourceGroup ? "" : t("google.pmaxNewGroup.pickSourceFirst")}.</p>
             </div>
           </div>
           <Button type="button" variant="outline" size="sm" className="h-9 bg-white" onClick={doDraft} disabled={drafting || !campaignId || !sourceAssetGroupId || theme.trim().length < 3 || !finalUrl.trim()}>
-            {drafting ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />} Soạn bằng Gemini
+            {drafting ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />} {t("google.pmaxNewGroup.draftBtn")}
           </Button>
           {draftErr && <p className="text-xs text-red-600">{draftErr}</p>}
         </div>
@@ -339,17 +345,17 @@ export function NewAssetGroupPanel({ company, groups, newAssetGroups, canEdit, c
       {draft && (
         <div className="space-y-3 rounded-xl border border-indigo-200 bg-indigo-50/30 p-3.5">
           <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
-            Asset group mới được tạo ở trạng thái <strong>TẠM DỪNG</strong> — chưa tiêu tiền cho tới khi bạn bật.
+            {t("google.pmaxNewGroup.pausedNote1")} <strong>{t("google.pmaxNewGroup.pausedNote2")}</strong> {t("google.pmaxNewGroup.pausedNote3")}
           </p>
-          <p className="text-xs text-slate-600">Tên: <strong>{draft.name}</strong> · Trang đích: {draft.finalUrl}</p>
+          <p className="text-xs text-slate-600">{t("google.pmaxNewGroup.name")}: <strong>{draft.name}</strong> · {t("google.pmaxNewGroup.finalUrl")}: {draft.finalUrl}</p>
 
-          <EditableTextList label="Tiêu đề" items={draft.headlines} limit={LIMITS.HEADLINE} canEdit={canEdit} onChange={(v) => setDraft((p) => (p ? { ...p, headlines: v } : p))} />
-          <EditableTextList label="Tiêu đề dài" items={draft.longHeadlines} limit={LIMITS.LONG_HEADLINE} canEdit={canEdit} onChange={(v) => setDraft((p) => (p ? { ...p, longHeadlines: v } : p))} />
-          <EditableTextList label="Mô tả" items={draft.descriptions} limit={LIMITS.DESCRIPTION} canEdit={canEdit} onChange={(v) => setDraft((p) => (p ? { ...p, descriptions: v } : p))} />
+          <EditableTextList label={t("google.pmaxNewGroup.headlines")} items={draft.headlines} limit={LIMITS.HEADLINE} canEdit={canEdit} onChange={(v) => setDraft((p) => (p ? { ...p, headlines: v } : p))} />
+          <EditableTextList label={t("google.pmaxNewGroup.longHeadlines")} items={draft.longHeadlines} limit={LIMITS.LONG_HEADLINE} canEdit={canEdit} onChange={(v) => setDraft((p) => (p ? { ...p, longHeadlines: v } : p))} />
+          <EditableTextList label={t("google.pmaxNewGroup.descriptions")} items={draft.descriptions} limit={LIMITS.DESCRIPTION} canEdit={canEdit} onChange={(v) => setDraft((p) => (p ? { ...p, descriptions: v } : p))} />
           <EditableChips items={draft.searchThemes} canEdit={canEdit} onChange={(v) => setDraft((p) => (p ? { ...p, searchThemes: v } : p))} />
 
           <div className="space-y-1">
-            <p className="text-[11px] font-semibold text-slate-600">Ảnh / video / logo — mượn từ asset group nguồn ({draft.media.length})</p>
+            <p className="text-[11px] font-semibold text-slate-600">{t("google.pmaxNewGroup.media")} ({draft.media.length})</p>
             <div className="flex flex-wrap gap-1.5">
               {draft.media.map((m) => (
                 <span key={m.asset} className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] text-slate-600">{m.label || m.field}</span>
@@ -359,7 +365,7 @@ export function NewAssetGroupPanel({ company, groups, newAssetGroups, canEdit, c
 
           {draft.rejected.length > 0 && (
             <details className="text-[11px] text-slate-400">
-              <summary className="cursor-pointer select-none">{draft.rejected.length} dòng bị Gemini viết hỏng luật, đã loại</summary>
+              <summary className="cursor-pointer select-none">{t("google.pmaxNewGroup.rejected", { n: draft.rejected.length })}</summary>
               <ul className="mt-1 list-disc space-y-0.5 pl-4">{draft.rejected.map((r, i) => <li key={i}>{r}</li>)}</ul>
             </details>
           )}
@@ -368,20 +374,20 @@ export function NewAssetGroupPanel({ company, groups, newAssetGroups, canEdit, c
             <div className="space-y-2 border-t border-indigo-100 pt-2">
               <div className="flex flex-wrap items-center gap-2">
                 <Button type="button" variant="outline" size="sm" className="h-9 bg-white" onClick={doValidate} disabled={validating}>
-                  {validating ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : null} Kiểm trước (không tạo)
+                  {validating ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : null} {t("google.pmaxNewGroup.validateBtn")}
                 </Button>
-                <Button type="button" size="sm" className="h-9" onClick={() => { setConfirmInput(""); setCreateErr(null); setCreateOpen(true); }} disabled={!canApply} title={!canApply ? "Kiểm trước rồi mới tạo được" : undefined}>
-                  Tạo asset group
+                <Button type="button" size="sm" className="h-9" onClick={() => { setConfirmInput(""); setCreateErr(null); setCreateOpen(true); }} disabled={!canApply} title={!canApply ? t("google.pmaxNewGroup.validateFirst") : undefined}>
+                  {t("google.pmaxNewGroup.createBtn")}
                 </Button>
               </div>
               {validateErr && <p className="text-xs text-red-600">{validateErr}</p>}
               {validateRec && (
                 <div className={cn("rounded-lg border p-2.5 text-xs", validateRec.status === "done" ? "border-sky-200 bg-sky-50 text-sky-800" : "border-red-200 bg-red-50 text-red-700")}>
                   {validateRec.status === "done" ? (
-                    <span className="flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> Google chấp nhận — CHƯA tạo gì</span>
+                    <span className="flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> {t("google.pmaxNewGroup.accepted")}</span>
                   ) : (
                     <>
-                      <span className="flex items-center gap-1"><XCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> Google từ chối — chưa tạo gì</span>
+                      <span className="flex items-center gap-1"><XCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> {t("google.pmaxNewGroup.rejectedShort")}</span>
                       {validateRec.errors.length > 0 && <ul className="mt-1 list-disc space-y-0.5 pl-4">{validateRec.errors.map((e, i) => <li key={i}>{e}</li>)}</ul>}
                     </>
                   )}
@@ -395,12 +401,12 @@ export function NewAssetGroupPanel({ company, groups, newAssetGroups, canEdit, c
       <Dialog open={createOpen} onOpenChange={(o) => { setCreateOpen(o); if (!o) setConfirmInput(""); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Tạo asset group mới trên tài khoản thật {company}?</DialogTitle>
-            <DialogDescription>Tạo ở trạng thái tạm dừng — chưa tiêu tiền cho tới khi bạn tự bật.</DialogDescription>
+            <DialogTitle>{t("google.pmaxNewGroup.createTitle", { company })}</DialogTitle>
+            <DialogDescription>{t("google.pmaxNewGroup.createDesc")}</DialogDescription>
           </DialogHeader>
           <div className="space-y-1.5">
             <label htmlFor={confirmId} className="text-xs font-medium text-slate-500">
-              Gõ <code className="rounded bg-slate-100 px-1 py-0.5">{confirmText}</code> để xác nhận
+              {t("google.pmaxNewGroup.typePre")} <code className="rounded bg-slate-100 px-1 py-0.5">{confirmText}</code> {t("google.pmaxNewGroup.typePost")}
             </label>
             <Input id={confirmId} value={confirmInput} onChange={(e) => setConfirmInput(e.target.value)} placeholder={confirmText} autoComplete="off" className="h-10" />
           </div>
@@ -411,9 +417,9 @@ export function NewAssetGroupPanel({ company, groups, newAssetGroups, canEdit, c
             </ul>
           )}
           <DialogFooter>
-            <DialogClose render={<Button className="h-10" variant="outline" />}>Huỷ</DialogClose>
+            <DialogClose render={<Button className="h-10" variant="outline" />}>{t("google.pmaxNewGroup.cancel")}</DialogClose>
             <Button className="h-10" onClick={doCreate} disabled={creating || confirmInput.trim() !== confirmText}>
-              {creating && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} Tạo thật
+              {creating && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} {t("google.pmaxNewGroup.createReal")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -421,7 +427,7 @@ export function NewAssetGroupPanel({ company, groups, newAssetGroups, canEdit, c
 
       {newAssetGroups.length > 0 && (
         <div className="space-y-1.5">
-          <p className="text-[11px] font-semibold text-slate-600">Asset group đã tạo ({newAssetGroups.length})</p>
+          <p className="text-[11px] font-semibold text-slate-600">{t("google.pmaxNewGroup.created")} ({newAssetGroups.length})</p>
           <div className="space-y-1.5">
             {newAssetGroups.map((rec) => <NewAssetGroupRow key={rec.id} rec={rec} company={company} canEdit={canEdit} confirmText={confirmText} onChanged={onChanged} />)}
           </div>

@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { PROD_CHECKLIST } from "@/lib/system/prod-checklist";
+import { useT } from "@/lib/i18n/client";
 
 const STORAGE_KEY = "health-checklist-v1";
 
@@ -38,6 +39,7 @@ function saveChecked(v: Record<string, boolean>) {
 }
 
 export function ChecklistPanel() {
+  const t = useT();
   const [checked, setChecked] = useState<Record<string, boolean>>(loadChecked);
 
   const toggle = (id: string) => {
@@ -59,15 +61,15 @@ export function ChecklistPanel() {
     <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div>
-          <p className="text-sm font-semibold text-slate-800">Danh sách bấm thử sau mỗi lần cập nhật</p>
+          <p className="text-sm font-semibold text-slate-800">{t("overview.health.checklist.title")}</p>
           <p className="text-xs text-slate-500 mt-0.5">
-            Tự đánh dấu — chỉ lưu trên trình duyệt của bạn, không đồng bộ giữa các máy.
+            {t("overview.health.checklist.hint")}
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <span className="text-xs font-semibold text-slate-500">{doneCount}/{PROD_CHECKLIST.length}</span>
           <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={clearAll} disabled={doneCount === 0}>
-            Bỏ tích hết
+            {t("overview.health.checklist.clear")}
           </Button>
         </div>
       </div>
@@ -88,8 +90,8 @@ export function ChecklistPanel() {
                   <span className="font-semibold text-slate-700">{item.area}</span>
                   <Link href={item.href} className="font-mono text-blue-600 hover:underline">{item.href}</Link>
                 </div>
-                <p className="text-slate-600 mt-1"><span className="font-medium text-slate-500">Bấm: </span>{item.steps}</p>
-                <p className="text-slate-500 mt-0.5"><span className="font-medium">Kỳ vọng: </span>{item.expect}</p>
+                <p className="text-slate-600 mt-1"><span className="font-medium text-slate-500">{t("overview.health.checklist.steps")}: </span>{item.steps}</p>
+                <p className="text-slate-500 mt-0.5"><span className="font-medium">{t("overview.health.checklist.expect")}: </span>{item.expect}</p>
               </div>
             </div>
           );

@@ -13,6 +13,7 @@ import { useSession } from "@/components/SessionProvider";
 import type { CreativeBrief } from "@/lib/creative-brief/types";
 import { buildGenerateRequests } from "@/lib/creative-brief/generate-bridge";
 import type { CreativeResult } from "@/lib/creative-pipeline";
+import { useIntlLocale, useT } from "@/lib/i18n/client";
 
 const WIZARD_SESSION_KEY = "adscommand_creative_wizard";
 
@@ -42,6 +43,8 @@ function DraftHistoryPanel({
   onSelect: (brief: CreativeBrief) => void;
   onClose: () => void;
 }) {
+  const t = useT();
+  const loc = useIntlLocale();
   const [drafts, setDrafts]   = useState<DraftSummary[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState<string | null>(null);
@@ -54,7 +57,7 @@ function DraftHistoryPanel({
       const json = await res.json() as { success?: boolean; data?: { drafts: DraftSummary[] } };
       setDrafts(json.data?.drafts ?? []);
     } catch {
-      setError("Không thể tải lịch sử");
+      setError(t("creative.briefPage.historyLoadFailed"));
     } finally {
       setLoading(false);
     }
@@ -74,17 +77,17 @@ function DraftHistoryPanel({
       <div className="relative bg-white w-full max-w-sm h-full overflow-y-auto shadow-2xl flex flex-col">
         <div className="px-4 py-3.5 border-b border-slate-100 flex items-center justify-between">
           <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-            <History className="h-4 w-4 text-indigo-500" /> Lịch sử briefs
+            <History className="h-4 w-4 text-indigo-500" /> {t("creative.briefPage.historyTitle")}
           </h3>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400">
             <X className="h-4 w-4" />
           </button>
         </div>
         <div className="flex-1 p-4 space-y-2">
-          {loading && <p className="text-xs text-slate-400 text-center py-8">Đang tải...</p>}
+          {loading && <p className="text-xs text-slate-400 text-center py-8">{t("creative.briefPage.loading")}</p>}
           {error && <p className="text-xs text-red-500 text-center py-4">{error}</p>}
           {drafts?.length === 0 && (
-            <p className="text-xs text-slate-400 text-center py-8">Chưa có brief nào</p>
+            <p className="text-xs text-slate-400 text-center py-8">{t("creative.briefPage.noBriefs")}</p>
           )}
           {drafts?.map(d => (
             <div key={d.id} className="rounded-xl border border-slate-200 p-3 hover:border-slate-300 transition-all">
@@ -96,10 +99,10 @@ function DraftHistoryPanel({
                 >
                   <p className="text-xs font-semibold text-slate-800 truncate">{d.name}</p>
                   <p className="text-[10px] text-slate-400 mt-0.5">
-                    {d.input.company} · {d.input.product} · {new Date(d.updatedAt).toLocaleDateString("vi-VN")}
+                    {d.input.company} · {d.input.product} · {new Date(d.updatedAt).toLocaleDateString(loc)}
                   </p>
                   {d.output && <BriefStatusBadge brief={d.output} className="mt-1.5" />}
-                  {!d.output && <span className="text-[10px] text-slate-300">Chưa generate</span>}
+                  {!d.output && <span className="text-[10px] text-slate-300">{t("creative.briefPage.notGenerated")}</span>}
                 </button>
                 <button
                   onClick={() => void deleteDraft(d.id)}
@@ -119,6 +122,7 @@ function DraftHistoryPanel({
 // ── Main Page ─────────────────────────────────────────────────
 
 export default function CreativeBriefPage() {
+  const t = useT();
   const session = useSession();
   const router  = useRouter();
   // companies[0] là PHẠM VI chứ không phải công ty: với ["ALL"] (giá trị của
@@ -160,7 +164,7 @@ export default function CreativeBriefPage() {
       }
 
       if (results.length === 0) {
-        setGenerateError("Không tạo được ad copy nào từ brief này — thử lại.");
+        setGenerateError(t("creative.briefPage.noCopy"));
         return;
       }
 
@@ -178,7 +182,7 @@ export default function CreativeBriefPage() {
       sessionStorage.setItem(WIZARD_SESSION_KEY, JSON.stringify(wizardState));
       router.push("/creative?fromBrief=1");
     } catch {
-      setGenerateError("Lỗi khi generate ad copy từ brief — thử lại.");
+      setGenerateError(t("creative.briefPage.genError"));
     } finally {
       setGenerating(false);
     }
@@ -207,7 +211,7 @@ export default function CreativeBriefPage() {
             className="gap-1.5 text-xs"
             onClick={() => setShowHistory(true)}
           >
-            <History className="h-3.5 w-3.5" /> Lịch sử
+            <History className="h-3.5 w-3.5" /> {t("creative.briefPage.history")}
           </Button>
         </div>
       </div>
@@ -223,7 +227,7 @@ export default function CreativeBriefPage() {
                   className="gap-1 text-xs"
                   onClick={() => setViewingBrief(null)}
                 >
-                  <ArrowLeft className="h-3.5 w-3.5" /> Tạo mới
+                  <ArrowLeft className="h-3.5 w-3.5" /> {t("creative.briefPage.createNew")}
                 </Button>
                 <h2 className="text-sm font-bold text-slate-800">
                   {viewingBrief.product.displayName} — {viewingBrief.company}
@@ -236,7 +240,7 @@ export default function CreativeBriefPage() {
                 onClick={() => void handleGenerateFromBrief(viewingBrief)}
               >
                 {generating
-                  ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Đang tạo ad copy...</>
+                  ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> {t("creative.briefPage.generatingCopy")}</>
                   : <><Sparkles className="h-3.5 w-3.5" /> Generate Ad Copy →</>}
               </Button>
             </div>

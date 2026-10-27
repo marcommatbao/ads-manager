@@ -12,14 +12,16 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { datetimeVN } from "./format";
 import { postJson, ApiError } from "./api";
 import type { CampaignCase, CaseAction, Execution } from "@/lib/case/store";
+import { useT } from "@/lib/i18n/client";
+import type { TFunction } from "@/lib/i18n/translate";
 
 /** Chiến dịch/nhóm quảng cáo mà một việc sẽ tác động — dùng ở bảng duyệt trước khi ghi. */
-function targetOf(a: CaseAction, c: CampaignCase): string {
-  if (a.type === "ADD_TO_SHARED_LIST" || a.type === "REMOVE_FROM_SHARED_LIST") return `Danh sách dùng chung “${a.sharedSetName}”`;
+function targetOf(a: CaseAction, c: CampaignCase, t: TFunction): string {
+  if (a.type === "ADD_TO_SHARED_LIST" || a.type === "REMOVE_FROM_SHARED_LIST") return t("overview.step6.target.sharedList", { name: a.sharedSetName });
   if (a.type === "ADD_NEGATIVES") return a.campaignIds.map((id) => (id === c.campaignId ? c.campaignName : id)).join(", ");
   if (a.type === "PAUSE_ADSET" || a.type === "EXCLUDE_PLACEMENT") return a.adsetName;
-  if (a.type === "CREATE_ADSET_WITH_EVENT") return `Nhóm nguồn: ${a.sourceAdsetName}`;
-  if (a.type === "ACTIVATE_NEW_ADSET") return `Nhóm mới ${a.newAdsetId}`;
+  if (a.type === "CREATE_ADSET_WITH_EVENT") return t("overview.step6.target.sourceAdset", { name: a.sourceAdsetName });
+  if (a.type === "ACTIVATE_NEW_ADSET") return t("overview.step6.target.newAdset", { id: a.newAdsetId });
   return a.campaignId === c.campaignId ? c.campaignName : a.campaignId;
 }
 
@@ -36,6 +38,7 @@ export function Step6Execute({
   onNext: () => void;
   busy?: boolean;
 }) {
+  const t = useT();
   const idemKeyRef = useRef<string>(crypto.randomUUID());
   const [validating, setValidating] = useState(false);
   const [validateResult, setValidateResult] = useState<Execution | null>(null);
@@ -61,7 +64,7 @@ export function Step6Execute({
       const json = await postJson(`/api/cases/${c.id}/execute`, { idempotencyKey: idemKeyRef.current, validateOnly: true });
       setValidateResult(json.execution);
     } catch (e) {
-      setErr(e instanceof ApiError ? e.message : "Không kiểm được — thử lại sau");
+      setErr(e instanceof ApiError ? e.message : t("overview.step6.err.validate"));
     } finally {
       setValidating(false);
     }
@@ -80,10 +83,10 @@ export function Step6Execute({
       setApproveOpen(false);
       setConfirmText("");
       if (json.execution?.status !== "done") {
-        setErr("Chưa hoàn tất — xem lỗi và bảng đọc lại ở lần thực hiện mới nhất bên dưới trước khi thử lại.");
+        setErr(t("overview.step6.err.incomplete"));
       }
     } catch (e) {
-      setErr(e instanceof ApiError ? e.message : "Không thực hiện được — thử lại sau");
+      setErr(e instanceof ApiError ? e.message : t("overview.step6.err.execute"));
     } finally {
       setExecuting(false);
     }
@@ -97,7 +100,7 @@ export function Step6Execute({
       onRefresh(json.case);
       setUndoExecId(null);
     } catch (e) {
-      setErr(e instanceof ApiError ? e.message : "Không hoàn tác được — thử lại sau");
+      setErr(e instanceof ApiError ? e.message : t("overview.step6.err.undo"));
     } finally {
       setUndoing(false);
     }
@@ -108,26 +111,26 @@ export function Step6Execute({
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-base font-bold text-slate-900">Sẽ ghi lên tài khoản thật · {platformLabel} {c.company}</h2>
-        <p className="mt-0.5 text-sm text-slate-500">Người duyệt cần quyền chỉnh sửa + quyền với công ty {c.company}.</p>
+        <h2 className="text-base font-bold text-slate-900">{t("overview.step6.title", { platform: platformLabel, company: c.company })}</h2>
+        <p className="mt-0.5 text-sm text-slate-500">{t("overview.step6.subtitle", { company: c.company })}</p>
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-100 text-left text-xs text-slate-500">
-              <th className="px-4 py-2 font-medium">Việc</th>
-              <th className="px-3 py-2 font-medium">Chiến dịch</th>
+              <th className="px-4 py-2 font-medium">{t("overview.step6.th.action")}</th>
+              <th className="px-3 py-2 font-medium">{t("overview.step6.th.campaign")}</th>
             </tr>
           </thead>
           <tbody>
             {selected.length === 0 ? (
-              <tr><td colSpan={2} className="px-4 py-4 text-center text-slate-400">Chưa chọn việc nào ở bước 5.</td></tr>
+              <tr><td colSpan={2} className="px-4 py-4 text-center text-slate-400">{t("overview.step6.noneSelected")}</td></tr>
             ) : (
               selected.map((a) => (
                 <tr key={a.id} className="border-b border-slate-50 last:border-0">
                   <td className="px-4 py-2.5 text-slate-800">{a.label}</td>
-                  <td className="px-3 py-2.5 text-slate-500">{targetOf(a, c)}</td>
+                  <td className="px-3 py-2.5 text-slate-500">{targetOf(a, c, t)}</td>
                 </tr>
               ))
             )}
@@ -135,10 +138,10 @@ export function Step6Execute({
         </table>
         <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 bg-slate-50/60 p-3">
           <Button className="h-10" variant="outline" size="sm" onClick={runValidate} disabled={validating || executing || selected.length === 0}>
-            {validating && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} Kiểm trước (không ghi)
+            {validating && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} {t("overview.step6.validate")}
           </Button>
           <Button className="h-10" size="sm" onClick={() => { setConfirmText(""); setApproveOpen(true); }} disabled={validating || executing || selected.length === 0}>
-            Duyệt & thực hiện
+            {t("overview.step6.approve")}
           </Button>
         </div>
       </div>
@@ -147,21 +150,21 @@ export function Step6Execute({
 
       {validateResult && (
         <div>
-          <div className="mb-1.5 text-sm font-semibold text-slate-800">Kết quả kiểm trước (chưa ghi)</div>
+          <div className="mb-1.5 text-sm font-semibold text-slate-800">{t("overview.step6.validateResult")}</div>
           <ExecutionResultCard exec={validateResult} platformLabel={platformLabel} />
         </div>
       )}
 
       {history.length > 0 && (
         <div>
-          <div className="mb-1.5 text-sm font-semibold text-slate-800">Lịch sử thực hiện</div>
+          <div className="mb-1.5 text-sm font-semibold text-slate-800">{t("overview.step6.history")}</div>
           <div className="space-y-3">
             {history.map((ex) => (
               <div key={ex.id} className="space-y-2">
                 <ExecutionResultCard exec={ex} platformLabel={platformLabel} />
                 {ex.undoneAt ? (
                   <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-xs text-slate-600">
-                    <div className="font-semibold">Đã hoàn tác lúc {datetimeVN(ex.undoneAt)}</div>
+                    <div className="font-semibold">{t("overview.step6.undoneAt", { time: datetimeVN(ex.undoneAt) })}</div>
                     {ex.undoReport && ex.undoReport.length > 0 && (
                       <ul className="mt-1 list-disc pl-4">
                         {ex.undoReport.map((line, i) => <li key={i}>{line}</li>)}
@@ -171,7 +174,7 @@ export function Step6Execute({
                 ) : (
                   <div className="flex justify-end">
                     <Button className="h-10" variant="destructive" size="sm" onClick={() => setUndoExecId(ex.id)}>
-                      <Undo2 className="h-3.5 w-3.5" aria-hidden="true" /> Hoàn tác
+                      <Undo2 className="h-3.5 w-3.5" aria-hidden="true" /> {t("overview.step6.undo")}
                     </Button>
                   </div>
                 )}
@@ -182,9 +185,9 @@ export function Step6Execute({
       )}
 
       <div className="flex justify-between">
-        <Button className="h-10" variant="outline" onClick={onBack} disabled={busy}>← Sửa lựa chọn</Button>
-        <Button className="h-10" onClick={onNext} disabled={busy || !hasDone} title={!hasDone ? "Cần ít nhất một lần thực hiện thành công" : undefined}>
-          Đóng phiên →
+        <Button className="h-10" variant="outline" onClick={onBack} disabled={busy}>{t("overview.step6.back")}</Button>
+        <Button className="h-10" onClick={onNext} disabled={busy || !hasDone} title={!hasDone ? t("overview.step6.needOneDone") : undefined}>
+          {t("overview.step6.close")}
         </Button>
       </div>
 
@@ -192,18 +195,18 @@ export function Step6Execute({
       <Dialog open={approveOpen} onOpenChange={(o) => { setApproveOpen(o); if (!o) setConfirmText(""); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Ghi lên tài khoản thật {platformLabel} {c.company}?</DialogTitle>
+            <DialogTitle>{t("overview.step6.dlg.title", { platform: platformLabel, company: c.company })}</DialogTitle>
             <DialogDescription>
-              {selected.length} việc sẽ được ghi lên chiến dịch của {c.company}. Có thể hoàn tác sau nếu cần.
+              {t("overview.step6.dlg.desc", { n: selected.length, company: c.company })}
             </DialogDescription>
           </DialogHeader>
           {needsActivateConfirm && (
             <div className="space-y-1.5">
               <p className="text-sm text-slate-600">
-                Trong việc đã chọn có <b>bật chạy nhóm mới</b> — nhóm sẽ bắt đầu phân phối thật và học lại từ đầu.
+                {t("overview.step6.dlg.activate1")} <b>{t("overview.step6.dlg.activate2")}</b> — {t("overview.step6.dlg.activate3")}
               </p>
               <label htmlFor="activate-confirm" className="text-xs font-medium text-slate-500">
-                Gõ <code className="rounded bg-slate-100 px-1 py-0.5">XAC NHAN</code> để xác nhận
+                {t("overview.step6.dlg.type1")} <code className="rounded bg-slate-100 px-1 py-0.5">XAC NHAN</code> {t("overview.step6.dlg.type2")}
               </label>
               <Input
                 id="activate-confirm"
@@ -216,9 +219,9 @@ export function Step6Execute({
             </div>
           )}
           <DialogFooter>
-            <DialogClose render={<Button className="h-10" variant="outline" />}>Huỷ</DialogClose>
-            <Button className="h-10" onClick={runExecute} disabled={executing || !confirmOk} title={!confirmOk ? 'Gõ đúng "XAC NHAN" để bật nhóm mới' : undefined}>
-              {executing && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} Ghi thật
+            <DialogClose render={<Button className="h-10" variant="outline" />}>{t("overview.step6.cancel")}</DialogClose>
+            <Button className="h-10" onClick={runExecute} disabled={executing || !confirmOk} title={!confirmOk ? t("overview.step6.dlg.typeHint") : undefined}>
+              {executing && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} {t("overview.step6.dlg.write")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -228,15 +231,15 @@ export function Step6Execute({
       <Dialog open={!!undoExecId} onOpenChange={(o) => !o && setUndoExecId(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle className="text-red-600">Hoàn tác lần thực hiện này?</DialogTitle>
+            <DialogTitle className="text-red-600">{t("overview.step6.undoDlg.title")}</DialogTitle>
             <DialogDescription>
-              Chỉ đảo những gì lần thực hiện này đã đổi trên tài khoản — sửa tay của người khác sau đó được giữ nguyên.
+              {t("overview.step6.undoDlg.desc")}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <DialogClose render={<Button className="h-10" variant="outline" />}>Giữ nguyên</DialogClose>
+            <DialogClose render={<Button className="h-10" variant="outline" />}>{t("overview.step6.undoDlg.keep")}</DialogClose>
             <Button className="h-10" variant="destructive" onClick={() => undoExecId && runUndo(undoExecId)} disabled={undoing}>
-              {undoing && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} Hoàn tác
+              {undoing && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} {t("overview.step6.undo")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -246,12 +249,13 @@ export function Step6Execute({
 }
 
 function ExecutionResultCard({ exec, platformLabel }: { exec: Execution; platformLabel: string }) {
+  const t = useT();
   const ok = exec.status === "done";
   // Lần "Kiểm trước" KHÔNG ghi gì — tiêu đề phải nói rõ, không được giống lần ghi thật.
   const validate = exec.mode === "validate";
   const title = validate
-    ? ok ? `${platformLabel} chấp nhận — CHƯA ghi gì lên tài khoản` : `${platformLabel} từ chối khi kiểm — chưa ghi gì`
-    : ok ? "Đã thực hiện và đọc lại khớp" : "Thực hiện thất bại";
+    ? ok ? t("overview.step6.res.accepted", { platform: platformLabel }) : t("overview.step6.res.rejected", { platform: platformLabel })
+    : ok ? t("overview.step6.res.done") : t("overview.step6.res.failed");
   return (
     <div className={`rounded-xl border p-3.5 text-sm ${!ok ? "border-red-200 bg-red-50" : validate ? "border-sky-200 bg-sky-50" : "border-emerald-200 bg-emerald-50"}`}>
       <div className={`flex items-center gap-1.5 font-semibold ${!ok ? "text-red-700" : validate ? "text-sky-800" : "text-emerald-700"}`}>
@@ -276,10 +280,10 @@ function ExecutionResultCard({ exec, platformLabel }: { exec: Execution; platfor
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b border-slate-100 text-left text-slate-500">
-                <th className="px-2.5 py-1.5 font-medium">Kiểm tra</th>
-                <th className="px-2.5 py-1.5 font-medium">Trước</th>
-                <th className="px-2.5 py-1.5 font-medium">Sau</th>
-                <th className="px-2.5 py-1.5 font-medium">Dự kiến</th>
+                <th className="px-2.5 py-1.5 font-medium">{t("overview.step6.rb.check")}</th>
+                <th className="px-2.5 py-1.5 font-medium">{t("overview.step6.rb.before")}</th>
+                <th className="px-2.5 py-1.5 font-medium">{t("overview.step6.rb.after")}</th>
+                <th className="px-2.5 py-1.5 font-medium">{t("overview.step6.rb.expected")}</th>
                 <th className="px-2.5 py-1.5 font-medium"></th>
               </tr>
             </thead>

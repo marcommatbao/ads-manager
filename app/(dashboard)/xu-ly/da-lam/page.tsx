@@ -21,9 +21,12 @@ import { vnd, ddmmyyyy } from "@/components/case/format";
 import { getJson, postJson, ApiError } from "@/components/case/api";
 import { companyLabel } from "@/lib/companies/registry";
 import type { WriteEvent } from "@/lib/writes/feed";
-import { VERDICT_LABEL, type Verdict } from "@/lib/writes/verdict";
+import type { Verdict } from "@/lib/writes/verdict";
 import { prettyWriteLabel } from "@/lib/writes/labels";
 import type { WindowResult } from "@/lib/writes/outcome";
+import { useIntlLocale, useT } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/messages";
+import type { TFunction } from "@/lib/i18n/translate";
 
 type WindowState = "done" | "case" | "skip" | "pending_job" | "not_due";
 type WindowRow = {
@@ -41,8 +44,9 @@ type PlatformFilter = "ALL" | "google" | "meta";
 
 const VERDICT_TONE: Record<Verdict, PillTone> = { tot: "green", xau: "red", khong_doi: "grey", chua_ro: "amber" };
 const RANGES = [7, 30, 90, 180] as const;
-const VERDICT_FILTER_LABEL: Record<VerdictFilter, string> = { ALL: "Tất cả", xau: "Xấu", tot: "Tốt", chua_ro: "Chưa rõ", chua_do: "Chưa đo" };
-const PLATFORM_LABEL: Record<PlatformFilter, string> = { ALL: "Tất cả", google: "Google", meta: "Meta" };
+const VERDICT_FILTER_LABEL: Record<VerdictFilter, MessageKey> = { ALL: "overview.xuly.done.filterAll", xau: "overview.xuly.done.filterBad", tot: "overview.xuly.done.filterGood", chua_ro: "overview.xuly.done.filterUnclear", chua_do: "overview.xuly.done.filterUnmeasured" };
+const PLATFORM_LABEL: Record<PlatformFilter, MessageKey> = { ALL: "overview.xuly.done.filterAll", google: "overview.xuly.done.platGoogle", meta: "overview.xuly.done.platMeta" };
+const VERDICT_LABEL_KEY: Record<Verdict, MessageKey> = { tot: "overview.xuly.done.verdictGood", xau: "overview.xuly.done.verdictBad", khong_doi: "overview.xuly.done.verdictSame", chua_ro: "overview.xuly.done.verdictUnclear" };
 
 function isWindowResult(r: WindowRow["result"]): r is WindowResult {
   return !!r && typeof (r as WindowResult).verdict === "string";
@@ -61,18 +65,20 @@ function verdictOf(w: WindowRow | undefined): Verdict | null {
   return null;
 }
 
-const vnDateTime = (iso: string): string => {
+const vnDateTime = (iso: string, loc: string): string => {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  const p = new Intl.DateTimeFormat("vi-VN", {
-    timeZone: "Asia/Ho_Chi_Minh", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false,
+  const p = new Intl.DateTimeFormat(loc, {
+    timeZone: "Asia/Ho_Chi_Minh", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
   }).formatToParts(d);
-  const g = (t: string) => p.find((x) => x.type === t)?.value ?? "";
+  const g = (ty: string) => p.find((x) => x.type === ty)?.value ?? "";
   return `${g("day")}/${g("month")}/${g("year")} ${g("hour")}:${g("minute")}`;
 };
-const vnDayMonth = (iso: string): string => vnDateTime(iso).slice(0, 5);
+const vnDayMonth = (iso: string, loc: string): string => vnDateTime(iso, loc).slice(0, 5);
 
 export default function DaLamPage() {
+  const t = useT();
+  const loc = useIntlLocale();
   const [days, setDays] = useState<number>(30);
   const [verdictFilter, setVerdictFilter] = useState<VerdictFilter>("ALL");
   const [platformFilter, setPlatformFilter] = useState<PlatformFilter>("ALL");
@@ -111,15 +117,15 @@ export default function DaLamPage() {
 
   // Đợt 23 (3c): hoàn tác bật/tắt / đổi ngân sách — máy chủ tự kiểm giá trị hiện tại, đã bị sửa tiếp thì từ chối.
   const undo = async (r: WriteRow) => {
-    if (!window.confirm(`Hoàn tác thay đổi này?\n\n${prettyWriteLabel(r.label)}\n\nTool sẽ trả chiến dịch về giá trị trước đó trên ${r.platform === "meta" ? "Meta" : "Google"}.`)) return;
+    if (!window.confirm(t("overview.xuly.done.undoConfirm", { label: prettyWriteLabel(r.label), platform: r.platform === "meta" ? "Meta" : "Google" }))) return;
     setUndoing(r.id);
     setUndoMsg(null);
     try {
       await postJson("/api/writes/undo", { id: r.id });
-      setUndoMsg({ ok: true, text: "Đã hoàn tác. Lần hoàn tác cũng được ghi lại và đo sau 7/14 ngày." });
+      setUndoMsg({ ok: true, text: t("overview.xuly.done.undoOk") });
       await mutate();
     } catch (e) {
-      setUndoMsg({ ok: false, text: e instanceof Error ? e.message : "Hoàn tác thất bại" });
+      setUndoMsg({ ok: false, text: e instanceof Error ? e.message : t("overview.xuly.done.undoFailed") });
     } finally {
       setUndoing(null);
     }
@@ -130,54 +136,54 @@ export default function DaLamPage() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="flex items-center gap-2 text-xl font-bold text-slate-900">
-            <History className="h-5 w-5 text-blue-600" aria-hidden="true" /> Đã làm &amp; kết quả
+            <History className="h-5 w-5 text-blue-600" aria-hidden="true" /> {t("overview.xuly.done.title")}
           </h1>
           <p className="mt-1 max-w-3xl text-sm text-slate-500">
-            Mỗi lần tool (hoặc bạn qua tool) thay đổi quảng cáo được đo lại sau 7 và 14 ngày: so chi phí/đơn trước–sau, đã trừ biến động chung của các chiến dịch cùng loại không bị chạm. &lsquo;Chưa rõ&rsquo; = quá ít đơn hoặc biến động chung quá lớn để kết luận.
+            {t("overview.xuly.done.subtitle")}
           </p>
         </div>
         <Button className="h-10" variant="outline" size="sm" onClick={() => mutate()} disabled={isLoading}>
-          <RefreshCw className={isLoading ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} aria-hidden="true" /> Tải lại
+          <RefreshCw className={isLoading ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} aria-hidden="true" /> {t("overview.xuly.done.reload")}
         </Button>
       </div>
 
       <div className="flex flex-wrap gap-3">
         <div className="min-w-[150px]">
-          <div className="mb-1 text-xs font-medium text-slate-400">Khoảng thời gian</div>
+          <div className="mb-1 text-xs font-medium text-slate-400">{t("overview.xuly.done.range")}</div>
           <Select value={String(days)} onValueChange={(v) => setDays(Number(v))}>
-            <SelectTrigger aria-label="Khoảng thời gian"><SelectValue>{(v: string) => `${v} ngày qua`}</SelectValue></SelectTrigger>
+            <SelectTrigger aria-label={t("overview.xuly.done.range")}><SelectValue>{(v: string) => t("overview.xuly.done.lastDays", { n: v })}</SelectValue></SelectTrigger>
             <SelectContent>
-              {RANGES.map((d) => <SelectItem key={d} value={String(d)}>{d} ngày qua</SelectItem>)}
+              {RANGES.map((d) => <SelectItem key={d} value={String(d)}>{t("overview.xuly.done.lastDays", { n: d })}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
         <div className="min-w-[150px]">
-          <div className="mb-1 text-xs font-medium text-slate-400">Kết quả 14 ngày</div>
+          <div className="mb-1 text-xs font-medium text-slate-400">{t("overview.xuly.done.result14")}</div>
           <Select value={verdictFilter} onValueChange={(v) => setVerdictFilter(v as VerdictFilter)}>
-            <SelectTrigger aria-label="Lọc theo kết quả 14 ngày"><SelectValue>{(v: string) => VERDICT_FILTER_LABEL[v as VerdictFilter] ?? v}</SelectValue></SelectTrigger>
+            <SelectTrigger aria-label={t("overview.xuly.done.filterResult14")}><SelectValue>{(v: string) => (VERDICT_FILTER_LABEL[v as VerdictFilter] ? t(VERDICT_FILTER_LABEL[v as VerdictFilter]) : v)}</SelectValue></SelectTrigger>
             <SelectContent>
-              {(Object.keys(VERDICT_FILTER_LABEL) as VerdictFilter[]).map((k) => <SelectItem key={k} value={k}>{VERDICT_FILTER_LABEL[k]}</SelectItem>)}
+              {(Object.keys(VERDICT_FILTER_LABEL) as VerdictFilter[]).map((k) => <SelectItem key={k} value={k}>{t(VERDICT_FILTER_LABEL[k])}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
         <div className="min-w-[150px]">
-          <div className="mb-1 text-xs font-medium text-slate-400">Nền tảng</div>
+          <div className="mb-1 text-xs font-medium text-slate-400">{t("overview.xuly.done.platform")}</div>
           <Select value={platformFilter} onValueChange={(v) => setPlatformFilter(v as PlatformFilter)}>
-            <SelectTrigger aria-label="Nền tảng"><SelectValue>{(v: string) => PLATFORM_LABEL[v as PlatformFilter] ?? v}</SelectValue></SelectTrigger>
+            <SelectTrigger aria-label={t("overview.xuly.done.platform")}><SelectValue>{(v: string) => (PLATFORM_LABEL[v as PlatformFilter] ? t(PLATFORM_LABEL[v as PlatformFilter]) : v)}</SelectValue></SelectTrigger>
             <SelectContent>
-              {(Object.keys(PLATFORM_LABEL) as PlatformFilter[]).map((k) => <SelectItem key={k} value={k}>{PLATFORM_LABEL[k]}</SelectItem>)}
+              {(Object.keys(PLATFORM_LABEL) as PlatformFilter[]).map((k) => <SelectItem key={k} value={k}>{t(PLATFORM_LABEL[k])}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
         <div className="min-w-[220px] flex-1">
-          <div className="mb-1 text-xs font-medium text-slate-400">Tìm theo việc đã làm</div>
+          <div className="mb-1 text-xs font-medium text-slate-400">{t("overview.xuly.done.search")}</div>
           <Input
             className="h-10"
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Gõ một phần nội dung…"
-            aria-label="Tìm theo việc đã làm"
+            placeholder={t("overview.xuly.done.searchPlaceholder")}
+            aria-label={t("overview.xuly.done.search")}
           />
         </div>
       </div>
@@ -194,8 +200,8 @@ export default function DaLamPage() {
       {!isLoading && error && (
         <EmptyState
           icon={AlertTriangle}
-          title={error instanceof ApiError ? error.message : "Không tải được danh sách việc đã làm"}
-          action={<Button className="h-10" onClick={() => mutate()}><RefreshCw className="h-4 w-4" aria-hidden="true" /> Thử lại</Button>}
+          title={error instanceof ApiError ? error.message : t("overview.xuly.done.loadFailed")}
+          action={<Button className="h-10" onClick={() => mutate()}><RefreshCw className="h-4 w-4" aria-hidden="true" /> {t("overview.xuly.done.retry")}</Button>}
         />
       )}
 
@@ -209,7 +215,7 @@ export default function DaLamPage() {
           {errors.length > 0 && (
             <details className="group rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
               <summary className="flex cursor-pointer list-none items-center gap-2 font-medium">
-                <AlertTriangle className="h-4 w-4" aria-hidden="true" /> Một số nguồn không đọc được ({errors.length})
+                <AlertTriangle className="h-4 w-4" aria-hidden="true" /> {t("overview.xuly.done.sourceErrors", { n: errors.length })}
                 <ChevronDown className="ml-auto h-4 w-4 transition-transform group-open:rotate-180" aria-hidden="true" />
               </summary>
               <ul className="mt-2 list-disc space-y-1 pl-5 text-xs">
@@ -220,32 +226,32 @@ export default function DaLamPage() {
 
           {rows.length === 0 ? (
             <EmptyState
-              title={`Chưa có thay đổi nào trong ${data.days} ngày qua`}
-              description="Khi tool ghi lên tài khoản Google/Meta, việc đó sẽ xuất hiện ở đây kèm kết quả đo lại sau 7 và 14 ngày. Thử chọn khoảng thời gian dài hơn."
+              title={t("overview.xuly.done.emptyTitle", { days: data.days })}
+              description={t("overview.xuly.done.emptyDesc")}
             />
           ) : (
             <>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-                <Kpi label="Tốt (14 ngày)" value={String(counts.tot)} />
-                <Kpi label="Xấu (14 ngày)" value={String(counts.xau)} bad={counts.xau > 0} />
-                <Kpi label="Không đổi (14 ngày)" value={String(counts.khong_doi)} />
-                <Kpi label="Chưa rõ (14 ngày)" value={String(counts.chua_ro)} />
-                <Kpi label="Đang chờ đo" value={String(counts.waiting)} />
+                <Kpi label={t("overview.xuly.done.kpiGood")} value={String(counts.tot)} />
+                <Kpi label={t("overview.xuly.done.kpiBad")} value={String(counts.xau)} bad={counts.xau > 0} />
+                <Kpi label={t("overview.xuly.done.kpiSame")} value={String(counts.khong_doi)} />
+                <Kpi label={t("overview.xuly.done.kpiUnclear")} value={String(counts.chua_ro)} />
+                <Kpi label={t("overview.xuly.done.kpiWaiting")} value={String(counts.waiting)} />
               </div>
 
               {filtered.length === 0 ? (
-                <EmptyState compact title="Không có việc nào khớp bộ lọc" description="Đổi lại kết quả/nền tảng hoặc từ khoá tìm kiếm ở trên." />
+                <EmptyState compact title={t("overview.xuly.done.noMatchTitle")} description={t("overview.xuly.done.noMatchDesc")} />
               ) : (
                 <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
                   <table className="w-full min-w-[960px] text-sm">
                     <thead>
                       <tr className="border-b border-slate-100 text-left text-xs text-slate-500">
-                        <th className="px-4 py-2.5 font-medium whitespace-nowrap">Ngày</th>
-                        <th className="px-3 py-2.5 font-medium">Công ty</th>
-                        <th className="px-3 py-2.5 font-medium">Nền tảng</th>
-                        <th className="px-3 py-2.5 font-medium">Việc đã làm</th>
-                        <th className="px-3 py-2.5 font-medium">7 ngày</th>
-                        <th className="px-3 py-2.5 font-medium">14 ngày</th>
+                        <th className="px-4 py-2.5 font-medium whitespace-nowrap">{t("overview.xuly.done.thDate")}</th>
+                        <th className="px-3 py-2.5 font-medium">{t("overview.xuly.done.thCompany")}</th>
+                        <th className="px-3 py-2.5 font-medium">{t("overview.xuly.done.platform")}</th>
+                        <th className="px-3 py-2.5 font-medium">{t("overview.xuly.done.thAction")}</th>
+                        <th className="px-3 py-2.5 font-medium">{t("overview.xuly.done.th7")}</th>
+                        <th className="px-3 py-2.5 font-medium">{t("overview.xuly.done.th14")}</th>
                         <th className="px-3 py-2.5 font-medium"></th>
                       </tr>
                     </thead>
@@ -256,26 +262,26 @@ export default function DaLamPage() {
                         const bad = verdictOf(w14) === "xau";
                         return (
                           <tr key={r.id} className={`border-b border-slate-50 last:border-0 align-top ${bad ? "border-l-4 border-l-red-500 bg-red-50/30" : ""}`}>
-                            <td className="px-4 py-2.5 tabular-nums whitespace-nowrap text-slate-600">{vnDateTime(r.at)}</td>
+                            <td className="px-4 py-2.5 tabular-nums whitespace-nowrap text-slate-600">{vnDateTime(r.at, loc)}</td>
                             <td className="px-3 py-2.5 whitespace-nowrap text-slate-700">{r.company === "MBC" || r.company === "MBI" ? r.company : companyLabel(r.company)}</td>
                             <td className="px-3 py-2.5 whitespace-nowrap text-slate-700">{r.platform === "meta" ? "Meta" : "Google"}</td>
                             <td className="max-w-md px-3 py-2.5">
                               <div className="font-semibold text-slate-800">{prettyWriteLabel(r.label)}</div>
                               <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-slate-400">
                                 <span>{r.sourceLabel}</span>
-                                {r.undoneAt && <Pill tone="grey">Đã hoàn tác {vnDayMonth(r.undoneAt)}</Pill>}
+                                {r.undoneAt && <Pill tone="grey">{t("overview.xuly.done.undone", { date: vnDayMonth(r.undoneAt, loc) })}</Pill>}
                               </div>
                             </td>
-                            <td className="px-3 py-2.5"><WindowCell w={w7} link={r.link} /></td>
-                            <td className="px-3 py-2.5"><WindowCell w={w14} link={r.link} /></td>
+                            <td className="px-3 py-2.5"><WindowCell w={w7} link={r.link} t={t} loc={loc} /></td>
+                            <td className="px-3 py-2.5"><WindowCell w={w14} link={r.link} t={t} loc={loc} /></td>
                             <td className="px-3 py-2.5">
                               <div className="flex flex-wrap gap-1.5">
                                 {r.undoable && !r.undoneAt && (
                                   <Button size="sm" variant="outline" disabled={undoing !== null} onClick={() => undo(r)}>
-                                    {undoing === r.id ? "Đang hoàn tác…" : "Hoàn tác"}
+                                    {undoing === r.id ? t("overview.xuly.done.undoing") : t("overview.xuly.done.undo")}
                                   </Button>
                                 )}
-                                <Button size="sm" variant="outline" render={<Link href={r.link} />}>Mở</Button>
+                                <Button size="sm" variant="outline" render={<Link href={r.link} />}>{t("overview.xuly.done.open")}</Button>
                               </div>
                             </td>
                           </tr>
@@ -293,16 +299,16 @@ export default function DaLamPage() {
   );
 }
 
-function WindowCell({ w, link }: { w: WindowRow | undefined; link: string }) {
+function WindowCell({ w, link, t, loc }: { w: WindowRow | undefined; link: string; t: TFunction; loc: string }) {
   if (!w) return <span className="text-slate-300">—</span>;
 
   if (w.state === "done" && isWindowResult(w.result)) {
     const r = w.result;
     return (
       <div className="space-y-1" title={w.note ?? r.note}>
-        <Pill tone={VERDICT_TONE[r.verdict]}>{VERDICT_LABEL[r.verdict]}</Pill>
+        <Pill tone={VERDICT_TONE[r.verdict]}>{t(VERDICT_LABEL_KEY[r.verdict])}</Pill>
         <div className="tabular-nums text-xs text-slate-700">
-          {r.cpaBefore !== null ? vnd(r.cpaBefore) : "0 đơn"} → {r.cpaAfter !== null ? vnd(r.cpaAfter) : "0 đơn"}
+          {r.cpaBefore !== null ? vnd(r.cpaBefore) : t("overview.xuly.done.zeroOrders")} → {r.cpaAfter !== null ? vnd(r.cpaAfter) : t("overview.xuly.done.zeroOrders")}
         </div>
         {(w.note ?? r.note) && <div className="max-w-[240px] text-xs text-slate-400">{w.note ?? r.note}</div>}
       </div>
@@ -314,23 +320,23 @@ function WindowCell({ w, link }: { w: WindowRow | undefined; link: string }) {
     const v = res?.verdict;
     return (
       <div className="space-y-1 text-xs">
-        <div className="text-slate-600">Theo phiên xử lý</div>
-        {v === 1 && <span className="font-semibold text-emerald-600">✓ đạt</span>}
-        {v === 0 && <span className="font-semibold text-amber-600">≈ chưa rõ</span>}
-        {v === -1 && <span className="font-semibold text-red-600">▲ xấu hơn</span>}
+        <div className="text-slate-600">{t("overview.xuly.done.byCase")}</div>
+        {v === 1 && <span className="font-semibold text-emerald-600">{t("overview.xuly.done.caseGood")}</span>}
+        {v === 0 && <span className="font-semibold text-amber-600">{t("overview.xuly.done.caseUnclear")}</span>}
+        {v === -1 && <span className="font-semibold text-red-600">{t("overview.xuly.done.caseWorse")}</span>}
         {typeof res?.cpa === "number" && <div className="tabular-nums text-slate-700">CPA {vnd(res.cpa)}</div>}
-        {typeof res?.roas === "number" && <div className="tabular-nums text-slate-700">ROAS {res.roas.toLocaleString("vi-VN", { maximumFractionDigits: 2 })}</div>}
-        <div><Link href={link} className="text-blue-600 hover:underline">Xem phiên</Link></div>
+        {typeof res?.roas === "number" && <div className="tabular-nums text-slate-700">ROAS {res.roas.toLocaleString(loc, { maximumFractionDigits: 2 })}</div>}
+        <div><Link href={link} className="text-blue-600 hover:underline">{t("overview.xuly.done.viewCase")}</Link></div>
       </div>
     );
   }
 
-  if (w.state === "not_due") return <span className="text-xs text-slate-500">Đo ngày {ddmmyyyy(w.dueOn)}</span>;
-  if (w.state === "pending_job") return <span className="text-xs text-slate-500">Đang chờ lượt đo</span>;
+  if (w.state === "not_due") return <span className="text-xs text-slate-500">{t("overview.xuly.done.measureOn", { date: ddmmyyyy(w.dueOn) })}</span>;
+  if (w.state === "pending_job") return <span className="text-xs text-slate-500">{t("overview.xuly.done.pendingJob")}</span>;
   if (w.state === "skip") {
     return (
       <span className="text-xs text-slate-400" title={w.note ?? undefined}>
-        Không đo{w.note ? <span className="block max-w-[220px] text-slate-400">{w.note}</span> : null}
+        {t("overview.xuly.done.skipped")}{w.note ? <span className="block max-w-[220px] text-slate-400">{w.note}</span> : null}
       </span>
     );
   }

@@ -11,6 +11,8 @@ import {
   Database,
 } from "lucide-react";
 import OdooRevenueTab from "./odoo-tab";
+import { useIntlLocale, useT } from "@/lib/i18n/client";
+import type { TFunction } from "@/lib/i18n/translate";
 
 type MainTab = "ads" | "odoo";
 
@@ -74,19 +76,19 @@ function getWeekRange(): { start: string; end: string } {
   return { start: ymdLocal(start), end: ymdLocal(now) };
 }
 
-function timeAgo(dateStr: string): string {
+function timeAgo(dateStr: string, t: TFunction): string {
   const mins = Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000);
-  if (mins < 60) return `${mins} phút trước`;
+  if (mins < 60) return t("overview.reports.timeMin", { n: mins });
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours} giờ trước`;
-  return `${Math.floor(hours / 24)} ngày trước`;
+  if (hours < 24) return t("overview.reports.timeHour", { n: hours });
+  return t("overview.reports.timeDay", { n: Math.floor(hours / 24) });
 }
 
-function fmtVN(v: number): string {
-  if (v >= 1_000_000_000) return `₫${(v / 1_000_000_000).toFixed(1)}Tỷ`;
-  if (v >= 1_000_000) return `₫${(v / 1_000_000).toFixed(1)}Tr`;
+function fmtVN(v: number, loc: string, t: TFunction): string {
+  if (v >= 1_000_000_000) return `₫${(v / 1_000_000_000).toFixed(1)}${t("overview.reports.unitBillion")}`;
+  if (v >= 1_000_000) return `₫${(v / 1_000_000).toFixed(1)}${t("overview.reports.unitMillion")}`;
   if (v >= 1_000) return `₫${(v / 1_000).toFixed(0)}K`;
-  return `₫${Math.round(v).toLocaleString("vi-VN")}`;
+  return `₫${Math.round(v).toLocaleString(loc)}`;
 }
 
 // ─────────────────────────────────────────────
@@ -95,6 +97,8 @@ function fmtVN(v: number): string {
 
 export default function ReportsPage() {
   const { user } = useSession();
+  const t = useT();
+  const loc = useIntlLocale();
 
   // Main tab
   const [mainTab, setMainTab] = useState<MainTab>("ads");
@@ -153,7 +157,7 @@ export default function ReportsPage() {
         if (!googleData) failed.push("Google");
         setPartialError(
           failed.length
-            ? `Không lấy được số ${failed.join(" và ")} — các thẻ dưới đây đang THIẾU phần này, không phải chi 0đ.`
+            ? t("overview.reports.partialMissing", { names: failed.join(t("overview.reports.and")) })
             : null,
         );
 
@@ -182,7 +186,7 @@ export default function ReportsPage() {
         });
       } catch (err) {
         setPartialError(
-          err instanceof Error ? `Không tải được tổng quan: ${err.message}` : "Không tải được tổng quan",
+          err instanceof Error ? t("overview.reports.errOverviewMsg", { msg: err.message }) : t("overview.reports.errOverview"),
         );
       } finally {
         setLoadingAnalytics(false);
@@ -234,23 +238,23 @@ export default function ReportsPage() {
       setTimeout(fetchHistory, 500);
     } catch (err) {
       console.error(err);
-      alert("Lỗi khi xuất báo cáo. Vui lòng thử lại.");
+      alert(t("overview.reports.errExport"));
     } finally {
       setter(false);
     }
   };
 
-  const currentMonthLabel = new Date().toLocaleDateString("vi-VN", { month: "long", year: "numeric" });
-  const lastMonthLabel = new Date(Date.now() - 30 * 86400000).toLocaleDateString("vi-VN", { month: "long", year: "numeric" });
+  const currentMonthLabel = new Date().toLocaleDateString(loc, { month: "long", year: "numeric" });
+  const lastMonthLabel = new Date(Date.now() - 30 * 86400000).toLocaleDateString(loc, { month: "long", year: "numeric" });
 
   return (
     <div className="space-y-6 animate-fade-in pb-12">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-          <BarChart3 className="h-6 w-6 text-blue-600" /> Reports & Analytics
+          <BarChart3 className="h-6 w-6 text-blue-600" /> {t("overview.reports.title")}
         </h1>
-        <p className="text-sm text-slate-500 mt-1">Tổng quan hiệu quả quảng cáo và xuất báo cáo tự động.</p>
+        <p className="text-sm text-slate-500 mt-1">{t("overview.reports.subtitle")}</p>
       </div>
 
       {/* ── Main Tab Switcher ── */}
@@ -265,7 +269,7 @@ export default function ReportsPage() {
           )}
         >
           <BarChart3 className="h-4 w-4" />
-          Ads Analytics
+          {t("overview.reports.tabAds")}
         </button>
         <button
           onClick={() => setMainTab("odoo")}
@@ -294,14 +298,14 @@ export default function ReportsPage() {
       {/* ── Analytics Overview ── */}
       <div className="bg-gradient-to-br from-slate-800 via-slate-900 to-slate-800 rounded-2xl p-6 text-white shadow-xl">
         <h3 className="text-sm font-bold text-slate-300 mb-1 flex items-center gap-1.5">
-          📊 Tổng Quan Hiệu Quả — {currentMonthLabel}
+          {t("overview.reports.perfTitle", { month: currentMonthLabel })}
         </h3>
         {/* Khối này KHÔNG chịu bộ lọc "Công ty" bên dưới (bộ lọc đó chỉ áp cho
             file xuất ra): /api/meta/summary và /api/google/summary không nhận
             tham số company. Nói rõ phạm vi còn hơn để người đọc tự suy là nó
             đang theo lựa chọn của mình. */}
         <p className="text-[11px] text-slate-400 mb-4">
-          Toàn tài khoản (MBC + MBI), theo kỳ đã chọn — không đổi theo bộ lọc Công ty ở phần Xuất báo cáo.
+          {t("overview.reports.perfScope")}
         </p>
 
         {partialError && (
@@ -322,17 +326,17 @@ export default function ReportsPage() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
               <div className="rounded-xl bg-white/10 backdrop-blur-sm p-4 border border-white/10">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase">Tổng Chi Tiêu</span>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase">{t("overview.reports.kpiSpend")}</span>
                   <DollarSign className="h-4 w-4 text-blue-400" />
                 </div>
-                <p className="text-xl font-black">{fmtVN(analytics.totalSpend)}</p>
+                <p className="text-xl font-black">{fmtVN(analytics.totalSpend, loc, t)}</p>
               </div>
               <div className="rounded-xl bg-white/10 backdrop-blur-sm p-4 border border-white/10">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase">Doanh Thu</span>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase">{t("overview.reports.kpiRevenue")}</span>
                   <TrendingUp className="h-4 w-4 text-emerald-400" />
                 </div>
-                <p className="text-xl font-black">{fmtVN(analytics.totalRevenue)}</p>
+                <p className="text-xl font-black">{fmtVN(analytics.totalRevenue, loc, t)}</p>
               </div>
               <div className="rounded-xl bg-white/10 backdrop-blur-sm p-4 border border-white/10">
                 <div className="flex items-center justify-between mb-2">
@@ -343,7 +347,7 @@ export default function ReportsPage() {
               </div>
               <div className="rounded-xl bg-white/10 backdrop-blur-sm p-4 border border-white/10">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase">Impressions</span>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase">{t("overview.reports.kpiImpressions")}</span>
                   <MousePointer className="h-4 w-4 text-amber-400" />
                 </div>
                 <p className="text-xl font-black">{formatNumber(analytics.totalImpressions)}</p>
@@ -355,7 +359,7 @@ export default function ReportsPage() {
               <div className="rounded-xl bg-blue-500/15 border border-blue-400/20 p-4">
                 <p className="text-xs font-bold text-blue-300 mb-2">🔵 Facebook</p>
                 <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div><span className="text-slate-400">Spend:</span> <b>{fmtVN(analytics.fbSpend)}</b></div>
+                  <div><span className="text-slate-400">{t("overview.reports.spendLabel")}</span> <b>{fmtVN(analytics.fbSpend, loc, t)}</b></div>
                   <div><span className="text-slate-400">ROAS:</span> <b>{analytics.fbROAS.toFixed(1)}x</b></div>
                 </div>
                 {analytics.totalSpend > 0 && (
@@ -367,7 +371,7 @@ export default function ReportsPage() {
               <div className="rounded-xl bg-red-500/15 border border-red-400/20 p-4">
                 <p className="text-xs font-bold text-red-300 mb-2">🔴 Google</p>
                 <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div><span className="text-slate-400">Spend:</span> <b>{fmtVN(analytics.googleSpend)}</b></div>
+                  <div><span className="text-slate-400">{t("overview.reports.spendLabel")}</span> <b>{fmtVN(analytics.googleSpend, loc, t)}</b></div>
                   <div><span className="text-slate-400">ROAS:</span> <b>{analytics.googleROAS.toFixed(1)}x</b></div>
                 </div>
                 {analytics.totalSpend > 0 && (
@@ -379,14 +383,14 @@ export default function ReportsPage() {
             </div>
           </>
         ) : (
-          <p className="text-sm text-slate-400">Không thể tải dữ liệu phân tích.</p>
+          <p className="text-sm text-slate-400">{t("overview.reports.noAnalytics")}</p>
         )}
       </div>
 
       {/* ── Export Section ── */}
       <div>
         <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-4">
-          <FileText className="h-5 w-5 text-blue-600" /> Xuất Báo Cáo
+          <FileText className="h-5 w-5 text-blue-600" /> {t("overview.reports.exportTitle")}
         </h2>
       </div>
 
@@ -397,14 +401,14 @@ export default function ReportsPage() {
           {/* Period */}
           <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
             <h3 className="text-sm font-bold text-slate-700 flex items-center gap-1.5 mb-3">
-              <Calendar className="h-4 w-4 text-blue-500" /> Kỳ báo cáo
+              <Calendar className="h-4 w-4 text-blue-500" /> {t("overview.reports.periodTitle")}
             </h3>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {([
-                { key: "this_month", label: `Tháng này (${currentMonthLabel})` },
-                { key: "last_month", label: `Tháng trước (${lastMonthLabel})` },
-                { key: "this_week", label: "Tuần này" },
-                { key: "custom", label: "Tuỳ chọn" },
+                { key: "this_month", label: t("overview.reports.periodThisMonth", { month: currentMonthLabel }) },
+                { key: "last_month", label: t("overview.reports.periodLastMonth", { month: lastMonthLabel }) },
+                { key: "this_week", label: t("overview.reports.periodThisWeek") },
+                { key: "custom", label: t("overview.reports.periodCustom") },
               ] as const).map((p) => (
                 <button
                   key={p.key}
@@ -423,13 +427,13 @@ export default function ReportsPage() {
             {periodPreset === "custom" && (
               <div className="grid grid-cols-2 gap-3 mt-3">
                 <div>
-                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Từ ngày</label>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">{t("overview.reports.dateFrom")}</label>
                   <input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)}
                     className="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-amber-400"
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Đến ngày</label>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">{t("overview.reports.dateTo")}</label>
                   <input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)}
                     className="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-amber-400"
                   />
@@ -441,13 +445,13 @@ export default function ReportsPage() {
           {/* Company */}
           <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
             <h3 className="text-sm font-bold text-slate-700 flex items-center gap-1.5 mb-3">
-              <Building2 className="h-4 w-4 text-violet-500" /> Công ty
+              <Building2 className="h-4 w-4 text-violet-500" /> {t("overview.reports.companyTitle")}
             </h3>
             <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2">
               {([
-                { key: "ALL", label: "Cả hai — MBC & MBI", color: "border-slate-500 bg-slate-50 text-slate-700" },
-                { key: "MBC", label: "MBC only", color: "border-blue-500 bg-blue-50 text-blue-700" },
-                { key: "MBI", label: "MBI only", color: "border-violet-500 bg-violet-50 text-violet-700" },
+                { key: "ALL", label: t("overview.reports.companyAll"), color: "border-slate-500 bg-slate-50 text-slate-700" },
+                { key: "MBC", label: t("overview.reports.companyMbc"), color: "border-blue-500 bg-blue-50 text-blue-700" },
+                { key: "MBI", label: t("overview.reports.companyMbi"), color: "border-violet-500 bg-violet-50 text-violet-700" },
               ] as const).map((c) => (
                 <button
                   key={c.key}
@@ -466,15 +470,15 @@ export default function ReportsPage() {
           {/* Sections */}
           <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
             <h3 className="text-sm font-bold text-slate-700 flex items-center gap-1.5 mb-3">
-              <CheckSquare className="h-4 w-4 text-emerald-500" /> Nội dung xuất
+              <CheckSquare className="h-4 w-4 text-emerald-500" /> {t("overview.reports.sectionsTitle")}
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {([
-                { key: "summary", label: "Tổng quan KPIs (Spend, Leads, CPL)" },
-                { key: "campaigns", label: "Bảng campaigns chi tiết" },
-                { key: "cpl", label: "CPL Tracking (MBC vs MBI)" },
-                { key: "budget_history", label: "Lịch sử điều chỉnh budget" },
-                { key: "ai_insights", label: "AI Insights & nhận xét" },
+                { key: "summary", label: t("overview.reports.secSummary") },
+                { key: "campaigns", label: t("overview.reports.secCampaigns") },
+                { key: "cpl", label: t("overview.reports.secCpl") },
+                { key: "budget_history", label: t("overview.reports.secBudget") },
+                { key: "ai_insights", label: t("overview.reports.secAi") },
               ] as const).map((s) => (
                 <label
                   key={s.key}
@@ -505,7 +509,7 @@ export default function ReportsPage() {
               className="flex-1 h-11 bg-red-600 hover:bg-red-700 text-white font-semibold gap-2 shadow-md"
             >
               {generatingPDF ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
-              📄 Xuất PDF
+              {t("overview.reports.exportPdf")}
             </Button>
             <Button
               onClick={() => handleExport("excel")}
@@ -513,7 +517,7 @@ export default function ReportsPage() {
               className="flex-1 h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-2 shadow-md"
             >
               {generatingExcel ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
-              📊 Xuất Excel
+              {t("overview.reports.exportExcel")}
             </Button>
           </div>
         </div>
@@ -523,14 +527,14 @@ export default function ReportsPage() {
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
               <h3 className="text-sm font-bold text-slate-700 flex items-center gap-1.5">
-                <Clock className="h-4 w-4 text-slate-400" /> Lịch sử xuất
+                <Clock className="h-4 w-4 text-slate-400" /> {t("overview.reports.historyTitle")}
               </h3>
             </div>
             <div className="divide-y divide-slate-100 max-h-[500px] overflow-y-auto">
               {loadingHistory ? (
                 <div className="py-8 text-center"><Loader2 className="h-5 w-5 animate-spin mx-auto text-slate-400" /></div>
               ) : history.length === 0 ? (
-                <div className="py-8 text-center text-xs text-slate-400">Chưa có báo cáo nào</div>
+                <div className="py-8 text-center text-xs text-slate-400">{t("overview.reports.historyEmpty")}</div>
               ) : (
                 history.map((item) => (
                   <div key={item.id} className="px-4 py-3 hover:bg-slate-50 transition-colors">
@@ -552,7 +556,7 @@ export default function ReportsPage() {
                           )}>
                             {item.format.toUpperCase()}
                           </span>
-                          <span className="text-[10px] text-slate-400">{timeAgo(item.generated_at)}</span>
+                          <span className="text-[10px] text-slate-400">{timeAgo(item.generated_at, t)}</span>
                         </div>
                       </div>
                     </div>
@@ -566,10 +570,10 @@ export default function ReportsPage() {
           <div className="bg-gradient-to-br from-slate-50 to-blue-50 rounded-xl border border-slate-200 p-5 text-center">
             <FileText className="h-10 w-10 text-blue-200 mx-auto mb-2" />
             <p className="text-xs text-slate-500 font-medium">
-              Chọn cấu hình rồi nhấn Xuất PDF hoặc Excel để tạo báo cáo tự động.
+              {t("overview.reports.hint")}
             </p>
             <p className="text-[10px] text-slate-400 mt-1">
-              Xuất bởi: {user?.name || "User"} · {user?.role || ""}
+              {t("overview.reports.exportedBy", { name: user?.name || "User", role: user?.role || "" })}
             </p>
           </div>
         </div>

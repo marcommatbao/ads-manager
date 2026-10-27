@@ -19,6 +19,8 @@ import {
   AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Loader2, RefreshCw, Sparkles, Star, Undo2, XCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/messages";
 import { getJson, postJson, ApiError } from "@/components/case/api";
 import { vnd, num, pct, datetimeVN } from "@/components/case/format";
 import { DateRangeControl, type DateRangeValue } from "@/components/DateRangeControl";
@@ -45,13 +47,13 @@ interface AssetsResponse {
   confirmText: string;
 }
 
-const STRENGTH_META: Record<string, { label: string; cls: string }> = {
-  EXCELLENT: { label: "Xuất sắc", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-  GOOD: { label: "Tốt", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-  AVERAGE: { label: "Trung bình", cls: "bg-amber-50 text-amber-700 border-amber-200" },
-  POOR: { label: "Yếu", cls: "bg-red-50 text-red-700 border-red-200" },
+const STRENGTH_META: Record<string, { label: MessageKey; cls: string }> = {
+  EXCELLENT: { label: "google.pmaxAssetHealth.strength.excellent", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  GOOD: { label: "google.pmaxAssetHealth.strength.good", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  AVERAGE: { label: "google.pmaxAssetHealth.strength.average", cls: "bg-amber-50 text-amber-700 border-amber-200" },
+  POOR: { label: "google.pmaxAssetHealth.strength.poor", cls: "bg-red-50 text-red-700 border-red-200" },
 };
-const STRENGTH_FALLBACK = { label: "Chưa rõ", cls: "bg-slate-100 text-slate-500 border-slate-200" };
+const STRENGTH_FALLBACK = { label: "google.pmaxAssetHealth.strength.unknown" as MessageKey, cls: "bg-slate-100 text-slate-500 border-slate-200" };
 
 const FIELD_ORDER = [
   "HEADLINE", "LONG_HEADLINE", "DESCRIPTION", "BUSINESS_NAME",
@@ -67,11 +69,12 @@ function Badge({ cls, children }: { cls: string; children: React.ReactNode }) {
 // ── Kết quả Kiểm trước / Ghi một lần thay asset ──
 
 function SwapResultCard({ exec }: { exec: SwapExecution }) {
+  const t = useT();
   const ok = exec.status === "done";
   const validate = exec.mode === "validate";
   const title = validate
-    ? ok ? "Google chấp nhận — CHƯA ghi gì" : "Google từ chối khi kiểm — chưa ghi gì"
-    : ok ? "Đã ghi và đọc lại khớp" : "Ghi thất bại — xem lỗi bên dưới";
+    ? ok ? t("google.pmaxAssetHealth.resValidateOk") : t("google.pmaxAssetHealth.resValidateFail")
+    : ok ? t("google.pmaxAssetHealth.resWriteOk") : t("google.pmaxAssetHealth.resWriteFail");
   return (
     <div className={cn("rounded-lg border p-2.5 text-xs", !ok ? "border-red-200 bg-red-50" : validate ? "border-sky-200 bg-sky-50" : "border-emerald-200 bg-emerald-50")}>
       <div className={cn("flex items-center gap-1.5 font-semibold", !ok ? "text-red-700" : validate ? "text-sky-800" : "text-emerald-700")}>
@@ -93,7 +96,7 @@ function SwapResultCard({ exec }: { exec: SwapExecution }) {
           <table className="w-full text-[11px]">
             <thead>
               <tr className="border-b border-slate-100 text-left text-slate-500">
-                <th className="px-2 py-1 font-medium">Đọc lại</th>
+                <th className="px-2 py-1 font-medium">{t("google.pmaxAssetHealth.readback")}</th>
                 <th className="px-2 py-1 font-medium"></th>
               </tr>
             </thead>
@@ -121,13 +124,14 @@ function ReplacementItemCard({
 }: {
   item: Replacement; limit: number; choice: string; onChoice: (v: string) => void; custom: string; onCustom: (v: string) => void; canEdit: boolean;
 }) {
+  const t = useT();
   const customLen = [...custom].length;
   const customOver = customLen > limit;
   return (
     <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50/50 p-3 text-xs">
-      <p className="text-slate-500">Đang có: <span className="text-slate-700 line-through">{item.oldText}</span></p>
+      <p className="text-slate-500">{t("google.pmaxAssetHealth.current")} <span className="text-slate-700 line-through">{item.oldText}</span></p>
       {item.options.length === 0 && (
-        <p className="text-amber-700">AI không đưa ra được phương án hợp lệ — dùng ô &quot;Tự viết&quot; bên dưới.</p>
+        <p className="text-amber-700">{t("google.pmaxAssetHealth.noOptions")}</p>
       )}
       <div className="space-y-1.5">
         {item.options.map((o, i) => {
@@ -137,7 +141,7 @@ function ReplacementItemCard({
               <input type="radio" className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-indigo-600" checked={choice === o.text} onChange={() => onChoice(o.text)} disabled={!canEdit} />
               <span className="min-w-0 flex-1 space-y-1">
                 <span className="block text-slate-800">{o.text}</span>
-                <span className={cn("text-[10px]", len > limit ? "font-semibold text-red-600" : "text-slate-400")}>{len}/{limit} ký tự</span>
+                <span className={cn("text-[10px]", len > limit ? "font-semibold text-red-600" : "text-slate-400")}>{t("google.pmaxAssetHealth.chars", { len, limit })}</span>
                 {o.findings.length > 0 && (
                   <span className="flex flex-wrap gap-1">
                     {o.findings.map((f, fi) => (
@@ -154,21 +158,21 @@ function ReplacementItemCard({
         <label className={cn("flex items-start gap-2 rounded-lg border p-2 cursor-pointer", choice === "custom" ? "border-indigo-300 bg-indigo-50/50" : "border-slate-100 bg-white", !canEdit && "cursor-default opacity-70")}>
           <input type="radio" className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-indigo-600" checked={choice === "custom"} onChange={() => onChoice("custom")} disabled={!canEdit} />
           <span className="min-w-0 flex-1 space-y-1">
-            <span className="block font-medium text-slate-600">Tự viết</span>
+            <span className="block font-medium text-slate-600">{t("google.pmaxAssetHealth.custom")}</span>
             <Input
               value={custom}
               onChange={(e) => { onCustom(e.target.value); if (choice !== "custom") onChoice("custom"); }}
               disabled={!canEdit}
               className="h-8"
-              placeholder={`Tối đa ${limit} ký tự`}
+              placeholder={t("google.pmaxAssetHealth.maxChars", { limit })}
             />
-            <span className={cn("text-[10px]", customOver ? "font-semibold text-red-600" : "text-slate-400")}>{customLen}/{limit} ký tự</span>
+            <span className={cn("text-[10px]", customOver ? "font-semibold text-red-600" : "text-slate-400")}>{t("google.pmaxAssetHealth.chars", { len: customLen, limit })}</span>
           </span>
         </label>
       </div>
       {item.rejected.length > 0 && (
         <details className="text-[11px] text-slate-400">
-          <summary className="cursor-pointer select-none">{item.rejected.length} phương án bị loại</summary>
+          <summary className="cursor-pointer select-none">{t("google.pmaxAssetHealth.rejected", { n: item.rejected.length })}</summary>
           <ul className="mt-1 list-disc space-y-0.5 pl-4">{item.rejected.map((r, i) => <li key={i}>{r}</li>)}</ul>
         </details>
       )}
@@ -202,6 +206,7 @@ function AssetGroupCard({
   group: GroupHealth; fieldLabels: Record<string, string>; textLimits: Record<TextType, number>;
   range: Range; company: Company; canEdit: boolean; confirmText: string; onApplied: () => void;
 }) {
+  const t = useT();
   const confirmId = useId();
   const strength = STRENGTH_META[group.adStrength] ?? STRENGTH_FALLBACK;
 
@@ -259,7 +264,7 @@ function AssetGroupCard({
       setCustom({});
       setValidatedSig(null); setValidateExec(null); setWriteExec(null);
     } catch (e) {
-      setDraftErr(e instanceof ApiError ? e.message : "Không tạo được bản thay — thử lại sau");
+      setDraftErr(e instanceof ApiError ? e.message : t("google.pmaxAssetHealth.draftError"));
     } finally { setDrafting(false); }
   }
 
@@ -272,7 +277,7 @@ function AssetGroupCard({
       setValidateExec(exec);
       setValidatedSig(exec.status === "done" ? sig : null);
     } catch (e) {
-      setValidateErr(e instanceof ApiError ? e.message : "Không kiểm được — thử lại sau");
+      setValidateErr(e instanceof ApiError ? e.message : t("google.pmaxAssetHealth.validateError"));
       setValidatedSig(null);
     } finally { setValidating(false); }
   }
@@ -288,10 +293,10 @@ function AssetGroupCard({
         setDraftItems(null); setCheckedWeak({});
         onApplied();
       } else {
-        setApplyErr("Google từ chối — xem chi tiết bên dưới, chưa đóng hộp thoại.");
+        setApplyErr(t("google.pmaxAssetHealth.applyRejected"));
       }
     } catch (e) {
-      setApplyErr(e instanceof ApiError ? e.message : "Không ghi được — thử lại sau");
+      setApplyErr(e instanceof ApiError ? e.message : t("google.pmaxAssetHealth.applyError"));
     } finally { setApplying(false); }
   }
 
@@ -302,7 +307,7 @@ function AssetGroupCard({
           <p className="truncate text-sm font-bold text-slate-800" title={group.name}>{group.name}</p>
           <p className="truncate text-[11px] text-slate-400" title={group.campaignName}>{group.campaignName}</p>
         </div>
-        <Badge cls={strength.cls}>{strength.label}</Badge>
+        <Badge cls={strength.cls}>{t(strength.label)}</Badge>
       </div>
 
       <div className="text-[11px] text-slate-500">
@@ -314,7 +319,7 @@ function AssetGroupCard({
         <div className="flex flex-wrap gap-1.5">
           {group.missing.map((m) => (
             <Badge key={m.field} cls={m.required ? "bg-red-50 text-red-700 border-red-200" : "bg-amber-50 text-amber-700 border-amber-200"}>
-              Thiếu {m.label}: {m.have}/{m.need}
+              {t("google.pmaxAssetHealth.missing", { label: m.label, have: m.have, need: m.need })}
             </Badge>
           ))}
         </div>
@@ -322,7 +327,7 @@ function AssetGroupCard({
 
       {group.disapproved.length > 0 && (
         <div className="space-y-1 rounded-lg border border-red-100 bg-red-50/50 p-2.5">
-          <p className="text-[11px] font-semibold text-red-700">Bị từ chối ({group.disapproved.length})</p>
+          <p className="text-[11px] font-semibold text-red-700">{t("google.pmaxAssetHealth.disapproved", { n: group.disapproved.length })}</p>
           <ul className="space-y-0.5 text-[11px] text-red-700">
             {group.disapproved.map((a) => <li key={a.link}>{fieldLabels[a.field] ?? a.field}: {a.label}</li>)}
           </ul>
@@ -331,7 +336,7 @@ function AssetGroupCard({
 
       {group.weak.length > 0 && (
         <div className="space-y-1.5">
-          <p className="text-[11px] font-semibold text-slate-600">Asset chữ yếu ({group.weak.length})</p>
+          <p className="text-[11px] font-semibold text-slate-600">{t("google.pmaxAssetHealth.weakAssets", { n: group.weak.length })}</p>
           <div className="space-y-1">
             {group.weak.map((w) => (
               <label key={w.link} className={cn("flex items-start gap-2 rounded-lg border p-2 text-[11px]", checkedWeak[w.link] ? "border-indigo-200 bg-indigo-50/40" : "border-slate-100 bg-slate-50/40", !canEdit && "opacity-70")}>
@@ -345,7 +350,7 @@ function AssetGroupCard({
           </div>
           {canEdit && (
             <Button type="button" variant="outline" size="sm" className="h-9 bg-white" onClick={doDraft} disabled={drafting || !Object.values(checkedWeak).some(Boolean)}>
-              {drafting ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />} Viết bản thay (Gemini)
+              {drafting ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />} {t("google.pmaxAssetHealth.draftBtn")}
             </Button>
           )}
           {draftErr && <p className="text-xs text-red-600">{draftErr}</p>}
@@ -354,7 +359,7 @@ function AssetGroupCard({
 
       {draftItems && draftItems.length > 0 && (
         <div className="space-y-2 rounded-xl border border-indigo-200 bg-indigo-50/30 p-3">
-          <p className="text-xs font-semibold text-indigo-900">{draftItems.length} bản thay do Gemini viết</p>
+          <p className="text-xs font-semibold text-indigo-900">{t("google.pmaxAssetHealth.draftCount", { n: draftItems.length })}</p>
           <div className="space-y-2">
             {draftItems.map((it) => (
               <ReplacementItemCard
@@ -373,15 +378,15 @@ function AssetGroupCard({
             <div className="space-y-2 border-t border-indigo-100 pt-2">
               <div className="flex flex-wrap items-center gap-2">
                 <Button type="button" variant="outline" size="sm" className="h-9 bg-white" onClick={doValidate} disabled={!swaps.length || validating}>
-                  {validating ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : null} Kiểm trước (không ghi)
+                  {validating ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : null} {t("google.pmaxAssetHealth.validate")}
                 </Button>
                 <Button
                   type="button" size="sm" className="h-9"
                   onClick={() => { setConfirmInput(""); setApplyErr(null); setApplyOpen(true); }}
                   disabled={!canApply}
-                  title={!canApply ? "Kiểm trước rồi mới áp dụng được" : undefined}
+                  title={!canApply ? t("google.pmaxAssetHealth.validateFirst") : undefined}
                 >
-                  Áp dụng{swaps.length > 0 ? ` (${swaps.length})` : ""}
+                  {t("google.pmaxAssetHealth.apply")}{swaps.length > 0 ? ` (${swaps.length})` : ""}
                 </Button>
               </div>
               {validateErr && <p className="text-xs text-red-600">{validateErr}</p>}
@@ -395,7 +400,7 @@ function AssetGroupCard({
       <div>
         <button type="button" onClick={() => setTableOpen((o) => !o)} className="flex items-center gap-1 text-[11px] font-semibold text-indigo-600 hover:text-indigo-700">
           {tableOpen ? <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" /> : <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />}
-          {group.assets.length} asset trong nhóm
+          {t("google.pmaxAssetHealth.assetsInGroup", { n: group.assets.length })}
         </button>
         {tableOpen && (
           <div className="mt-2 space-y-3">
@@ -407,12 +412,12 @@ function AssetGroupCard({
                       <th className="px-2 py-1.5 font-medium" colSpan={6}>{fieldLabels[f] ?? f}</th>
                     </tr>
                     <tr className="border-b border-slate-100 text-left text-slate-400">
-                      <th className="px-2 py-1 font-medium">Nội dung</th>
-                      <th className="px-2 py-1 font-medium text-right">Hiển thị</th>
-                      <th className="px-2 py-1 font-medium text-right">Bấm</th>
+                      <th className="px-2 py-1 font-medium">{t("google.pmaxAssetHealth.col.content")}</th>
+                      <th className="px-2 py-1 font-medium text-right">{t("google.pmaxAssetHealth.col.impressions")}</th>
+                      <th className="px-2 py-1 font-medium text-right">{t("google.pmaxAssetHealth.col.clicks")}</th>
                       <th className="px-2 py-1 font-medium text-right">CTR</th>
-                      <th className="px-2 py-1 font-medium text-right">Chi phí</th>
-                      <th className="px-2 py-1 font-medium text-right">Chuyển đổi</th>
+                      <th className="px-2 py-1 font-medium text-right">{t("google.pmaxAssetHealth.col.cost")}</th>
+                      <th className="px-2 py-1 font-medium text-right">{t("google.pmaxAssetHealth.col.conversions")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -421,7 +426,7 @@ function AssetGroupCard({
                 </table>
               </div>
             ))}
-            <p className="text-[10px] italic text-slate-400">Đơn theo asset gồm cả đơn sau lượt xem (Google không cho tách) — chấm theo tỉ lệ bấm.</p>
+            <p className="text-[10px] italic text-slate-400">{t("google.pmaxAssetHealth.assetNote")}</p>
           </div>
         )}
       </div>
@@ -429,24 +434,24 @@ function AssetGroupCard({
       <Dialog open={applyOpen} onOpenChange={(o) => { setApplyOpen(o); if (!o) setConfirmInput(""); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Ghi {swaps.length} bản thay lên tài khoản thật {company}?</DialogTitle>
-            <DialogDescription>Có thể hoàn tác sau nếu cần.</DialogDescription>
+            <DialogTitle>{t("google.pmaxAssetHealth.dlgTitle", { n: swaps.length, company })}</DialogTitle>
+            <DialogDescription>{t("google.pmaxAssetHealth.dlgDesc")}</DialogDescription>
           </DialogHeader>
           <ul className="max-h-56 space-y-1.5 overflow-y-auto rounded-lg border border-slate-100 bg-slate-50 p-2.5 text-xs">
             {swaps.map((s) => <li key={s.link} className="text-slate-700">&ldquo;{s.newText}&rdquo;</li>)}
           </ul>
           <div className="space-y-1.5">
             <label htmlFor={confirmId} className="text-xs font-medium text-slate-500">
-              Gõ <code className="rounded bg-slate-100 px-1 py-0.5">{confirmText}</code> để xác nhận
+              {t("google.pmaxAssetHealth.typeA")} <code className="rounded bg-slate-100 px-1 py-0.5">{confirmText}</code> {t("google.pmaxAssetHealth.typeB")}
             </label>
             <Input id={confirmId} value={confirmInput} onChange={(e) => setConfirmInput(e.target.value)} placeholder={confirmText} autoComplete="off" className="h-10" />
           </div>
           {applyErr && <p className="text-xs text-red-600">{applyErr}</p>}
           {writeExec && writeExec.status !== "done" && <SwapResultCard exec={writeExec} />}
           <DialogFooter>
-            <DialogClose render={<Button className="h-10" variant="outline" />}>Huỷ</DialogClose>
+            <DialogClose render={<Button className="h-10" variant="outline" />}>{t("google.pmaxAssetHealth.cancel")}</DialogClose>
             <Button className="h-10" onClick={doApply} disabled={applying || confirmInput.trim() !== confirmText}>
-              {applying && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} Ghi thật
+              {applying && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} {t("google.pmaxAssetHealth.writeReal")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -458,13 +463,14 @@ function AssetGroupCard({
 // ── Lịch sử thay asset ──
 
 function SwapHistoryRow({ h, onUndo }: { h: SwapExecution; onUndo: (id: string) => void }) {
+  const t = useT();
   const ok = h.status === "done";
   return (
     <div className={cn("rounded-lg border p-3 text-xs", ok ? "border-emerald-100 bg-emerald-50/30" : "border-red-100 bg-red-50/30")}>
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <span className={cn("flex items-center gap-1 font-semibold", ok ? "text-emerald-700" : "text-red-700")}>
           {ok ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> : <XCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
-          {h.mode === "validate" ? "Kiểm trước" : "Đã ghi"}
+          {h.mode === "validate" ? t("google.pmaxAssetHealth.histValidate") : t("google.pmaxAssetHealth.histWritten")}
         </span>
         <span className="text-slate-400">{datetimeVN(h.at)}</span>
         <span className="text-slate-500">{h.by}</span>
@@ -480,13 +486,13 @@ function SwapHistoryRow({ h, onUndo }: { h: SwapExecution; onUndo: (id: string) 
       {h.mode === "write" && (
         h.undoneAt ? (
           <div className="mt-2 rounded-md border border-slate-200 bg-white p-2 text-slate-600">
-            <p className="font-semibold">Đã hoàn tác lúc {datetimeVN(h.undoneAt)}</p>
+            <p className="font-semibold">{t("google.pmaxAssetHealth.undoneAt", { time: datetimeVN(h.undoneAt) })}</p>
             {h.undoReport && h.undoReport.length > 0 && <ul className="mt-1 list-disc space-y-0.5 pl-4">{h.undoReport.map((l, i) => <li key={i}>{l}</li>)}</ul>}
           </div>
         ) : ok ? (
           <div className="mt-2 flex justify-end">
             <Button variant="destructive" size="sm" className="h-8" onClick={() => onUndo(h.id)}>
-              <Undo2 className="h-3.5 w-3.5" aria-hidden="true" /> Hoàn tác
+              <Undo2 className="h-3.5 w-3.5" aria-hidden="true" /> {t("google.pmaxAssetHealth.undo")}
             </Button>
           </div>
         ) : null
@@ -496,6 +502,7 @@ function SwapHistoryRow({ h, onUndo }: { h: SwapExecution; onUndo: (id: string) 
 }
 
 function SwapHistorySection({ history, company, onChanged }: { history: SwapExecution[]; company: Company; onChanged: () => void }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [undoId, setUndoId] = useState<string | null>(null);
   const [undoing, setUndoing] = useState(false);
@@ -508,7 +515,7 @@ function SwapHistorySection({ history, company, onChanged }: { history: SwapExec
       setUndoId(null);
       onChanged();
     } catch (e) {
-      setUndoErr(e instanceof ApiError ? e.message : "Không hoàn tác được — thử lại sau");
+      setUndoErr(e instanceof ApiError ? e.message : t("google.pmaxAssetHealth.undoError"));
     } finally { setUndoing(false); }
   }
 
@@ -518,7 +525,7 @@ function SwapHistorySection({ history, company, onChanged }: { history: SwapExec
     <div>
       <button type="button" onClick={() => setOpen((o) => !o)} className="flex items-center gap-1 text-xs font-semibold text-slate-600 hover:text-slate-800">
         {open ? <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" /> : <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />}
-        Lịch sử thay asset ({history.length})
+        {t("google.pmaxAssetHealth.history", { n: history.length })}
       </button>
       {undoErr && <p className="mt-1 text-xs text-red-600">{undoErr}</p>}
       {open && (
@@ -529,14 +536,14 @@ function SwapHistorySection({ history, company, onChanged }: { history: SwapExec
       <Dialog open={!!undoId} onOpenChange={(o) => { if (!o) { setUndoId(null); setUndoErr(null); } }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle className="text-red-600">Hoàn tác lần thay asset này?</DialogTitle>
-            <DialogDescription>Gắn lại asset cũ, gỡ asset vừa tạo — sửa tay của người khác sau đó được giữ nguyên.</DialogDescription>
+            <DialogTitle className="text-red-600">{t("google.pmaxAssetHealth.undoTitle")}</DialogTitle>
+            <DialogDescription>{t("google.pmaxAssetHealth.undoDesc")}</DialogDescription>
           </DialogHeader>
           {undoErr && <p className="text-xs text-red-600">{undoErr}</p>}
           <DialogFooter>
-            <DialogClose render={<Button className="h-10" variant="outline" />}>Giữ nguyên</DialogClose>
+            <DialogClose render={<Button className="h-10" variant="outline" />}>{t("google.pmaxAssetHealth.keep")}</DialogClose>
             <Button className="h-10" variant="destructive" onClick={() => undoId && runUndo(undoId)} disabled={undoing}>
-              {undoing && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} Hoàn tác
+              {undoing && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} {t("google.pmaxAssetHealth.undo")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -548,6 +555,7 @@ function SwapHistorySection({ history, company, onChanged }: { history: SwapExec
 // ── Root ──
 
 export function AssetHealthPanel({ company }: { company: Company }) {
+  const t = useT();
   const [range, setRange] = useState<DateRangeValue>(() => lastDays(DEFAULT_VIEW_DAYS));
   const [data, setData] = useState<AssetsResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -561,7 +569,7 @@ export function AssetHealthPanel({ company }: { company: Company }) {
       const json = await getJson(`/api/google/pmax/assets?company=${company}&from=${range.from}&to=${range.to}`);
       setData(json as AssetsResponse);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Lỗi kết nối tới Google Ads");
+      setError(e instanceof ApiError ? e.message : t("google.pmaxAssetHealth.connError"));
     } finally {
       setLoading(false); setReloading(false);
     }
@@ -575,13 +583,13 @@ export function AssetHealthPanel({ company }: { company: Company }) {
     <section className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h3 className="text-base font-extrabold text-slate-900">Sức khoẻ Asset</h3>
-          <p className="mt-1 text-xs text-slate-500">Chấm từng asset group PMax theo số liệu thật + ad strength — Google đã bỏ nhãn chất lượng asset.</p>
+          <h3 className="text-base font-extrabold text-slate-900">{t("google.pmaxAssetHealth.title")}</h3>
+          <p className="mt-1 text-xs text-slate-500">{t("google.pmaxAssetHealth.intro")}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <DateRangeControl value={range} onChange={setRange} maxDays={MAX_RANGE_DAYS} />
           <Button type="button" variant="outline" size="sm" className="h-9 bg-white" onClick={refresh} disabled={loading || reloading}>
-            {reloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />} Tải lại
+            {reloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />} {t("google.pmaxAssetHealth.reload")}
           </Button>
         </div>
       </div>
@@ -600,18 +608,18 @@ export function AssetHealthPanel({ company }: { company: Company }) {
         <>
           {!data.canEdit && (
             <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
-              🔒 Cần quyền sửa để thay asset — xem được, không ghi được.
+              {t("google.pmaxAssetHealth.readOnly")}
             </p>
           )}
 
           {data.errors.length > 0 && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              ⚠ Đọc thiếu một phần dữ liệu: {data.errors.join(" · ")}
+              {t("google.pmaxAssetHealth.partialData", { errors: data.errors.join(" · ") })}
             </div>
           )}
 
           {data.groups.length === 0 ? (
-            <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-6 text-center text-xs text-slate-400">Không có asset group PMax nào đang bật.</p>
+            <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-6 text-center text-xs text-slate-400">{t("google.pmaxAssetHealth.empty")}</p>
           ) : (
             <div className="space-y-3">
               {data.groups.map((g) => (

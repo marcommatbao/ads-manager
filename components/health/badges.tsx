@@ -8,6 +8,7 @@ import type {
   JobHealthStatus, ConnectorHealthStatus, JobRiskLevel, JobScheduledBy,
 } from "./types";
 import type { NumberCheck } from "@/lib/jobs/numbers-check";
+import type { MessageKey } from "@/lib/i18n/messages";
 
 export function Badge({ cls, children }: { cls: string; children: React.ReactNode }) {
   return (
@@ -17,23 +18,23 @@ export function Badge({ cls, children }: { cls: string; children: React.ReactNod
   );
 }
 
-export const JOB_STATUS_META: Record<JobHealthStatus, { label: string; cls: string }> = {
-  failed:  { label: "Lỗi",                    cls: "bg-red-50 text-red-700 border-red-200" },
-  missed:  { label: "Lỡ lịch",                cls: "bg-red-50 text-red-700 border-red-200" },
-  stale:   { label: "Im lâu",                 cls: "bg-amber-50 text-amber-700 border-amber-200" },
-  paused:  { label: "Đang tắt",               cls: "bg-slate-100 text-slate-600 border-slate-200" },
-  waiting: { label: "Chờ lần chạy đầu",       cls: "bg-sky-50 text-sky-700 border-sky-200" },
-  never:   { label: "Chưa từng chạy",         cls: "bg-slate-100 text-slate-500 border-slate-200" },
-  ok:      { label: "Bình thường",            cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+export const JOB_STATUS_META: Record<JobHealthStatus, { label: MessageKey; cls: string }> = {
+  failed:  { label: "overview.health.badge.job.failed", cls: "bg-red-50 text-red-700 border-red-200" },
+  missed:  { label: "overview.health.badge.job.missed", cls: "bg-red-50 text-red-700 border-red-200" },
+  stale:   { label: "overview.health.badge.job.stale", cls: "bg-amber-50 text-amber-700 border-amber-200" },
+  paused:  { label: "overview.health.badge.job.paused", cls: "bg-slate-100 text-slate-600 border-slate-200" },
+  waiting: { label: "overview.health.badge.job.waiting", cls: "bg-sky-50 text-sky-700 border-sky-200" },
+  never:   { label: "overview.health.badge.job.never", cls: "bg-slate-100 text-slate-500 border-slate-200" },
+  ok:      { label: "overview.health.badge.job.ok", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
 };
 
-export const CONNECTOR_STATUS_META: Record<ConnectorHealthStatus, { label: string; cls: string }> = {
-  healthy:         { label: "Khoẻ",             cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-  auth_error:      { label: "Lỗi xác thực",     cls: "bg-red-50 text-red-700 border-red-200" },
-  service_error:   { label: "Dịch vụ lỗi",      cls: "bg-red-50 text-red-700 border-red-200" },
-  missing_config:  { label: "Chưa cấu hình",    cls: "bg-slate-100 text-slate-500 border-slate-200" },
-  disabled:        { label: "Đã tắt",           cls: "bg-slate-100 text-slate-500 border-slate-200" },
-  warning:         { label: "Cần kiểm lại",     cls: "bg-amber-50 text-amber-700 border-amber-200" },
+export const CONNECTOR_STATUS_META: Record<ConnectorHealthStatus, { label: MessageKey; cls: string }> = {
+  healthy:         { label: "overview.health.badge.conn.healthy", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  auth_error:      { label: "overview.health.badge.conn.auth_error", cls: "bg-red-50 text-red-700 border-red-200" },
+  service_error:   { label: "overview.health.badge.conn.service_error", cls: "bg-red-50 text-red-700 border-red-200" },
+  missing_config:  { label: "overview.health.badge.conn.missing_config", cls: "bg-slate-100 text-slate-500 border-slate-200" },
+  disabled:        { label: "overview.health.badge.conn.disabled", cls: "bg-slate-100 text-slate-500 border-slate-200" },
+  warning:         { label: "overview.health.badge.conn.warning", cls: "bg-amber-50 text-amber-700 border-amber-200" },
 };
 
 export const RISK_META: Record<JobRiskLevel, { label: string; cls: string }> = {
@@ -42,14 +43,14 @@ export const RISK_META: Record<JobRiskLevel, { label: string; cls: string }> = {
   high:   { label: "HIGH",   cls: "bg-red-50 text-red-700 border border-red-200" },
 };
 
-export const NUMBERS_STATUS_META: Record<NumberCheck["status"], { label: string; cls: string }> = {
-  ok:   { label: "Khớp",              cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-  lech: { label: "Lệch",              cls: "bg-red-50 text-red-700 border-red-200" },
-  loi:  { label: "Không đọc được",    cls: "bg-amber-50 text-amber-700 border-amber-200" },
+export const NUMBERS_STATUS_META: Record<NumberCheck["status"], { label: MessageKey; cls: string }> = {
+  ok:   { label: "overview.health.badge.num.ok", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  lech: { label: "overview.health.badge.num.lech", cls: "bg-red-50 text-red-700 border-red-200" },
+  loi:  { label: "overview.health.badge.num.loi", cls: "bg-amber-50 text-amber-700 border-amber-200" },
 };
 
-export const SCHEDULED_BY_LABEL: Record<JobScheduledBy, string> = {
-  entrypoint: "Crontab",
-  tick: "Nhịp điều phối",
-  manual: "Chạy tay",
+export const SCHEDULED_BY_LABEL: Record<JobScheduledBy, MessageKey> = {
+  entrypoint: "overview.health.badge.by.entrypoint",
+  tick: "overview.health.badge.by.tick",
+  manual: "overview.health.badge.by.manual",
 };

@@ -14,6 +14,7 @@ import { DateRangeControl, type DateRangeValue } from "@/components/DateRangeCon
 import { DEFAULT_VIEW_DAYS, MAX_RANGE_DAYS, isYmd, lastDays } from "@/lib/case/dates";
 import { CreativeTruthView } from "@/components/meta/CreativeTruthView";
 import { companyIds } from "@/lib/companies/registry";
+import { useT } from "@/lib/i18n/client";
 
 type Company = string;
 
@@ -33,6 +34,7 @@ export default function CreativeTruthPage() {
 }
 
 function CreativeTruthPageInner() {
+  const t = useT();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [company, setCompany] = useState<Company>(searchParams.get("company") === "MBI" ? "MBI" : "MBC");
@@ -47,9 +49,9 @@ function CreativeTruthPageInner() {
     <div className="p-6 max-w-7xl mx-auto space-y-5">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">🎯 Creative theo đơn thật</h1>
+          <h1 className="text-xl font-bold text-slate-900">{t("meta.truth.page.title")}</h1>
           <p className="text-sm text-slate-500 mt-1 max-w-2xl">
-            Mẫu quảng cáo nào thật sự ra đơn — chấm theo đơn đã thu tiền hoặc lượt bấm, không theo &quot;mua hàng&quot; Meta tự báo (phần lớn là người chỉ xem).
+            {t("meta.truth.page.subtitle")}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">

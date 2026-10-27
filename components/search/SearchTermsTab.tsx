@@ -20,6 +20,9 @@ import {
 } from "@/lib/search-term-plan";
 import { useToast } from "@/components/Toast";
 import { useGuardedWrite, type GuardedCall } from "@/components/ConfirmWriteDialog";
+import { useIntlLocale, useT } from "@/lib/i18n/client";
+
+const rich = (s: string) => s.split(/<b>(.*?)<\/b>/).map((part, i) => (i % 2 ? <b key={i}>{part}</b> : part));
 
 type Company = string;
 
@@ -41,7 +44,7 @@ interface Term {
   blast?: { terms: number; conversions: number; cost: number };
 }
 
-const vnd = (n: number) => `₫${Math.round(n).toLocaleString("vi-VN")}`;
+const fmtVnd = (n: number, intl: string) => `₫${Math.round(n).toLocaleString(intl)}`;
 const ymd = (d: Date) => {
   const p = (x: number) => String(x).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
@@ -53,6 +56,9 @@ const json = (u: string) => fetch(u).then(r => r.json());
 // được mà không cần mở trình duyệt.
 
 export function SearchTermsTab({ company }: { company: Company }) {
+  const t = useT();
+  const intl = useIntlLocale();
+  const vnd = (n: number) => fmtVnd(n, intl);
   const now = new Date();
   const [from, setFrom] = useState(ymd(new Date(now.getTime() - 29 * 86400000)));
   const [to, setTo] = useState(ymd(now));
@@ -205,7 +211,7 @@ export function SearchTermsTab({ company }: { company: Company }) {
     // không có nút hoàn tác, và tool tạo campaign ở trạng thái tạm dừng chính
     // là để bước bật lên luôn là một quyết định có ý thức.
     if (turningOn && !confirm(
-      `Bật "${c.name}"?\n\nCampaign sẽ BẮT ĐẦU TIÊU TIỀN với ngân sách ${vnd(c.dailyBudget)}/ngày.`,
+      t("google.searchTerms.confirmEnable", { name: c.name, budget: vnd(c.dailyBudget) }),
     )) return;
     setBusyId(c.id); setErr(c.id, null);
     try {
@@ -214,16 +220,16 @@ export function SearchTermsTab({ company }: { company: Company }) {
         body: JSON.stringify({ action: turningOn ? "ACTIVE" : "PAUSE", company }),
       });
       const d = await res.json();
-      if (!d.success) throw new Error(d.error ?? "Không đổi được trạng thái");
+      if (!d.success) throw new Error(d.error ?? t("google.searchTerms.statusFailed"));
       await reloadCamps();
     } catch (e) {
-      setErr(c.id, e instanceof Error ? e.message : "Lỗi không rõ");
+      setErr(c.id, e instanceof Error ? e.message : t("google.searchTerms.unknownError"));
     } finally { setBusyId(null); }
   }
 
   async function saveBudget(c: Campaign) {
     const v = Number(budgetDraft[c.id]);
-    if (!Number.isFinite(v) || v <= 0) { setErr(c.id, "Ngân sách phải là số lớn hơn 0"); return; }
+    if (!Number.isFinite(v) || v <= 0) { setErr(c.id, t("google.searchTerms.budgetInvalid")); return; }
     setBusyId(c.id); setErr(c.id, null);
     try {
       const res = await fetch(`/api/google/campaigns/${c.id}/budget`, {
@@ -231,11 +237,11 @@ export function SearchTermsTab({ company }: { company: Company }) {
         body: JSON.stringify({ dailyBudget: v, company }),
       });
       const d = await res.json();
-      if (!d.success) throw new Error(d.error ?? "Không đổi được ngân sách");
+      if (!d.success) throw new Error(d.error ?? t("google.searchTerms.budgetFailed"));
       setBudgetDraft(prev => { const n = { ...prev }; delete n[c.id]; return n; });
       await reloadCamps();
     } catch (e) {
-      setErr(c.id, e instanceof Error ? e.message : "Lỗi không rõ");
+      setErr(c.id, e instanceof Error ? e.message : t("google.searchTerms.unknownError"));
     } finally { setBusyId(null); }
   }
 
@@ -261,31 +267,30 @@ export function SearchTermsTab({ company }: { company: Company }) {
             campaignId: t.campaignId,
           })),
         },
-        label: `Chặn ${chosen.length} cụm: ${chosen.slice(0, 5).map(t => t.searchTerm).join(", ")}${chosen.length > 5 ? "…" : ""}`,
+        label: t("google.searchTerms.neg.label", { n: chosen.length, list: chosen.slice(0, 5).map(x => x.searchTerm).join(", ") + (chosen.length > 5 ? "…" : "") }),
       };
       await guard.run(
         [call],
         {
-          title: `Chặn ${chosen.length} cụm tìm kiếm?`,
+          title: t("google.searchTerms.neg.title", { n: chosen.length }),
           company,
-          description: `Loại khớp do công cụ chọn theo từng cụm: ${exact} cụm khớp CHÍNH XÁC (vì chặn khớp cụm sẽ nuốt theo cụm đang ra đơn), ` +
-            `${chosen.length - exact} cụm khớp CỤM. Ghi thẳng lên Google Ads — có thể hoàn tác sau.`,
+          description: t("google.searchTerms.neg.desc", { exact, phrase: chosen.length - exact }),
         },
         {
           onValidateFail: (message) => setNegMsg(`❌ ${message}`),
           onSuccess: (results) => {
             const saved = chosen.reduce((s, t) => s + t.cost, 0);
-            setNegMsg(`✅ Đã chặn ${chosen.length} cụm. Chúng đã tiêu ${vnd(saved)} trong 30 ngày mà 0 chuyển đổi.`);
+            setNegMsg(t("google.searchTerms.neg.done", { n: chosen.length, saved: vnd(saved) }));
             setPicked(new Set());
             void reloadTerms();
             toast({
-              title: `✅ Đã chặn ${chosen.length} cụm tìm kiếm`,
+              title: t("google.searchTerms.neg.toast", { n: chosen.length }),
               variant: "success",
               action: guard.undoAction(company, [results[0].writeId]),
             });
           },
           onFailure: (results) => {
-            setNegMsg(`❌ ${results[0].error ?? "Không thêm được"}`);
+            setNegMsg(`❌ ${results[0].error ?? t("google.searchTerms.neg.failed")}`);
           },
         },
       );
@@ -328,18 +333,17 @@ export function SearchTermsTab({ company }: { company: Company }) {
             adGroupId: t.adGroupId,
           })),
         },
-        label: `Thêm ${nTerms} cụm → ${chosen.length} từ khoá vào ${nGroups} nhóm quảng cáo`,
+        label: t("google.searchTerms.add.label", { terms: nTerms, kw: chosen.length, groups: nGroups }),
       };
       await guard.run(
         [call],
         {
-          title: `Thêm ${nTerms} cụm → ghi ${chosen.length} từ khoá vào ${nGroups} nhóm quảng cáo?`,
+          title: t("google.searchTerms.add.title", { terms: nTerms, kw: chosen.length, groups: nGroups }),
           company,
-          description:
-            `Loại khớp: ${addMatch === "AUTO" ? "theo đề xuất từng cụm" : addMatch === "EXACT" ? "khớp chính xác" : "khớp cụm"}. ` +
-            `Chúng đã mang về ${conv.toFixed(1)} chuyển đổi trong 30 ngày mà chưa có từ khoá nào phủ. ` +
-            `Ghi MỘT LỆNH NGUYÊN KHỐI cho cả lô: một từ khoá bị từ chối (hay gặp: trùng từ khoá đang tạm dừng) là CẢ LÔ không vào được. ` +
-            `Từ khoá tạo ra KHÔNG kèm giá thầu — vào Google Ads đặt giá thầu sau khi thêm.`,
+          description: t("google.searchTerms.add.desc", {
+            match: addMatch === "AUTO" ? t("google.searchTerms.add.matchAuto") : addMatch === "EXACT" ? t("google.searchTerms.add.matchExact") : t("google.searchTerms.add.matchPhrase"),
+            conv: conv.toFixed(1),
+          }),
         },
         {
           onValidateFail: (message) => setAddMsg(`❌ ${message}`),
@@ -351,19 +355,19 @@ export function SearchTermsTab({ company }: { company: Company }) {
             const ok = rawResults.length ? rawResults.filter(r => r.success).length : chosen.length;
             const failed = rawResults.filter(r => !r.success);
             setAddMsg(
-              `✅ Đã thêm ${ok}/${chosen.length} từ khoá — nhớ vào Google Ads đặt giá thầu, chúng đang dùng giá mặc định của nhóm.` +
-              (failed.length > 0 ? ` ❌ Không thêm được: ${failed.map(r => `${r.keyword} (${r.error ?? "?"})`).join(" · ")}` : ""),
+              t("google.searchTerms.add.done", { ok, total: chosen.length }) +
+              (failed.length > 0 ? t("google.searchTerms.add.someFailed", { list: failed.map(r => `${r.keyword} (${r.error ?? "?"})`).join(" · ") }) : ""),
             );
             setPickedAdd(new Set());
             void reloadTerms();
             toast({
-              title: `✅ Đã thêm ${ok}/${chosen.length} từ khoá`,
+              title: t("google.searchTerms.add.toast", { ok, total: chosen.length }),
               variant: failed.length ? "error" : "success",
               action: guard.undoAction(company, [results[0].writeId]),
             });
           },
           onFailure: (results) => {
-            setAddMsg(`❌ ${results[0].error ?? "Không thêm được"}`);
+            setAddMsg(`❌ ${results[0].error ?? t("google.searchTerms.add.failed")}`);
           },
         },
       );
@@ -377,14 +381,13 @@ export function SearchTermsTab({ company }: { company: Company }) {
     <div className="space-y-5">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <p className="text-sm text-slate-500 max-w-2xl">
-          Bật/tắt, đổi ngân sách, chặn cụm tìm kiếm đốt tiền, xem Google duyệt tới đâu — cho campaign
-          Search. Số liệu chiến dịch theo kỳ <b>{from} → {to}</b>.
+          {rich(t("google.searchTerms.intro", { from, to }))}
         </p>
         <div className="flex items-center gap-2">
           {/* Nút khoảng ngày nhanh — số liệu Google đổi hẳn theo kỳ, mà mở
               lịch chọn tay mỗi lần thì không ai đổi kỳ nữa. */}
           <div className="flex rounded-lg border border-slate-200 overflow-hidden">
-            {([[7, "7N"], [30, "30N"], [90, "90N"]] as const).map(([d, label]) => {
+            {([[7, t("google.searchTerms.range7")], [30, t("google.searchTerms.range30")], [90, t("google.searchTerms.range90")]] as const).map(([d, label]) => {
               const f = ymd(new Date(Date.now() - (d - 1) * 86400000));
               const active = from === f && to === ymd(new Date());
               return (
@@ -403,7 +406,7 @@ export function SearchTermsTab({ company }: { company: Company }) {
 
           <button onClick={() => { void reloadCamps(); void reloadTerms(); }}
             className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 flex items-center gap-1.5">
-            <RefreshCw className={cn("h-3.5 w-3.5", (campLoading || termLoading) && "animate-spin")} /> Tải lại
+            <RefreshCw className={cn("h-3.5 w-3.5", (campLoading || termLoading) && "animate-spin")} /> {t("google.searchTerms.reload")}
           </button>
         </div>
       </div>
@@ -413,7 +416,7 @@ export function SearchTermsTab({ company }: { company: Company }) {
         <div className="px-5 py-3 border-b border-slate-100 space-y-2.5">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <h2 className="text-sm font-bold text-slate-800">
-              Chiến dịch Search — hiện <b className="text-slate-900">{campaigns.length}</b>/{allSearch.length}
+              {t("google.searchTerms.campaignsTitle")}<b className="text-slate-900">{campaigns.length}</b>/{allSearch.length}
             </h2>
             {campLoading && <Loader2 className="h-4 w-4 animate-spin text-slate-400" />}
           </div>
@@ -424,18 +427,18 @@ export function SearchTermsTab({ company }: { company: Company }) {
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px]">
               <span className="flex items-center gap-1.5">
                 <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                <b className="text-slate-800">{stat.running}</b> <span className="text-slate-500">đang chạy</span>
+                <b className="text-slate-800">{stat.running}</b> <span className="text-slate-500">{t("google.searchTerms.running")}</span>
               </span>
               <span className="flex items-center gap-1.5">
                 <span className="h-2 w-2 rounded-full bg-slate-300" />
-                <b className="text-slate-700">{stat.paused}</b> <span className="text-slate-500">tạm dừng</span>
+                <b className="text-slate-700">{stat.paused}</b> <span className="text-slate-500">{t("google.searchTerms.paused")}</span>
               </span>
-              <span className="text-slate-500">Chi trong kỳ <b className="text-slate-900">{vnd(stat.totalSpend)}</b></span>
-              <span className="text-slate-500"><b className="text-slate-900">{stat.totalConv.toFixed(1)}</b> chuyển đổi</span>
+              <span className="text-slate-500">{t("google.searchTerms.spendInRange")} <b className="text-slate-900">{vnd(stat.totalSpend)}</b></span>
+              <span className="text-slate-500"><b className="text-slate-900">{stat.totalConv.toFixed(1)}</b> {t("google.searchTerms.conversions")}</span>
               <span className="text-slate-500">
                 {stat.totalConv > 0
-                  ? <>Trung bình <b className="text-slate-900">{vnd(stat.totalSpend / stat.totalConv)}</b>/ch.đổi</>
-                  : <i>chưa có chuyển đổi trong kỳ</i>}
+                  ? <>{t("google.searchTerms.average")} <b className="text-slate-900">{vnd(stat.totalSpend / stat.totalConv)}</b>{t("google.searchTerms.perConv")}</>
+                  : <i>{t("google.searchTerms.noConvInRange")}</i>}
               </span>
             </div>
           )}
@@ -446,13 +449,12 @@ export function SearchTermsTab({ company }: { company: Company }) {
             <div className="flex flex-wrap gap-2 text-[10px]">
               {stat.runningNoSpend > 0 && (
                 <span className="rounded bg-amber-50 border border-amber-200 text-amber-800 px-2 py-1">
-                  ⚠️ <b>{stat.runningNoSpend}</b> chiến dịch <b>đang chạy nhưng không tiêu đồng nào</b> trong kỳ —
-                  thường do hết ngân sách, giá thầu quá thấp, quảng cáo bị từ chối, hoặc từ khoá không ai tìm.
+                  {rich(t("google.searchTerms.runningNoSpend", { n: stat.runningNoSpend }))}
                 </span>
               )}
               {stat.pausedButSpent > 0 && (
                 <span className="rounded bg-slate-50 border border-slate-200 text-slate-600 px-2 py-1">
-                  ℹ️ <b>{stat.pausedButSpent}</b> chiến dịch <b>đã tạm dừng nhưng có tiêu</b> trong kỳ — bị dừng giữa kỳ.
+                  {rich(t("google.searchTerms.pausedButSpent", { n: stat.pausedButSpent }))}
                 </span>
               )}
             </div>
@@ -461,11 +463,11 @@ export function SearchTermsTab({ company }: { company: Company }) {
           <div className="flex items-center gap-2 flex-wrap">
             <div className="flex rounded-lg border border-slate-200 overflow-hidden">
               {([
-                ["active_or_spent", `Có hoạt động (${allSearch.filter(c => c.status === "ACTIVE" || (c.metrics ?? M0).spend > 0).length})`],
-                ["running", `Đang chạy (${stat.running})`],
-                ["spent", `Có chi tiêu (${stat.spent})`],
-                ["paused", `Tạm dừng (${stat.paused})`],
-                ["all", `Tất cả (${allSearch.length})`],
+                ["active_or_spent", t("google.searchTerms.filter.activeOrSpent", { n: allSearch.filter(c => c.status === "ACTIVE" || (c.metrics ?? M0).spend > 0).length })],
+                ["running", t("google.searchTerms.filter.running", { n: stat.running })],
+                ["spent", t("google.searchTerms.filter.spent", { n: stat.spent })],
+                ["paused", t("google.searchTerms.filter.paused", { n: stat.paused })],
+                ["all", t("google.searchTerms.filter.all", { n: allSearch.length })],
               ] as const).map(([v, label]) => (
                 <button key={v} onClick={() => setFilter(v)}
                   className={cn("px-2.5 py-1 text-[11px] font-semibold transition-colors",
@@ -476,10 +478,10 @@ export function SearchTermsTab({ company }: { company: Company }) {
             </div>
             <select value={sortBy} onChange={e => setSortBy(e.target.value as typeof sortBy)}
               className="text-[11px] border border-slate-200 rounded-lg px-2 py-1 text-slate-600">
-              <option value="spend">Sắp theo: chi nhiều nhất</option>
-              <option value="cpa">Sắp theo: giá mỗi chuyển đổi đắt nhất</option>
-              <option value="conv">Sắp theo: nhiều chuyển đổi nhất</option>
-              <option value="name">Sắp theo: tên A→Z</option>
+              <option value="spend">{t("google.searchTerms.sort.spend")}</option>
+              <option value="cpa">{t("google.searchTerms.sort.cpa")}</option>
+              <option value="conv">{t("google.searchTerms.sort.conv")}</option>
+              <option value="name">{t("google.searchTerms.sort.name")}</option>
             </select>
           </div>
         </div>
@@ -490,17 +492,16 @@ export function SearchTermsTab({ company }: { company: Company }) {
             bản đầu, khi trang báo (0) trong lúc campaign vẫn đang chạy. */}
         {!campLoading && campaigns.length === 0 && campData?.success === false && (
           <p className="px-5 py-6 text-sm text-red-700">
-            ❌ Không đọc được danh sách chiến dịch: {campData?.error ?? "lỗi không rõ"}.
-            Đây là <b>lỗi gọi API</b>, không phải tài khoản trống.
+            {rich(t("google.searchTerms.campaignsReadFailed", { error: campData?.error ?? t("google.searchTerms.unknownErrorLower") }))}
           </p>
         )}
         {!campLoading && campaigns.length === 0 && campData?.success !== false && (
           <p className="px-5 py-6 text-sm text-slate-500">
-            Không có chiến dịch <b>Search</b> nào ở {company}
+            {rich(t("google.searchTerms.noSearch", { company }))}
             {Array.isArray(campData?.data) && campData.data.length > 0 && (
-              <> (tài khoản có {campData.data.length} chiến dịch, nhưng không cái nào loại Search)</>
-            )}.
-            Tạo mới ở <b>Creative AI → Bước 3 → Google Ads</b>.
+              <>{t("google.searchTerms.noSearchOther", { n: campData.data.length })}</>
+            )}
+            {rich(t("google.searchTerms.createNew"))}
           </p>
         )}
 
@@ -518,34 +519,34 @@ export function SearchTermsTab({ company }: { company: Company }) {
                   <div className="flex-1 min-w-[200px]">
                     <p className="text-sm font-semibold text-slate-800">{c.name}</p>
                     <p className="text-[11px] text-slate-400 flex items-center gap-1.5 flex-wrap">
-                      <span>{c.status === "ACTIVE" ? "Đang chạy" : "Tạm dừng"} · ID {c.id}</span>
+                      <span>{c.status === "ACTIVE" ? t("google.searchTerms.statusRunning") : t("google.searchTerms.statusPaused")} · ID {c.id}</span>
                       {c.status === "ACTIVE" && m.spend === 0 && (
                         <span className="rounded bg-amber-100 text-amber-800 px-1.5 py-0.5 font-semibold"
-                          title="Đang bật nhưng không tiêu đồng nào trong kỳ">⚠️ bật mà không tiêu</span>
+                          title={t("google.searchTerms.onNoSpendTitle")}>{t("google.searchTerms.onNoSpend")}</span>
                       )}
                       {c.status !== "ACTIVE" && m.spend > 0 && (
                         <span className="rounded bg-slate-100 text-slate-600 px-1.5 py-0.5 font-semibold"
-                          title="Đã tạm dừng nhưng có tiêu trong kỳ — bị dừng giữa kỳ">dừng giữa kỳ</span>
+                          title={t("google.searchTerms.stoppedMidTitle")}>{t("google.searchTerms.stoppedMid")}</span>
                       )}
                     </p>
                   </div>
 
                   <div className="flex items-center gap-4 text-[11px] text-slate-600">
-                    <span title={`Chi phí ${from} → ${to}`}>
+                    <span title={t("google.searchTerms.costRange", { from, to })}>
                       {vnd(m.spend)}
                       {stat.totalSpend > 0 && m.spend > 0 && (
                         <span className="text-slate-400"> ({Math.round(m.spend / stat.totalSpend * 100)}%)</span>
                       )}
                     </span>
-                    <span>{m.clicks.toLocaleString("vi-VN")} nhấp</span>
-                    <span className="text-slate-400" title="Tỉ lệ nhấp · giá mỗi nhấp">
+                    <span>{m.clicks.toLocaleString(intl)} {t("google.searchTerms.clicksWord")}</span>
+                    <span className="text-slate-400" title={t("google.searchTerms.ctrCpcTitle")}>
                       {m.impressions > 0 ? `${m.ctr.toFixed(1)}%` : "—"} · {m.clicks > 0 ? vnd(m.cpc) : "—"}
                     </span>
-                    <span>{m.conversions.toFixed(1)} ch.đổi</span>
+                    <span>{m.conversions.toFixed(1)} {t("google.searchTerms.convShort")}</span>
                     {/* Chưa có chuyển đổi thì KHÔNG in "₫0" — 0 bị đọc thành
                         "miễn phí", trong khi sự thật là chưa đo được. */}
                     <span className={cn("font-semibold", cpa === null && "text-slate-400 italic")}>
-                      {cpa === null ? "chưa có ch.đổi" : `${vnd(cpa)}/ch.đổi`}
+                      {cpa === null ? t("google.searchTerms.noConvShort") : `${vnd(cpa)}${t("google.searchTerms.perConv")}`}
                     </span>
                   </div>
 
@@ -558,16 +559,16 @@ export function SearchTermsTab({ company }: { company: Company }) {
                           className="w-28 rounded border border-blue-400 px-2 py-1 text-xs outline-none" />
                         <button onClick={() => void saveBudget(c)} disabled={busy}
                           className="rounded bg-slate-800 text-white px-2 py-1 text-[11px] font-semibold disabled:opacity-50">
-                          {busy ? "..." : "Lưu"}
+                          {busy ? "..." : t("google.searchTerms.save")}
                         </button>
                         <button onClick={() => setBudgetDraft(p => { const n = { ...p }; delete n[c.id]; return n; })}
-                          className="text-[11px] text-slate-400 px-1">Huỷ</button>
+                          className="text-[11px] text-slate-400 px-1">{t("google.searchTerms.cancel")}</button>
                       </>
                     ) : (
                       <button onClick={() => setBudgetDraft(p => ({ ...p, [c.id]: String(c.dailyBudget) }))}
                         className="rounded border border-slate-200 px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-50"
-                        title="Đổi ngân sách ngày">
-                        {vnd(c.dailyBudget)}/ngày ✏️
+                        title={t("google.searchTerms.changeBudgetTitle")}>
+                        {t("google.searchTerms.budgetPerDayEdit", { amount: vnd(c.dailyBudget) })}
                       </button>
                     )}
 
@@ -577,8 +578,8 @@ export function SearchTermsTab({ company }: { company: Company }) {
                           ? "bg-slate-100 text-slate-700 hover:bg-slate-200"
                           : "bg-emerald-600 text-white hover:bg-emerald-700")}>
                       {busy ? <Loader2 className="h-3 w-3 animate-spin" />
-                        : c.status === "ACTIVE" ? <><Pause className="h-3 w-3" /> Tạm dừng</>
-                        : <><Play className="h-3 w-3" /> Bật</>}
+                        : c.status === "ACTIVE" ? <><Pause className="h-3 w-3" /> {t("google.searchTerms.pause")}</>
+                        : <><Play className="h-3 w-3" /> {t("google.searchTerms.enable")}</>}
                     </button>
                   </div>
                 </div>
@@ -595,12 +596,10 @@ export function SearchTermsTab({ company }: { company: Company }) {
       <div className="rounded-xl border border-emerald-200 bg-white shadow-sm overflow-hidden">
         <div className="px-5 py-3 border-b border-emerald-100 bg-emerald-50/40">
           <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-            <Plus className="h-4 w-4 text-emerald-600" /> Khách đang tìm nhiều — nên thêm làm từ khoá ({addGroups.length})
+            <Plus className="h-4 w-4 text-emerald-600" /> {t("google.searchTerms.add.heading", { n: addGroups.length })}
           </h2>
           <p className="text-[11px] text-slate-600 mt-0.5">
-            Đây là <b>cụm khách THẬT SỰ GÕ vào Google</b> (báo cáo cụm tìm kiếm), không phải từ khoá bạn đang chạy.
-            Chúng <b>đã mang về đơn thật</b> nhưng <b>chưa có từ khoá nào phủ</b> — bạn đang bắt được nhờ khớp rộng,
-            tức <b>bị động và không kiểm soát được giá thầu</b>. Thêm vào để chủ động ra giá. Tính 30 ngày gần nhất.
+            {rich(t("google.searchTerms.add.explain"))}
           </p>
         </div>
 
@@ -609,16 +608,16 @@ export function SearchTermsTab({ company }: { company: Company }) {
         {!termLoading && addGroups.length > 0 && (
           <div className="mx-5 mt-3 rounded-lg border border-slate-200 bg-slate-50/70 px-3.5 py-3">
             <p className="text-[11px] font-bold text-slate-800">
-              Việc nên làm tiếp theo
+              {t("google.searchTerms.nextSteps")}
               {benchmarkCpa !== null ? (
                 <span className="font-normal text-slate-500"
-                  title="Mốc = tổng chi phí ÷ tổng chuyển đổi của TẤT CẢ cụm tìm kiếm có nhấp, thuộc chiến dịch Search đang bật, trong 30 ngày. Cố ý không lấy số trung bình ở bảng chiến dịch phía trên: bảng đó chạy theo kỳ bạn chọn (7N/90N) nên trộn hai cửa sổ thời gian khác nhau vào một phép so sánh.">
-                  {" "}— chấm theo mốc CPA của cụm tìm kiếm (chiến dịch đang bật, 30 ngày):{" "}
-                  <b className="text-slate-700">{vnd(benchmarkCpa)}</b>/chuyển đổi
+                  title={t("google.searchTerms.benchTitle")}>
+                  {" "}{t("google.searchTerms.benchPrefix")}{" "}
+                  <b className="text-slate-700">{vnd(benchmarkCpa)}</b>{t("google.searchTerms.perConversion")}
                 </span>
               ) : (
                 <span className="font-normal text-amber-700">
-                  {" "}— 30 ngày qua chưa có chuyển đổi nào để làm mốc, nên <b>chưa xếp hạng được</b>.
+                  {" "}{rich(t("google.searchTerms.noBench"))}
                 </span>
               )}
             </p>
@@ -640,28 +639,24 @@ export function SearchTermsTab({ company }: { company: Company }) {
             người dùng tin vào một danh sách không đầy đủ. */}
         {capHit?.existingKeywords && (
           <p className="mx-5 mt-3 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
-            ⚠️ Tài khoản có <b>hơn 5.000 từ khoá</b> — truy vấn bị cắt ở mức đó, nên danh sách &quot;đã có từ khoá phủ&quot;
-            <b> chưa đầy đủ</b>. Một vài gợi ý bên dưới có thể là từ khoá <b>bạn đang chạy rồi</b>.
-            Đối chiếu trong Google Ads trước khi thêm.
+            {rich(t("google.searchTerms.capKeywords"))}
           </p>
         )}
         {capHit?.searchTerms && (
           <p className="mx-5 mt-3 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
-            ⚠️ Báo cáo cụm tìm kiếm bị cắt ở <b>5.000 dòng</b> — có cụm chưa được xét. Thu hẹp kỳ để đọc đủ hơn.
+            {rich(t("google.searchTerms.capTerms"))}
           </p>
         )}
         {conflicting.length > 0 && (
           <p className="mx-5 mt-3 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
-            ℹ️ <b>{conflicting.length}</b> cụm nằm ở <b>cả hai</b> danh sách. Không phải mâu thuẫn: Google báo cáo theo
-            <b> (cụm × nhóm quảng cáo)</b>, nên một cụm có thể ra đơn ở nhóm này và không ra đơn ở nhóm kia.
-            Chúng có nhãn riêng ở cả hai bảng.
+            {rich(t("google.searchTerms.conflicting", { n: conflicting.length }))}
           </p>
         )}
 
-        {termLoading && <p className="px-5 py-4 text-sm text-slate-400">Đang đọc từ Google...</p>}
+        {termLoading && <p className="px-5 py-4 text-sm text-slate-400">{t("google.searchTerms.loading")}</p>}
         {!termLoading && addGroups.length === 0 && (
           <p className="px-5 py-4 text-sm text-slate-500">
-            Không có cụm nào đủ điều kiện — nghĩa là mọi cụm đã ra đơn đều đã có từ khoá phủ. Đó là dấu hiệu tốt.
+            {t("google.searchTerms.add.none")}
           </p>
         )}
 
@@ -695,17 +690,17 @@ export function SearchTermsTab({ company }: { company: Company }) {
                   })()}
                   {isConflict(g.term) && (
                     <span className="rounded bg-amber-100 text-amber-800 px-1.5 py-0.5 text-[9px] font-bold shrink-0"
-                      title="Cụm này cũng nằm trong danh sách nên chặn — vì nó ra đơn ở nhóm quảng cáo này nhưng không ra đơn ở nhóm khác.">
-                      cũng ở mục chặn
+                      title={t("google.searchTerms.alsoBlockTitle")}>
+                      {t("google.searchTerms.alsoBlock")}
                     </span>
                   )}
                   <span className="text-slate-400 shrink-0" title={g.places.map(p => p.campaignName).join(" · ")}>
-                    {g.places.length > 1 ? `${g.places.length} nhóm QC` : g.places[0]?.campaignName?.slice(0, 22)}
+                    {g.places.length > 1 ? t("google.searchTerms.adGroupsShort", { n: g.places.length }) : g.places[0]?.campaignName?.slice(0, 22)}
                   </span>
-                  <span className="text-slate-500 w-16 text-right">{g.clicks} nhấp</span>
-                  <span className="font-bold text-emerald-700 w-20 text-right">{g.conversions.toFixed(1)} ch.đổi</span>
+                  <span className="text-slate-500 w-16 text-right">{g.clicks} {t("google.searchTerms.clicksWord")}</span>
+                  <span className="font-bold text-emerald-700 w-20 text-right">{g.conversions.toFixed(1)} {t("google.searchTerms.convShort")}</span>
                   <span className="text-slate-500 w-24 text-right">
-                    {g.conversions > 0 ? `${vnd(g.cost / g.conversions)}/ch.đổi` : "—"}
+                    {g.conversions > 0 ? `${vnd(g.cost / g.conversions)}${t("google.searchTerms.perConv")}` : "—"}
                   </span>
                 </label>
                 );
@@ -715,36 +710,33 @@ export function SearchTermsTab({ company }: { company: Company }) {
               <div className="flex items-center gap-2 flex-wrap">
                 <p className="text-[11px] text-slate-500">
                   {pickedAdd.size > 0
-                    ? <>Đã chọn <b>{pickedAdd.size}</b> cụm — đã mang về{" "}
+                    ? <>{rich(t("google.searchTerms.add.selected", { n: pickedAdd.size }))}{" "}
                         <b className="text-emerald-700">
                           {addGroups.filter(g => pickedAdd.has(g.term.trim().toLowerCase())).reduce((n, g) => n + g.conversions, 0).toFixed(1)}
-                        </b> chuyển đổi.</>
-                    : "Tích chọn các cụm muốn thêm."}
+                        </b>{t("google.searchTerms.add.selectedConv")}</>
+                    : t("google.searchTerms.add.pick")}
                 </p>
                 <div className="flex rounded border border-slate-200 overflow-hidden">
                   {(["AUTO", "PHRASE", "EXACT"] as const).map(m => (
                     <button key={m} onClick={() => setAddMatch(m)}
                       className={cn("px-2 py-0.5 text-[10px] font-bold",
                         addMatch === m ? "bg-slate-800 text-white" : "bg-white text-slate-500 hover:bg-slate-50")}
-                      title={m === "AUTO" ? "Theo đề xuất — cụm đã đủ bằng chứng dùng khớp chính xác, cụm mới đáng thử dùng khớp cụm"
-                        : m === "PHRASE" ? "Khớp cụm — bắt cả biến thể gần, phủ rộng hơn"
-                        : "Khớp chính xác — chỉ đúng cụm đó, kiểm soát chặt nhất"}>
-                      {m === "AUTO" ? "Theo đề xuất" : m === "PHRASE" ? "Khớp cụm" : "Khớp chính xác"}
+                      title={m === "AUTO" ? t("google.searchTerms.add.autoTitle")
+                        : m === "PHRASE" ? t("google.searchTerms.add.phraseTitle")
+                        : t("google.searchTerms.add.exactTitle")}>
+                      {m === "AUTO" ? t("google.searchTerms.add.autoBtn") : m === "PHRASE" ? t("google.searchTerms.add.phraseBtn") : t("google.searchTerms.add.exactBtn")}
                     </button>
                   ))}
                 </div>
               </div>
               <button onClick={() => void addKeywords()} disabled={addBusy || pickedAdd.size === 0}
                 className="rounded-lg bg-emerald-600 text-white px-3 py-1.5 text-xs font-bold hover:bg-emerald-700 disabled:opacity-40 flex items-center gap-1.5">
-                {addBusy ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Đang ghi...</> : <>➕ Thêm {pickedAdd.size > 0 ? pickedAdd.size : ""} từ khoá</>}
+                {addBusy ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> {t("google.searchTerms.writing")}</> : <>{t("google.searchTerms.add.btn", { n: pickedAdd.size > 0 ? pickedAdd.size : "" })}</>}
               </button>
             </div>
             {pickedAdd.size > 20 && (
               <p className="mx-5 mb-2 rounded bg-red-50 border border-red-200 text-red-900 px-2.5 py-1.5 text-[11px]">
-                🛑 Đang chọn <b>{pickedAdd.size}</b> cụm trong một đợt. Ghi lên Google Ads là <b>MỘT LỆNH NGUYÊN KHỐI cho cả lô</b> —
-                chỉ cần một từ khoá bị từ chối (hay gặp nhất: trùng với từ khoá <b>đang tạm dừng</b>, thứ mà bộ lọc &quot;đã có từ khoá phủ&quot; không nhìn thấy)
-                là <b>CẢ LÔ trượt</b>. Chọn càng nhiều, xác suất dính càng cao.
-                Nên chia <b>10–20 cụm một đợt</b>, chạy 2 tuần rồi xét tiếp.
+                {rich(t("google.searchTerms.add.bigBatch", { n: pickedAdd.size }))}
               </p>
             )}
             {(() => {
@@ -756,9 +748,7 @@ export function SearchTermsTab({ company }: { company: Company }) {
               if (bad.length === 0) return null;
               return (
                 <p className="mx-5 mb-3 rounded bg-amber-50 border border-amber-200 text-amber-900 px-2.5 py-1.5 text-[11px]">
-                  ⚠️ <b>{bad.length}</b> cụm bạn chọn nằm ở tầng <b>không nên thêm</b> hoặc <b>chưa đủ căn cứ</b>:{" "}
-                  {bad.slice(0, 5).map(r => `"${r.term}"`).join(", ")}{bad.length > 5 ? ` và ${bad.length - 5} cụm nữa` : ""}.
-                  {" "}Lý do cụm đầu: {bad[0].why}
+                  {rich(t("google.searchTerms.add.badTier", { n: bad.length, list: bad.slice(0, 5).map(r => `"${r.term}"`).join(", ") + (bad.length > 5 ? t("google.searchTerms.andMore", { n: bad.length - 5 }) : ""), why: bad[0].why }))}
                 </p>
               );
             })()}
@@ -771,12 +761,11 @@ export function SearchTermsTab({ company }: { company: Company }) {
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="px-5 py-3 border-b border-slate-100">
           <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-            <Ban className="h-4 w-4 text-red-500" /> Cụm tìm kiếm đốt tiền — 0 chuyển đổi ({negGroups.length})
+            <Ban className="h-4 w-4 text-red-500" /> {t("google.searchTerms.neg.heading", { n: negGroups.length })}
           </h2>
           <p className="text-[11px] text-slate-500 mt-0.5">
-            Người ta gõ những cụm này, quảng cáo hiện ra, họ bấm vào — rồi không mua gì.
-            Tổng <b className="text-red-600">{vnd(totalWaste)}</b> trong <b>30 ngày</b> — phần này
-            <b> luôn tính 30 ngày</b>, không đổi theo kỳ chọn ở trên.
+            {t("google.searchTerms.neg.explain1")}
+            {t("google.searchTerms.neg.total")} <b className="text-red-600">{vnd(totalWaste)}</b> {rich(t("google.searchTerms.neg.explain2"))}
           </p>
         </div>
 
@@ -785,7 +774,7 @@ export function SearchTermsTab({ company }: { company: Company }) {
             tên thương hiệu của chính mình. */}
         {!termLoading && negGroups.length > 0 && (
           <div className="mx-5 mt-3 rounded-lg border border-slate-200 bg-slate-50/70 px-3.5 py-3">
-            <p className="text-[11px] font-bold text-slate-800">Việc nên làm tiếp theo</p>
+            <p className="text-[11px] font-bold text-slate-800">{t("google.searchTerms.nextSteps")}</p>
             <div className="mt-2 space-y-1.5">
               {negPlan.map(x => (
                 <div key={x.tier} className="flex items-start gap-2">
@@ -795,10 +784,10 @@ export function SearchTermsTab({ company }: { company: Company }) {
                   <span className="text-[11px] text-slate-600">
                     <b className={x.tier === "dont_block" ? "text-sky-700" : "text-red-600"}>{vnd(x.cost)}</b>
                     {x.tier === "block_now" && (
-                      <span className="text-slate-500"> /30 ngày ≈ {vnd(x.cost * 12)}/năm nếu chặn</span>
+                      <span className="text-slate-500"> {t("google.searchTerms.neg.yearly", { amount: vnd(x.cost * 12) })}</span>
                     )}
-                    {x.tier === "dont_block" && <span className="text-slate-500"> /30 ngày — chặn là tự cắt khách</span>}
-                    {x.tier === "block_scoped" && <span className="text-slate-500"> /30 ngày</span>}
+                    {x.tier === "dont_block" && <span className="text-slate-500"> {t("google.searchTerms.neg.dontBlock")}</span>}
+                    {x.tier === "block_scoped" && <span className="text-slate-500"> {t("google.searchTerms.neg.per30")}</span>}
                     {" — "}{NEG_TIER[x.tier].desc}
                   </span>
                 </div>
@@ -807,10 +796,10 @@ export function SearchTermsTab({ company }: { company: Company }) {
           </div>
         )}
 
-        {termLoading && <p className="px-5 py-4 text-sm text-slate-400">Đang đọc từ Google...</p>}
+        {termLoading && <p className="px-5 py-4 text-sm text-slate-400">{t("google.searchTerms.loading")}</p>}
         {!termLoading && negGroups.length === 0 && (
           <p className="px-5 py-4 text-sm text-slate-500">
-            Không có cụm nào vượt ngưỡng đáng chặn. Ngưỡng do API đặt (đủ nhấp hoặc đủ chi phí mà 0 chuyển đổi).
+            {t("google.searchTerms.neg.none")}
           </p>
         )}
 
@@ -835,8 +824,8 @@ export function SearchTermsTab({ company }: { company: Company }) {
                   </span>
                   {isConflict(g.term) && (
                     <span className="rounded bg-red-100 text-red-800 px-1.5 py-0.5 text-[9px] font-bold shrink-0"
-                      title="Cụm này ĐANG RA ĐƠN ở nhóm quảng cáo khác. Chặn ở đây chỉ chặn nơi nó không ra đơn — nhưng hãy chắc bạn muốn vậy.">
-                      ⚠ đang ra đơn chỗ khác
+                      title={t("google.searchTerms.neg.convElsewhereTitle")}>
+                      {t("google.searchTerms.neg.convElsewhere")}
                     </span>
                   )}
                   {(() => {
@@ -844,16 +833,16 @@ export function SearchTermsTab({ company }: { company: Company }) {
                     return (
                       <span className={cn("rounded px-1.5 py-0.5 text-[9px] font-bold shrink-0",
                         it.safe ? "bg-slate-100 text-slate-500" : "bg-amber-100 text-amber-800")}
-                        title={it.safe ? "Chặn được — đây không phải người muốn mua"
-                          : "CÂN NHẮC: đây là người đang muốn mua. 0 chuyển đổi ở cụm mua hàng thường là vấn đề trang đích hoặc đo lường, không phải từ khoá sai."}>
+                        title={it.safe ? t("google.searchTerms.neg.safeTitle")
+                          : t("google.searchTerms.neg.riskyTitle")}>
                         {it.label}
                       </span>
                     );
                   })()}
                   <span className="text-slate-400 shrink-0" title={g.places.map(p => p.campaignName).join(" · ")}>
-                    {g.places.length > 1 ? `${g.places.length} nhóm QC` : g.places[0]?.campaignName?.slice(0, 22)}
+                    {g.places.length > 1 ? t("google.searchTerms.adGroupsShort", { n: g.places.length }) : g.places[0]?.campaignName?.slice(0, 22)}
                   </span>
-                  <span className="text-slate-500 w-16 text-right">{g.clicks} nhấp</span>
+                  <span className="text-slate-500 w-16 text-right">{g.clicks} {t("google.searchTerms.clicksWord")}</span>
                   <span className="font-semibold text-red-600 w-24 text-right">{vnd(g.cost)}</span>
                 </label>
                 );
@@ -863,24 +852,22 @@ export function SearchTermsTab({ company }: { company: Company }) {
               <div className="text-[11px] text-slate-500 space-y-1">
                 <p>
                   {picked.size > 0
-                    ? <>Đã chọn <b>{picked.size}</b> cụm — đang tiêu <b className="text-red-600">{vnd(pickedWaste)}</b>/30 ngày.</>
-                    : "Tích chọn các cụm muốn chặn."}
+                    ? <>{rich(t("google.searchTerms.neg.selected1", { n: picked.size }))} <b className="text-red-600">{vnd(pickedWaste)}</b>{t("google.searchTerms.neg.selected2")}</>
+                    : t("google.searchTerms.neg.pick")}
                 </p>
                 {(() => {
                   const risky = negGroups.filter(g => picked.has(g.term.trim().toLowerCase()) && !intentOf(g.term).safe);
                   if (risky.length === 0) return null;
                   return (
                     <p className="rounded bg-amber-50 border border-amber-200 text-amber-900 px-2 py-1 max-w-xl">
-                      ⚠️ <b>{risky.length}</b> cụm bạn chọn là <b>ý định mua</b>: {risky.map(r => `"${r.term}"`).join(", ")}.
-                      Người gõ vậy là đang muốn mua — 0 chuyển đổi ở đây thường là <b>trang đích hoặc đo lường</b> có vấn đề,
-                      không phải từ khoá sai. Chặn là tự cắt khách.
+                      {rich(t("google.searchTerms.neg.riskyBox", { n: risky.length, list: risky.map(r => `"${r.term}"`).join(", ") }))}
                     </p>
                   );
                 })()}
               </div>
               <button onClick={() => void addNegatives()} disabled={negBusy || picked.size === 0}
                 className="rounded-lg bg-red-600 text-white px-3 py-1.5 text-xs font-bold hover:bg-red-700 disabled:opacity-40 flex items-center gap-1.5">
-                {negBusy ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Đang ghi...</> : <>🚫 Chặn {picked.size > 0 ? picked.size : ""} cụm</>}
+                {negBusy ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> {t("google.searchTerms.writing")}</> : <>{t("google.searchTerms.neg.btn", { n: picked.size > 0 ? picked.size : "" })}</>}
               </button>
             </div>
             {negMsg && <p className="px-5 pb-3 text-[11px]">{negMsg}</p>}

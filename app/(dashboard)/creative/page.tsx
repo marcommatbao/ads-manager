@@ -14,6 +14,7 @@ import {
   Calendar, Building2, Package,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import Link from "next/link";
 import { scoreCreative, SCORE_DIMENSIONS, getScoreColor, getGradeEmoji, type CreativeScore } from "@/lib/creative-scorer";
 import { runPreflightMeta, type PreflightResult } from "@/lib/launch-preflight";
@@ -65,6 +66,8 @@ import { companyIds, companyLabel, companyDef, fallbackCompany, isCompany, order
 // ─────────────────────────────────────────────
 
 function CreativeAIPageInner() {
+  const t = useT();
+  const intlLocale = useIntlLocale();
   const router = useRouter();
   const searchParams = useSearchParams();
   // Wizard step
@@ -703,7 +706,7 @@ function CreativeAIPageInner() {
         const data = json.data;
         setBrandByCompany(prev => ({ ...prev, [company]: data }));
       } catch (e) {
-        if (!cancelled) setBrandError(e instanceof Error ? e.message : "Không tải được hồ sơ doanh nghiệp");
+        if (!cancelled) setBrandError(e instanceof Error ? e.message : t("creative.main.err.brandLoad"));
       } finally {
         if (!cancelled) setBrandLoading(false);
       }
@@ -769,7 +772,7 @@ function CreativeAIPageInner() {
         }),
       });
       const json = await res.json();
-      if (!json.success) throw new Error(json.error ?? "Failed to analyze audience");
+      if (!json.success) throw new Error(json.error ?? t("creative.main.err.analyzeAudience"));
       setAudienceData(json.data);
       // A1: báo cáo truy vết căn cứ — dán nhãn từng khẳng định của AI là truy
       // được về kiến thức sản phẩm, về input người dùng, hay chỉ là suy luận.
@@ -783,7 +786,7 @@ function CreativeAIPageInner() {
         setSelectedSegments([0]);
       }
     } catch (err: unknown) {
-      setAudienceError(err instanceof Error ? err.message : "Unknown error");
+      setAudienceError(err instanceof Error ? err.message : t("creative.main.err.unknown"));
     } finally {
       setAudienceLoading(false);
     }
@@ -793,7 +796,7 @@ function CreativeAIPageInner() {
     funnelStages, adSetCount, dailyBudget, totalDays,
     currentCustomerDesc, currentCustomerPainPoints, currentCustomerMotivation, currentCustomerLanguage,
     competitorNames, competitorDifferentiate,
-    platform, googleCampaignType, googleSeedKeywords, googleNegativeKws, googleMatchType, googleAudienceSignals,
+    platform, googleCampaignType, googleSeedKeywords, googleNegativeKws, googleMatchType, googleAudienceSignals, t,
   ]);
 
   const fetchMetaAudiences = useCallback(async () => {
@@ -803,13 +806,13 @@ function CreativeAIPageInner() {
       const res = await fetch("/api/audiences/list");
       const json = await res.json();
       if (json.success) setMetaAudienceList(json.data ?? []);
-      else setMetaAudienceError(json.error ?? "Không tải được danh sách đối tượng");
+      else setMetaAudienceError(json.error ?? t("creative.main.err.audienceListLoad"));
     } catch {
-      setMetaAudienceError("Lỗi kết nối");
+      setMetaAudienceError(t("creative.main.err.connection"));
     } finally {
       setMetaAudienceLoading(false);
     }
-  }, []);
+  }, [t]);
 
   // Trigger when entering step 2 — now that fetchAudienceInsight's own
   // deps are complete (see above), this correctly re-fetches whenever the
@@ -918,7 +921,7 @@ function CreativeAIPageInner() {
           }
           console.warn(`[Generate] Failed (attempt ${attempt + 1}):`, json.error);
           if (attempt === retries && json.error) {
-             setGenerateError(`Lỗi ở ${seg.segmentName}: ${json.error}`);
+             setGenerateError(t("creative.main.gen.errorAt", { name: seg.segmentName, error: json.error }));
           }
         } catch (err) {
           console.warn(`[Generate] Error (attempt ${attempt + 1}):`, err);
@@ -955,7 +958,7 @@ function CreativeAIPageInner() {
           await new Promise(r => setTimeout(r, 3000));
         }
 
-        setGenerationProgress(`Đang tạo ${i + 1}/${jobList.length} (Tập: ${seg.segmentName})...`);
+        setGenerationProgress(t("creative.main.gen.progress", { done: i + 1, total: jobList.length, name: seg.segmentName }));
         const result = await generateOne(seg, toneId, plat);
         if (result) {
           allResults.push(result);
@@ -979,12 +982,12 @@ function CreativeAIPageInner() {
       }
 
       if (allResults.length === 0) {
-        setGenerateError("Không tạo được creative nào. Vui lòng thử lại.");
+        setGenerateError(t("creative.main.gen.none"));
       } else if (failCount > 0) {
-        setGenerateError(`⚠ Tạo được ${allResults.length}/${jobList.length} creatives (${failCount} thất bại).`);
+        setGenerateError(t("creative.main.gen.partial", { ok: allResults.length, total: jobList.length, failed: failCount }));
       }
     } catch (err: unknown) {
-      setGenerateError(err instanceof Error ? err.message : "Unknown error");
+      setGenerateError(err instanceof Error ? err.message : t("creative.main.err.unknown"));
     } finally {
       setIsGenerating(false);
       setGenerationProgress(null);
@@ -994,7 +997,7 @@ function CreativeAIPageInner() {
     // sách phụ thuộc thì nó giữ bản CŨ — tệp Meta vừa chọn bị bỏ im lặng,
     // creative vẫn sinh ra bình thường nên không có gì báo. Cùng loại với lỗi
     // stale closure vừa làm Preflight báo thiếu logo dù logo đã tải lên.
-  }, [audienceData, selectedSegments, selectedProduct, customProduct, platform, objective, offer, selectedTones, usp, socialProof, metaAudienceList, selectedMetaAudienceIds, winningList, selectedWinningIds, companyBody, productLabel]);
+  }, [audienceData, selectedSegments, selectedProduct, customProduct, platform, objective, offer, selectedTones, usp, socialProof, metaAudienceList, selectedMetaAudienceIds, winningList, selectedWinningIds, companyBody, productLabel, t]);
 
   // ── Toggle creative selection for Step 4 ──
   function toggleCreativeSelection(index: number) {
@@ -1087,11 +1090,11 @@ function CreativeAIPageInner() {
         ));
       } else {
         console.error("[improveCreative] API error:", json.error);
-        setGenerateError(`⚠ AI cải thiện thất bại: ${json.error || "Unknown error"}`);
+        setGenerateError(t("creative.main.improve.failed", { error: json.error || t("creative.main.err.unknown") }));
       }
     } catch (err) {
       console.error("[improveCreative] Fetch error:", err);
-      setGenerateError("⚠ Không thể kết nối API cải thiện. Thử lại sau.");
+      setGenerateError(t("creative.main.improve.connect"));
     } finally {
       setImprovingIndex(null);
     }
@@ -1214,13 +1217,13 @@ function CreativeAIPageInner() {
             Creative AI Studio
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            Tạo ad creatives thông minh dựa trên phân tích đối tượng AI
+            {t("creative.main.header.subtitle")}
           </p>
           <Link
             href="/creative/brief"
             className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 transition-colors"
           >
-            <FileText className="h-3.5 w-3.5" /> Creative Brief Builder
+            <FileText className="h-3.5 w-3.5" /> {t("creative.main.header.briefBuilder")}
           </Link>
         </div>
         <div className="flex items-center gap-3">
@@ -1232,17 +1235,17 @@ function CreativeAIPageInner() {
           <div className="flex items-center gap-1.5 text-xs">
             {saveStatus === "saving" && (
               <span className="text-gray-400 flex items-center gap-1">
-                <span className="inline-block animate-spin">⏳</span> Đang lưu...
+                <span className="inline-block animate-spin">⏳</span> {t("creative.main.save.saving")}
               </span>
             )}
             {saveStatus === "saved" && (
               <span className="text-gray-400 flex items-center gap-1">
-                <span>✓</span> Đã lưu
+                <span>✓</span> {t("creative.main.save.saved")}
               </span>
             )}
             {saveStatus === "unsaved" && (
               <span className="text-amber-500 flex items-center gap-1">
-                <span>●</span> Chưa lưu
+                <span>●</span> {t("creative.main.save.unsaved")}
               </span>
             )}
           </div>
@@ -1348,7 +1351,7 @@ function CreativeAIPageInner() {
           {fatigueRef && (
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 flex items-center justify-between">
               <p className="text-sm text-amber-800 font-medium">
-                🔄 Đang tạo creative thay thế cho <strong>{fatigueRef}</strong> bị fatigue
+                {t("creative.main.fatigue.before")}<strong>{fatigueRef}</strong>{t("creative.main.fatigue.after")}
               </p>
               <button onClick={() => setFatigueRef(null)} className="text-xs text-amber-500 hover:text-amber-700">✕</button>
             </div>
@@ -1357,14 +1360,14 @@ function CreativeAIPageInner() {
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 flex items-center gap-3">
               <span className="text-lg">📋</span>
               <p className="text-sm text-amber-900 font-medium flex-1">
-                Đang clone campaign <strong>{searchParams.get('cloneName')}</strong> — điều chỉnh các bước bên dưới rồi launch campaign mới.
+                {t("creative.main.clone.before")}<strong>{searchParams.get('cloneName')}</strong>{t("creative.main.clone.after")}
               </p>
             </div>
           )}
           <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
             {/* Company selector — at top so product list updates immediately */}
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold text-slate-700">Chọn sản phẩm</h3>
+              <h3 className="text-sm font-semibold text-slate-700">{t("creative.main.step1.pickProduct")}</h3>
               <div className="flex gap-1.5">
                 {companyIds().map(c => (
                   <button key={c} onClick={() => {
@@ -1434,15 +1437,15 @@ function CreativeAIPageInner() {
 
             {/* Hồ sơ doanh nghiệp: đang tải / lỗi / chưa có sản phẩm (chỉ công ty ngoài bản Mắt Bão) */}
             {brandLoading && !brand && !isLegacy && (
-              <p className="mt-3 flex items-center gap-1.5 text-xs text-slate-500"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Đang tải hồ sơ doanh nghiệp…</p>
+              <p className="mt-3 flex items-center gap-1.5 text-xs text-slate-500"><Loader2 className="h-3.5 w-3.5 animate-spin" /> {t("creative.main.step1.brandLoading")}</p>
             )}
             {brandError && !isLegacy && (
-              <p role="alert" className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">Không tải được hồ sơ doanh nghiệp: {brandError}</p>
+              <p role="alert" className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{t("creative.main.step1.brandError", { error: brandError })}</p>
             )}
             {!isLegacy && brand && brandProducts.length === 0 && (
               <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                Chưa có sản phẩm trong hồ sơ — Super Admin vào Cài đặt → Hồ sơ doanh nghiệp để thêm.{" "}
-                <Link href={`/settings/brand-profile?company=${encodeURIComponent(company)}`} className="font-semibold underline">Mở Hồ sơ doanh nghiệp</Link>
+                {t("creative.main.step1.noProducts")}{" "}
+                <Link href={`/settings/brand-profile?company=${encodeURIComponent(company)}`} className="font-semibold underline">{t("creative.main.step1.openBrand")}</Link>
               </p>
             )}
 
@@ -1450,17 +1453,17 @@ function CreativeAIPageInner() {
             {selectedProduct === "custom" && (
               <div className="mt-4 rounded-xl border-2 border-amber-200 bg-amber-50/40 p-4 space-y-1.5">
                 <label className="block text-xs font-semibold text-amber-800 uppercase tracking-wide">
-                  ✏️ Tên sản phẩm / dịch vụ <span className="text-red-400">*</span>
+                  {t("creative.main.step1.customName")}<span className="text-red-400">*</span>
                 </label>
                 <input
                   type="text"
                   autoFocus
                   value={customProduct}
                   onChange={e => setCustomProduct(e.target.value)}
-                  placeholder="Ví dụ: Vibe Hosting, Phần mềm kế toán ABC…"
+                  placeholder={t("creative.main.step1.customPh")}
                   className="w-full rounded-lg border border-amber-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-200"
                 />
-                <p className="text-[11px] text-amber-700">Nhập tên sản phẩm mới, tạm thời, hoặc đang test — AI sẽ gen brief dựa trên tên này.</p>
+                <p className="text-[11px] text-amber-700">{t("creative.main.step1.customHint")}</p>
               </div>
             )}
           </div>
@@ -1474,7 +1477,7 @@ function CreativeAIPageInner() {
                 Nền tảng quyết định phần còn lại của cả wizard hiện cái gì,
                 nên nó phải là câu hỏi đầu tiên. */}
             <div>
-              <h3 className="text-sm font-semibold text-slate-700 mb-2">📱 Chạy trên nền tảng nào? <span className="text-[10px] text-slate-400 font-normal">(chọn trước, các mục dưới đổi theo)</span></h3>
+              <h3 className="text-sm font-semibold text-slate-700 mb-2">{t("creative.main.step1.platformQ")} <span className="text-[10px] text-slate-400 font-normal">{t("creative.main.step1.platformHint")}</span></h3>
               <div className="flex gap-2">
                 {PLATFORMS.map(p => (
                   <button
@@ -1495,15 +1498,14 @@ function CreativeAIPageInner() {
               </div>
               {platform === "google" && (
                 <p className="text-[11px] text-slate-500 mt-2 leading-relaxed">
-                  Luồng Google gồm <b>3 bước</b> — nội dung quảng cáo và khởi chạy nằm chung ở Bước 3.
-                  Các mục riêng của Meta (Fanpage, Pixel, vị trí Instagram, Advantage+) đã được ẩn.
+                  {t("creative.main.step1.googleFlow1")}<b>{t("creative.main.step1.googleFlowBold")}</b>{t("creative.main.step1.googleFlow2")}
                 </p>
               )}
             </div>
 
             {/* Objective radio cards — filtered by company */}
             <div>
-              <h3 className="text-sm font-semibold text-slate-700 mb-3">🎯 Mục tiêu chính <span className="text-[10px] text-slate-400 font-normal">(chọn 1)</span></h3>
+              <h3 className="text-sm font-semibold text-slate-700 mb-3">{t("creative.main.step1.mainObjective")} <span className="text-[10px] text-slate-400 font-normal">{t("creative.main.step1.pickOne")}</span></h3>
               <div className="space-y-2">
                 {fbObjectiveOptions(company, brand?.legacy).map(o => {
                   const Icon = o.icon;
@@ -1544,22 +1546,21 @@ function CreativeAIPageInner() {
                 thẻ chuyển đổi riêng, đặt trong tài khoản Google Ads. */}
             {platform !== "google" && (objectiveKey === "OUTCOME_SALES" || objectiveKey === "OUTCOME_LEADS") && (
               <div>
-                <h3 className="text-sm font-semibold text-slate-700 mb-2">📊 Sự kiện chuyển đổi</h3>
+                <h3 className="text-sm font-semibold text-slate-700 mb-2">{t("creative.main.step1.conversionEvent")}</h3>
                 <ConversionEventPicker
                   pixelId={effectivePixelId}
                   value={effectiveConversionEvent}
                   onChange={setConversionEvent}
                 />
                 <p className="text-[11px] text-slate-400 mt-1">
-                  Meta sẽ tối ưu chiến dịch theo đúng sự kiện này. Pixel đang dùng: {effectivePixelId || "(chưa chọn)"}
+                  {t("creative.main.step1.conversionHint", { pixel: effectivePixelId || t("creative.main.step1.notSelected") })}
                 </p>
               </div>
             )}
             {platform === "google" && (objectiveKey === "OUTCOME_SALES" || objectiveKey === "OUTCOME_LEADS") && (
               <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
                 <p className="text-[11px] text-slate-500 leading-relaxed">
-                  📊 <b>Sự kiện chuyển đổi:</b> chiến dịch Google dùng thẻ chuyển đổi cấu hình sẵn trong tài khoản
-                  Google Ads, không dùng Pixel của Meta — nên không cần chọn ở đây.
+                  📊 <b>{t("creative.main.step1.googleConvBold")}</b>{t("creative.main.step1.googleConv")}
                 </p>
               </div>
             )}
@@ -1567,13 +1568,13 @@ function CreativeAIPageInner() {
             {/* Destination URL — shown for SALES + TRAFFIC, hidden for LEADS */}
             {objectiveKey !== "OUTCOME_LEADS" && (
               <div>
-                <h3 className="text-sm font-semibold text-slate-700 mb-2">🔗 URL trang đích</h3>
+                <h3 className="text-sm font-semibold text-slate-700 mb-2">{t("creative.main.step1.destUrl")}</h3>
                 <input
                   type="url"
                   value={destinationUrl}
                   onChange={e => setDestinationUrl(e.target.value)}
                   className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400"
-                  placeholder={isLegacy ? "https://matbao.net/ten-mien-vn" : "https://website-cua-ban.vn/trang-san-pham"}
+                  placeholder={isLegacy ? "https://matbao.net/ten-mien-vn" : t("creative.main.step1.destUrlPh")}
                 />
               </div>
             )}
@@ -1587,51 +1588,51 @@ function CreativeAIPageInner() {
             {prefillSource && prefillSource !== "custom" && (
               <div className="flex items-center justify-between rounded-lg bg-green-50 border border-green-200 px-3 py-2">
                 <p className="text-xs text-green-700 font-medium">
-                  ✨ Đã điền sẵn template cho <strong>{productLabel(prefillSource)}</strong> — chỉnh sửa nếu cần
+                  {t("creative.main.step1.prefill1")}<strong>{productLabel(prefillSource)}</strong>{t("creative.main.step1.prefill2")}
                 </p>
                 <button
                   type="button"
                   onClick={clearPrefill}
                   className="text-[11px] text-green-500 hover:text-green-700 ml-3 shrink-0"
                 >
-                  Xóa tất cả
+                  {t("creative.main.step1.clearAll")}
                 </button>
               </div>
             )}
             <div>
-              <h3 className="text-sm font-semibold text-slate-700 mb-2">✨ Điểm khác biệt (USP)</h3>
+              <h3 className="text-sm font-semibold text-slate-700 mb-2">{t("creative.main.step1.usp")}</h3>
               <textarea
                 rows={2}
                 maxLength={200}
                 value={usp}
                 onChange={e => setUsp(e.target.value)}
-                placeholder="VD: Tên miền .vn rẻ nhất, đăng ký trong 5 phút, hỗ trợ 24/7"
+                placeholder={t("creative.main.step1.uspPh")}
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400 resize-none"
               />
               <p className="text-right text-[10px] text-slate-400 mt-0.5">{usp.length}/200</p>
             </div>
 
             <div>
-              <h3 className="text-sm font-semibold text-slate-700 mb-2">⭐ Bằng chứng xã hội</h3>
+              <h3 className="text-sm font-semibold text-slate-700 mb-2">{t("creative.main.step1.socialProof")}</h3>
               <textarea
                 rows={2}
                 maxLength={150}
                 value={socialProof}
                 onChange={e => setSocialProof(e.target.value)}
-                placeholder="Chỉ ghi số liệu THẬT có nguồn (số khách hàng, chứng nhận, giải thưởng) — AI sẽ đưa nguyên văn vào quảng cáo"
+                placeholder={t("creative.main.step1.socialProofPh")}
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400 resize-none"
               />
               <p className="text-right text-[10px] text-slate-400 mt-0.5">{socialProof.length}/150</p>
             </div>
 
             <div>
-              <h3 className="text-sm font-semibold text-slate-700 mb-2">🎁 Offer / Khuyến mãi</h3>
+              <h3 className="text-sm font-semibold text-slate-700 mb-2">{t("creative.main.step1.offer")}</h3>
               <textarea
                 rows={2}
                 maxLength={150}
                 value={offer}
                 onChange={e => setOffer(e.target.value)}
-                placeholder="VD: Giảm 50% tháng này, Tặng SSL miễn phí, Deadline 31/3"
+                placeholder={t("creative.main.step1.offerPh")}
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400 resize-none"
               />
               <p className="text-right text-[10px] text-slate-400 mt-0.5">{offer.length}/150</p>
@@ -1642,61 +1643,61 @@ function CreativeAIPageInner() {
           <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
             <div>
               <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-1.5 mb-0.5">
-                👤 Khách hàng thực tế của bạn
+                {t("creative.main.step1.realCustomer")}
               </h3>
-              <p className="text-xs text-slate-400 mb-4">Càng cụ thể, AI càng tạo insight chính xác</p>
+              <p className="text-xs text-slate-400 mb-4">{t("creative.main.step1.realCustomerHint")}</p>
             </div>
 
             <div>
-              <h4 className="text-xs font-semibold text-slate-600 mb-1.5">Mô tả khách hàng điển hình</h4>
+              <h4 className="text-xs font-semibold text-slate-600 mb-1.5">{t("creative.main.step1.custDesc")}</h4>
               <textarea
                 rows={3}
                 maxLength={300}
                 value={currentCustomerDesc}
                 onChange={e => setCurrentCustomerDesc(e.target.value)}
-                placeholder="VD: Chủ SME 30-45 tuổi, vừa thành lập công ty, cần website nhưng không rành kỹ thuật, hay dùng Facebook"
+                placeholder={t("creative.main.step1.custDescPh")}
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400 resize-none"
               />
               <p className="text-right text-[10px] text-slate-400 mt-0.5">{currentCustomerDesc.length}/300</p>
             </div>
 
             <div>
-              <h4 className="text-xs font-semibold text-slate-600 mb-1.5">🔴 Nỗi đau / Vấn đề đang gặp</h4>
+              <h4 className="text-xs font-semibold text-slate-600 mb-1.5">{t("creative.main.step1.pain")}</h4>
               <textarea
                 rows={2}
                 maxLength={200}
                 value={currentCustomerPainPoints}
                 onChange={e => setCurrentCustomerPainPoints(e.target.value)}
-                placeholder="VD: Sợ bị mất tên thương hiệu, không biết đăng ký ở đâu uy tín, lo bị lừa đảo"
+                placeholder={t("creative.main.step1.painPh")}
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400 resize-none"
               />
               <p className="text-right text-[10px] text-slate-400 mt-0.5">{currentCustomerPainPoints.length}/200</p>
             </div>
 
             <div>
-              <h4 className="text-xs font-semibold text-slate-600 mb-1.5">🟢 Động lực / Mong muốn</h4>
+              <h4 className="text-xs font-semibold text-slate-600 mb-1.5">{t("creative.main.step1.motivation")}</h4>
               <textarea
                 rows={2}
                 maxLength={200}
                 value={currentCustomerMotivation}
                 onChange={e => setCurrentCustomerMotivation(e.target.value)}
-                placeholder="VD: Muốn có website chuyên nghiệp trong 1 ngày, tiết kiệm chi phí, có người hỗ trợ tiếng Việt 24/7"
+                placeholder={t("creative.main.step1.motivationPh")}
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400 resize-none"
               />
               <p className="text-right text-[10px] text-slate-400 mt-0.5">{currentCustomerMotivation.length}/200</p>
             </div>
 
             <div>
-              <h4 className="text-xs font-semibold text-slate-600 mb-1.5">💬 Ngôn ngữ / Cách nói chuyện</h4>
+              <h4 className="text-xs font-semibold text-slate-600 mb-1.5">{t("creative.main.step1.language")}</h4>
               <div className="flex flex-wrap gap-1.5 mb-2">
-                {[
-                  "Thân thiện, dùng từ đơn giản",
-                  "Chuyên nghiệp, B2B",
-                  "Khẩn cấp, tạo áp lực",
-                  "Cảm xúc, kể chuyện",
-                  "Hài hước, gần gũi",
-                  "Uy tín, authority",
-                ].map(preset => (
+                {([
+                  ["Thân thiện, dùng từ đơn giản", "creative.main.step1.langFriendly"],
+                  ["Chuyên nghiệp, B2B", "creative.main.step1.langPro"],
+                  ["Khẩn cấp, tạo áp lực", "creative.main.step1.langUrgent"],
+                  ["Cảm xúc, kể chuyện", "creative.main.step1.langEmotional"],
+                  ["Hài hước, gần gũi", "creative.main.step1.langFunny"],
+                  ["Uy tín, authority", "creative.main.step1.langAuthority"],
+                ] as const).map(([preset, presetKey]) => (
                   <button
                     key={preset}
                     type="button"
@@ -1708,7 +1709,7 @@ function CreativeAIPageInner() {
                         : "border-slate-200 bg-white text-slate-500 hover:border-amber-300 hover:text-amber-700"
                     )}
                   >
-                    {preset}
+                    {t(presetKey)}
                   </button>
                 ))}
               </div>
@@ -1717,7 +1718,7 @@ function CreativeAIPageInner() {
                 maxLength={100}
                 value={currentCustomerLanguage}
                 onChange={e => setCurrentCustomerLanguage(e.target.value)}
-                placeholder="Hoặc nhập tùy chỉnh..."
+                placeholder={t("creative.main.step1.langPh")}
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400"
               />
             </div>
@@ -1733,8 +1734,8 @@ function CreativeAIPageInner() {
               <div className="flex items-center gap-2">
                 <span className="text-base">⚔️</span>
                 <div className="text-left">
-                  <p className="text-sm font-semibold text-slate-700">Đối thủ cạnh tranh</p>
-                  <p className="text-xs text-slate-400">Để AI biết cần khác biệt điểm gì</p>
+                  <p className="text-sm font-semibold text-slate-700">{t("creative.main.step1.competitors")}</p>
+                  <p className="text-xs text-slate-400">{t("creative.main.step1.competitorsHint")}</p>
                 </div>
               </div>
               <ChevronDown className={cn("h-4 w-4 text-slate-400 transition-transform", showCompetitors && "rotate-180")} />
@@ -1742,24 +1743,24 @@ function CreativeAIPageInner() {
             {showCompetitors && (
               <div className="px-6 pb-5 space-y-4 border-t border-slate-100">
                 <div className="pt-4">
-                  <h4 className="text-xs font-semibold text-slate-600 mb-1.5">Đối thủ chính</h4>
+                  <h4 className="text-xs font-semibold text-slate-600 mb-1.5">{t("creative.main.step1.mainCompetitor")}</h4>
                   <input
                     type="text"
                     maxLength={150}
                     value={competitorNames}
                     onChange={e => setCompetitorNames(e.target.value)}
-                    placeholder={isLegacy ? "VD: Vietnix, VNPT, PA Vietnam, Mắt Bão" : "Tên đối thủ (tuỳ chọn)"}
+                    placeholder={isLegacy ? t("creative.main.step1.competitorsPhLegacy") : t("creative.main.step1.competitorsPh")}
                     className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400"
                   />
                 </div>
                 <div>
-                  <h4 className="text-xs font-semibold text-slate-600 mb-1.5">Điểm khác biệt so với đối thủ</h4>
+                  <h4 className="text-xs font-semibold text-slate-600 mb-1.5">{t("creative.main.step1.differentiate")}</h4>
                   <textarea
                     rows={2}
                     maxLength={200}
                     value={competitorDifferentiate}
                     onChange={e => setCompetitorDifferentiate(e.target.value)}
-                    placeholder="VD: Rẻ hơn 30%, domain .vn chính ngạch, hỗ trợ tiếng Việt 24/7, không ẩn phí"
+                    placeholder={t("creative.main.step1.differentiatePh")}
                     className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400 resize-none"
                   />
                 </div>
@@ -1770,12 +1771,12 @@ function CreativeAIPageInner() {
           {/* ── Section: Ngân sách, Thời gian & Giai đoạn Funnel ── */}
           <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm space-y-5">
             <div>
-              <h3 className="text-sm font-semibold text-slate-700 mb-0.5">💰 Ngân sách & Chiến lược</h3>
+              <h3 className="text-sm font-semibold text-slate-700 mb-0.5">{t("creative.main.step1.budgetStrategy")}</h3>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Ngân sách / ngày (₫)</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t("creative.main.step1.dailyBudget")}</label>
                 <input
                   type="number"
                   min={50000}
@@ -1791,7 +1792,7 @@ function CreativeAIPageInner() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Số ngày chạy</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t("creative.main.step1.runDays")}</label>
                 <input
                   type="number"
                   min={1}
@@ -1806,18 +1807,18 @@ function CreativeAIPageInner() {
             {dailyBudget > 0 && (
               <div className="rounded-xl bg-amber-50 border border-amber-100 px-4 py-3 text-sm space-y-1">
                 <p>
-                  💡 Với{" "}
-                  <strong>{dailyBudget.toLocaleString("vi-VN")}₫</strong>/ngày → Nên tạo{" "}
-                  <strong>{adSetCount} Ad Set</strong>
+                  {t("creative.main.step1.hintPre")}
+                  <strong>{dailyBudget.toLocaleString(intlLocale)}₫</strong>{t("creative.main.step1.hintPerDay")}
+                  <strong>{t("creative.main.step1.hintAdSets", { n: adSetCount })}</strong>
                   {adSetCount > 1
-                    ? ` (~${Math.round(dailyBudget / adSetCount).toLocaleString("vi-VN")}₫/ngày mỗi nhóm)`
-                    : " (1 nhóm tập trung)"}
+                    ? t("creative.main.step1.hintEach", { amount: Math.round(dailyBudget / adSetCount).toLocaleString(intlLocale) })
+                    : t("creative.main.step1.hintOne")}
                 </p>
                 {totalDays > 0 && (
                   <p className="text-slate-500 text-xs">
-                    Tổng ngân sách dự kiến:{" "}
+                    {t("creative.main.step1.totalBudget")}{" "}
                     <strong className="text-slate-700">
-                      {(dailyBudget * totalDays).toLocaleString("vi-VN")}₫
+                      {(dailyBudget * totalDays).toLocaleString(intlLocale)}₫
                     </strong>
                   </p>
                 )}
@@ -1826,13 +1827,13 @@ function CreativeAIPageInner() {
 
             {/* Funnel stages — merged into this card */}
             <div className="border-t border-slate-100 pt-4">
-              <h4 className="text-xs font-semibold text-slate-700 mb-1">🎯 Giai đoạn chiến dịch</h4>
-              <p className="text-xs text-slate-400 mb-3">Có thể chọn nhiều — AI sẽ tạo segment phù hợp cho từng giai đoạn</p>
+              <h4 className="text-xs font-semibold text-slate-700 mb-1">{t("creative.main.step1.stage")}</h4>
+              <p className="text-xs text-slate-400 mb-3">{t("creative.main.step1.stageHint")}</p>
               <div className="grid grid-cols-3 gap-3">
                 {([
-                  { key: "TOFU", label: "TOFU", desc: "Chưa biết thương hiệu", icon: "🌱", border: "border-sky-500", bg: "bg-sky-50", check: "text-sky-700" },
-                  { key: "MOFU", label: "MOFU", desc: "Đang tìm hiểu, so sánh", icon: "🔍", border: "border-yellow-500", bg: "bg-yellow-50", check: "text-yellow-600" },
-                  { key: "BOFU", label: "BOFU", desc: "Sắp quyết định mua", icon: "🎯", border: "border-emerald-500", bg: "bg-emerald-50", check: "text-emerald-600" },
+                  { key: "TOFU", label: "TOFU", descKey: "creative.main.step1.tofu", icon: "🌱", border: "border-sky-500", bg: "bg-sky-50", check: "text-sky-700" },
+                  { key: "MOFU", label: "MOFU", descKey: "creative.main.step1.mofu", icon: "🔍", border: "border-yellow-500", bg: "bg-yellow-50", check: "text-yellow-600" },
+                  { key: "BOFU", label: "BOFU", descKey: "creative.main.step1.bofu", icon: "🎯", border: "border-emerald-500", bg: "bg-emerald-50", check: "text-emerald-600" },
                 ] as const).map(stage => {
                   const isSelected = funnelStages.includes(stage.key);
                   return (
@@ -1857,7 +1858,7 @@ function CreativeAIPageInner() {
                       )}
                       <p className="text-xl mb-1">{stage.icon}</p>
                       <p className="font-bold text-sm">{stage.label}</p>
-                      <p className="text-xs text-slate-500 mt-0.5">{stage.desc}</p>
+                      <p className="text-xs text-slate-500 mt-0.5">{t(stage.descKey)}</p>
                     </button>
                   );
                 })}
@@ -1870,9 +1871,9 @@ function CreativeAIPageInner() {
             <div className="rounded-xl border border-amber-100 bg-amber-50/30 p-6 shadow-sm space-y-4">
               <div>
                 <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-1.5 mb-0.5">
-                  🔍 Thiết lập Google Ads
+                  {t("creative.main.step1.googleSetup")}
                 </h3>
-                <p className="text-xs text-slate-400 mb-4">Thông tin bổ sung cho Search & PMax</p>
+                <p className="text-xs text-slate-400 mb-4">{t("creative.main.step1.googleSetupHint")}</p>
               </div>
 
               {/* Campaign type selector */}
@@ -1891,7 +1892,7 @@ function CreativeAIPageInner() {
                   >
                     {type === "SEARCH" && "🔎 Search"}
                     {type === "PMAX" && "⚡ Perf Max"}
-                    {type === "BOTH" && "🔎⚡ Cả hai"}
+                    {type === "BOTH" && t("creative.main.step1.both")}
                   </button>
                 ))}
               </div>
@@ -1900,34 +1901,34 @@ function CreativeAIPageInner() {
               {(googleCampaignType === "SEARCH" || googleCampaignType === "BOTH") && (
                 <>
                   <div>
-                    <h4 className="text-xs font-semibold text-slate-600 mb-1.5">🔑 Từ khóa gợi ý (seed keywords)</h4>
+                    <h4 className="text-xs font-semibold text-slate-600 mb-1.5">{t("creative.main.step1.seedKw")}</h4>
                     <textarea
                       rows={3}
                       value={googleSeedKeywords}
                       onChange={e => setGoogleSeedKeywords(e.target.value)}
-                      placeholder="VD: đăng ký tên miền, mua hosting giá rẻ, thuê hosting wordpress, domain .vn giá rẻ"
+                      placeholder={t("creative.main.step1.seedKwPh")}
                       className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400 resize-none"
                     />
-                    <p className="text-[10px] text-slate-400 mt-0.5">Mỗi từ khóa 1 dòng hoặc cách nhau bằng dấu phẩy</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">{t("creative.main.step1.seedKwHint")}</p>
                   </div>
                   <div>
-                    <h4 className="text-xs font-semibold text-slate-600 mb-1.5">🚫 Từ khóa phủ định</h4>
+                    <h4 className="text-xs font-semibold text-slate-600 mb-1.5">{t("creative.main.step1.negKw")}</h4>
                     <input
                       type="text"
                       value={googleNegativeKws}
                       onChange={e => setGoogleNegativeKws(e.target.value)}
-                      placeholder="VD: free, miễn phí, crack, nulled, torrent"
+                      placeholder={t("creative.main.step1.negKwPh")}
                       className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400"
                     />
-                    <p className="text-[10px] text-slate-400 mt-0.5">Tránh hiển thị cho những search không liên quan</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">{t("creative.main.step1.negKwHint")}</p>
                   </div>
                   <div>
-                    <h4 className="text-xs font-semibold text-slate-600 mb-2">Match Type mặc định</h4>
+                    <h4 className="text-xs font-semibold text-slate-600 mb-2">{t("creative.main.step1.matchDefault")}</h4>
                     <div className="flex gap-2">
                       {([
-                        { key: "EXACT", label: "[Exact]", desc: "Chính xác nhất" },
-                        { key: "PHRASE", label: '"Phrase"', desc: "Cân bằng" },
-                        { key: "BROAD", label: "Broad", desc: "Rộng nhất" },
+                        { key: "EXACT", label: "[Exact]", descKey: "creative.main.step1.matchExact" },
+                        { key: "PHRASE", label: '"Phrase"', descKey: "creative.main.step1.matchPhrase" },
+                        { key: "BROAD", label: "Broad", descKey: "creative.main.step1.matchBroad" },
                       ] as const).map(m => (
                         <button
                           key={m.key}
@@ -1941,7 +1942,7 @@ function CreativeAIPageInner() {
                           )}
                         >
                           <p className="font-mono text-sm font-bold">{m.label}</p>
-                          <p className="text-xs text-slate-500 mt-1">{m.desc}</p>
+                          <p className="text-xs text-slate-500 mt-1">{t(m.descKey)}</p>
                         </button>
                       ))}
                     </div>
@@ -1957,7 +1958,7 @@ function CreativeAIPageInner() {
                     rows={2}
                     value={googleAudienceSignals}
                     onChange={e => setGoogleAudienceSignals(e.target.value)}
-                    placeholder="VD: Remarketing 30 ngày, Similar audiences từ converters, Custom intent: 'mua hosting', 'đăng ký domain'"
+                    placeholder={t("creative.main.step1.signalsPh")}
                     className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400 resize-none"
                   />
                 </div>
@@ -1974,7 +1975,7 @@ function CreativeAIPageInner() {
                 className="w-full flex items-center gap-2 px-4 py-3 text-xs text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors"
               >
                 <span>🔍</span>
-                <span>{showPromptPreview ? "Ẩn" : "Xem"} Prompt AI sẽ dùng</span>
+                <span>{showPromptPreview ? t("creative.main.step1.hidePrompt") : t("creative.main.step1.showPrompt")}</span>
                 <ChevronDown className={cn("h-3 w-3 ml-auto transition-transform", showPromptPreview && "rotate-180")} />
               </button>
               {showPromptPreview && (
@@ -1999,7 +2000,7 @@ Ngôn ngữ: ${currentCustomerLanguage}
 Khác biệt: ${competitorDifferentiate || "(chưa có)"}
 
 ━━━ NGÂN SÁCH ━━━
-${dailyBudget.toLocaleString("vi-VN")}₫/ngày × ${totalDays} ngày = ${(dailyBudget * totalDays).toLocaleString("vi-VN")}₫
+${dailyBudget.toLocaleString(intlLocale)}₫/ngày × ${totalDays} ngày = ${(dailyBudget * totalDays).toLocaleString(intlLocale)}₫
 → ${adSetCount} Ad Set(s)${platform === "google" || platform === "both" ? `
 
 ━━━ GOOGLE ADS ━━━
@@ -2019,7 +2020,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
             disabled={!canProceedStep1}
             className="w-full gap-2 bg-amber-500 py-5 text-sm font-semibold text-amber-950 hover:bg-amber-600 disabled:opacity-40"
           >
-            Tiếp theo → Phân tích đối tượng
+            {t("creative.main.step1.next")}
             <ArrowRight className="h-4 w-4" />
           </Button>
         </div>
@@ -2036,13 +2037,13 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
               onClick={() => setStep2Tab("ai")}
               className={cn("px-4 py-1.5 rounded-md text-xs font-semibold transition-all", step2Tab === "ai" ? "bg-white shadow-sm text-amber-700" : "text-slate-500 hover:text-slate-700")}
             >
-              🤖 AI Phân tích
+              {t("creative.main.step2.tabAi")}
             </button>
             <button
               onClick={() => { setStep2Tab("meta"); if (!metaAudienceList.length && !metaAudienceLoading) fetchMetaAudiences(); }}
               className={cn("flex items-center gap-1.5 px-4 py-1.5 rounded-md text-xs font-semibold transition-all", step2Tab === "meta" ? "bg-white shadow-sm text-amber-700" : "text-slate-500 hover:text-slate-700")}
             >
-              📋 Từ Meta
+              {t("creative.main.step2.tabMeta")}
               {selectedMetaAudienceIds.size > 0 && (
                 <span className="rounded-full bg-amber-500 text-amber-950 text-[10px] w-4 h-4 flex items-center justify-center">{selectedMetaAudienceIds.size}</span>
               )}
@@ -2056,8 +2057,8 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                 <div className="h-16 w-16 rounded-full bg-amber-100 animate-pulse" />
                 <Loader2 className="absolute inset-0 m-auto h-8 w-8 text-amber-700 animate-spin" />
               </div>
-              <p className="text-sm font-semibold text-slate-700">🤖 AI đang phân tích chân dung khách hàng...</p>
-              <p className="mt-1 text-xs text-slate-400">Quá trình này mất khoảng 10-15 giây</p>
+              <p className="text-sm font-semibold text-slate-700">{t("creative.main.step2.analyzing")}</p>
+              <p className="mt-1 text-xs text-slate-400">{t("creative.main.step2.analyzingHint")}</p>
             </div>
           )}
 
@@ -2066,7 +2067,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
             <div className="rounded-xl border border-red-200 bg-red-50 p-5">
               <p className="text-sm text-red-600 font-medium">❌ {audienceError}</p>
               <Button size="sm" variant="outline" className="mt-3 text-xs" onClick={fetchAudienceInsight}>
-                <RefreshCw className="h-3 w-3 mr-1" /> Thử lại
+                <RefreshCw className="h-3 w-3 mr-1" /> {t("creative.main.common.retry")}
               </Button>
             </div>
           )}
@@ -2075,7 +2076,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
           {step2Tab === "ai" && selectedProduct === "custom" && !customProduct.trim() && (
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-5">
               <p className="text-sm text-amber-700 font-medium">
-                ⚡ Vui lòng quay lại Bước 1 và điền mô tả sản phẩm/dịch vụ tuỳ chỉnh để AI có thông tin phân tích chân dung khách hàng.
+                {t("creative.main.step2.customMissing")}
               </p>
             </div>
           )}
@@ -2086,10 +2087,10 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
               {/* Đợt 26c — Tệp thắng đã lưu (từ trang "So sánh tệp đối tượng") */}
               <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 space-y-2">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm font-semibold text-emerald-800">🏆 Dùng tệp thắng đã lưu</p>
+                  <p className="text-sm font-semibold text-emerald-800">{t("creative.main.step2.winUse")}</p>
                 </div>
                 {winningLoaded && winningList.length === 0 && (
-                  <p className="text-xs text-slate-500">Chưa có tệp thắng nào được lưu cho công ty này. Vào &ldquo;So sánh tệp đối tượng&rdquo; để so và lưu.</p>
+                  <p className="text-xs text-slate-500">{t("creative.main.step2.winNone")}</p>
                 )}
                 {winningList.map(w => {
                   const on = selectedWinningIds.has(w.id);
@@ -2110,39 +2111,39 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                     >
                       <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
                         {on ? "✓" : "＋"} {w.name}
-                        <span className="rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-0.5">Tệp thắng</span>
+                        <span className="rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-0.5">{t("creative.main.step2.winBadge")}</span>
                       </span>
                       <span className="block text-xs text-slate-500 mt-0.5">{w.summary}</span>
                     </button>
                   );
                 })}
                 {selectedWinningIds.size > 0 && (
-                  <p className="text-xs font-medium text-emerald-800">Đã chọn {selectedWinningIds.size} tệp thắng → mỗi tệp tạo 1 Ad Set với đúng cấu hình nhắm chọn đã lưu.</p>
+                  <p className="text-xs font-medium text-emerald-800">{t("creative.main.step2.winSelected", { n: selectedWinningIds.size })}</p>
                 )}
               </div>
               {metaAudienceLoading && (
                 <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-6">
                   <Loader2 className="h-5 w-5 animate-spin text-amber-700" />
-                  <span className="text-sm text-slate-600">Đang tải đối tượng từ Meta...</span>
+                  <span className="text-sm text-slate-600">{t("creative.main.step2.metaLoading")}</span>
                 </div>
               )}
               {metaAudienceError && (
                 <div className="rounded-xl border border-red-200 bg-red-50 p-5">
                   <p className="text-sm text-red-600 font-medium">❌ {metaAudienceError}</p>
                   <Button size="sm" variant="outline" className="mt-3 text-xs" onClick={fetchMetaAudiences}>
-                    <RefreshCw className="h-3 w-3 mr-1" /> Thử lại
+                    <RefreshCw className="h-3 w-3 mr-1" /> {t("creative.main.common.retry")}
                   </Button>
                 </div>
               )}
               {!metaAudienceLoading && !metaAudienceError && metaAudienceList.length === 0 && (
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-8 text-center">
-                  <p className="text-sm text-slate-500">Không tìm thấy đối tượng đã lưu trong tài khoản Meta.</p>
+                  <p className="text-sm text-slate-500">{t("creative.main.step2.metaNone")}</p>
                 </div>
               )}
               {metaAudienceList.length > 0 && (
                 <>
                   <p className="text-xs text-slate-500">
-                    Chọn đối tượng đã lưu từ Meta để dùng làm targeting. Mỗi đối tượng sẽ tạo 1 Ad Set riêng.
+                    {t("creative.main.step2.metaPick")}
                   </p>
                   <div className="space-y-2">
                     {metaAudienceList.map((aud) => {
@@ -2168,8 +2169,8 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                               <p className="text-sm font-semibold text-slate-800">{aud.name}</p>
                               <p className="text-xs text-slate-400 mt-0.5">
                                 {aud.type === "LOOKALIKE" ? "Lookalike" : aud.type === "CUSTOM" ? "Custom" : aud.type}
-                                {aud.size > 0 && ` · ${(aud.size / 1000).toFixed(0)}K–${(aud.sizeMax / 1000).toFixed(0)}K người`}
-                                {aud.createdAt && ` · Tạo ${aud.createdAt}`}
+                                {aud.size > 0 && t("creative.main.step2.audSize", { min: (aud.size / 1000).toFixed(0), max: (aud.sizeMax / 1000).toFixed(0) })}
+                                {aud.createdAt && t("creative.main.step2.audCreated", { date: aud.createdAt })}
                               </p>
                             </div>
                           </div>
@@ -2183,13 +2184,13 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                   {selectedMetaAudienceIds.size > 0 && (
                     <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 flex items-center justify-between">
                       <span className="text-amber-800 text-sm font-medium">
-                        ✅ Đã chọn {selectedMetaAudienceIds.size} đối tượng Meta → Sẽ tạo {selectedMetaAudienceIds.size} Ad Set + {selectedMetaAudienceIds.size * selectedTones.length} Quảng Cáo
+                        {t("creative.main.step2.metaSelected", { n: selectedMetaAudienceIds.size, ads: selectedMetaAudienceIds.size * selectedTones.length })}
                       </span>
                       <button
                         onClick={() => setSelectedMetaAudienceIds(new Set())}
                         className="text-xs text-slate-400 hover:text-slate-600 transition-colors"
                       >
-                        Bỏ chọn hết
+                        {t("creative.main.step2.deselectAll")}
                       </button>
                     </div>
                   )}
@@ -2202,7 +2203,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
           {step2Tab === "ai" && audienceData && (
             <>
               <h3 className="text-sm font-semibold text-slate-700">
-                🎯 Phân khúc đối tượng ({audienceData.audienceSegments.length} phân khúc)
+                {t("creative.main.step2.segments", { n: audienceData.audienceSegments.length })}
               </h3>
 
               {/* A1 — cảnh báo ở mức toàn mẻ: không có kiến thức sản phẩm cho
@@ -2236,14 +2237,13 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                 return (
                   <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 space-y-1.5">
                     <p className="text-xs text-slate-600">
-                      🎲 Góc nhìn mẻ này: <b>{lens}</b>
-                      <span className="text-slate-400"> — mỗi lần tạo lại sẽ bốc góc khác để tránh lặp phân khúc.</span>
+                      {t("creative.main.step2.lens")}<b>{lens}</b>
+                      <span className="text-slate-400">{t("creative.main.step2.lensHint")}</span>
                     </p>
                     {!covered && (
                       <div className="flex items-start gap-2 flex-wrap">
                         <p className="text-xs text-amber-800 flex-1 min-w-[240px]">
-                          ⚠️ Không phân khúc nào chạm tới <b>TP.HCM</b> hay <b>Hà Nội</b> — hai thị trường lớn nhất.
-                          Nếu đó không phải chủ ý thì thêm vào phân khúc ưu tiên số 1:
+                          {t("creative.main.step2.bigMkt1")}<b>{t("creative.main.step2.hcm")}</b>{t("creative.main.step2.bigMkt2")}<b>{t("creative.main.step2.hanoi")}</b>{t("creative.main.step2.bigMkt3")}
                         </p>
                         <button
                           onClick={() => {
@@ -2260,7 +2260,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                           }}
                           className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-amber-300 bg-white text-amber-800 hover:bg-amber-50"
                         >
-                          ➕ Thêm TP.HCM + Hà Nội
+                          {t("creative.main.step2.addBig")}
                         </button>
                       </div>
                     )}
@@ -2270,7 +2270,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
 
               {grounding && !grounding.kbAvailable && grounding.globalWarnings.length === 0 && (
                 <p className="text-xs text-slate-500">
-                  Sản phẩm này chưa có trong kho kiến thức nội bộ — các phân khúc dưới đây là suy luận của AI.
+                  {t("creative.main.step2.noKb")}
                 </p>
               )}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -2305,19 +2305,19 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                               seg.funnelStage === "MOFU" ? "bg-amber-100 text-amber-700" :
                               "bg-emerald-100 text-emerald-700"
                             )}>
-                              {seg.funnelStage === "TOFU" ? "Khách mới" :
-                               seg.funnelStage === "MOFU" ? "Đang cân nhắc" :
-                               seg.funnelStage === "BOFU" ? "Sẵn sàng chốt" : seg.funnelStage}
+                              {seg.funnelStage === "TOFU" ? t("creative.main.step2.stageTofu") :
+                               seg.funnelStage === "MOFU" ? t("creative.main.step2.stageMofu") :
+                               seg.funnelStage === "BOFU" ? t("creative.main.step2.stageBofu") : seg.funnelStage}
                             </span>
                           )}
                           {seg.priority === 1 && (
                             <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">
-                              Ưu tiên cao ⭐
+                              {t("creative.main.step2.highPriority")}
                             </span>
                           )}
                           {/* Save to Library */}
                           {savedSegmentIds.has(i) ? (
-                            <span className="text-[10px] text-green-600 font-semibold">✅ Đã lưu</span>
+                            <span className="text-[10px] text-green-600 font-semibold">{t("creative.main.step2.savedBadge")}</span>
                           ) : (
                             <button
                               onClick={(e) => {
@@ -2327,7 +2327,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                               disabled={savingSegment === i}
                               className="flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-semibold bg-violet-50 text-violet-600 border border-violet-200 hover:bg-violet-100 transition-colors disabled:opacity-50"
                             >
-                              {savingSegment === i ? "⏳" : "🔖"} Lưu
+                              {savingSegment === i ? "⏳" : "🔖"} {t("creative.main.common.save")}
                             </button>
                           )}
                           <div className={cn(
@@ -2342,15 +2342,15 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                       {/* Estimated Audience Size */}
                       {seg.estimatedAudienceSize && (
                         <div className="px-5 py-1">
-                          <span className="text-[10px] text-slate-400">📊 Quy mô: <b className="text-slate-600">{seg.estimatedAudienceSize}</b></span>
+                          <span className="text-[10px] text-slate-400">{t("creative.main.step2.size")}<b className="text-slate-600">{seg.estimatedAudienceSize}</b></span>
                         </div>
                       )}
 
                       {/* Demographics */}
                       <div className="px-5 py-2 border-t border-slate-100">
-                        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">👥 Demographics</p>
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">{t("creative.main.step2.demographics")}</p>
                         <div className="grid grid-cols-2 gap-1 text-xs text-slate-600">
-                          <span>Tuổi: <b>{seg.demographics.age}</b></span>
+                          <span>{t("creative.main.step2.age")}<b>{seg.demographics.age}</b></span>
                           <span>{seg.demographics.gender}</span>
                           <span className="col-span-2">📍 {seg.demographics.location.join(", ")}</span>
                           {/* Thu nhập KHÔNG target được ở Việt Nam — Meta chỉ mở
@@ -2362,7 +2362,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                           {seg.demographics.income && (
                             <span className="col-span-2 text-slate-400">
                               💰 {seg.demographics.income}
-                              <span className="ml-1 text-[10px] italic">— chỉ để viết nội dung, Meta VN không target theo thu nhập</span>
+                              <span className="ml-1 text-[10px] italic">{t("creative.main.step2.incomeNote")}</span>
                             </span>
                           )}
                         </div>
@@ -2378,7 +2378,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                           <p className="text-[10px] font-bold uppercase tracking-wider text-red-700">🔍 Google Ads</p>
                           {(seg.googleTargeting.searchIntents ?? []).length > 0 && (
                             <div>
-                              <p className="text-[10px] font-semibold text-slate-500 mb-1">Từ khoá khách sẽ gõ</p>
+                              <p className="text-[10px] font-semibold text-slate-500 mb-1">{t("creative.main.step2.gKeywords")}</p>
                               <div className="flex flex-wrap gap-1">
                                 {(seg.googleTargeting.searchIntents ?? []).map((k, j) => (
                                   <span key={j} className="rounded-full bg-white border border-red-200 px-2 py-0.5 text-[10px] font-medium text-red-700">{k}</span>
@@ -2388,7 +2388,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                           )}
                           {(seg.googleTargeting.negativeKeywords ?? []).length > 0 && (
                             <div>
-                              <p className="text-[10px] font-semibold text-slate-500 mb-1">Từ khoá phủ định (loại để đỡ tốn tiền)</p>
+                              <p className="text-[10px] font-semibold text-slate-500 mb-1">{t("creative.main.step2.gNegative")}</p>
                               <div className="flex flex-wrap gap-1">
                                 {(seg.googleTargeting.negativeKeywords ?? []).map((k, j) => (
                                   <span key={j} className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500 line-through">{k}</span>
@@ -2398,7 +2398,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                           )}
                           {(seg.googleTargeting.audienceSignals ?? []).length > 0 && (
                             <div>
-                              <p className="text-[10px] font-semibold text-slate-500 mb-1">Tín hiệu đối tượng (Performance Max)</p>
+                              <p className="text-[10px] font-semibold text-slate-500 mb-1">{t("creative.main.step2.gSignals")}</p>
                               <div className="flex flex-wrap gap-1">
                                 {(seg.googleTargeting.audienceSignals ?? []).map((k, j) => (
                                   <span key={j} className="rounded-full bg-orange-50 px-2 py-0.5 text-[10px] font-medium text-orange-700">{k}</span>
@@ -2412,7 +2412,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                       {/* Interests — CHỈ Meta */}
                       {platform !== "google" && (
                       <div className="px-5 py-2 border-t border-slate-100">
-                        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">🧠 Interests để target {platform === "both" && <span className="text-slate-300">(Meta)</span>}</p>
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">{t("creative.main.step2.interests")}{platform === "both" && <span className="text-slate-300">(Meta)</span>}</p>
                         <div className="flex flex-wrap gap-1">
                           {(seg.facebookTargeting?.interests ?? seg.psychographics?.interests ?? []).map((interest, j) => (
                             <span key={j} className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">
@@ -2426,7 +2426,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                       {/* Behaviors — CHỈ Meta */}
                       {platform !== "google" && (seg.facebookTargeting?.behaviors ?? seg.psychographics?.behaviors ?? []).length > 0 && (
                         <div className="px-5 py-2 border-t border-slate-100">
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">🎯 Hành vi (Behaviors)</p>
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">{t("creative.main.step2.behaviors")}</p>
                           <div className="flex flex-wrap gap-1">
                             {(seg.facebookTargeting?.behaviors ?? seg.psychographics?.behaviors ?? []).map((behavior, j) => (
                               <span key={j} className="rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-medium text-violet-600">
@@ -2440,7 +2440,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                       {/* Job Titles */}
                       {(seg.facebookTargeting?.jobTitles ?? seg.demographics.jobTitles ?? []).length > 0 && (
                         <div className="px-5 py-2 border-t border-slate-100">
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">👔 Chức danh / Ngành nghề</p>
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">{t("creative.main.step2.jobTitles")}</p>
                           <div className="flex flex-wrap gap-1">
                             {(seg.facebookTargeting?.jobTitles ?? seg.demographics.jobTitles ?? []).map((job, j) => (
                               <span key={j} className="rounded-full bg-cyan-50 px-2 py-0.5 text-[10px] font-medium text-cyan-700">
@@ -2454,7 +2454,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                       {/* Exclusion Targeting */}
                       {(seg.facebookTargeting?.excludeAudiences ?? []).length > 0 && (
                         <div className="px-5 py-2 border-t border-slate-100">
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-red-400 mb-1.5">🚫 Loại trừ đối tượng</p>
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-red-400 mb-1.5">{t("creative.main.step2.exclusion")}</p>
                           <div className="flex flex-wrap gap-1">
                             {(seg.facebookTargeting?.excludeAudiences ?? []).map((ex, j) => (
                               <span key={j} className="rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-medium text-red-500 border border-red-100">
@@ -2463,14 +2463,14 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                             ))}
                           </div>
                           {/* Meta bỏ loại trừ theo sở thích/hành vi (v22, mọi phiên bản từ 21/04/2025) — các mục này KHÔNG được gửi khi tạo chiến dịch. */}
-                          <p className="mt-1 text-[10px] text-slate-400">Chỉ để tham khảo — Meta không còn cho loại trừ theo sở thích/hành vi. Muốn loại trừ, chọn tệp ở ô “Loại trừ tệp đối tượng”.</p>
+                          <p className="mt-1 text-[10px] text-slate-400">{t("creative.main.step2.exclusionNote")}</p>
                         </div>
                       )}
 
                       {/* Custom Audience Suggestions */}
                       {(seg.customAudienceSuggestions ?? []).length > 0 && (
                         <div className="px-5 py-2 border-t border-slate-100">
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-purple-400 mb-1.5">👥 Custom Audience gợi ý</p>
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-purple-400 mb-1.5">{t("creative.main.step2.customAud")}</p>
                           <ul className="space-y-0.5">
                             {(seg.customAudienceSuggestions ?? []).map((ca, j) => (
                               <li key={j} className="text-xs text-purple-700 bg-purple-50 rounded px-2 py-0.5">• {ca}</li>
@@ -2481,7 +2481,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
 
                       {/* Pain Points */}
                       <div className="px-5 py-2 border-t border-slate-100">
-                        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">💔 Pain Points</p>
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">{t("creative.main.step2.painPoints")}</p>
                         <ul className="space-y-0.5">
                           {seg.painPoints.slice(0, 3).map((p, j) => (
                             <li key={j} className="text-xs text-slate-600">• {p}</li>
@@ -2492,7 +2492,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                       {/* Triggers */}
                       {seg.buyingTriggers && seg.buyingTriggers.length > 0 && (
                       <div className="px-5 py-2 border-t border-slate-100">
-                        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">⚡ Buying Triggers</p>
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">{t("creative.main.step2.triggers")}</p>
                         <ul className="space-y-0.5">
                           {seg.buyingTriggers.slice(0, 2).map((t, j) => (
                             <li key={j} className="text-xs text-slate-600">• {t}</li>
@@ -2504,7 +2504,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                       {/* V2: Trigger Moment */}
                       {seg.triggerMoment && (
                         <div className="px-5 py-2 border-t border-slate-100">
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1">🎯 Trigger Moment</p>
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1">{t("creative.main.step2.triggerMoment")}</p>
                           <p className="text-xs text-amber-800 bg-amber-50 rounded-lg px-2.5 py-1.5 italic">
                             &ldquo;{seg.triggerMoment}&rdquo;
                           </p>
@@ -2514,7 +2514,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                       {/* V2: Message Hook */}
                       {seg.messageHook && (
                         <div className="px-5 py-2 border-t border-slate-100">
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1">💡 Message Hook</p>
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1">{t("creative.main.step2.messageHook")}</p>
                           <div className="flex items-start gap-2">
                             <p className="flex-1 text-xs font-semibold text-slate-800 bg-amber-50 rounded-lg px-2.5 py-1.5">
                               {seg.messageHook}
@@ -2526,7 +2526,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                       {/* V2: Why This Segment */}
                       {seg.whyThisSegment && (
                         <div className="px-5 py-2 border-t border-slate-100">
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1">📌 Tại sao nhắm segment này?</p>
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1">{t("creative.main.step2.why")}</p>
                           <p className="text-xs text-slate-600">{seg.whyThisSegment}</p>
                         </div>
                       )}
@@ -2540,19 +2540,19 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                         const g = grounding?.segments?.find(x => x.segmentName === seg.segmentName);
                         if (!g) return null;
                         const LABEL: Record<string, { text: string; cls: string }> = {
-                          performance_proven:{ text: "Đã đo — RẺ hơn trung vị", cls: "bg-indigo-50 text-indigo-700 border-indigo-300 font-bold" },
-                          performance_expensive:{ text: "Đã đo — ĐẮT hơn trung vị", cls: "bg-orange-50 text-orange-700 border-orange-300 font-bold" },
-                          kb_grounded:       { text: "Kiến thức sản phẩm", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-                          manual_input:      { text: "Bạn tự nhập",        cls: "bg-blue-50 text-blue-700 border-blue-200" },
-                          derived_inference: { text: "AI tự suy",          cls: "bg-slate-100 text-slate-600 border-slate-200" },
-                          unverified:        { text: "Không xác minh được", cls: "bg-red-50 text-red-700 border-red-200" },
+                          performance_proven:{ text: t("creative.main.step2.evProven"), cls: "bg-indigo-50 text-indigo-700 border-indigo-300 font-bold" },
+                          performance_expensive:{ text: t("creative.main.step2.evExpensive"), cls: "bg-orange-50 text-orange-700 border-orange-300 font-bold" },
+                          kb_grounded:       { text: t("creative.main.step2.evKb"), cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+                          manual_input:      { text: t("creative.main.step2.evManual"),        cls: "bg-blue-50 text-blue-700 border-blue-200" },
+                          derived_inference: { text: t("creative.main.step2.evInferred"),          cls: "bg-slate-100 text-slate-600 border-slate-200" },
+                          unverified:        { text: t("creative.main.step2.evUnverified"), cls: "bg-red-50 text-red-700 border-red-200" },
                         };
                         return (
                           <div className="px-5 py-2 border-t border-slate-100">
                             <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
-                              🔎 Căn cứ đề xuất
+                              {t("creative.main.step2.evidence")}
                               <span className="ml-1 font-normal normal-case tracking-normal text-slate-400">
-                                ({g.kbGroundedCount} truy được về kiến thức sản phẩm)
+                                {t("creative.main.step2.evidenceCount", { n: g.kbGroundedCount })}
                               </span>
                             </p>
                             <div className="space-y-1">
@@ -2566,7 +2566,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                                     <span className="text-[11px] text-slate-600 leading-snug">
                                       {e.claim}
                                       {e.matchedSource && (
-                                        <span className="text-slate-400"> — nguồn: “{e.matchedSource.slice(0, 90)}”</span>
+                                        <span className="text-slate-400">{t("creative.main.step2.evidenceSource", { source: e.matchedSource.slice(0, 90) })}</span>
                                       )}
                                     </span>
                                   </div>
@@ -2586,7 +2586,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
 
                       {/* Footer metrics */}
                       <div className="px-5 py-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-                        <span>{seg.estimatedCTR ? <>📊 CTR AI ước tính: <b className="text-slate-700">{seg.estimatedCTR}</b></> : null}</span>
+                        <span>{seg.estimatedCTR ? <>{t("creative.main.step2.estCtr")}<b className="text-slate-700">{seg.estimatedCTR}</b></> : null}</span>
                         <div className="flex items-center gap-1.5">
                           {seg.competitionLevel && (
                             <span className={cn(
@@ -2595,7 +2595,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                               seg.competitionLevel === "high" ? "bg-red-50 text-red-600" :
                               "bg-amber-50 text-amber-600"
                             )}>
-                              {seg.competitionLevel === "low" ? "🟢 Ít cạnh tranh" : seg.competitionLevel === "high" ? "🔴 Cạnh tranh cao" : "🟡 Trung bình"}
+                              {seg.competitionLevel === "low" ? t("creative.main.step2.compLow") : seg.competitionLevel === "high" ? t("creative.main.step2.compHigh") : t("creative.main.step2.compMid")}
                             </span>
                           )}
                           {seg.difficulty && (
@@ -2626,7 +2626,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                             className="w-full flex items-center justify-center gap-1.5 px-5 py-2.5 text-xs font-medium text-indigo-600 hover:bg-indigo-50 transition-colors"
                           >
                             <Eye className="h-3.5 w-3.5" />
-                            {expandedSampleAds.has(i) ? "Ẩn mẫu copy" : "Xem mẫu copy cho segment này"}
+                            {expandedSampleAds.has(i) ? t("creative.main.step2.hideSample") : t("creative.main.step2.showSample")}
                             {expandedSampleAds.has(i) ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
                           </button>
 
@@ -2634,18 +2634,18 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                             <div className="px-5 pb-4 space-y-3 animate-fade-in" onClick={(e) => e.stopPropagation()}>
                               <div className="rounded-lg border border-indigo-200 bg-gradient-to-br from-indigo-50/80 to-white p-4 space-y-3">
                                 <p className="text-xs font-bold text-indigo-700 flex items-center gap-1.5">
-                                  📝 Mẫu copy cho &ldquo;{seg.segmentName}&rdquo;
+                                  {t("creative.main.step2.sampleFor", { name: seg.segmentName })}
                                 </p>
 
                                 <div>
-                                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1">Primary Text</p>
+                                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1">{t("creative.main.common.primaryText")}</p>
                                   <p className="text-xs text-slate-700 leading-relaxed bg-white rounded-lg px-3 py-2 border border-slate-100">
                                     {seg.sampleAd.primaryText}
                                   </p>
                                 </div>
 
                                 <div>
-                                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1">Headline</p>
+                                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1">{t("creative.main.common.headline")}</p>
                                   <p className="text-sm font-bold text-slate-800">
                                     {seg.sampleAd.headline}
                                   </p>
@@ -2667,7 +2667,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                                     }}
                                     className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 transition-colors"
                                   >
-                                    <Copy className="h-3 w-3" /> Copy ngay
+                                    <Copy className="h-3 w-3" /> {t("creative.main.step2.copyNow")}
                                   </button>
                                   <button
                                     onClick={(e) => {
@@ -2680,7 +2680,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                                     }}
                                     className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 transition-colors shadow-sm"
                                   >
-                                    <Sparkles className="h-3 w-3" /> Dùng cho Step 3
+                                    <Sparkles className="h-3 w-3" /> {t("creative.main.step2.useStep3")}
                                   </button>
                                 </div>
                               </div>
@@ -2697,13 +2697,13 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
               {selectedSegments.length > 0 && (
                 <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 flex items-center justify-between">
                   <span className="text-amber-800 text-sm font-medium">
-                    ✅ Đã chọn {selectedSegments.length} insight → Sẽ tạo {selectedSegments.length} Ad Set + {selectedSegments.length * selectedTones.length} Quảng Cáo
+                    {t("creative.main.step2.insightSelected", { n: selectedSegments.length, ads: selectedSegments.length * selectedTones.length })}
                   </span>
                   <button
                     onClick={(e) => { e.stopPropagation(); setSelectedSegments([]); }}
                     className="text-xs text-slate-400 hover:text-slate-600 transition-colors"
                   >
-                    Bỏ chọn hết
+                    {t("creative.main.step2.deselectAll")}
                   </button>
                 </div>
               )}
@@ -2727,7 +2727,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                       {bestTime && (
                         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
                           <h4 className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-1.5">
-                            <Clock className="h-4 w-4 text-amber-700" /> Thời điểm chạy tốt nhất
+                            <Clock className="h-4 w-4 text-amber-700" /> {t("creative.main.step2.bestTime")}
                           </h4>
                           <p className="text-xs text-slate-600">
                             📅 {bestTime.daysOfWeek.join(", ")} | {bestTime.timeOfDay}
@@ -2738,11 +2738,11 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                       {budget && (
                         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
                           <h4 className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-1.5">
-                            <DollarSign className="h-4 w-4 text-green-500" /> Ngân sách đề xuất <span className="text-[10px] font-normal text-slate-400">(AI ước tính, không phải số đo)</span>
+                            <DollarSign className="h-4 w-4 text-green-500" /> {t("creative.main.step2.budgetRec")} <span className="text-[10px] font-normal text-slate-400">{t("creative.main.step2.budgetRecNote")}</span>
                           </h4>
                           <div className="flex items-center gap-4 text-xs text-slate-600">
-                            <span>Tối thiểu: <b className="text-slate-800">{fmtVND(budget.minimumDaily)}</b>/ngày</span>
-                            <span>Tối ưu: <b className="text-green-700">{fmtVND(budget.optimalDaily)}</b>/ngày</span>
+                            <span>{t("creative.main.step2.minimum")}<b className="text-slate-800">{fmtVND(budget.minimumDaily)}</b>{t("creative.main.common.perDay")}</span>
+                            <span>{t("creative.main.step2.optimal")}<b className="text-green-700">{fmtVND(budget.optimalDaily)}</b>{t("creative.main.common.perDay")}</span>
                           </div>
                           <p className="text-xs text-slate-400 mt-1">💡 {budget.reasoning}</p>
                         </div>
@@ -2752,7 +2752,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                       {adFormats && adFormats.length > 0 && (
                         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
                           <h4 className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-1.5">
-                            <BarChart3 className="h-4 w-4 text-purple-500" /> Ad Formats đề xuất
+                            <BarChart3 className="h-4 w-4 text-purple-500" /> {t("creative.main.step2.adFormats")}
                           </h4>
                           <div className="flex flex-wrap gap-1.5">
                             {adFormats.map((fmt, idx) => (
@@ -2766,7 +2766,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                       {campaignStructure && (
                         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
                           <h4 className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-1.5">
-                            <Target className="h-4 w-4 text-amber-700" /> Cấu trúc Campaign
+                            <Target className="h-4 w-4 text-amber-700" /> {t("creative.main.step2.campStructure")}
                           </h4>
                           <p className="text-xs text-slate-600 leading-relaxed">{campaignStructure}</p>
                         </div>
@@ -2781,7 +2781,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
           {/* Nav buttons */}
           <div className="flex items-center justify-between">
             <Button variant="outline" className="gap-1.5 text-xs" onClick={() => setStep(1)}>
-              <ArrowLeft className="h-3.5 w-3.5" /> Quay lại
+              <ArrowLeft className="h-3.5 w-3.5" /> {t("creative.main.common.back")}
             </Button>
             <div className="flex items-center gap-2">
               {step2Tab === "ai" && audienceData && audienceData.audienceSegments.length > 0 && (
@@ -2791,7 +2791,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                   disabled={savedSegmentIds.size === audienceData?.audienceSegments?.length}
                   className="gap-1.5 text-xs border-violet-200 text-violet-600 hover:bg-violet-50 disabled:opacity-40"
                 >
-                  🔖 {savedSegmentIds.size === audienceData?.audienceSegments?.length ? "Đã lưu tất cả" : "Lưu tất cả vào Thư Viện"}
+                  🔖 {savedSegmentIds.size === audienceData?.audienceSegments?.length ? t("creative.main.step2.savedAll") : t("creative.main.step2.saveAll")}
                 </Button>
               )}
               <Button
@@ -2799,7 +2799,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                 disabled={!canProceedStep2 && !audienceLoading}
                 className="gap-1.5 bg-amber-500 text-sm text-amber-950 hover:bg-amber-600 disabled:opacity-40"
               >
-                Tiếp theo → Tạo Creative <ArrowRight className="h-3.5 w-3.5" />
+                {t("creative.main.step2.next")} <ArrowRight className="h-3.5 w-3.5" />
               </Button>
             </div>
           </div>
@@ -2829,7 +2829,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                   : "text-slate-500 hover:text-slate-700"
               )}
             >
-              <Sparkles className="h-4 w-4" /> Tạo nội dung mới
+              <Sparkles className="h-4 w-4" /> {t("creative.main.step3.tabGenerate")}
             </button>
             <button
               onClick={() => { setCreativeTab("existing"); setCreativeTabTouched(true); }}
@@ -2840,7 +2840,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                   : "text-slate-500 hover:text-slate-700"
               )}
             >
-              <ClipboardList className="h-4 w-4" /> Dùng bài đã đăng
+              <ClipboardList className="h-4 w-4" /> {t("creative.main.step3.tabExisting")}
             </button>
             {/* Tab Google chỉ có nghĩa khi chiến dịch thật sự chạy Google. */}
             {platform === "both" && (
@@ -2853,7 +2853,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                   : "text-slate-500 hover:text-slate-700"
               )}
             >
-              <Target className="h-4 w-4" /> Google Ads
+              <Target className="h-4 w-4" /> {t("creative.main.step3.tabGoogle")}
             </button>
             )}
           </div>
@@ -2867,30 +2867,30 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
             {/* Tone of Voice — 10-tone multi-select */}
             <div>
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-slate-700">🎨 Tone of Voice</h3>
+                <h3 className="text-sm font-semibold text-slate-700">{t("creative.main.step3.tone")}</h3>
                 <span className={cn(
                   "text-xs font-semibold rounded-full px-2.5 py-0.5",
                   selectedTones.length >= MAX_TONES
                     ? "bg-amber-100 text-amber-800"
                     : "bg-slate-100 text-slate-400"
                 )}>
-                  {selectedTones.length}/{MAX_TONES} đã chọn
+                  {t("creative.main.step3.toneSelected", { n: selectedTones.length, max: MAX_TONES })}
                 </span>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
-                {TONES.map(t => {
-                  const isSelected = selectedTones.includes(t.id);
-                  const isRecommended = isLegacy && t.bestFor.includes(selectedProduct);
+                {TONES.map(tn => {
+                  const isSelected = selectedTones.includes(tn.id);
+                  const isRecommended = isLegacy && tn.bestFor.includes(selectedProduct);
                   const isDisabled = !isSelected && selectedTones.length >= MAX_TONES;
                   return (
                     <button
-                      key={t.id}
+                      key={tn.id}
                       disabled={isDisabled}
                       onClick={() => {
                         setSelectedTones(prev =>
-                          prev.includes(t.id)
-                            ? prev.filter(id => id !== t.id)
-                            : prev.length < MAX_TONES ? [...prev, t.id] : prev
+                          prev.includes(tn.id)
+                            ? prev.filter(id => id !== tn.id)
+                            : prev.length < MAX_TONES ? [...prev, tn.id] : prev
                         );
                       }}
                       className={cn(
@@ -2906,7 +2906,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                       {/* Recommended badge */}
                       {isRecommended && !isSelected && (
                         <span className="absolute -top-2 -right-1 rounded-full bg-amber-400 px-1.5 py-0.5 text-[8px] font-bold text-white shadow-sm">
-                          ⭐ Gợi ý
+                          {t("creative.main.step3.suggested")}
                         </span>
                       )}
                       {/* Selected checkmark */}
@@ -2916,12 +2916,12 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                         </span>
                       )}
                       <div className="flex items-center gap-1.5">
-                        <span className="text-base leading-none">{t.icon}</span>
+                        <span className="text-base leading-none">{tn.icon}</span>
                         <span className={cn("text-xs font-semibold", isSelected ? "text-amber-800" : "text-slate-700")}>
-                          {t.label}
+                          {tn.label}
                         </span>
                       </div>
-                      <span className="text-[10px] text-slate-400 leading-tight">{t.description}</span>
+                      <span className="text-[10px] text-slate-400 leading-tight">{tn.description}</span>
                       {/* Sample hook — shown on hover or when selected (câu mẫu là nội dung Mắt Bão → chỉ legacy) */}
                       {isLegacy && <span className={cn(
                         "text-[10px] italic leading-tight mt-0.5 transition-all",
@@ -2929,7 +2929,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                           ? "text-amber-700 opacity-100"
                           : "text-slate-300 opacity-0 group-hover/tone:opacity-100"
                       )}>
-                        &ldquo;{t.sampleHook}&rdquo;
+                        &ldquo;{tn.sampleHook}&rdquo;
                       </span>}
                     </button>
                   );
@@ -2940,7 +2940,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
               {selectedTones.length > 1 && (
                 <div className="mt-3 rounded-lg bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 px-4 py-2.5">
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-xs font-bold text-amber-800">🎨 Combo:</span>
+                    <span className="text-xs font-bold text-amber-800">{t("creative.main.step3.combo")}</span>
                     {selectedTones.map((id, idx) => {
                       const tone = TONES.find(t => t.id === id);
                       return (
@@ -2954,7 +2954,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                     })}
                   </div>
                   <p className="text-[10px] text-amber-700 mt-1">
-                    AI sẽ tạo riêng {selectedTones.length} creatives — mỗi tone một creative riêng biệt
+                    {t("creative.main.step3.comboHint", { n: selectedTones.length })}
                   </p>
                 </div>
               )}
@@ -2964,7 +2964,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
             {selectedSegments.length > 0 && selectedTones.length > 0 && (
               <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
                 <p className="text-xs font-semibold text-emerald-700">
-                  📊 Sẽ tạo: <b>{totalCreativeCount}</b> creatives = {selectedSegments.length} segments × {selectedTones.length} tones{platform === "both" ? " × 2 platforms" : ""}
+                  {t("creative.main.step3.willCreate")}<b>{totalCreativeCount}</b>{t("creative.main.step3.willCreateEq", { segs: selectedSegments.length, tones: selectedTones.length })}{platform === "both" ? t("creative.main.step3.times2") : ""}
                 </p>
               </div>
             )}
@@ -2976,9 +2976,9 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
               className="w-full gap-2 bg-amber-500 py-6 text-base font-bold text-amber-950 hover:bg-amber-600 disabled:opacity-50 shadow-lg shadow-amber-200"
             >
               {isGenerating ? (
-                <><Loader2 className="h-5 w-5 animate-spin" /> {generationProgress || `AI đang viết ${totalCreativeCount} creatives...`}</>
+                <><Loader2 className="h-5 w-5 animate-spin" /> {generationProgress || t("creative.main.step3.writing", { n: totalCreativeCount })}</>
               ) : (
-                <><Sparkles className="h-5 w-5" /> 🚀 Generate {totalCreativeCount} Creatives</>
+                <><Sparkles className="h-5 w-5" /> {t("creative.main.step3.generate", { n: totalCreativeCount })}</>
               )}
             </Button>
           </div>
@@ -3002,14 +3002,14 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                 // Fanpage sai quyền đều hiện ra y như "không có bài nào" — người
                 // dùng ngồi đợi một danh sách không bao giờ tới mà không biết vì sao.
                 if (data.error) {
-                  setPostsError(typeof data.error === "string" ? data.error : "Không tải được bài viết từ Fanpage");
+                  setPostsError(typeof data.error === "string" ? data.error : t("creative.main.step3.postsLoadErr"));
                   setPagePosts([]);
                 } else {
                   setPostsError(null);
                   setPagePosts(data.posts || []);
                 }
               } catch (err) {
-                setPostsError(err instanceof Error ? err.message : "Không gọi được API bài viết");
+                setPostsError(err instanceof Error ? err.message : t("creative.main.step3.postsApiErr"));
                 setPagePosts([]);
               } finally {
                 setLoadingPosts(false);
@@ -3029,7 +3029,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
               {/* Filters */}
               <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
                 <h3 className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                  📋 Chọn bài viết từ Fanpage ({company})
+                  {t("creative.main.step3.pickPosts", { company })}
                 </h3>
                 {postsError && (
                   <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2">
@@ -3041,7 +3041,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                   {/* Search */}
                   <div className="flex-1 min-w-[200px]">
                     <Input
-                      placeholder="🔍 Tìm theo nội dung..."
+                      placeholder={t("creative.main.step3.searchPh")}
                       value={searchPostText}
                       onChange={e => setSearchPostText(e.target.value)}
                       onKeyDown={e => e.key === "Enter" && loadPagePosts()}
@@ -3055,9 +3055,9 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                     onChange={e => setDayRange(Number(e.target.value))}
                     className="rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-700 focus:border-amber-400 focus:outline-none"
                   >
-                    <option value={30}>30 ngày gần đây</option>
-                    <option value={60}>60 ngày gần đây</option>
-                    <option value={90}>90 ngày gần đây</option>
+                    <option value={30}>{t("creative.main.step3.last30")}</option>
+                    <option value={60}>{t("creative.main.step3.last60")}</option>
+                    <option value={90}>{t("creative.main.step3.last90")}</option>
                   </select>
 
                   {/* Media only */}
@@ -3068,7 +3068,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                       onChange={e => setFilterMediaOnly(e.target.checked)}
                       className="accent-amber-500 h-3.5 w-3.5"
                     />
-                    Chỉ hình/video
+                    {t("creative.main.step3.mediaOnly")}
                   </label>
 
                   {/* Search button */}
@@ -3080,7 +3080,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                     onClick={loadPagePosts}
                   >
                     {loadingPosts ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                    {loadingPosts ? "Đang tải..." : "🔍 Tìm kiếm"}
+                    {loadingPosts ? t("creative.main.common.loading") : t("creative.main.step3.search")}
                   </Button>
                 </div>
               </div>
@@ -3089,13 +3089,13 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
               {selectedPosts.length > 0 && (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 flex items-center justify-between">
                   <p className="text-xs font-semibold text-amber-800">
-                    ✅ Đã chọn {selectedPosts.length} bài viết
+                    {t("creative.main.step3.postsSelected", { n: selectedPosts.length })}
                   </p>
                   <button
                     onClick={() => setSelectedPosts([])}
                     className="text-xs text-amber-700 hover:text-amber-800 font-medium"
                   >
-                    Bỏ chọn tất cả
+                    {t("creative.main.step3.deselectAllPosts")}
                   </button>
                 </div>
               )}
@@ -3143,9 +3143,9 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                               post.mediaType === "link" ? "bg-amber-500 text-white" :
                               "bg-slate-500 text-white"
                             )}>
-                              {post.mediaType === "photo" ? "🖼️ Ảnh" :
-                               post.mediaType === "video" ? "🎬 Video" :
-                               post.mediaType === "link" ? "🔗 Link" : "📝 Text"}
+                              {post.mediaType === "photo" ? t("creative.main.step3.mtPhoto") :
+                               post.mediaType === "video" ? t("creative.main.step3.mtVideo") :
+                               post.mediaType === "link" ? t("creative.main.step3.mtLink") : t("creative.main.step3.mtText")}
                             </span>
                           </div>
                         ) : (
@@ -3157,10 +3157,10 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                         {/* Content */}
                         <div className="p-3 space-y-2 flex-1">
                           <p className="text-xs text-slate-700 leading-relaxed line-clamp-3">
-                            {post.message || "(Không có text)"}
+                            {post.message || t("creative.main.step3.noText")}
                           </p>
                           <div className="post-meta flex items-center justify-between text-[10px] text-slate-400">
-                            <span>{new Date(post.createdTime).toLocaleDateString("vi-VN")}</span>
+                            <span>{new Date(post.createdTime).toLocaleDateString(intlLocale)}</span>
                             <div className="flex items-center gap-2">
                               <span>👍 {post.engagement.likes}</span>
                               <span>💬 {post.engagement.comments}</span>
@@ -3185,8 +3185,8 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
               {/* Empty state */}
               {!loadingPosts && pagePosts.length === 0 && (
                 <div className="rounded-xl border border-slate-200 bg-white py-12 text-center">
-                  <p className="text-sm text-slate-400">Nhấn "🔍 Tìm kiếm" để tải bài viết từ Fanpage</p>
-                  <p className="text-xs text-slate-300 mt-1">Thay đổi khoảng thời gian hoặc từ khóa để tìm chính xác hơn</p>
+                  <p className="text-sm text-slate-400">{t("creative.main.step3.emptyPosts")}</p>
+                  <p className="text-xs text-slate-300 mt-1">{t("creative.main.step3.emptyPostsHint")}</p>
                 </div>
               )}
 
@@ -3211,7 +3211,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                       trên bài gốc bằng URL đích của cả campaign. */}
                   <div className="rounded-lg border border-amber-200 bg-white p-3 space-y-2">
                     <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-                      🔘 Nút kêu gọi hành động (CTA)
+                      {t("creative.main.step3.ctaLabel")}
                     </label>
                     <select
                       value={existingPostCta}
@@ -3224,11 +3224,11 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                     </select>
                     {destinationUrl.trim() ? (
                       <p className="text-[11px] text-slate-500">
-                        Nút này sẽ trỏ tới URL đích của campaign: <span className="font-medium text-slate-700 break-all">{destinationUrl}</span>
+                        {t("creative.main.step3.ctaPoints")} <span className="font-medium text-slate-700 break-all">{destinationUrl}</span>
                       </p>
                     ) : (
                       <p className="text-[11px] text-red-600">
-                        ⚠️ Chưa nhập &ldquo;URL đích&rdquo; ở bước cấu hình campaign — nếu để trống, ad từ bài viết có sẵn sẽ không gắn được nút CTA lẫn nguồn quảng cáo.
+                        {t("creative.main.step3.ctaNoUrl")}
                       </p>
                     )}
                   </div>
@@ -3258,11 +3258,11 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                         });
                         return {
                           id: `existing-${post.id}`,
-                          segmentName: "Bài đã đăng",
+                          segmentName: t("creative.main.step3.publishedSeg"),
                           segmentIndex: 0,
                           funnelStage: "BOFU",
                           tone: "existing",
-                          toneLabel: `Bài đăng: ${post.createdTime.slice(0, 10)}`,
+                          toneLabel: t("creative.main.step3.publishedTone", { date: post.createdTime.slice(0, 10) }),
                           platform: "facebook" as const,
                           headline: post.message.slice(0, 60),
                           primaryText: post.message,
@@ -3298,7 +3298,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                     }}
                     className="w-full gap-2 bg-amber-500 py-3 text-sm font-bold text-amber-950 hover:bg-amber-600 shadow-md"
                   >
-                    <Check className="h-4 w-4" /> ✅ Dùng {selectedPosts.length} bài này trong campaign
+                    <Check className="h-4 w-4" /> {t("creative.main.step3.usePosts", { n: selectedPosts.length })}
                   </Button>
                 </div>
               )}
@@ -3319,28 +3319,28 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
               {/* Header bar */}
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h2 className="text-sm font-semibold text-slate-800">
-                  {creativeResults.length} creatives được tạo
+                  {t("creative.main.step3.resultsCount", { n: creativeResults.length })}
                   <span className="ml-2 text-xs text-slate-400 font-normal">
-                    ({selectedCreativeCount} đã chọn)
+                    {t("creative.main.step3.resultsSelected", { n: selectedCreativeCount })}
                   </span>
                 </h2>
                 <div className="flex items-center gap-2 flex-wrap">
                   <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={copyAllCreatives}>
-                    <ClipboardList className="h-3.5 w-3.5" /> Copy tất cả
+                    <ClipboardList className="h-3.5 w-3.5" /> {t("creative.main.step3.copyAll")}
                   </Button>
                   <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={generate}>
-                    <RefreshCw className="h-3.5 w-3.5" /> Tạo lại
+                    <RefreshCw className="h-3.5 w-3.5" /> {t("creative.main.step3.regenerate")}
                   </Button>
                   <Button
                     variant="outline" size="sm" className="gap-1.5 text-xs border-violet-200 text-violet-600 hover:bg-violet-50"
                     onClick={async () => {
                       const res = await fetch("/api/creatives/sync-performance", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
                       const data = await res.json();
-                      if (data.success) alert(`✅ Đã sync ${data.synced}/${data.total ?? data.synced} creatives từ Meta`);
-                      else alert("❌ " + (data.error ?? "Sync thất bại"));
+                      if (data.success) alert(t("creative.main.step3.syncOk", { synced: data.synced, total: data.total ?? data.synced }));
+                      else alert("❌ " + (data.error ?? t("creative.main.step3.syncFail")));
                     }}
                   >
-                    <BarChart3 className="h-3.5 w-3.5" /> Sync hiệu suất
+                    <BarChart3 className="h-3.5 w-3.5" /> {t("creative.main.step3.syncPerf")}
                   </Button>
                   <Button
                     variant="outline" size="sm" className="gap-1.5 text-xs border-amber-200 text-amber-700 hover:bg-amber-50"
@@ -3358,7 +3358,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                       downloadBriefAsMarkdown(briefData);
                     }}
                   >
-                    <Download className="h-3.5 w-3.5" /> Export Brief
+                    <Download className="h-3.5 w-3.5" /> {t("creative.main.step3.exportBrief")}
                   </Button>
                   <Button
                     variant="outline" size="sm" className="gap-1.5 text-xs border-green-200 text-green-600 hover:bg-green-50"
@@ -3376,7 +3376,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                       window.open(buildEmailLink(briefData), "_blank");
                     }}
                   >
-                    <Mail className="h-3.5 w-3.5" /> Gửi Email
+                    <Mail className="h-3.5 w-3.5" /> {t("creative.main.step3.sendEmail")}
                   </Button>
                 </div>
               </div>
@@ -3393,7 +3393,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                         : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                     )}
                   >
-                    Tất cả ({creativeResults.length})
+                    {t("creative.main.step3.filterAll", { n: creativeResults.length })}
                   </button>
                   {audienceData?.audienceSegments
                     .filter((_, i) => selectedSegments.includes(i))
@@ -3411,7 +3411,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                               : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                           )}
                         >
-                          Ad Set {idx + 1}: {seg.segmentName.length > 20 ? seg.segmentName.slice(0, 20) + '…' : seg.segmentName}
+                          {t("creative.main.step3.adSetN", { n: idx + 1 })}{seg.segmentName.length > 20 ? seg.segmentName.slice(0, 20) + '…' : seg.segmentName}
                           {hasCreatives && <span className="ml-1.5 text-green-300">✓</span>}
                           <span className="ml-1 opacity-60">({count})</span>
                         </button>
@@ -3457,9 +3457,9 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                         cr.funnelStage === "MOFU" ? "bg-amber-100 text-amber-700" :
                         "bg-emerald-100 text-emerald-700"
                       )}>
-                        🎯 {cr.funnelStage === "TOFU" ? "Khách mới" :
-                           cr.funnelStage === "MOFU" ? "Đang cân nhắc" :
-                           cr.funnelStage === "BOFU" ? "Sẵn sàng chốt" : cr.funnelStage}
+                        🎯 {cr.funnelStage === "TOFU" ? t("creative.main.step2.stageTofu") :
+                           cr.funnelStage === "MOFU" ? t("creative.main.step2.stageMofu") :
+                           cr.funnelStage === "BOFU" ? t("creative.main.step2.stageBofu") : cr.funnelStage}
                       </span>
                       <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600 truncate max-w-[140px]">
                         {cr.segmentName}
@@ -3473,7 +3473,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                     <button
                       onClick={() => (cr.selected || !isLowScore) && toggleCreativeSelection(i)}
                       className={cn("absolute top-2 right-2 z-10", !cr.selected && isLowScore && "cursor-not-allowed")}
-                      title={!cr.selected && isLowScore ? "Score < 50 — cần cải thiện trước khi launch" : undefined}
+                      title={!cr.selected && isLowScore ? t("creative.main.step3.lowScoreTitle") : undefined}
                     >
                       <div className={cn(
                         "h-5 w-5 rounded-full border-2 flex items-center justify-center transition-colors",
@@ -3486,9 +3486,8 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
 
                     {cr.withinLimits === false && (
                       <div className="mx-3 mb-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-                        ⚠️ Vượt mức khuyến nghị hiển thị của Facebook (vẫn đăng được, phần vượt bị cắt kèm &quot;Xem thêm&quot;):{" "}
-                        {(cr.limitViolations ?? []).map(v => `${v.field} (${v.length}/${v.limit})`).join(", ")}.
-                        Bấm &quot;Improve&quot; nếu muốn gọn lại — không bắt buộc.
+                        {t("creative.main.step3.limitBefore")}{" "}
+                        {(cr.limitViolations ?? []).map(v => `${v.field} (${v.length}/${v.limit})`).join(", ")}{t("creative.main.step3.limitAfter")}
                       </div>
                     )}
 
@@ -3537,7 +3536,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                         className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
                       >
                         <Eye className="h-3.5 w-3.5" />
-                        {previewOpenIndex === i ? "Ẩn preview" : "Xem preview Facebook"}
+                        {previewOpenIndex === i ? t("creative.main.step3.hidePreview") : t("creative.main.step3.showPreview")}
                       </button>
                       {previewOpenIndex === i && (
                         <div className="mt-2 flex justify-center">
@@ -3563,13 +3562,13 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
                               src={cr.imageUrl}
-                              alt="Creative image"
+                              alt={t("creative.main.step3.creativeImageAlt")}
                               className="w-full h-36 object-cover"
                             />
                             <div className="absolute top-1 right-1 flex gap-1">
                               {cr.imageHash && (
                                 <span className="rounded-full bg-emerald-500 px-2 py-0.5 text-[9px] font-bold text-white shadow">
-                                  ✅ Đã upload FB
+                                  {t("creative.main.step3.uploadedFb")}
                                 </span>
                               )}
                               <button
@@ -3578,7 +3577,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                                 ))}
                                 className="rounded-full bg-black/60 px-1.5 py-0.5 text-[10px] text-white hover:bg-black/80"
                               >
-                                ✕ Xóa
+                                {t("creative.main.step3.removeImage")}
                               </button>
                             </div>
                           </div>
@@ -3602,9 +3601,9 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                                 if (data.success && data.imageHash) {
                                   setCreativeResults(prev => prev.map((c, idx) => idx === i ? { ...c, imageHash: data.imageHash } : c));
                                 } else {
-                                  alert(`Upload thất bại: ${data.error ?? "Lỗi không xác định"}`);
+                                  alert(t("creative.main.upload.failed", { error: data.error ?? t("creative.main.upload.unknown") }));
                                 }
-                              } catch { alert("Upload thất bại. Vui lòng thử lại."); }
+                              } catch { alert(t("creative.main.upload.retry")); }
                             }}
                           >
                             <input
@@ -3625,15 +3624,15 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                                   if (data.success && data.imageHash) {
                                     setCreativeResults(prev => prev.map((c, idx) => idx === i ? { ...c, imageHash: data.imageHash } : c));
                                   } else {
-                                    alert(`Upload thất bại: ${data.error ?? "Lỗi không xác định"}`);
+                                    alert(t("creative.main.upload.failed", { error: data.error ?? t("creative.main.upload.unknown") }));
                                   }
-                                } catch { alert("Upload thất bại. Vui lòng thử lại."); }
+                                } catch { alert(t("creative.main.upload.retry")); }
                                 e.target.value = ""; // reset input
                               }}
                             />
                             <span className="text-xl group-hover:scale-110 transition-transform">🖼️</span>
-                            <span className="text-xs font-medium text-slate-500 group-hover:text-amber-700">Kéo thả hoặc click để thêm ảnh</span>
-                            <span className="text-[10px] text-slate-400">JPG, PNG, WebP · Tối đa 10MB</span>
+                            <span className="text-xs font-medium text-slate-500 group-hover:text-amber-700">{t("creative.main.step3.dropImage")}</span>
+                            <span className="text-[10px] text-slate-400">{t("creative.main.step3.imageLimits")}</span>
                           </label>
                         )}
                       </div>
@@ -3646,10 +3645,10 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <span className={cn("text-xs font-bold", scoreClr.text)}>
-                            {getGradeEmoji(creativeScore.grade)} Creative Score
+                            {getGradeEmoji(creativeScore.grade)} {t("creative.main.step3.creativeScore")}
                           </span>
                           <span className="text-[10px] text-slate-400">
-                            CTR ước tính: {creativeScore.ctrEstimate}
+                            {t("creative.main.step3.estCtr", { ctr: creativeScore.ctrEstimate })}
                           </span>
                         </div>
                         <div className={cn(
@@ -3707,9 +3706,9 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                               )}
                             >
                               {improvingIndex === i ? (
-                                <><Loader2 className="h-3 w-3 animate-spin" /> Đang cải thiện...</>
+                                <><Loader2 className="h-3 w-3 animate-spin" /> {t("creative.main.step3.improving")}</>
                               ) : (
-                                <>✨ AI Cải thiện (tăng score)</>  
+                                <>{t("creative.main.step3.improve")}</>  
                               )}
                             </button>
                           )}
@@ -3719,7 +3718,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                       {/* Low score warning */}
                       {isLowScore && (
                         <p className="text-[10px] font-bold text-red-600 flex items-center gap-1">
-                          ❌ Cần cải thiện trước khi launch (score &lt; 50)
+                          {t("creative.main.step3.lowScoreWarn")}
                         </p>
                       )}
                     </div>
@@ -3741,7 +3740,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                   className="w-full gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 py-5 text-sm font-bold text-white hover:from-emerald-700 hover:to-teal-700 disabled:opacity-40 shadow-lg"
                 >
                   <Rocket className="h-4 w-4" />
-                  ➡ Tiếp theo: Launch Campaign ({selectedCreativeCount} creatives đã chọn)
+                  {t("creative.main.step3.nextLaunch", { n: selectedCreativeCount })}
                   <ArrowRight className="h-4 w-4" />
                 </Button>
               )}
@@ -3794,7 +3793,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
           {/* Nav back */}
           {activeCreativeTab !== "google" && (
           <Button variant="outline" className="gap-1.5 text-xs" onClick={() => setStep(2)}>
-            <ArrowLeft className="h-3.5 w-3.5" /> Quay lại phân tích đối tượng
+            <ArrowLeft className="h-3.5 w-3.5" /> {t("creative.main.step3.backToStep2")}
           </Button>
           )}
         </div>
@@ -3812,13 +3811,12 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
           về đúng chỗ, thay vì để người dùng điền một biểu mẫu không dùng được. */}
       {step === 4 && platform === "google" && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 space-y-3">
-          <h3 className="text-sm font-bold text-amber-900">Chiến dịch Google không đi qua bước này</h3>
+          <h3 className="text-sm font-bold text-amber-900">{t("creative.main.step4.googleSkip")}</h3>
           <p className="text-xs text-amber-800 leading-relaxed">
-            Bước 4 là màn hình khởi chạy của Meta (Fanpage, Pixel, vị trí Instagram, Advantage+).
-            Với Google, phần nội dung quảng cáo và khởi chạy nằm chung ở Bước 3.
+            {t("creative.main.step4.googleSkipBody")}
           </p>
           <Button onClick={() => setStep(3)} className="gap-1.5 bg-amber-500 text-amber-950 hover:bg-amber-600 text-sm">
-            <ArrowLeft className="h-3.5 w-3.5" /> Quay lại Bước 3 — Tạo &amp; Khởi chạy
+            <ArrowLeft className="h-3.5 w-3.5" /> {t("creative.main.step4.backToStep3")}
           </Button>
         </div>
       )}
@@ -3830,48 +3828,48 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
               <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl border border-slate-200 p-8 text-center space-y-4">
                 <div className="text-5xl">🎉</div>
-                <h3 className="text-lg font-bold text-slate-800">Đã tạo campaign thành công!</h3>
+                <h3 className="text-lg font-bold text-slate-800">{t("creative.main.step4.created")}</h3>
                 <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 space-y-1">
                   <p className="text-sm font-bold text-emerald-800">{campaignName}</p>
                   <p className="text-xs text-emerald-600">
-                    {launchSuccess.adSetCount} Ad Sets · {launchSuccess.adCount} Ads · <b>{launchSuccess.launchActive ? "ĐANG CHẠY" : "DRAFT"}</b>
+                    {t("creative.main.step4.counts", { sets: launchSuccess.adSetCount, ads: launchSuccess.adCount })}<b>{launchSuccess.launchActive ? t("creative.main.step4.running") : t("creative.main.step4.draft")}</b>
                   </p>
                 </div>
                 <p className="text-xs text-slate-500">
                   {launchSuccess.launchActive
-                    ? "Campaign đang chạy thật và tiêu ngân sách. Vào Campaigns để theo dõi."
-                    : "Campaign được tạo ở trạng thái DRAFT. Hãy vào Campaigns để review và bật chạy."}
+                    ? t("creative.main.step4.liveMsg")
+                    : t("creative.main.step4.draftMsg")}
                 </p>
                 {targetingDowngrades.length > 0 && (
                   <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-left space-y-2">
                     <p className="text-xs font-bold text-red-700">
-                      ⚠️ {targetingDowngrades.length} Ad Set bị Meta từ chối targeting gốc — đã tự chuyển sang Advantage+ Audience (mất độ tuổi/interest đã chọn, chỉ giữ vị trí)
+                      {t("creative.main.step4.downgrades", { n: targetingDowngrades.length })}
                     </p>
                     {targetingDowngrades.map((d) => (
                       <div key={d.adSetId} className="text-[11px] text-red-600 flex items-center justify-between gap-2">
                         <span className="truncate">{d.segmentName}</span>
                         {retryResults.get(d.adSetId) === "ok" ? (
-                          <span className="text-emerald-600 font-semibold shrink-0">✅ Đã khôi phục</span>
+                          <span className="text-emerald-600 font-semibold shrink-0">{t("creative.main.step4.restored")}</span>
                         ) : (
                           <button
                             onClick={() => retryOriginalTargeting(d)}
                             disabled={retryingAdSet === d.adSetId}
                             className="shrink-0 font-semibold text-red-700 hover:text-red-800 underline disabled:opacity-50"
                           >
-                            {retryingAdSet === d.adSetId ? "Đang thử..." : "Thử lại targeting gốc"}
+                            {retryingAdSet === d.adSetId ? t("creative.main.step4.retrying") : t("creative.main.step4.retryOriginal")}
                           </button>
                         )}
                       </div>
                     ))}
                     {Array.from(retryResults.values()).includes("failed") && (
-                      <p className="text-[10px] text-red-500">Thử lại vẫn thất bại — Meta có thể vẫn coi interest này không hợp lệ, hãy chọn interest khác ở lần tạo sau.</p>
+                      <p className="text-[10px] text-red-500">{t("creative.main.step4.retryFailed")}</p>
                     )}
                   </div>
                 )}
                 <div className="flex items-center gap-2 justify-center pt-2">
                   <Link href="/campaigns">
                     <Button className="gap-1.5 bg-amber-500 text-amber-950 hover:bg-amber-600 text-sm">
-                      📋 Xem trong Campaigns
+                      {t("creative.main.step4.viewCampaigns")}
                     </Button>
                   </Link>
                   <Button variant="outline" className="gap-1.5 text-sm" onClick={() => {
@@ -3882,7 +3880,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                     setCreativeResults([]);
                     setCreatives([]);
                   }}>
-                    🔄 Tạo creative mới
+                    {t("creative.main.step4.newCreative")}
                   </Button>
                 </div>
               </div>
@@ -3892,11 +3890,11 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
           {/* Section A: Campaign Info */}
           <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
             <h3 className="text-sm font-bold text-slate-700 flex items-center gap-2">
-              <Settings className="h-4 w-4 text-amber-700" /> A. Thông tin Campaign
+              <Settings className="h-4 w-4 text-amber-700" /> {t("creative.main.step4.secA")}
             </h3>
 
             <div>
-              <label className="text-xs font-semibold text-slate-500 mb-1 block">Tên campaign</label>
+              <label className="text-xs font-semibold text-slate-500 mb-1 block">{t("creative.main.step4.campaignName")}</label>
               <input
                 type="text"
                 value={campaignName}
@@ -3907,7 +3905,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-xs font-semibold text-slate-500 mb-1 block">Mục tiêu Facebook</label>
+                <label className="text-xs font-semibold text-slate-500 mb-1 block">{t("creative.main.step4.fbObjective")}</label>
                 <select
                   value={objective}
                   onChange={e => setObjective(e.target.value)}
@@ -3919,7 +3917,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                 </select>
               </div>
               <div>
-                <label className="text-xs font-semibold text-slate-500 mb-1 block">Công ty</label>
+                <label className="text-xs font-semibold text-slate-500 mb-1 block">{t("creative.main.step4.company")}</label>
                 <div className="flex gap-2">
                   {companyIds().map(c => (
                     <button key={c} onClick={() => setCompany(c)}
@@ -3937,10 +3935,10 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
 
             {/* Fanpage Selector */}
             <div>
-              <label className="text-xs font-semibold text-slate-500 mb-1 block">📄 Fanpage chạy quảng cáo</label>
+              <label className="text-xs font-semibold text-slate-500 mb-1 block">{t("creative.main.step4.fanpage")}</label>
               {fbPages.length === 0 ? (
                 <div className="flex items-center gap-2 text-xs text-slate-400 py-2">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Đang tải danh sách Fanpage...
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> {t("creative.main.step4.pagesLoading")}
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -3981,28 +3979,28 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                   className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700 focus:border-amber-400 focus:outline-none"
                 >
                   {pixelOptions().length === 0 && (
-                    <option value="">Chưa cấu hình Pixel — xem biến NEXT_PUBLIC_META_PIXEL_ID_*</option>
+                    <option value="">{t("creative.main.step4.pixelNone")}</option>
                   )}
                   {pixelOptions().map(o => (
                     <option key={o.id} value={o.id}>{o.label}</option>
                   ))}
                 </select>
-                <p className="text-[10px] text-slate-400 mt-0.5">💡 Pixel dùng để theo dõi conversion · Tự động chọn theo công ty</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">{t("creative.main.step4.pixelHint")}</p>
               </div>
             )}
 
             {/* Loại trừ tệp khách cũ — thứ gần nhất với "Chiến lược vòng đời
                 khách hàng" của Ads Manager mà API Meta cho phép. */}
             <div>
-              <label className="text-xs font-semibold text-slate-500 mb-1 block">🚫 Loại trừ tệp đối tượng</label>
-              {metaAudienceLoading && <p className="text-[11px] text-slate-400">Đang tải danh sách tệp…</p>}
+              <label className="text-xs font-semibold text-slate-500 mb-1 block">{t("creative.main.step4.excludeLabel")}</label>
+              {metaAudienceLoading && <p className="text-[11px] text-slate-400">{t("creative.main.step4.audListLoading")}</p>}
               {!metaAudienceLoading && metaAudienceList.length === 0 && (
                 <button
                   type="button"
                   onClick={() => fetchMetaAudiences()}
                   className="text-[11px] text-amber-700 underline"
                 >
-                  Tải danh sách tệp đối tượng
+                  {t("creative.main.step4.loadAudList")}
                 </button>
               )}
               {metaAudienceList.length > 0 && (
@@ -4028,7 +4026,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                         <span className="min-w-0 flex-1">
                           <span className={cn("block truncate text-xs", on ? "text-red-800 font-medium" : "text-slate-700")}>{a.name}</span>
                           {alsoTargeted && on && (
-                            <span className="block text-[10px] text-red-600">⚠️ Tệp này đang vừa được NHẮM vừa bị loại trừ — Meta sẽ không phân phối tới ai cả.</span>
+                            <span className="block text-[10px] text-red-600">{t("creative.main.step4.bothTargetExclude")}</span>
                           )}
                         </span>
                       </button>
@@ -4037,18 +4035,18 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                 </div>
               )}
               <p className="text-[10px] text-slate-400 mt-1 leading-relaxed">
-                Chọn tệp khách đã mua để chiến dịch chỉ đuổi theo khách mới. Áp dụng cho tất cả nhóm quảng cáo.
+                {t("creative.main.step4.excludeHint")}
               </p>
               <p className="text-[10px] text-slate-400 leading-relaxed">
-                💡 Đây <strong>không phải</strong> tính năng &ldquo;Chiến lược vòng đời khách hàng&rdquo; trong Ads Manager — Meta chưa mở tính năng đó qua API. Cách này đạt cùng mục đích (không tiêu tiền vào người đã mua) nhưng không có phần xử lý chuyên biệt mà Meta nói kèm setting gốc.
+                {t("creative.main.step4.lifecycle1")}<strong>{t("creative.main.step4.lifecycleNot")}</strong>{t("creative.main.step4.lifecycle2")}
               </p>
             </div>
 
             {/* Instagram placement toggle */}
             <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3">
               <div>
-                <p className="text-sm font-semibold text-slate-700">📸 Vị trí Instagram</p>
-                <p className="text-[11px] text-slate-400">Mặc định chỉ chạy Facebook. Bật để thêm Instagram feed/story/reels.</p>
+                <p className="text-sm font-semibold text-slate-700">{t("creative.main.step4.igPlacement")}</p>
+                <p className="text-[11px] text-slate-400">{t("creative.main.step4.igHint")}</p>
               </div>
               <button
                 type="button"
@@ -4073,8 +4071,8 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                 <p className="text-sm font-semibold text-slate-700">🤖 Advantage+ Audience</p>
                 <p className="text-[11px] text-slate-400 mt-0.5">
                   {useAdvantageAudience
-                    ? "Đang dùng Advantage+ — FB AI tự mở rộng audience ngoài interests đã chọn. Phù hợp khi tài khoản có ≥50 conversions/tuần."
-                    : "Đang dùng Detailed Targeting — interests/behaviors cố định theo Step 2. Phù hợp khi mới bắt đầu hoặc targeting rất hẹp."
+                    ? t("creative.main.step4.advOn")
+                    : t("creative.main.step4.advOff")
                   }
                 </p>
               </div>
@@ -4094,14 +4092,14 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
             </div>
 
             <div>
-              <label className="text-xs font-semibold text-slate-500 mb-1 block">Destination URL</label>
+              <label className="text-xs font-semibold text-slate-500 mb-1 block">{t("creative.main.step4.destUrl")}</label>
               <div className="space-y-1.5">
                 <input
                   type="url"
                   value={destinationUrl}
                   onChange={e => setDestinationUrl(e.target.value)}
                   className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400"
-                  placeholder={isLegacy ? "https://www.matbao.net" : "https://website-cua-ban.vn"}
+                  placeholder={isLegacy ? "https://www.matbao.net" : t("creative.main.step4.destUrlPh")}
                 />
                 {/* UTM Auto-builder toggle */}
                 <label className="flex items-center gap-2 cursor-pointer">
@@ -4112,9 +4110,9 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                     className="h-3.5 w-3.5 rounded accent-amber-500"
                   />
                   <span className="text-[11px] text-slate-500">
-                    Tự động thêm UTM ({autoUTM
+                    {t("creative.main.step4.utm")}({autoUTM
                       ? <span className="text-amber-700 font-mono">?utm_source=facebook_ads&utm_medium=cpc_fb&utm_campaign=…&utm_content={"{{ad.id}}"}</span>
-                      : <span className="text-slate-400">đang tắt</span>
+                      : <span className="text-slate-400">{t("creative.main.step4.utmOff")}</span>
                     })
                   </span>
                 </label>
@@ -4125,26 +4123,26 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
           {/* Section A2: Targeting */}
           <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
             <h3 className="text-sm font-bold text-slate-700 flex items-center gap-2">
-              <Target className="h-4 w-4 text-violet-500" /> 🎯 Targeting (tuỳ chọn)
+              <Target className="h-4 w-4 text-violet-500" /> {t("creative.main.step4.targeting")}
             </h3>
 
             <div className="space-y-2">
-              {(["standard", "lookalike"] as const).map(t => (
-                <button key={t} onClick={() => setTargetingType(t)}
+              {(["standard", "lookalike"] as const).map(tt => (
+                <button key={tt} onClick={() => setTargetingType(tt)}
                   className={cn(
                     "w-full flex items-start gap-3 rounded-xl border-2 px-4 py-3 text-left transition-all",
-                    targetingType === t ? "border-violet-400 bg-violet-50/50" : "border-slate-200 bg-white hover:border-slate-300"
+                    targetingType === tt ? "border-violet-400 bg-violet-50/50" : "border-slate-200 bg-white hover:border-slate-300"
                   )}>
                   <div className={cn("mt-0.5 h-4 w-4 rounded-full border-2 flex items-center justify-center shrink-0",
-                    targetingType === t ? "border-violet-500" : "border-slate-300")}>
-                    {targetingType === t && <div className="h-2 w-2 rounded-full bg-violet-500" />}
+                    targetingType === tt ? "border-violet-500" : "border-slate-300")}>
+                    {targetingType === tt && <div className="h-2 w-2 rounded-full bg-violet-500" />}
                   </div>
                   <div>
                     <p className="text-xs font-bold text-slate-700">
-                      {t === "standard" ? "Standard AI (từ phân tích Step 2)" : "Lookalike Audience (từ KH đã mua)"}
+                      {tt === "standard" ? t("creative.main.step4.tgStd") : t("creative.main.step4.tgLal")}
                     </p>
                     <p className="text-[10px] text-slate-400 mt-0.5">
-                      {t === "standard" ? "Dùng interests/behaviors từ AI phân tích" : "Dùng audience custom từ dữ liệu nội bộ"}
+                      {tt === "standard" ? t("creative.main.step4.tgStdHint") : t("creative.main.step4.tgLalHint")}
                     </p>
                   </div>
                 </button>
@@ -4159,22 +4157,22 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                     onChange={e => setSelectedAudienceId(e.target.value)}
                     className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700 focus:border-violet-400 focus:outline-none"
                   >
-                    <option value="">Chọn audience...</option>
+                    <option value="">{t("creative.main.step4.pickAudience")}</option>
                     {audiences.map(a => (
                       <option key={a.id} value={a.fb_audience_id}>
-                        ✨ {a.name} ({a.size >= 1000000 ? `≈${(a.size / 1000000).toFixed(1)}M` : a.size >= 1000 ? `≈${(a.size / 1000).toFixed(0)}K` : a.size} người)
+                        ✨ {a.name} ({a.size >= 1000000 ? `≈${(a.size / 1000000).toFixed(1)}M` : a.size >= 1000 ? `≈${(a.size / 1000).toFixed(0)}K` : a.size} {t("creative.main.step4.people")})
                       </option>
                     ))}
                   </select>
                 ) : (
                   <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-center">
-                    <p className="text-xs text-amber-700">Chưa có Lookalike Audience.</p>
+                    <p className="text-xs text-amber-700">{t("creative.main.step4.noLal")}</p>
                     {/* Trang Audiences đang tạm ẩn thì bỏ luôn lối tắt này —
                         một cái nút bấm vào bị đá về Dashboard còn khó hiểu hơn
                         là không có nút. */}
                     {!isHiddenPage("/audiences") && (
                       <a href="/audiences" className="text-xs text-amber-700 font-semibold hover:underline mt-1 inline-block">
-                        + Tạo ngay →
+                        {t("creative.main.step4.createNow")}
                       </a>
                     )}
                   </div>
@@ -4186,23 +4184,23 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
           {/* Section B: Budget & Schedule */}
           <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm space-y-5">
             <h3 className="text-sm font-bold text-slate-700 flex items-center gap-2">
-              <DollarSign className="h-4 w-4 text-green-500" /> B. Ngân sách & Thời gian
+              <DollarSign className="h-4 w-4 text-green-500" /> {t("creative.main.step4.secB")}
             </h3>
 
             {/* Budget Type: CBO / ABO */}
             <div>
-              <label className="text-xs font-semibold text-slate-500 mb-2 block">Loại budget</label>
+              <label className="text-xs font-semibold text-slate-500 mb-2 block">{t("creative.main.step4.budgetType")}</label>
               <div className="flex gap-3">
                 <button onClick={() => setBudgetType("cbo")}
                   className={cn("flex-1 rounded-xl border-2 p-4 text-left transition-all",
                     budgetType === "cbo" ? "border-amber-500 bg-amber-50/50" : "border-slate-200"
                   )}
                 >
-                  <p className="text-xs font-bold text-slate-700">CBO — Campaign Budget</p>
-                  <p className="text-[10px] text-slate-400">Facebook tự phân bổ cho các Ad Set</p>
+                  <p className="text-xs font-bold text-slate-700">{t("creative.main.step4.cbo")}</p>
+                  <p className="text-[10px] text-slate-400">{t("creative.main.step4.cboHint")}</p>
                   {budgetType === "cbo" && (
                     <div className="mt-3">
-                      <label className="text-[10px] text-slate-500">Tổng budget/ngày (VNĐ)</label>
+                      <label className="text-[10px] text-slate-500">{t("creative.main.step4.cboTotal")}</label>
                       <input type="number" value={dailyBudget} onChange={e => setDailyBudget(Number(e.target.value))}
                         className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm mt-1" step={50000} min={40000}
                       />
@@ -4214,11 +4212,11 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                     budgetType === "adset" ? "border-amber-500 bg-amber-50/50" : "border-slate-200"
                   )}
                 >
-                  <p className="text-xs font-bold text-slate-700">ABO — Ad Set Budget</p>
-                  <p className="text-[10px] text-slate-400">Mỗi Ad Set có budget riêng · Meta được chia tối đa 20% giữa các nhóm</p>
+                  <p className="text-xs font-bold text-slate-700">{t("creative.main.step4.abo")}</p>
+                  <p className="text-[10px] text-slate-400">{t("creative.main.step4.aboHint")}</p>
                   {budgetType === "adset" && (
                     <div className="mt-3">
-                      <label className="text-[10px] text-slate-500">Budget mỗi Ad Set/ngày (VNĐ)</label>
+                      <label className="text-[10px] text-slate-500">{t("creative.main.step4.aboEach")}</label>
                       <input type="number" value={adsetBudget} onChange={e => setAdsetBudget(Number(e.target.value))}
                         className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm mt-1" step={50000} min={40000}
                       />
@@ -4231,12 +4229,12 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
 
             {/* Bid Strategy */}
             <div>
-              <label className="text-xs font-semibold text-slate-500 mb-2 block">💰 Chiến lược giá thầu</label>
+              <label className="text-xs font-semibold text-slate-500 mb-2 block">{t("creative.main.step4.bidStrategy")}</label>
               <div className="grid grid-cols-3 gap-2">
                 {([
-                  { key: "LOWEST_COST_WITHOUT_CAP", label: "Tối ưu tự động", desc: "FB tự tối ưu chi phí thấp nhất", icon: "⚡" },
-                  { key: "COST_CAP", label: "Giới hạn CPR", desc: "Kiểm soát chi phí mỗi kết quả", icon: "🎯" },
-                  { key: "BID_CAP", label: "Giới hạn giá thầu", desc: "Bid tối đa cho mỗi phiên đấu thầu", icon: "🔒" },
+                  { key: "LOWEST_COST_WITHOUT_CAP", labelKey: "creative.main.step4.bidAuto", descKey: "creative.main.step4.bidAutoDesc", icon: "⚡" },
+                  { key: "COST_CAP", labelKey: "creative.main.step4.bidCostCap", descKey: "creative.main.step4.bidCostCapDesc", icon: "🎯" },
+                  { key: "BID_CAP", labelKey: "creative.main.step4.bidCap", descKey: "creative.main.step4.bidCapDesc", icon: "🔒" },
                 ] as const).map(s => (
                   <button
                     key={s.key}
@@ -4246,15 +4244,15 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                       bidStrategy === s.key ? "border-green-500 bg-green-50/50" : "border-slate-200 hover:border-slate-300"
                     )}
                   >
-                    <p className="text-xs font-semibold text-slate-700">{s.icon} {s.label}</p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">{s.desc}</p>
+                    <p className="text-xs font-semibold text-slate-700">{s.icon} {t(s.labelKey)}</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">{t(s.descKey)}</p>
                   </button>
                 ))}
               </div>
               {bidStrategy !== "LOWEST_COST_WITHOUT_CAP" && (
                 <div className="mt-3">
                   <label className="text-[10px] font-semibold text-slate-500">
-                    {bidStrategy === "COST_CAP" ? "Chi phí tối đa / kết quả (VNĐ)" : "Giá thầu tối đa (VNĐ)"}
+                    {bidStrategy === "COST_CAP" ? t("creative.main.step4.maxCpr") : t("creative.main.step4.maxBid")}
                   </label>
                   <input
                     type="number"
@@ -4262,12 +4260,12 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                     onChange={e => setBidAmount(Number(e.target.value))}
                     className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm mt-1 focus:border-green-400 focus:outline-none"
                     step={10000} min={10000}
-                    placeholder={bidStrategy === "COST_CAP" ? "VD: 50000 (50K)" : "VD: 30000 (30K)"}
+                    placeholder={bidStrategy === "COST_CAP" ? t("creative.main.step4.cprPh") : t("creative.main.step4.bidPh")}
                   />
                   <p className="text-[10px] text-slate-400 mt-0.5">
                     {bidStrategy === "COST_CAP"
-                      ? "💡 FB cố giữ CPR dưới mức này · Có thể vượt trong thời điểm cạnh tranh cao"
-                      : "💡 FB sẽ không đặt bid cao hơn mức này · Có thể giảm lượng phân phối"
+                      ? t("creative.main.step4.cprNote")
+                      : t("creative.main.step4.bidNote")
                     }
                   </p>
                 </div>
@@ -4277,21 +4275,21 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
             {/* Schedule */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-xs font-semibold text-slate-500 mb-1 block">Ngày bắt đầu</label>
+                <label className="text-xs font-semibold text-slate-500 mb-1 block">{t("creative.main.step4.startDate")}</label>
                 <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
                   className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700"
                 />
               </div>
               <div>
-                <label className="text-xs font-semibold text-slate-500 mb-1 block">Thời gian chạy</label>
+                <label className="text-xs font-semibold text-slate-500 mb-1 block">{t("creative.main.step4.runTime")}</label>
                 <div className="space-y-2">
                   <label className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
                     <input type="radio" checked={continuous} onChange={() => { setContinuous(true); setEndDate(""); }} className="accent-amber-500" />
-                    Chạy liên tục
+                    {t("creative.main.step4.continuous")}
                   </label>
                   <label className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
                     <input type="radio" checked={!continuous} onChange={() => setContinuous(false)} className="accent-amber-500" />
-                    Có ngày kết thúc
+                    {t("creative.main.step4.hasEnd")}
                   </label>
                   {!continuous && (
                     <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
@@ -4307,7 +4305,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
           <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm space-y-3">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <h3 className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                <FolderTree className="h-4 w-4 text-violet-500" /> C. Cấu trúc Campaign
+                <FolderTree className="h-4 w-4 text-violet-500" /> {t("creative.main.step4.secC")}
               </h3>
               <div className="flex items-center gap-2">
                 {/* DCO Toggle */}
@@ -4320,7 +4318,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                       ? "border-orange-300 bg-orange-50 text-orange-700"
                       : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"
                   )}
-                  title="Dynamic Creative: FB tự A/B test tất cả combinations của headline + copy + ảnh"
+                  title={t("creative.main.step4.dcoTitle")}
                 >
                   <span className={cn(
                     "relative inline-flex h-4 w-7 shrink-0 rounded-full border border-transparent transition-colors",
@@ -4331,7 +4329,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                       enableDCO ? "translate-x-3" : "translate-x-0"
                     )} />
                   </span>
-                  🔀 Dynamic Creative
+                  {t("creative.main.step4.dco")}
                 </button>
                 {/* A/B Test Toggle */}
                 <button
@@ -4343,7 +4341,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                       ? "border-indigo-300 bg-indigo-50 text-indigo-700"
                       : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"
                   )}
-                  title="A/B Test: tạo 2 ad set Variant A và B với creative khác nhau"
+                  title={t("creative.main.step4.abTitle")}
                 >
                   <span className={cn(
                     "relative inline-flex h-4 w-7 shrink-0 rounded-full border border-transparent transition-colors",
@@ -4354,22 +4352,22 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                       abTestMode ? "translate-x-3" : "translate-x-0"
                     )} />
                   </span>
-                  🧪 A/B Test
+                  {t("creative.main.step4.abTest")}
                 </button>
               </div>
             </div>
             {enableDCO && (
               <p className="text-[11px] text-orange-600 bg-orange-50 border border-orange-100 rounded-lg px-3 py-2">
-                💡 <b>Dynamic Creative bật:</b> Tất cả creatives được chọn cho mỗi segment sẽ được gộp thành 1 ad — Facebook tự A/B test tất cả combinations của headline, copy, ảnh và hiển thị phiên bản hiệu quả nhất.
+                💡 <b>{t("creative.main.step4.dcoOnBold")}</b>{t("creative.main.step4.dcoOn")}
               </p>
             )}
             {abTestMode && (
               <div className="rounded-lg border border-indigo-100 bg-indigo-50 p-3 space-y-3">
                 <p className="text-[11px] text-indigo-700 font-semibold">
-                  🧪 <b>A/B Test Mode:</b> Mỗi segment sẽ tạo 2 ad set — <b>[Variant A]</b> và <b>[Variant B]</b>. Gán từng creative vào A hoặc B bên dưới.
+                  🧪 <b>{t("creative.main.step4.abModeBold")}</b>{t("creative.main.step4.abMode1")}<b>[Variant A]</b>{t("creative.main.step4.abMode2")}<b>[Variant B]</b>{t("creative.main.step4.abMode3")}
                 </p>
                 {creativeResults.filter(c => c.selected).length === 0 ? (
-                  <p className="text-[11px] text-slate-500">Chưa có creative nào được chọn.</p>
+                  <p className="text-[11px] text-slate-500">{t("creative.main.step4.noCreativeSelected")}</p>
                 ) : (
                   <div className="space-y-2">
                     {creativeResults.map((cr, idx) => {
@@ -4444,7 +4442,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
               <div className="flex items-center gap-1.5">
                 <span className="text-amber-700">📁</span>
                 <b>{campaignName}</b>
-                {budgetType === "cbo" && <span className="text-amber-700 ml-2">[₫{dailyBudget.toLocaleString("vi-VN")}/ngày CBO]</span>}
+                {budgetType === "cbo" && <span className="text-amber-700 ml-2">{t("creative.main.step4.cboTag", { amount: dailyBudget.toLocaleString(intlLocale) })}</span>}
               </div>
               {audienceData?.audienceSegments
                 .filter((_, i) => selectedSegments.includes(i))
@@ -4460,11 +4458,11 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                         <span>{isLast ? "└──" : "├──"}</span>
                         <span className="text-violet-500">📂</span>
                         <span>AdSet: <b>{
-                          (seg.funnelStage ?? "TOFU") === "TOFU" ? "Khách mới" :
-                          seg.funnelStage === "MOFU" ? "Đang cân nhắc" :
-                          seg.funnelStage === "BOFU" ? "Sẵn sàng chốt" : seg.funnelStage
+                          (seg.funnelStage ?? "TOFU") === "TOFU" ? t("creative.main.step2.stageTofu") :
+                          seg.funnelStage === "MOFU" ? t("creative.main.step2.stageMofu") :
+                          seg.funnelStage === "BOFU" ? t("creative.main.step2.stageBofu") : seg.funnelStage
                         }</b> - {seg.segmentName}</span>
-                        <span className="text-emerald-600 ml-1">[₫{perAdSetBudget.toLocaleString("vi-VN")}/ngày]</span>
+                        <span className="text-emerald-600 ml-1">[₫{perAdSetBudget.toLocaleString(intlLocale)}{t("creative.main.common.perDay")}]</span>
                       </div>
                       <div className="ml-6 text-[11px] text-slate-500 space-y-0.5">
                         {(() => {
@@ -4477,7 +4475,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                             return (
                               <div className="border border-amber-200 rounded-lg p-2 bg-amber-50/40 space-y-1.5 mt-0.5 font-sans">
                                 <div className="flex items-center gap-1.5">
-                                  <span className="text-[10px] text-slate-500 w-10">Tuổi:</span>
+                                  <span className="text-[10px] text-slate-500 w-10">{t("creative.main.step4.ageColon")}</span>
                                   <input type="number" min={13} max={65} value={draftAgeMin}
                                     onChange={e => setDraftAgeMin(+e.target.value)}
                                     className="w-12 text-[10px] border border-slate-200 rounded px-1 py-0.5 text-center bg-white" />
@@ -4487,7 +4485,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                                     className="w-12 text-[10px] border border-slate-200 rounded px-1 py-0.5 text-center bg-white" />
                                 </div>
                                 <div className="space-y-0.5">
-                                  <span className="text-[10px] text-slate-500">Vị trí:</span>
+                                  <span className="text-[10px] text-slate-500">{t("creative.main.step4.locColon")}</span>
                                   <div className="flex flex-wrap gap-1">
                                     {VN_CITIES.map(city => (
                                       <button key={city} type="button"
@@ -4518,11 +4516,11 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                                       setEditingDemographicsFor(null);
                                     }}
                                     className="text-[10px] bg-amber-500 text-amber-950 px-2 py-0.5 rounded hover:bg-amber-500">
-                                    Lưu
+                                    {t("creative.main.common.save")}
                                   </button>
                                   <button type="button" onClick={() => setEditingDemographicsFor(null)}
                                     className="text-[10px] text-slate-400 hover:text-slate-600 px-1 py-0.5">
-                                    Hủy
+                                    {t("creative.main.common.cancel")}
                                   </button>
                                   {editedDemo && (
                                     <button type="button"
@@ -4531,7 +4529,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                                         setEditingDemographicsFor(null);
                                       }}
                                       className="text-[10px] text-red-400 hover:text-red-600 px-1 py-0.5 ml-auto">
-                                      Reset
+                                      {t("creative.main.step4.reset")}
                                     </button>
                                   )}
                                 </div>
@@ -4541,7 +4539,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                           return (
                             <div className="flex items-center gap-1 flex-wrap">
                               <span>📍 {effLocs.join(", ")} · 👥 {effAge} · {seg.demographics.gender}</span>
-                              {editedDemo && <span className="text-[9px] text-amber-700">(đã chỉnh)</span>}
+                              {editedDemo && <span className="text-[9px] text-amber-700">{t("creative.main.step4.edited")}</span>}
                               <button type="button"
                                 onClick={() => {
                                   const ageRange = editedDemo
@@ -4566,7 +4564,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                           if (est.lower === null) return null;
                           return (
                             <div className="text-[10px] text-amber-700 font-medium">
-                              📊 Ước tính tiếp cận: {formatReach(est.lower)} – {formatReach(est.upper ?? undefined)} người/ngày
+                              {t("creative.main.step4.reach", { from: formatReach(est.lower), to: formatReach(est.upper ?? undefined) })}
                             </div>
                           );
                         })()}
@@ -4580,14 +4578,14 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                             return (
                               <div className="flex items-center gap-1 text-slate-400">
                                 <span className="inline-block animate-spin text-[10px]">⏳</span>
-                                <span>Đang kiểm tra {rawInterests.length} interests...</span>
+                                <span>{t("creative.main.step4.checkingInterests", { n: rawInterests.length })}</span>
                               </div>
                             );
                           }
 
                           return (
                             <div className="space-y-1 mt-1">
-                              <div className="text-[10px] font-semibold text-slate-500">🧠 Nhắm mục tiêu chi tiết:</div>
+                              <div className="text-[10px] font-semibold text-slate-500">{t("creative.main.step4.detailedTargeting")}</div>
                               {/* Chips for resolved interests */}
                               <div className="flex flex-wrap gap-1">
                                 {(edited ?? []).map(r => (
@@ -4601,10 +4599,10 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                                     )}
                                     title={[
                                       r.originalName && r.originalName !== r.name
-                                        ? `AI đề xuất "${r.originalName}" — Meta khớp thành "${r.name}"`
-                                        : `Hạng mục Meta: ${r.name}`,
+                                        ? t("creative.main.step4.chipMatched", { original: r.originalName, name: r.name })
+                                        : t("creative.main.step4.chipMeta", { name: r.name }),
                                       r.ambiguous
-                                        ? "Meta có nhiều hạng mục sát nhau cho từ khoá này — cái được chọn chỉ nhỉnh hơn chút. Kiểm lại xem có đúng ý không."
+                                        ? t("creative.main.step4.chipAmbiguous")
                                         : "",
                                     ].filter(Boolean).join(" · ")}
                                   >
@@ -4618,7 +4616,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                                       </span>
                                     )}
                                     {r.name}
-                                    {r.ambiguous && <span title="Nhiều hạng mục sát nhau">⚠</span>}
+                                    {r.ambiguous && <span title={t("creative.main.step4.chipAmbiguousShort")}>⚠</span>}
                                     {/* A3 — số ĐÃ ĐO ĐƯỢC của chính tài khoản này.
                                         Chỉ hiện khi có báo cáo; không có thì không
                                         hiện gì, KHÔNG hiện "0đ" (0đ đọc thành "rẻ",
@@ -4630,16 +4628,16 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                                         <span
                                           className="text-[9px] text-slate-500 border-l border-slate-300 pl-1 ml-0.5"
                                           title={[
-                                            `Đã dùng ở ${perf.adSetCount} ad set · chi ${perf.spend.toLocaleString("vi-VN")}đ · ${perf.conversions} kết quả`,
-                                            "Chi phí chia đều cho các sở thích trong cùng ad set — là phép gán, không phải phép đo.",
+                                            t("creative.main.step4.perfUsed", { n: perf.adSetCount, spend: perf.spend.toLocaleString(intlLocale), conv: perf.conversions }),
+                                            t("creative.main.step4.perfSplit"),
                                             (perf.coOccurringWith ?? 0) > 0
-                                              ? `Luôn chạy chung với ${perf.coOccurringWith} sở thích khác nên số liệu trùng khít — KHÔNG tách được công của riêng nó.`
+                                              ? t("creative.main.step4.perfCo", { n: perf.coOccurringWith ?? 0 })
                                               : "",
                                           ].filter(Boolean).join(" ")}
                                         >
                                           {perf.cpl !== null
                                             ? `CPL ~${Math.round(perf.cpl / 1000)}k`
-                                            : `${(perf.spend / 1000).toFixed(0)}k · chưa ra kết quả`}
+                                            : t("creative.main.step4.perfNoResult", { spend: (perf.spend / 1000).toFixed(0) })}
                                           {(perf.coOccurringWith ?? 0) > 0 && "*"}
                                         </span>
                                       );
@@ -4658,12 +4656,12 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                                   </span>
                                 ))}
                                 {(!edited || edited.length === 0) && (
-                                  <span className="text-[10px] text-amber-500">⚠ Chưa có interest — sẽ chạy Advantage+</span>
+                                  <span className="text-[10px] text-amber-500">{t("creative.main.step4.noInterest")}</span>
                                 )}
                               </div>
                               {(invalidInterestsMap.get(segIdx)?.length ?? 0) > 0 && (
                                 <p className="text-[10px] text-red-500">
-                                  ⚠ Meta từ chối {invalidInterestsMap.get(segIdx)!.length} từ khóa (không tồn tại/không hợp lệ), đã bỏ qua: {invalidInterestsMap.get(segIdx)!.join(", ")} — chọn từ khóa khác nếu muốn nhắm mục tiêu chi tiết hơn.
+                                  {t("creative.main.step4.invalidInterests", { n: invalidInterestsMap.get(segIdx)!.length, list: invalidInterestsMap.get(segIdx)!.join(", ") })}
                                 </p>
                               )}
                               {/* Autocomplete interest input */}
@@ -4698,7 +4696,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                                       }
                                     }}
                                     onBlur={() => setTimeout(() => setShowSuggestionsFor(null), 200)}
-                                    placeholder="🔍 Tìm interest (VD: Domain name, E-commerce...)"
+                                    placeholder={t("creative.main.step4.searchInterestPh")}
                                     className="flex-1 rounded border border-dashed border-amber-200 bg-white px-2 py-1 text-[10px] placeholder:text-slate-300 focus:border-amber-400 focus:outline-none"
                                   />
                                   {addingInterestIdx === segIdx && (
@@ -4708,7 +4706,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                                 {/* Suggestions dropdown */}
                                 {showSuggestionsFor === segIdx && interestSuggestions.length === 0 && (newInterestInput[segIdx]?.trim().length ?? 0) >= 2 && (
                                   <div className="absolute z-50 left-0 right-0 top-full mt-0.5 rounded-lg border border-slate-200 bg-white shadow-lg px-2 py-1.5 text-[10px] text-slate-400">
-                                    Không có kết quả hợp lệ trên Meta cho từ khóa này — thử từ khóa cụ thể hơn (VD: &quot;Mua sắm online&quot; thay vì &quot;Sản phẩm&quot;).
+                                    {t("creative.main.step4.noMetaResult")}
                                   </div>
                                 )}
                                 {showSuggestionsFor === segIdx && interestSuggestions.length > 0 && (
@@ -4744,7 +4742,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                                 )}
                                 {showSuggestionsFor === segIdx && (newInterestInput[segIdx] ?? "").trim().length >= 2 && interestSuggestions.length === 0 && (
                                   <div className="absolute z-50 left-0 right-0 top-full mt-0.5 rounded-lg border border-slate-200 bg-white shadow-sm px-3 py-2 text-[10px] text-slate-400">
-                                    Không tìm thấy interest phù hợp
+                                    {t("creative.main.step4.noInterestFound")}
                                   </div>
                                 )}
                               </div>
@@ -4759,18 +4757,18 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                         <div key={ci} className="ml-6 flex items-center gap-1.5">
                           <span>{ci < segCreatives.length - 1 ? "├──" : "└──"}</span>
                           <span className="text-green-500">📄</span>
-                          <span>Ad: {c.toneLabel} version</span>
+                          <span>{t("creative.main.step4.adVersion", { label: c.toneLabel })}</span>
                         </div>
                       ))}
                     </div>
                   );
                 })}
               <div className="mt-3 pt-3 border-t border-slate-200 text-slate-600">
-                Tổng: 1 Campaign · {selectedSegments.length} Ad Sets · {selectedCreativeCount} Ads
+                {t("creative.main.step4.total", { sets: selectedSegments.length, ads: selectedCreativeCount })}
                 {budgetType === "cbo"
-                  ? ` · ₫${dailyBudget.toLocaleString("vi-VN")}/ngày`
-                  : ` · ₫${adsetBudget.toLocaleString("vi-VN")}/ad set/ngày`}
-                {` · ${startDate}`}{continuous ? " → Liên tục" : ` → ${endDate || "?"}`}
+                  ? t("creative.main.step4.totalCbo", { amount: dailyBudget.toLocaleString(intlLocale) })
+                  : t("creative.main.step4.totalAbo", { amount: adsetBudget.toLocaleString(intlLocale) })}
+                {` · ${startDate}`}{continuous ? t("creative.main.step4.arrowContinuous") : ` → ${endDate || "?"}`}
               </div>
             </div>
           </div>
@@ -4780,24 +4778,24 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
             <div className="rounded-xl border-2 border-emerald-300 bg-gradient-to-br from-emerald-50/60 to-white p-6 shadow-sm space-y-5">
               <div className="text-center space-y-2">
                 <CheckCircle className="h-10 w-10 text-emerald-500 mx-auto" />
-                <h3 className="text-lg font-bold text-slate-800">✅ Campaign đã tạo thành công!</h3>
+                <h3 className="text-lg font-bold text-slate-800">{t("creative.main.step4.createdOk")}</h3>
                 <p className="text-sm text-slate-600">{campaignName}</p>
                 <p className="text-xs text-slate-500">
-                  {launchSuccess.adSetCount} Ad Sets · {launchSuccess.adCount} Ads · Đang{" "}
-                  <b>{launchSuccess.launchActive ? "CHẠY THẬT" : "PAUSED"}</b>
+                  {t("creative.main.step4.statusLine", { sets: launchSuccess.adSetCount, ads: launchSuccess.adCount })}{" "}
+                  <b>{launchSuccess.launchActive ? t("creative.main.step4.liveReal") : t("creative.main.step4.paused")}</b>
                 </p>
               </div>
 
               {launchSuccess.launchActive ? (
                 <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3">
                   <p className="text-xs text-red-700">
-                    🔴 Campaign đang <b>CHẠY THẬT</b> và tiêu ngân sách. Theo dõi ở Campaigns — muốn dừng thì Pause ở đó.
+                    🔴 {t("creative.main.step4.liveNote1")}<b>{t("creative.main.step4.liveReal")}</b>{t("creative.main.step4.liveNote2")}
                   </p>
                 </div>
               ) : (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
                   <p className="text-xs text-amber-700">
-                    ⚠️ Campaign đang ở trạng thái <b>PAUSED</b>. Review xong thì bật chạy bên dưới.
+                    ⚠️ {t("creative.main.step4.pausedNote1")}<b>{t("creative.main.step4.paused")}</b>{t("creative.main.step4.pausedNote2")}
                   </p>
                 </div>
               )}
@@ -4805,20 +4803,20 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
               {targetingDowngrades.length > 0 && (
                 <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-left space-y-2">
                   <p className="text-xs font-bold text-red-700">
-                    ⚠️ {targetingDowngrades.length} Ad Set bị Meta từ chối targeting gốc — đã tự chuyển sang Advantage+ Audience (mất độ tuổi/interest đã chọn, chỉ giữ vị trí). Kiểm tra lại trong Ads Manager trước khi bật chạy.
+                    {t("creative.main.step4.downgrades", { n: targetingDowngrades.length })}{t("creative.main.step4.downgradesCheck")}
                   </p>
                   {targetingDowngrades.map((d) => (
                     <div key={d.adSetId} className="text-[11px] text-red-600 flex items-center justify-between gap-2">
                       <span className="truncate">{d.segmentName} — {d.reason}</span>
                       {retryResults.get(d.adSetId) === "ok" ? (
-                        <span className="text-emerald-600 font-semibold shrink-0">✅ Đã khôi phục</span>
+                        <span className="text-emerald-600 font-semibold shrink-0">{t("creative.main.step4.restored")}</span>
                       ) : (
                         <button
                           onClick={() => retryOriginalTargeting(d)}
                           disabled={retryingAdSet === d.adSetId}
                           className="shrink-0 font-semibold text-red-700 hover:text-red-800 underline disabled:opacity-50"
                         >
-                          {retryingAdSet === d.adSetId ? "Đang thử..." : "Thử lại targeting gốc"}
+                          {retryingAdSet === d.adSetId ? t("creative.main.step4.retrying") : t("creative.main.step4.retryOriginal")}
                         </button>
                       )}
                     </div>
@@ -4832,14 +4830,14 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                   className="gap-1.5 text-xs px-4"
                   onClick={() => window.location.href = "/creative"}
                 >
-                  <Sparkles className="h-3.5 w-3.5" /> Tạo Campaign Mới
+                  <Sparkles className="h-3.5 w-3.5" /> {t("creative.main.step4.newCampaign")}
                 </Button>
                 <Button
                   variant="outline"
                   className="gap-1.5 text-xs px-4"
                   onClick={() => router.push("/campaigns")}
                 >
-                  {launchSuccess.launchActive ? "📋 Đến Campaigns" : "❌ Giữ Draft — Đến Campaigns"}
+                  {launchSuccess.launchActive ? t("creative.main.step4.toCampaigns") : t("creative.main.step4.keepDraft")}
                 </Button>
                 {!launchSuccess.launchActive && (
                   <Button
@@ -4855,23 +4853,23 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                           // toggle-campaign giờ tự bật cả Ad Set + Ad bên dưới (không
                           // chỉ Campaign) — báo đúng số đã bật, và nói rõ nếu có phần
                           // lỗi thay vì khẳng định "đang chạy" trong khi có thể chưa.
-                          const parts = [`${data.adSetsActivated ?? 0} Ad Set`, `${data.adsActivated ?? 0} Ad`];
+                          const parts = [t("creative.main.step4.nAdSet", { n: data.adSetsActivated ?? 0 }), t("creative.main.step4.nAd", { n: data.adsActivated ?? 0 })];
                           if (data.cascadeErrors?.length) {
-                            alert(`⚠️ Đã bật ${parts.join(", ")}, nhưng ${data.cascadeErrors.length} mục lỗi:\n${data.cascadeErrors.join("\n")}\n\nKiểm tra lại trong Ads Manager trước khi coi là đang chạy đầy đủ.`);
+                            alert(`${t("creative.main.step4.cascadeErr", { parts: parts.join(", "), n: data.cascadeErrors.length })}\n${data.cascadeErrors.join("\n")}\n\n${t("creative.main.step4.cascadeErrCheck")}`);
                           } else {
-                            alert(`🚀 Đã bật ${parts.join(", ")} — campaign đang chạy thật. Chuyển sang tab Campaigns...`);
+                            alert(t("creative.main.step4.activated", { parts: parts.join(", ") }));
                           }
                           router.push("/campaigns");
                         } else {
-                          alert(`❌ Lỗi khi bật chạy: ${data.error}`);
+                          alert(t("creative.main.step4.activateErr", { error: data.error }));
                         }
                       } catch (err) {
-                        alert(`❌ Lỗi kết nối: ${err instanceof Error ? err.message : "Unknown"}`);
+                        alert(t("creative.main.step4.connErr", { error: err instanceof Error ? err.message : t("creative.main.err.unknownShort") }));
                       }
                     }}
                     className="gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-2.5 text-sm font-bold text-white hover:from-emerald-700 hover:to-teal-700 shadow-lg"
                   >
-                    <Rocket className="h-4 w-4" /> ✅ Bật chạy ngay!
+                    <Rocket className="h-4 w-4" /> {t("creative.main.step4.activateNow")}
                   </Button>
                 )}
               </div>
@@ -4879,61 +4877,61 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
           ) : (
             <div className="rounded-xl border-2 border-amber-200 bg-gradient-to-br from-amber-50/60 to-white p-6 shadow-sm space-y-4">
               <h3 className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                <CheckCircle className="h-4 w-4 text-amber-700" /> D. Xác nhận & Tạo
+                <CheckCircle className="h-4 w-4 text-amber-700" /> {t("creative.main.step4.secD")}
               </h3>
 
               <div className="rounded-lg border border-slate-200 bg-white p-4 space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Campaign:</span>
+                  <span className="text-slate-500">{t("creative.main.step4.lblCampaign")}</span>
                   <span className="font-bold text-slate-800">{campaignName}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Mục tiêu:</span>
+                  <span className="text-slate-500">{t("creative.main.step4.lblObjective")}</span>
                   <span className="font-semibold text-slate-700">{objectiveKey}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Ad Sets:</span>
+                  <span className="text-slate-500">{t("creative.main.step4.lblAdSets")}</span>
                   <span className="font-semibold text-slate-700">{selectedSegments.length}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Ads:</span>
+                  <span className="text-slate-500">{t("creative.main.step4.lblAds")}</span>
                   <span className="font-semibold text-slate-700">{selectedCreativeCount}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Budget:</span>
+                  <span className="text-slate-500">{t("creative.main.step4.lblBudget")}</span>
                   <span className="font-semibold text-slate-700">
                     {budgetType === "cbo"
-                      ? `₫${dailyBudget.toLocaleString("vi-VN")}/ngày (CBO)`
-                      : `₫${adsetBudget.toLocaleString("vi-VN")}/ad set/ngày (ABO)`}
+                      ? t("creative.main.step4.budgetCbo", { amount: dailyBudget.toLocaleString(intlLocale) })
+                      : t("creative.main.step4.budgetAbo", { amount: adsetBudget.toLocaleString(intlLocale) })}
                   </span>
                 </div>
                 {selectedSegments.length > 1 && (
                   <div className="flex justify-between">
-                    <span className="text-slate-500">Budget/Ad Set:</span>
+                    <span className="text-slate-500">{t("creative.main.step4.lblBudgetPerSet")}</span>
                     <span className="font-semibold text-slate-700">
                       ≈ ₫{Math.round(
                         budgetType === "cbo"
                           ? dailyBudget / selectedSegments.length
                           : adsetBudget
-                      ).toLocaleString("vi-VN")}/ngày
+                      ).toLocaleString(intlLocale)}{t("creative.main.common.perDay")}
                     </span>
                   </div>
                 )}
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Thời gian:</span>
+                  <span className="text-slate-500">{t("creative.main.step4.lblTime")}</span>
                   <span className="font-semibold text-slate-700">
-                    {startDate}{continuous ? " → Liên tục" : ` → ${endDate || "?"}`}
+                    {startDate}{continuous ? t("creative.main.step4.arrowContinuous") : ` → ${endDate || "?"}`}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Status:</span>
+                  <span className="text-slate-500">{t("creative.main.step4.lblStatus")}</span>
                   <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">DRAFT ⏸</span>
                 </div>
 
                 {/* Per-segment ad breakdown */}
                 {selectedSegments.length > 1 && audienceData && (
                   <div className="pt-2 mt-2 border-t border-slate-100 space-y-1.5">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Chi tiết theo Ad Set</p>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{t("creative.main.step4.perAdSet")}</p>
                     {audienceData.audienceSegments
                       .filter((_, i) => selectedSegments.includes(i))
                       .map((seg, idx) => {
@@ -4945,7 +4943,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                               <span className="rounded-full bg-amber-500 text-amber-950 text-[9px] font-bold w-4 h-4 flex items-center justify-center">{idx + 1}</span>
                               {seg.segmentName}
                             </span>
-                            <span className="text-slate-400">{segAds} ad{segAds !== 1 ? 's' : ''}</span>
+                            <span className="text-slate-400">{segAds !== 1 ? t("creative.main.step4.adsPlural", { n: segAds }) : t("creative.main.step4.adSingular", { n: segAds })}</span>
                           </div>
                         );
                       })}
@@ -4967,21 +4965,21 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                   Array.from(resolvedInterestsMap.values()).some(a => a.length > 0);
                 const targetingComponent = useAdvantageAudience ? 20 : hasInterests ? 20 : selectedSegments.length > 0 ? 10 : 0;
                 const healthScore = creativeComponent + audienceComponent + budgetComponent + targetingComponent;
-                const healthLabel = healthScore >= 85 ? { text: "Xuất sắc", color: "text-emerald-700", bar: "bg-emerald-500", bg: "bg-emerald-50 border-emerald-200" }
-                  : healthScore >= 65 ? { text: "Tốt", color: "text-amber-800", bar: "bg-amber-500", bg: "bg-amber-50 border-amber-200" }
-                  : healthScore >= 40 ? { text: "Cần cải thiện", color: "text-amber-700", bar: "bg-amber-400", bg: "bg-amber-50 border-amber-200" }
-                  : { text: "Chưa sẵn sàng", color: "text-red-700", bar: "bg-red-400", bg: "bg-red-50 border-red-200" };
+                const healthLabel = healthScore >= 85 ? { text: t("creative.main.step4.hExcellent"), color: "text-emerald-700", bar: "bg-emerald-500", bg: "bg-emerald-50 border-emerald-200" }
+                  : healthScore >= 65 ? { text: t("creative.main.step4.hGood"), color: "text-amber-800", bar: "bg-amber-500", bg: "bg-amber-50 border-amber-200" }
+                  : healthScore >= 40 ? { text: t("creative.main.step4.hNeeds"), color: "text-amber-700", bar: "bg-amber-400", bg: "bg-amber-50 border-amber-200" }
+                  : { text: t("creative.main.step4.hNotReady"), color: "text-red-700", bar: "bg-red-400", bg: "bg-red-50 border-red-200" };
                 const checks = [
-                  { label: "Creatives đã chọn", ok: selCreatives.length > 0, detail: selCreatives.length > 0 ? `${selCreatives.length} creative, avg score ${Math.round(avgCreativeScore)}` : "Chưa chọn creative nào" },
-                  { label: "Audience segments", ok: selectedSegments.length > 0, detail: selectedSegments.length > 0 ? `${selectedSegments.length} segment` : "Chưa chọn segment nào" },
-                  { label: "Budget phù hợp", ok: budgetVal >= 200000, detail: budgetVal >= 200000 ? `₫${budgetVal.toLocaleString("vi-VN")}/ngày` : "Budget < ₫200K — có thể không đủ" },
-                  { label: "Targeting rõ ràng", ok: useAdvantageAudience || hasInterests, detail: useAdvantageAudience ? "Advantage+ AI" : hasInterests ? "Detailed interests" : "Chưa có interests" },
-                  { label: "Page được chọn", ok: !!selectedPageId, detail: selectedPageId ? (fbPages.find(p => p.id === selectedPageId)?.name ?? selectedPageId) : "Chưa chọn Fanpage" },
+                  { label: t("creative.main.step4.chkCreatives"), ok: selCreatives.length > 0, detail: selCreatives.length > 0 ? t("creative.main.step4.chkCreativesDetail", { n: selCreatives.length, score: Math.round(avgCreativeScore) }) : t("creative.main.step4.chkCreativesNone") },
+                  { label: t("creative.main.step4.chkSegments"), ok: selectedSegments.length > 0, detail: selectedSegments.length > 0 ? t("creative.main.step4.chkSegmentsDetail", { n: selectedSegments.length }) : t("creative.main.step4.chkSegmentsNone") },
+                  { label: t("creative.main.step4.chkBudget"), ok: budgetVal >= 200000, detail: budgetVal >= 200000 ? `₫${budgetVal.toLocaleString(intlLocale)}${t("creative.main.common.perDay")}` : t("creative.main.step4.chkBudgetLow") },
+                  { label: t("creative.main.step4.chkTargeting"), ok: useAdvantageAudience || hasInterests, detail: useAdvantageAudience ? "Advantage+ AI" : hasInterests ? t("creative.main.step4.chkTargetingInterests") : t("creative.main.step4.chkTargetingNone") },
+                  { label: t("creative.main.step4.chkPage"), ok: !!selectedPageId, detail: selectedPageId ? (fbPages.find(p => p.id === selectedPageId)?.name ?? selectedPageId) : t("creative.main.step4.chkPageNone") },
                 ];
                 return (
                   <div className={`rounded-lg border p-4 space-y-3 ${healthLabel.bg}`}>
                     <div className="flex items-center justify-between">
-                      <span className={`text-xs font-bold ${healthLabel.color}`}>🎯 Campaign Readiness Score</span>
+                      <span className={`text-xs font-bold ${healthLabel.color}`}>{t("creative.main.step4.readiness")}</span>
                       <span className={`text-lg font-black ${healthLabel.color}`}>{healthScore}/100 · {healthLabel.text}</span>
                     </div>
                     <div className="h-2.5 w-full rounded-full bg-white/60 overflow-hidden">
@@ -5002,7 +5000,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
 
               <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
                 <p className="text-xs text-amber-700">
-                  ⚠️ Campaign sẽ được tạo ở trạng thái <b>DRAFT (PAUSED)</b>. Sau khi tạo xong, bạn có thể bật chạy ngay tại đây.
+                  ⚠️ {t("creative.main.step4.draftNote1")}<b>{t("creative.main.step4.draftPaused")}</b>{t("creative.main.step4.draftNote2")}
                 </p>
               </div>
 
@@ -5019,19 +5017,19 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                   {tokenStatus.valid ? (
                     tokenStatus.warning ? (
                       <p className="text-xs font-medium text-amber-700">
-                        ⚠️ Token hết hạn sau {Math.round(tokenStatus.expiresIn / 60)} phút — nên làm mới trước khi launch
+                        {t("creative.main.step4.tokenExpiring", { min: Math.round(tokenStatus.expiresIn / 60) })}
                       </p>
                     ) : (
                       <p className="text-xs font-medium text-emerald-700">
-                        ✅ Facebook Token: Còn hiệu lực {tokenStatus.expiresIn > 86400 ? `(${Math.round(tokenStatus.expiresIn / 86400)} ngày)` : tokenStatus.expiresIn > 3600 ? `(${Math.round(tokenStatus.expiresIn / 3600)} giờ)` : ''}
+                        {t("creative.main.step4.tokenOk")}{tokenStatus.expiresIn > 86400 ? t("creative.main.step4.tokenDays", { n: Math.round(tokenStatus.expiresIn / 86400) }) : tokenStatus.expiresIn > 3600 ? t("creative.main.step4.tokenHours", { n: Math.round(tokenStatus.expiresIn / 3600) }) : ''}
                       </p>
                     )
                   ) : (
                     <div className="flex items-center justify-between w-full">
-                      <p className="text-xs font-medium text-red-700">❌ Token Facebook hết hạn</p>
+                      <p className="text-xs font-medium text-red-700">{t("creative.main.step4.tokenExpired")}</p>
                       <button onClick={() => window.location.href = '/settings'}
                         className="text-xs font-semibold text-amber-700 hover:underline">
-                        🔗 Kết nối lại
+                        {t("creative.main.step4.reconnect")}
                       </button>
                     </div>
                   )}
@@ -5064,8 +5062,8 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                   setShowLaunchPreview(false);
                   setIsLaunching(true);
                   setLaunchLog([launchActive
-                    ? "🚀 Bắt đầu tạo campaign — sẽ CHẠY THẬT ngay khi tạo xong..."
-                    : "🚀 Bắt đầu tạo campaign..."]);
+                    ? t("creative.main.launch.startLive")
+                    : t("creative.main.launch.start")]);
                   try {
                     const aiLaunchSegments: LaunchSegment[] = audienceData?.audienceSegments
                       .map((seg, originalIdx) => ({ seg, originalIdx }))
@@ -5172,11 +5170,11 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                       // Clear session so next visit starts fresh from step 1
                       try { sessionStorage.removeItem(SESSION_KEY); } catch { /* ignore */ }
                     } else {
-                      setLaunchLog(prev => [...(result.log || prev), `❌ Lỗi: ${result.error}`]);
+                      setLaunchLog(prev => [...(result.log || prev), t("creative.main.launch.error", { error: result.error })]);
                     }
                   } catch (err) {
-                    const errMsg = err instanceof Error ? err.message : "Unknown";
-                    setLaunchLog(prev => [...prev, `❌ Lỗi kết nối: ${errMsg}`]);
+                    const errMsg = err instanceof Error ? err.message : t("creative.main.err.unknownShort");
+                    setLaunchLog(prev => [...prev, t("creative.main.step4.connErr", { error: errMsg })]);
                   } finally {
                     setIsLaunching(false);
                   }
@@ -5187,21 +5185,21 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                     <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden">
                       {/* Header */}
                       <div className="bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-4">
-                        <h2 className="text-base font-bold text-white">🔍 Xem trước Campaign</h2>
-                        <p className="text-xs text-emerald-100 mt-0.5">Kiểm tra trước khi tạo Draft trên Facebook</p>
+                        <h2 className="text-base font-bold text-white">{t("creative.main.launch.previewTitle")}</h2>
+                        <p className="text-xs text-emerald-100 mt-0.5">{t("creative.main.launch.previewSub")}</p>
                       </div>
 
                       <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
                         {/* Campaign name */}
                         <div className="rounded-lg bg-slate-50 border border-slate-100 px-4 py-3">
-                          <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Campaign</p>
+                          <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">{t("creative.main.launch.campaignCaption")}</p>
                           <p className="text-sm font-bold text-slate-800">{campaignName}</p>
                           <div className="flex flex-wrap gap-2 mt-1.5">
                             <span className="text-[10px] bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full border border-amber-100">
                               {objectiveKey.replace("OUTCOME_", "")}
                             </span>
                             <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">
-                              {budgetType === "cbo" ? `CBO ₫${dailyBudget.toLocaleString("vi-VN")}/ngày` : `ABO ₫${adsetBudget.toLocaleString("vi-VN")}/adset/ngày`}
+                              {budgetType === "cbo" ? t("creative.main.launch.tagCbo", { amount: dailyBudget.toLocaleString(intlLocale) }) : t("creative.main.launch.tagAbo", { amount: adsetBudget.toLocaleString(intlLocale) })}
                             </span>
                             {useAdvantageAudience && (
                               <span className="text-[10px] bg-violet-50 text-violet-600 px-2 py-0.5 rounded-full border border-violet-100">🤖 Advantage+</span>
@@ -5210,7 +5208,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                               <span className="text-[10px] bg-pink-50 text-pink-600 px-2 py-0.5 rounded-full border border-pink-100">📸 + Instagram</span>
                             )}
                             {autoUTM && (
-                              <span className="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full border border-emerald-100">🔗 UTM tự động</span>
+                              <span className="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full border border-emerald-100">{t("creative.main.launch.utmAuto")}</span>
                             )}
                           </div>
                         </div>
@@ -5218,7 +5216,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                         {/* Ad sets */}
                         <div>
                           <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-2">
-                            {previewSegments.length} Ad Set{previewSegments.length > 1 ? "s" : ""}
+                            {previewSegments.length > 1 ? t("creative.main.launch.adSetsPlural", { n: previewSegments.length }) : t("creative.main.launch.adSetSingular", { n: previewSegments.length })}
                           </p>
                           <div className="space-y-2">
                             {previewSegments.map(({ seg, originalIdx }, si) => {
@@ -5233,7 +5231,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                                       "bg-emerald-100 text-emerald-700"
                                     )}>{seg.funnelStage ?? "TOFU"}</span>
                                     <span className="text-xs font-semibold text-slate-700 truncate">{seg.segmentName}</span>
-                                    <span className="ml-auto text-[10px] text-emerald-600 shrink-0">₫{perAdSetBudget.toLocaleString("vi-VN")}/ngày</span>
+                                    <span className="ml-auto text-[10px] text-emerald-600 shrink-0">₫{perAdSetBudget.toLocaleString(intlLocale)}{t("creative.main.common.perDay")}</span>
                                   </div>
                                   {(() => {
                                     const editedD = editedDemographicsMap.get(originalIdx);
@@ -5242,7 +5240,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                                     return (
                                       <p className="text-[10px] text-slate-500">
                                         📍 {pLocs.slice(0, 2).join(", ")}{pLocs.length > 2 ? ` +${pLocs.length - 2}` : ""} · 👥 {pAge}
-                                        {editedD && <span className="text-amber-600 ml-1">(đã chỉnh)</span>}
+                                        {editedD && <span className="text-amber-600 ml-1">{t("creative.main.step4.edited")}</span>}
                                       </p>
                                     );
                                   })()}
@@ -5251,13 +5249,13 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                                       {resolved.slice(0, 4).map(r => (
                                         <span key={r.id} className="text-[9px] bg-emerald-50 text-emerald-700 border border-emerald-100 px-1.5 py-0.5 rounded-full">{r.name}</span>
                                       ))}
-                                      {resolved.length > 4 && <span className="text-[9px] text-slate-400">+{resolved.length - 4} interests</span>}
+                                      {resolved.length > 4 && <span className="text-[9px] text-slate-400">{t("creative.main.launch.moreInterests", { n: resolved.length - 4 })}</span>}
                                     </div>
                                   )}
                                   {useAdvantageAudience && (
                                     <p className="text-[10px] text-violet-500 mt-0.5">🤖 Advantage+ AI targeting</p>
                                   )}
-                                  <p className="text-[10px] text-slate-400 mt-1">{segCreatives.length} creative{segCreatives.length !== 1 ? "s" : ""}</p>
+                                  <p className="text-[10px] text-slate-400 mt-1">{segCreatives.length !== 1 ? t("creative.main.launch.creativesPlural", { n: segCreatives.length }) : t("creative.main.launch.creativeSingular", { n: segCreatives.length })}</p>
                                 </div>
                               );
                             })}
@@ -5267,7 +5265,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                         {/* Creatives summary - FB Ad Preview */}
                         <div>
                           <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1.5">
-                            {selectedCreatives.length} Creative{selectedCreatives.length > 1 ? "s" : ""} được chọn
+                            {selectedCreatives.length > 1 ? t("creative.main.launch.selectedPlural", { n: selectedCreatives.length }) : t("creative.main.launch.selectedSingular", { n: selectedCreatives.length })}
                           </p>
                           <div className="flex gap-3 overflow-x-auto pb-2">
                             {selectedCreatives.slice(0, 2).map((c, ci) => {
@@ -5288,14 +5286,14 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                             })}
                           </div>
                           {selectedCreatives.length > 2 && (
-                            <p className="text-[10px] text-slate-400 pl-2">+{selectedCreatives.length - 2} creatives khác</p>
+                            <p className="text-[10px] text-slate-400 pl-2">{t("creative.main.launch.moreCreatives", { n: selectedCreatives.length - 2 })}</p>
                           )}
                         </div>
 
                         {/* URL preview */}
                         {destinationUrl && (
                           <div className="rounded-lg bg-amber-50/50 border border-amber-100 px-3 py-2">
-                            <p className="text-[10px] font-semibold text-amber-700 mb-0.5">🔗 Landing URL</p>
+                            <p className="text-[10px] font-semibold text-amber-700 mb-0.5">{t("creative.main.launch.landingUrl")}</p>
                             <p className="text-[10px] text-slate-600 break-all">{destinationUrl}{autoUTM ? `?utm_source=facebook&utm_medium=paid&utm_campaign=${encodeURIComponent(campaignName.slice(0, 30))}...` : ""}</p>
                           </div>
                         )}
@@ -5304,25 +5302,25 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                       {/* Footer buttons */}
                       <div className="border-t border-slate-100 px-6 py-4 flex items-center justify-between gap-3 flex-wrap">
                         <Button variant="outline" className="text-xs" onClick={() => setShowLaunchPreview(false)}>
-                          ← Quay lại chỉnh sửa
+                          {t("creative.main.launch.backToEdit")}
                         </Button>
                         <div className="flex items-center gap-2 flex-wrap justify-end">
                           <Button
                             onClick={() => doLaunch(false)}
                             className="gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-2 text-sm font-bold text-white hover:from-emerald-700 hover:to-teal-700 shadow-md"
                           >
-                            <Rocket className="h-4 w-4" /> Xác nhận & Tạo Campaign
+                            <Rocket className="h-4 w-4" /> {t("creative.main.launch.confirmCreate")}
                           </Button>
                           <Button
                             onClick={() => {
                               if (!window.confirm(
-                                "⚠️ Campaign sẽ CHẠY THẬT ngay sau khi tạo xong — bắt đầu tiêu ngân sách thật trên Facebook ngay lập tức, không còn bước xác nhận nào sau đây.\n\nBạn chắc chắn muốn tạo và chạy luôn?"
+                                `${t("creative.main.launch.liveConfirm1")}\n\n${t("creative.main.launch.liveConfirm2")}`
                               )) return;
                               doLaunch(true);
                             }}
                             className="gap-2 bg-gradient-to-r from-orange-600 to-red-600 px-4 py-2 text-sm font-bold text-white hover:from-orange-700 hover:to-red-700 shadow-md"
                           >
-                            <Rocket className="h-4 w-4" /> Tạo & Chạy Ngay
+                            <Rocket className="h-4 w-4" /> {t("creative.main.launch.createRun")}
                           </Button>
                         </div>
                       </div>
@@ -5333,7 +5331,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
 
               <div className="flex items-center justify-between pt-2">
                 <Button variant="outline" className="gap-1.5 text-xs" onClick={() => setStep(3)}>
-                  <ArrowLeft className="h-3.5 w-3.5" /> Quay lại
+                  <ArrowLeft className="h-3.5 w-3.5" /> {t("creative.main.common.back")}
                 </Button>
                 <Button
                   onClick={() => {
@@ -5347,8 +5345,8 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                       ));
                     });
                     if (unmatchedSegments.length > 0) {
-                      const names = unmatchedSegments.map(idx => audienceData?.audienceSegments[idx]?.segmentName ?? `Segment ${idx+1}`).join(", ");
-                      if (!window.confirm(`ℹ️ Lưu ý: ${unmatchedSegments.length} segment chưa có creative riêng:\n${names}\n\nHệ thống sẽ tự dùng chung creative từ segment khác cho những segment này.\n\nBạn có muốn tiếp tục không?`)) return;
+                      const names = unmatchedSegments.map(idx => audienceData?.audienceSegments[idx]?.segmentName ?? t("creative.main.launch.segmentN", { n: idx + 1 })).join(", ");
+                      if (!window.confirm(`${t("creative.main.launch.unmatched1", { n: unmatchedSegments.length })}\n${names}\n\n${t("creative.main.launch.unmatched2")}\n\n${t("creative.main.launch.unmatched3")}`)) return;
                     }
                     // Client-side preflight before showing launch preview
                     const pfCfg: LaunchConfig = {
@@ -5391,11 +5389,11 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                   className="gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 px-8 py-3 text-sm font-bold text-white hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50 shadow-lg"
                 >
                   {isLaunching ? (
-                    <><Loader2 className="h-4 w-4 animate-spin" /> Đang tạo campaign...</>
+                    <><Loader2 className="h-4 w-4 animate-spin" /> {t("creative.main.launch.creating")}</>
                   ) : tokenStatus !== null && !tokenStatus.valid ? (
-                    <>❌ Cần kết nối lại Facebook</>
+                    <>{t("creative.main.launch.needReconnect")}</>
                   ) : (
-                    <><Eye className="h-4 w-4" /> Xem trước & Tạo Campaign</>
+                    <><Eye className="h-4 w-4" /> {t("creative.main.launch.previewCreate")}</>
                   )}
                 </Button>
               </div>
@@ -5404,12 +5402,12 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
               {launchLog.length > 0 && (
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-1 mt-4">
                   <div className="flex items-center justify-between mb-2">
-                    <h4 className="text-xs font-bold text-slate-600">📋 Launch Log</h4>
+                    <h4 className="text-xs font-bold text-slate-600">{t("creative.main.launch.log")}</h4>
                     <button
                       onClick={() => navigator.clipboard.writeText(launchLog.join('\n'))}
                       className="text-xs text-slate-400 hover:text-slate-600 px-2 py-0.5 rounded border border-slate-200 hover:border-slate-400 transition-colors"
                     >
-                      Copy log
+                      {t("creative.main.launch.copyLog")}
                     </button>
                   </div>
                   <div className="max-h-96 overflow-y-auto space-y-0.5 font-mono text-xs" ref={(el) => { if (el && !isLaunching) el.scrollTop = el.scrollHeight; }}>
@@ -5425,7 +5423,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
                     ))}
                     {isLaunching && (
                       <div className="flex items-center gap-1.5 text-amber-700 animate-pulse">
-                        <span>⏳ Đang xử lý...</span>
+                        <span>{t("creative.main.launch.processing")}</span>
                       </div>
                     )}
                   </div>
@@ -5446,7 +5444,7 @@ Audience signals: ${googleAudienceSignals || "(chưa có)"}` : ""}`}
             className="flex w-full items-center justify-between px-5 py-4 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
           >
             <span>
-              💾 Saved Creatives
+              {t("creative.main.saved.title")}
               <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
                 {saved.length}
               </span>

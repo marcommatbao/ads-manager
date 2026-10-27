@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { cn } from "@/lib/utils";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
 import type { Campaign } from "@/types/ads.types";
 
 export interface CampaignObjectiveStats {
@@ -175,6 +176,8 @@ function ObjectivePanel({
   activeFilter: { platform: string | null; objective: string | null };
   onFilterChange: (p: string | null, o: string | null) => void;
 }) {
+  const t = useT();
+  const intl = useIntlLocale();
   const isFB = platform === "FACEBOOK";
   const maxCount = Math.max(...items.map((i) => i.count), 1);
 
@@ -192,13 +195,13 @@ function ObjectivePanel({
         <div className="flex items-center gap-2">
           {total > 0 && <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />}
           <span className="text-sm font-bold tabular-nums text-slate-700">{total}</span>
-          <span className="text-xs text-slate-500">active</span>
+          <span className="text-xs text-slate-500">{t("panels.objstats.active")}</span>
         </div>
       </div>
 
       <div className="px-5 py-3 flex flex-col gap-2.5">
         {items.length === 0 ? (
-          <p className="text-xs text-slate-400 text-center py-4">Không có campaign active</p>
+          <p className="text-xs text-slate-400 text-center py-4">{t("panels.objstats.noActive")}</p>
         ) : (
           items.map((item) => (
             <ObjectiveRow
@@ -223,9 +226,9 @@ function ObjectivePanel({
 
       <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/50">
         <div className="flex justify-between items-center">
-          <span className="text-xs text-slate-500">Tổng chi tiêu active</span>
+          <span className="text-xs text-slate-500">{t("panels.objstats.totalSpend")}</span>
           <span className="text-sm font-bold tabular-nums text-slate-800">
-            ₫{Math.round(items.reduce((s, i) => s + i.spend, 0)).toLocaleString("vi-VN")}
+            ₫{Math.round(items.reduce((s, i) => s + i.spend, 0)).toLocaleString(intl)}
           </span>
         </div>
       </div>
@@ -241,6 +244,8 @@ function ObjectiveRow({
   isActive,
   onClick 
 }: any) {
+  const t = useT();
+  const intl = useIntlLocale();
   const pct = Math.round((item.count / total) * 100);
   const barWidth = Math.round((item.count / maxCount) * 100);
 
@@ -276,19 +281,19 @@ function ObjectiveRow({
       <div className="absolute right-0 top-full mt-1 z-10 bg-white border border-slate-200 rounded-lg px-3 py-2 shadow-lg text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">
         <div className="flex flex-col gap-1.5 text-slate-600">
           <div className="flex justify-between gap-4">
-            <span>Campaigns:</span>
+            <span>{t("panels.objstats.campaigns")}</span>
             <span className="font-bold text-slate-900">{item.count}</span>
           </div>
           <div className="flex justify-between gap-4">
-            <span>Chi tiêu:</span>
-            <span className="font-bold text-slate-900">₫{Math.round(item.spend).toLocaleString("vi-VN")}</span>
+            <span>{t("panels.objstats.spend")}</span>
+            <span className="font-bold text-slate-900">₫{Math.round(item.spend).toLocaleString(intl)}</span>
           </div>
           <div className="flex justify-between gap-4">
-            <span>TB/campaign:</span>
-            <span className="font-bold text-slate-900">₫{Math.round(item.spend / item.count).toLocaleString("vi-VN")}</span>
+            <span>{t("panels.objstats.avg")}</span>
+            <span className="font-bold text-slate-900">₫{Math.round(item.spend / item.count).toLocaleString(intl)}</span>
           </div>
           <div className="pt-1.5 border-t border-slate-100 text-amber-700 font-medium">
-            Click để lọc →
+            {t("panels.objstats.clickFilter")}
           </div>
         </div>
       </div>

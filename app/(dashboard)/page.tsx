@@ -57,6 +57,9 @@ import { KpiOverviewTab } from "@/components/dashboard/KpiOverviewTab";
 import { HealthOverviewTab } from "@/components/dashboard/HealthOverviewTab";
 import { TrendsTab } from "@/components/dashboard/TrendsTab";
 import { DashboardSection } from "@/components/dashboard/DashboardSection";
+import { useIntlLocale, useT } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/messages";
+import type { TFunction } from "@/lib/i18n/translate";
 
 // ─────────────────────────────────────────────
 // Date preset helpers
@@ -85,6 +88,7 @@ function PlatformCard({
   currency = "USD",
   notConnected = false,
 }: PlatformCardProps & { notConnected?: boolean }) {
+  const t = useT();
   function Val({ v }: { v: string }) {
     if (isLoading) return <div className="h-5 w-16 animate-pulse rounded bg-slate-100" />;
     return <p className="text-base font-bold text-slate-800">{v}</p>;
@@ -98,21 +102,21 @@ function PlatformCard({
       className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm flex flex-col justify-between h-full"
       style={{ borderLeftWidth: 3, borderLeftColor: accent }}
     >
-      <p className="mb-4 text-sm font-semibold text-slate-700">{name} Performance</p>
+      <p className="mb-4 text-sm font-semibold text-slate-700">{t("overview.home.platformPerf", { name })}</p>
       
       {notConnected ? (
         <div className="flex h-full flex-col items-center justify-center text-center">
-          <p className="text-xs text-slate-500 mb-3">Not connected</p>
+          <p className="text-xs text-slate-500 mb-3">{t("overview.home.notConnected")}</p>
           <Link href="/settings">
             <Button variant="outline" size="sm" className="h-7 text-xs font-semibold px-3">
-              Connect {name} Ads
+              {t("overview.home.connectAds", { name })}
             </Button>
           </Link>
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-3 text-center">
           <div>
-            <p className="text-[11px] font-medium uppercase text-slate-400 mb-1">Spend</p>
+            <p className="text-[11px] font-medium uppercase text-slate-400 mb-1">{t("overview.home.spendLabel")}</p>
             <Val v={spendDisplay} />
           </div>
           <div>
@@ -134,23 +138,24 @@ function avgMetric(list: Campaign[], fn: (c: Campaign) => number) {
 // Setup Banner (shown when 401 / no API token)
 // ─────────────────────────────────────────────
 function SetupBanner() {
+  const t = useT();
   return (
     <div className="flex flex-col items-center justify-center py-24 text-center">
       <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-50">
         <Wifi className="h-8 w-8 text-amber-500" />
       </div>
       <h2 className="text-xl font-bold text-slate-800">
-        Connect your Meta Ads account to get started
+        {t("overview.home.setupTitle")}
       </h2>
       <p className="mt-2 max-w-sm text-sm text-slate-500">
-        Add your <code className="rounded bg-slate-100 px-1 py-0.5 text-xs">META_ACCESS_TOKEN</code>{" "}
-        and <code className="rounded bg-slate-100 px-1 py-0.5 text-xs">META_AD_ACCOUNT_ID</code>{" "}
-        in Settings to start seeing real campaign data.
+        {t("overview.home.setupAdd")} <code className="rounded bg-slate-100 px-1 py-0.5 text-xs">META_ACCESS_TOKEN</code>{" "}
+        {t("overview.home.setupAnd")} <code className="rounded bg-slate-100 px-1 py-0.5 text-xs">META_AD_ACCOUNT_ID</code>{" "}
+        {t("overview.home.setupIn")}
       </p>
       <Link href="/settings" className="mt-6">
         <Button className="gap-2 bg-amber-500 text-amber-950 hover:bg-amber-600">
           <Settings className="h-4 w-4" />
-          Go to Settings
+          {t("overview.home.goSettings")}
         </Button>
       </Link>
     </div>
@@ -212,6 +217,8 @@ function MorningBriefingCard() {
   const [dismissed, setDismissed] = useState(false);
   const [disabled, setDisabled] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const t = useT();
+  const loc = useIntlLocale();
 
   useEffect(() => {
     // Only show between 6AM - 12PM, or if user hasn't seen today's briefing
@@ -230,7 +237,7 @@ function MorningBriefingCard() {
         if (json.success) setBriefing(json.data);
         else setError(json.error);
       })
-      .catch(() => setError("Không thể tải báo cáo buổi sáng"))
+      .catch(() => setError(t("overview.home.briefingLoadFail")))
       .finally(() => setLoading(false));
   }, []);
 
@@ -258,7 +265,7 @@ function MorningBriefingCard() {
   if (disabled || dismissed) return null;
   if (!briefing && !loading && !error) return null;
 
-  const todayLabel = new Date().toLocaleDateString("vi-VN", {
+  const todayLabel = new Date().toLocaleDateString(loc, {
     weekday: "long", day: "2-digit", month: "2-digit", year: "numeric"
   });
 
@@ -271,7 +278,7 @@ function MorningBriefingCard() {
             <Sunrise className="h-4 w-4 text-white" />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-amber-900">Báo cáo buổi sáng</h3>
+            <h3 className="text-sm font-bold text-amber-900">{t("overview.home.briefingTitle")}</h3>
             <p className="text-[10px] text-amber-600">{todayLabel}</p>
           </div>
         </div>
@@ -280,14 +287,14 @@ function MorningBriefingCard() {
             onClick={handleRefresh}
             disabled={loading}
             className="p-1.5 rounded-lg hover:bg-amber-100 text-amber-500 transition-colors"
-            title="Tải lại"
+            title={t("overview.home.reload")}
           >
             <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
           </button>
           <button
             onClick={handleDismiss}
             className="p-1.5 rounded-lg hover:bg-amber-100 text-amber-400 transition-colors"
-            title="Ẩn đi"
+            title={t("overview.home.hide")}
           >
             <X className="h-3.5 w-3.5" />
           </button>
@@ -299,7 +306,7 @@ function MorningBriefingCard() {
         {loading && !briefing ? (
           <div className="flex items-center gap-2 py-4">
             <RefreshCw className="h-4 w-4 text-amber-400 animate-spin" />
-            <span className="text-sm text-amber-600">Đang tạo báo cáo buổi sáng...</span>
+            <span className="text-sm text-amber-600">{t("overview.home.briefingGenerating")}</span>
           </div>
         ) : error ? (
           <p className="text-sm text-red-500 py-2">{error}</p>
@@ -312,7 +319,7 @@ function MorningBriefingCard() {
                   hệt nhau — nói ra để người đọc bản tin không kết luận nhầm. */}
               {!!briefing.dataGaps?.length && (
                 <span className="mt-2 block rounded-lg border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-900">
-                  Số liệu bản tin đang THIẾU {briefing.dataGaps.length} nguồn: {briefing.dataGaps.slice(0, 2).join("; ")}
+                  {t("overview.home.briefingGaps", { n: briefing.dataGaps.length, list: briefing.dataGaps.slice(0, 2).join("; ") })}
                   {briefing.dataGaps.length > 2 && ` … (+${briefing.dataGaps.length - 2})`}
                 </span>
               )}
@@ -320,11 +327,11 @@ function MorningBriefingCard() {
 
             {/* Quick stats bar */}
             <div className="flex items-center gap-4 text-[10px] text-amber-700 pt-2 border-t border-amber-100">
-              <span>📊 Spend hôm qua: <b>₫{Math.round(briefing.yesterday.totalSpend).toLocaleString("vi-VN")}</b></span>
+              <span>{t("overview.home.briefingYesterdaySpend")} <b>₫{Math.round(briefing.yesterday.totalSpend).toLocaleString(loc)}</b></span>
               <span>ROAS: <b>{briefing.yesterday.roas.toFixed(1)}x</b></span>
               <span>CTR: <b>{briefing.yesterday.avgCTR.toFixed(2)}%</b></span>
               {briefing.forecast && (
-                <span>💰 Dự báo tháng: <b>₫{Math.round(briefing.forecast.estimatedMonthSpend).toLocaleString("vi-VN")}</b> (còn {briefing.forecast.daysLeft} ngày)</span>
+                <span>{t("overview.home.briefingForecast")} <b>₫{Math.round(briefing.forecast.estimatedMonthSpend).toLocaleString(loc)}</b> {t("overview.home.briefingDaysLeft", { n: briefing.forecast.daysLeft })}</span>
               )}
             </div>
           </div>
@@ -338,6 +345,8 @@ function MorningBriefingCard() {
 // Revenue Reminder Banner (days 1-3 of month)
 // ─────────────────────────────────────────────
 function RevenueReminderBanner() {
+  const t = useT();
+  const loc = useIntlLocale();
   const [show, setShow] = useState(false);
   const [dismissed, setDismissed] = useState(false);
 
@@ -370,7 +379,7 @@ function RevenueReminderBanner() {
 
   if (!show || dismissed) return null;
 
-  const monthLabel = new Date().toLocaleDateString("vi-VN", { month: "long", year: "numeric" });
+  const monthLabel = new Date().toLocaleDateString(loc, { month: "long", year: "numeric" });
 
   return (
     <div className="rounded-xl border-2 border-emerald-300 bg-gradient-to-r from-emerald-50 via-green-50 to-white shadow-sm mb-6 overflow-hidden">
@@ -381,10 +390,10 @@ function RevenueReminderBanner() {
           </div>
           <div>
             <p className="text-sm font-bold text-emerald-900">
-              📊 Tháng mới bắt đầu!
+              {t("overview.home.revTitle")}
             </p>
             <p className="text-xs text-emerald-700">
-              Nhập doanh thu ERP {monthLabel} để ROAS hiển thị chính xác.
+              {t("overview.home.revBody", { month: monthLabel })}
             </p>
           </div>
         </div>
@@ -392,14 +401,14 @@ function RevenueReminderBanner() {
           <Link href="/settings/revenue">
             <Button className="gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700 text-xs h-8">
               <TrendingUp className="h-3.5 w-3.5" />
-              Nhập ngay
+              {t("overview.home.revNow")}
             </Button>
           </Link>
           <button
             onClick={handleDismiss}
             className="text-xs text-emerald-500 hover:text-emerald-700 px-2 py-1 rounded-lg hover:bg-emerald-100 transition-colors"
           >
-            Để sau
+            {t("overview.home.revLater")}
           </button>
         </div>
       </div>
@@ -438,17 +447,17 @@ interface BudgetEntry {
   daily_average: number;
 }
 
-const MONTH_LABELS_PACING = [
-  "Tháng 1", "Tháng 2", "Tháng 3", "Tháng 4",
-  "Tháng 5", "Tháng 6", "Tháng 7", "Tháng 8",
-  "Tháng 9", "Tháng 10", "Tháng 11", "Tháng 12",
+const MONTH_LABELS_PACING: MessageKey[] = [
+  "overview.home.month1", "overview.home.month2", "overview.home.month3", "overview.home.month4",
+  "overview.home.month5", "overview.home.month6", "overview.home.month7", "overview.home.month8",
+  "overview.home.month9", "overview.home.month10", "overview.home.month11", "overview.home.month12",
 ];
 
-function fmtVN(v: number): string {
-  if (v >= 1_000_000_000) return `₫${(v / 1_000_000_000).toFixed(1)}Tỷ`;
-  if (v >= 1_000_000) return `₫${(v / 1_000_000).toFixed(1)}Tr`;
+function fmtVNLocal(v: number, t: TFunction, loc: string): string {
+  if (v >= 1_000_000_000) return `₫${(v / 1_000_000_000).toFixed(1)}${t("overview.home.unitB")}`;
+  if (v >= 1_000_000) return `₫${(v / 1_000_000).toFixed(1)}${t("overview.home.unitM")}`;
   if (v >= 1_000) return `₫${(v / 1_000).toFixed(0)}K`;
-  return `₫${Math.round(v).toLocaleString("vi-VN")}`;
+  return `₫${Math.round(v).toLocaleString(loc)}`;
 }
 
 /** Build chart data: ideal pace line + actual cumulative + projected */
@@ -496,6 +505,9 @@ function buildPacingChartData(
 }
 
 function BudgetPlatformRow({ entry }: { entry: BudgetEntry }) {
+  const t = useT();
+  const loc = useIntlLocale();
+  const fmtVN = (v: number) => fmtVNLocal(v, t, loc);
   const isFb = entry.platform === "facebook";
   const platformLabel = isFb ? "Facebook" : "Google";
   const platformColor = isFb ? "text-blue-600" : "text-red-500";
@@ -526,25 +538,25 @@ function BudgetPlatformRow({ entry }: { entry: BudgetEntry }) {
       </div>
       {/* Stats row */}
       <div className="flex items-center justify-between text-[10px] text-slate-400">
-        <span>Budget: {fmtVN(entry.budget_amount)}</span>
-        <span>Còn: {fmtVN(entry.remaining)}</span>
-        <span>{entry.days_left} ngày</span>
+        <span>{t("overview.home.budgetLabel", { amount: fmtVN(entry.budget_amount) })}</span>
+        <span>{t("overview.home.remaining", { amount: fmtVN(entry.remaining) })}</span>
+        <span>{t("overview.home.daysN", { n: entry.days_left })}</span>
         <span className="font-bold">{entry.percentage}%</span>
       </div>
       {/* Forecast status */}
       {entry.forecast_status === "danger" && (
         <p className="text-[10px] mt-1.5 text-red-600 font-medium">
-          ⚠️ Dự báo vượt {fmtVN(Math.abs(overrun))} nếu giữ pace
+          {t("overview.home.forecastOver", { amount: fmtVN(Math.abs(overrun)) })}
         </p>
       )}
       {entry.forecast_status === "warning" && (
         <p className="text-[10px] mt-1.5 text-amber-600 font-medium">
-          ⏳ Gần ngân sách — theo dõi sát
+          {t("overview.home.forecastWarn")}
         </p>
       )}
       {entry.forecast_status === "ok" && (
         <p className="text-[10px] mt-1.5 text-emerald-600 font-medium">
-          ✅ Đang đúng pace
+          {t("overview.home.forecastOk")}
         </p>
       )}
     </div>
@@ -552,6 +564,9 @@ function BudgetPlatformRow({ entry }: { entry: BudgetEntry }) {
 }
 
 function BudgetPacingCard() {
+  const t = useT();
+  const loc = useIntlLocale();
+  const fmtVN = (v: number) => fmtVNLocal(v, t, loc);
   const [tab, setTab] = useState<BudgetTab>("all");
   const [entries, setEntries] = useState<BudgetEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -582,7 +597,7 @@ function BudgetPacingCard() {
   if (entries.length === 0) return null;
 
   const now = new Date();
-  const monthLabel = `${MONTH_LABELS_PACING[now.getMonth()]} ${now.getFullYear()}`;
+  const monthLabel = `${t(MONTH_LABELS_PACING[now.getMonth()])} ${now.getFullYear()}`;
 
   // Filter by tab
   const filtered = tab === "all" ? entries : entries.filter((e) => e.company === tab);
@@ -599,7 +614,7 @@ function BudgetPacingCard() {
 
   // Chart Y-axis formatter
   const yFmt = (v: number) => {
-    if (v >= 1_000_000) return `₫${(v / 1_000_000).toFixed(0)}Tr`;
+    if (v >= 1_000_000) return `₫${(v / 1_000_000).toFixed(0)}${t("overview.home.unitM")}`;
     if (v >= 1_000) return `₫${(v / 1_000).toFixed(0)}K`;
     return `₫${v}`;
   };
@@ -609,39 +624,39 @@ function BudgetPacingCard() {
       {/* ── Header ── */}
       <div className="flex items-center justify-between px-5 pt-5 pb-3">
         <h3 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
-          🔥 Budget {monthLabel}
+          {t("overview.home.budgetTitle", { month: monthLabel })}
         </h3>
         <Link
           href="/settings/budget"
           className="text-[11px] font-semibold text-amber-700 hover:text-amber-800 flex items-center gap-0.5"
         >
-          Chi tiết <ArrowRight className="h-3 w-3" />
+          {t("overview.home.details")} <ArrowRight className="h-3 w-3" />
         </Link>
       </div>
 
       {/* ── Tabs ── */}
       <div className="flex items-center gap-1 px-5 pb-4">
-        {(["all", ...orderedCompanyIds(["MBC", "MBI"])] as BudgetTab[]).map((t) => ( // Đợt 25: công ty theo bản cài
+        {(["all", ...orderedCompanyIds(["MBC", "MBI"])] as BudgetTab[]).map((tb) => ( // Đợt 25: công ty theo bản cài
           <button
-            key={t}
-            onClick={() => setTab(t)}
+            key={tb}
+            onClick={() => setTab(tb)}
             className={cn(
               "rounded-full px-3 py-1 text-[11px] font-semibold transition-colors",
-              tab === t
-                ? t === "MBC" ? "bg-blue-600 text-white"
-                  : t === "MBI" ? "bg-violet-600 text-white"
+              tab === tb
+                ? tb === "MBC" ? "bg-blue-600 text-white"
+                  : tb === "MBI" ? "bg-violet-600 text-white"
                   : "bg-slate-700 text-white"
                 : "text-slate-400 hover:text-slate-600 bg-slate-50"
             )}
           >
-            {t === "all" ? "Tổng" : t === "MBC" || t === "MBI" ? t : companyLabel(t)}
+            {tb === "all" ? t("overview.home.tabTotal") : tb === "MBC" || tb === "MBI" ? tb : companyLabel(tb)}
           </button>
         ))}
 
         {/* Total summary in header */}
         {hasData && (
           <div className="ml-auto flex items-center gap-3 text-[10px] text-slate-400">
-            <span>Đã chi: <b className="text-slate-700">{fmtVN(totalSpent)}</b></span>
+            <span>{t("overview.home.spentLabel")} <b className="text-slate-700">{fmtVN(totalSpent)}</b></span>
             <span>/ {fmtVN(totalBudget)}</span>
             <span className="font-bold text-slate-700">{totalPct}%</span>
           </div>
@@ -662,7 +677,7 @@ function BudgetPacingCard() {
         </div>
       ) : (
         <div className="px-5 pb-4 text-center text-xs text-slate-400 py-4">
-          Chưa có dữ liệu chi tiêu cho nhóm này
+          {t("overview.home.noSpendData")}
         </div>
       )}
 
@@ -670,7 +685,7 @@ function BudgetPacingCard() {
       {hasData && (
         <div className="border-t border-slate-100 px-5 pt-3 pb-4">
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
-            📈 Pace chi tiêu vs Lý tưởng
+            {t("overview.home.paceTitle")}
           </p>
           <div className="h-40">
             <ResponsiveContainer width="100%" height="100%">
@@ -698,13 +713,13 @@ function BudgetPacingCard() {
                   }}
                   formatter={(val: any, name: any) => {
                     const labels: Record<string, string> = {
-                      actual: "Chi thực",
-                      ideal: "Pace lý tưởng",
-                      projected: "Dự báo",
+                      actual: t("overview.home.seriesActual"),
+                      ideal: t("overview.home.seriesIdeal"),
+                      projected: t("overview.home.seriesProjected"),
                     };
                     return [fmtVN(Number(val) || 0), labels[String(name)] ?? name];
                   }}
-                  labelFormatter={(label) => `Ngày ${label}`}
+                  labelFormatter={(label) => t("overview.home.dayLabel", { label: String(label) })}
                 />
 
                 {/* Budget line */}
@@ -714,7 +729,7 @@ function BudgetPacingCard() {
                   strokeDasharray="4 4"
                   strokeWidth={1.5}
                   label={{
-                    value: `Budget: ${fmtVN(totalBudget)}`,
+                    value: t("overview.home.budgetLabel", { amount: fmtVN(totalBudget) }),
                     position: "right",
                     fill: "#ef4444",
                     fontSize: 9,
@@ -760,9 +775,9 @@ function BudgetPacingCard() {
           </div>
           {/* Chart legend */}
           <div className="flex items-center justify-center gap-4 mt-2 text-[9px] text-slate-400">
-            <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-blue-500 rounded-full inline-block" /> Chi thực</span>
-            <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-blue-300 rounded-full inline-block opacity-60" style={{ borderTop: "1px dashed" }} /> Pace lý tưởng</span>
-            <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-orange-400 rounded-full inline-block" /> Dự báo</span>
+            <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-blue-500 rounded-full inline-block" /> {t("overview.home.seriesActual")}</span>
+            <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-blue-300 rounded-full inline-block opacity-60" style={{ borderTop: "1px dashed" }} /> {t("overview.home.seriesIdeal")}</span>
+            <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-orange-400 rounded-full inline-block" /> {t("overview.home.seriesProjected")}</span>
             <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-red-400 rounded-full inline-block" /> Budget</span>
           </div>
         </div>
@@ -782,6 +797,7 @@ interface FatigueItem {
 }
 
 function FatigueAlertCard({ campaigns: allCampaigns }: { campaigns: Campaign[] }) {
+  const t = useT();
   const [pausingId, setPausingId] = useState<string | null>(null);
 
   // Run quick fatigue check on all active campaigns
@@ -820,11 +836,11 @@ function FatigueAlertCard({ campaigns: allCampaigns }: { campaigns: Campaign[] }
             <AlertTriangle className="h-4 w-4 text-white" />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-red-900">🔥 Cần xử lý hôm nay</h3>
+            <h3 className="text-sm font-bold text-red-900">{t("overview.home.fatigueTitle")}</h3>
             <p className="text-[10px] text-red-600">
-              {criticalCount > 0 && `${criticalCount} critical`}
+              {criticalCount > 0 && t("overview.home.criticalN", { n: criticalCount })}
               {criticalCount > 0 && fatiguedCount > 0 && " · "}
-              {fatiguedCount > 0 && `${fatiguedCount} fatigued`}
+              {fatiguedCount > 0 && t("overview.home.fatiguedN", { n: fatiguedCount })}
             </p>
           </div>
         </div>
@@ -832,7 +848,7 @@ function FatigueAlertCard({ campaigns: allCampaigns }: { campaigns: Campaign[] }
           href="/campaigns"
           className="text-[11px] font-semibold text-red-500 hover:text-red-600 flex items-center gap-0.5"
         >
-          Xem tất cả <ArrowRight className="h-3 w-3" />
+          {t("overview.home.viewAll")} <ArrowRight className="h-3 w-3" />
         </Link>
       </div>
 
@@ -881,7 +897,7 @@ function FatigueAlertCard({ campaigns: allCampaigns }: { campaigns: Campaign[] }
                       </span>
                     )}
                     <span className="text-slate-300">·</span>
-                    <span>Chạy {ageDays} ngày</span>
+                    <span>{t("overview.home.runningDays", { n: ageDays })}</span>
                     <span className="text-slate-300">·</span>
                     <span className="text-slate-400">{objectiveLabel}</span>
                   </div>
@@ -897,7 +913,7 @@ function FatigueAlertCard({ campaigns: allCampaigns }: { campaigns: Campaign[] }
                       {pausingId === campaign.id ? (
                         <RefreshCw className="h-3 w-3 animate-spin" />
                       ) : (
-                        "⏸ Tắt ngay"
+                        t("overview.home.pauseNow")
                       )}
                     </button>
                   )}
@@ -905,7 +921,7 @@ function FatigueAlertCard({ campaigns: allCampaigns }: { campaigns: Campaign[] }
                     href={`/campaigns/${campaign.id}`}
                     className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[10px] font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
                   >
-                    Xem chi tiết →
+                    {t("overview.home.viewDetailsArrow")}
                   </Link>
                 </div>
               </div>
@@ -922,6 +938,7 @@ function FatigueAlertCard({ campaigns: allCampaigns }: { campaigns: Campaign[] }
 // ─────────────────────────────────────────────
 
 function BudgetRedistributionCard() {
+  const t = useT();
   const [logs, setLogs] = useState<RedistributionLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [undoing, setUndoing] = useState<string | null>(null);
@@ -972,13 +989,13 @@ function BudgetRedistributionCard() {
       {/* Header */}
       <div className="flex items-center justify-between px-5 pt-5 pb-3">
         <h3 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
-          🔄 Tối ưu ngân sách tự động — 06:00 hôm nay
+          {t("overview.home.redistTitle")}
         </h3>
         <Link
           href="/automation/redistribution"
           className="text-[11px] font-semibold text-amber-700 hover:text-amber-800 flex items-center gap-0.5"
         >
-          Xem chi tiết <ArrowRight className="h-3 w-3" />
+          {t("overview.home.viewDetails")} <ArrowRight className="h-3 w-3" />
         </Link>
       </div>
 
@@ -987,10 +1004,10 @@ function BudgetRedistributionCard() {
           /* No changes - everything balanced */
           <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 text-center">
             <p className="text-sm text-emerald-700 font-medium">
-              ✅ 06:00 — Tất cả campaigns đang cân bằng
+              {t("overview.home.redistBalanced")}
             </p>
             <p className="text-xs text-emerald-500 mt-0.5">
-              Không cần điều chỉnh hôm nay
+              {t("overview.home.redistNoAdjust")}
             </p>
           </div>
         ) : (
@@ -1023,7 +1040,7 @@ function BudgetRedistributionCard() {
                             : "bg-violet-100 text-violet-700"
                         )}
                       >
-                        {log.company} — Đã điều chỉnh {log.totalChanges} campaigns
+                        {t("overview.home.redistAdjusted", { company: log.company, n: log.totalChanges })}
                       </span>
                       <button
                         onClick={() => handleUndoAll(log.id)}
@@ -1035,7 +1052,7 @@ function BudgetRedistributionCard() {
                         ) : (
                           "↩"
                         )}
-                        Hoàn tác
+                        {t("overview.home.undo")}
                       </button>
                     </div>
 
@@ -1043,7 +1060,7 @@ function BudgetRedistributionCard() {
                     {increases.length > 0 && (
                       <div className="mb-2">
                         <p className="text-[10px] font-bold text-emerald-600 mb-1">
-                          ↑ Tăng budget (Top performers)
+                          {t("overview.home.redistIncrease")}
                         </p>
                         {increases.slice(0, 3).map((c) => (
                           <div
@@ -1061,7 +1078,7 @@ function BudgetRedistributionCard() {
                         ))}
                         {increases.length > 3 && (
                           <p className="text-[9px] text-slate-400 mt-0.5">
-                            ...và {increases.length - 3} campaigns khác
+                            {t("overview.home.andMore", { n: increases.length - 3 })}
                           </p>
                         )}
                       </div>
@@ -1071,7 +1088,7 @@ function BudgetRedistributionCard() {
                     {decreases.length > 0 && (
                       <div className="mb-2">
                         <p className="text-[10px] font-bold text-red-600 mb-1">
-                          ↓ Giảm budget (Bottom performers)
+                          {t("overview.home.redistDecrease")}
                         </p>
                         {decreases.slice(0, 3).map((c) => (
                           <div
@@ -1089,7 +1106,7 @@ function BudgetRedistributionCard() {
                         ))}
                         {decreases.length > 3 && (
                           <p className="text-[9px] text-slate-400 mt-0.5">
-                            ...và {decreases.length - 3} campaigns khác
+                            {t("overview.home.andMore", { n: decreases.length - 3 })}
                           </p>
                         )}
                       </div>
@@ -1098,7 +1115,7 @@ function BudgetRedistributionCard() {
                     {/* Skipped */}
                     {skipped.length > 0 && (
                       <p className="text-[10px] text-slate-400">
-                        ⏭ Bỏ qua: {skipped.length} campaigns ({skipped.map((s) => s.error ?? "Learning phase").join(", ")})
+                        {t("overview.home.redistSkipped", { n: skipped.length, reasons: skipped.map((s) => s.error ?? t("overview.home.learningPhase")).join(", ") })}
                       </p>
                     )}
                   </div>
@@ -1109,10 +1126,10 @@ function BudgetRedistributionCard() {
             {totalSavings > 0 && (
               <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-2.5 flex items-center justify-between">
                 <span className="text-xs text-emerald-700">
-                  💰 Tiết kiệm ước tính: <b>{fmtVNDRedist(totalSavings)}/ngày</b>
+                  {t("overview.home.redistSavings")} <b>{fmtVNDRedist(totalSavings)}{t("overview.home.perDay")}</b>
                 </span>
                 <span className="text-[10px] text-emerald-500">
-                  Chuyển từ campaigns kém → campaigns tốt
+                  {t("overview.home.redistMoved")}
                 </span>
               </div>
             )}
@@ -1163,6 +1180,7 @@ function computeCompanyStats(allCampaigns: Campaign[]) {
 function CompanySplitCards({ allCampaigns, currency, isLoading, onSelect }: {
   allCampaigns: Campaign[]; currency: string; isLoading: boolean; onSelect: (c: CompanyFilter) => void;
 }) {
+  const t = useT();
   const stats = computeCompanyStats(allCampaigns);
   if (isLoading) return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1187,8 +1205,8 @@ function CompanySplitCards({ allCampaigns, currency, isLoading, onSelect }: {
             </div>
           </div>
           <div className="grid grid-cols-2 gap-y-1.5 gap-x-4 text-xs">
-            <div><span className="text-slate-400">Spend:</span> <b className={s.accent}>{formatCurrency(s.spend, currency, true)}</b></div>
-            <div><span className="text-slate-400">Campaigns:</span> <b className={s.accent}>{s.campaigns} active</b></div>
+            <div><span className="text-slate-400">{t("overview.home.splitSpend")}</span> <b className={s.accent}>{formatCurrency(s.spend, currency, true)}</b></div>
+            <div><span className="text-slate-400">{t("overview.home.splitCampaigns")}</span> <b className={s.accent}>{t("overview.home.splitActive", { n: s.campaigns })}</b></div>
             <div><span className="text-slate-400">CTR:</span> <b className={s.accent}>{s.ctr.toFixed(2)}%</b></div>
           </div>
         </button>
@@ -1214,6 +1232,9 @@ function CrossChannelOverview({
   googleError: string | null;
   onRetryGoogle: () => void;
 }) {
+  const t = useT();
+  const loc = useIntlLocale();
+  const fmtVN = (v: number) => fmtVNLocal(v, t, loc);
   const stats = useMemo(() => {
     const fb = allCampaigns.filter(c => c.platform === "facebook");
     const gg = allCampaigns.filter(c => c.platform === "google");
@@ -1238,10 +1259,10 @@ function CrossChannelOverview({
     if (fbCpl > 0 && ggCpl > 0) {
       if (ggCpl < fbCpl) {
         const pct = Math.round(((fbCpl - ggCpl) / fbCpl) * 100);
-        efficiencyNote = `→ Google đang hiệu quả hơn ${pct}%`;
+        efficiencyNote = t("overview.home.effGoogle", { pct });
       } else if (fbCpl < ggCpl) {
         const pct = Math.round(((ggCpl - fbCpl) / ggCpl) * 100);
-        efficiencyNote = `→ Facebook đang hiệu quả hơn ${pct}%`;
+        efficiencyNote = t("overview.home.effFacebook", { pct });
       }
     }
 
@@ -1252,7 +1273,7 @@ function CrossChannelOverview({
       fbPct, ggPct,
       efficiencyNote,
     };
-  }, [allCampaigns]);
+  }, [allCampaigns, t]);
 
   if (isLoading) {
     return (
@@ -1272,14 +1293,14 @@ function CrossChannelOverview({
       {/* Header */}
       <div className="flex items-center justify-between px-5 pt-5 pb-3">
         <h3 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
-          📊 Tổng quan tất cả kênh
+          {t("overview.home.crossTitle")}
         </h3>
         <div className="flex items-center gap-2">
           <Link
             href="/campaigns"
             className="text-[11px] font-semibold text-amber-700 hover:text-amber-800 flex items-center gap-0.5"
           >
-            Chi tiết <ArrowRight className="h-3 w-3" />
+            {t("overview.home.details")} <ArrowRight className="h-3 w-3" />
           </Link>
         </div>
       </div>
@@ -1289,17 +1310,17 @@ function CrossChannelOverview({
         <div className="mx-5 mb-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 text-amber-500 flex-shrink-0" />
-            <p className="text-xs text-amber-700 font-medium">⚠️ Không lấy được data Google Ads.</p>
+            <p className="text-xs text-amber-700 font-medium">{t("overview.home.googleDataFail")}</p>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={onRetryGoogle}
               className="text-[10px] font-semibold text-amber-700 hover:text-amber-800 flex items-center gap-1 rounded-lg px-2 py-1 hover:bg-amber-100 transition-colors"
             >
-              <RefreshCw className="h-3 w-3" /> Thử lại
+              <RefreshCw className="h-3 w-3" /> {t("overview.home.retry")}
             </button>
             <Link href="/settings" className="text-[10px] font-semibold text-amber-600 hover:text-amber-700">
-              Kiểm tra kết nối
+              {t("overview.home.checkConnection")}
             </Link>
           </div>
         </div>
@@ -1309,15 +1330,15 @@ function CrossChannelOverview({
         {/* ── 3 Summary cards ── */}
         <div className="grid grid-cols-3 gap-2">
           <div className="rounded-xl border border-slate-100 bg-white p-4 text-center shadow-sm">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">💰 Tổng Spend</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{t("overview.home.totalSpend")}</p>
             <p className="text-lg font-extrabold text-slate-800">{fmtVN(totalSpend)}</p>
           </div>
           <div className="rounded-xl border border-slate-100 bg-white p-4 text-center shadow-sm">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">🎯 Conversions</p>
-            <p className="text-lg font-extrabold text-slate-800">{totalConv} <span className="text-xs font-medium text-slate-400">leads</span></p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{t("overview.home.conversionsCard")}</p>
+            <p className="text-lg font-extrabold text-slate-800">{totalConv} <span className="text-xs font-medium text-slate-400">{t("overview.home.leads")}</span></p>
           </div>
           <div className="rounded-xl border border-slate-100 bg-white p-4 text-center shadow-sm">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">📉 CPL Trung Bình</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{t("overview.home.avgCpl")}</p>
             <p className="text-lg font-extrabold text-slate-800">{combinedCpl > 0 ? fmtVN(combinedCpl) : "—"}</p>
           </div>
         </div>
@@ -1325,7 +1346,7 @@ function CrossChannelOverview({
         {/* ── Budget allocation ── */}
         {totalSpend > 0 && (
           <div className="space-y-2">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Phân bổ ngân sách</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t("overview.home.budgetAlloc")}</p>
             {/* Facebook bar */}
             <div className="flex items-center gap-3">
               <span className="text-[11px] font-semibold text-blue-600 w-20 shrink-0">🔵 Facebook</span>
@@ -1354,18 +1375,18 @@ function CrossChannelOverview({
         {/* ── CPL comparison ── */}
         {(fbCpl > 0 || ggCpl > 0) && (
           <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-4 space-y-2">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">CPL theo kênh</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t("overview.home.cplByChannel")}</p>
             <div className="flex items-center gap-6">
               {fbCpl > 0 && (
                 <span className="text-xs">
                   🔵 Facebook: <b className="text-blue-700">{fmtVN(fbCpl)}</b>
-                  <span className="text-slate-400 ml-1">({fbConv} leads)</span>
+                  <span className="text-slate-400 ml-1">{t("overview.home.leadsParen", { n: fbConv })}</span>
                 </span>
               )}
               {ggCpl > 0 && (
                 <span className="text-xs">
                   🔴 Google: <b className="text-red-600">{fmtVN(ggCpl)}</b>
-                  <span className="text-slate-400 ml-1">({ggConv} leads)</span>
+                  <span className="text-slate-400 ml-1">{t("overview.home.leadsParen", { n: ggConv })}</span>
                 </span>
               )}
             </div>
@@ -1382,13 +1403,13 @@ function CrossChannelOverview({
             onClick={() => { /* will use platform filter */ }}
             className="flex-1 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-center text-xs font-semibold text-blue-700 hover:bg-blue-100 transition-colors"
           >
-            Xem chi tiết Facebook
+            {t("overview.home.viewFbDetails")}
           </Link>
           <Link
             href="/campaigns"
             className="flex-1 rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-center text-xs font-semibold text-red-600 hover:bg-red-100 transition-colors"
           >
-            Xem chi tiết Google
+            {t("overview.home.viewGgDetails")}
           </Link>
         </div>
       </div>
@@ -1412,6 +1433,7 @@ export default function DashboardPage() {
   } = useAdsStore();
 
   const { toast } = useToast();
+  const t = useT();
 
   const [mainTab, setMainTab] = useState<"overview" | "trends" | "kpi" | "kpi-overview" | "health">("overview");
 
@@ -1526,7 +1548,7 @@ export default function DashboardPage() {
 
       // Track Google connection issues
       if (isGoogle && !isGoogleOk && !googleSummaryRes?.ok) {
-        setGoogleError("Không thể kết nối Google Ads API");
+        setGoogleError(t("overview.home.googleConnectFail"));
       }
 
       setGoogleConnected(isGoogleOk);
@@ -1617,19 +1639,19 @@ export default function DashboardPage() {
       setCampaigns([...fbCampaigns, ...gCampaigns]);
 
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Unknown error";
+      const message = err instanceof Error ? err.message : t("overview.home.unknownError");
       // Detect Facebook token expiry
       if (message.toLowerCase().includes("token") || message.toLowerCase().includes("oauth") || message.toLowerCase().includes("access token")) {
         setTokenExpired(true);
       }
       setError(message);
       toast({
-        title: "Failed to load dashboard data",
+        title: t("overview.home.toastFailTitle"),
         description: message,
         variant: "error",
         duration: 8000,
         action: {
-          label: "Retry",
+          label: t("overview.home.toastRetry"),
           onClick: fetchData,
         },
       });
@@ -1659,13 +1681,13 @@ export default function DashboardPage() {
           <div className="flex items-center gap-2">
             <AlertTriangle className="h-5 w-5 text-amber-500 flex-shrink-0" />
             <div>
-              <p className="text-sm font-bold text-amber-900">Token Facebook đã hết hạn</p>
-              <p className="text-xs text-amber-700">Kết nối lại Meta Ads để tiếp tục nhận dữ liệu mới.</p>
+              <p className="text-sm font-bold text-amber-900">{t("overview.home.tokenExpiredTitle")}</p>
+              <p className="text-xs text-amber-700">{t("overview.home.tokenExpiredBody")}</p>
             </div>
           </div>
           <Link href="/settings">
             <Button className="h-8 text-xs bg-amber-600 hover:bg-amber-700 text-white gap-1.5">
-              <Settings className="h-3.5 w-3.5" /> Kết nối lại
+              <Settings className="h-3.5 w-3.5" /> {t("overview.home.reconnect")}
             </Button>
           </Link>
         </div>
@@ -1674,23 +1696,23 @@ export default function DashboardPage() {
       {/* ── Tab switcher ── */}
       <div className="flex gap-1 border-b border-slate-100 mb-1">
         {([
-          { key: "overview",     label: "📊 Tổng quan" },
-          { key: "trends",       label: "📈 Diễn biến" },
-          { key: "kpi",          label: "📦 Chi Phí SP" },
-          { key: "kpi-overview", label: "🎯 KPI Tổng Quan" },
-          { key: "health",       label: "🩺 Tình trạng & cảnh báo" },
-        ] as const).filter(t => hasModule("matbao") || (t.key !== "kpi" && t.key !== "kpi-overview")).map(t => ( /* Đợt 21 B: 2 tab KPI đọc Odoo / KPI MBC–MBI → chỉ gói Mắt Bão */
+          { key: "overview",     label: "overview.home.tabOverview" },
+          { key: "trends",       label: "overview.home.tabTrends" },
+          { key: "kpi",          label: "overview.home.tabKpi" },
+          { key: "kpi-overview", label: "overview.home.tabKpiOverview" },
+          { key: "health",       label: "overview.home.tabHealth" },
+        ] as const).filter(tb => hasModule("matbao") || (tb.key !== "kpi" && tb.key !== "kpi-overview")).map(tb => ( /* Đợt 21 B: 2 tab KPI đọc Odoo / KPI MBC–MBI → chỉ gói Mắt Bão */
           <button
-            key={t.key}
-            onClick={() => setMainTab(t.key)}
+            key={tb.key}
+            onClick={() => setMainTab(tb.key)}
             className={cn(
               "px-4 py-2 text-xs font-semibold border-b-2 transition-colors",
-              mainTab === t.key
+              mainTab === tb.key
                 ? "border-amber-500 text-amber-800 bg-amber-50/50"
                 : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-200",
             )}
           >
-            {t.label}
+            {t(tb.label)}
           </button>
         ))}
       </div>
@@ -1715,7 +1737,7 @@ export default function DashboardPage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               {summary?.periodLabel && (
-                <p className="text-xs text-slate-400">Lịch tổng quan · {summary.periodLabel}</p>
+                <p className="text-xs text-slate-400">{t("overview.home.periodLabel", { label: summary.periodLabel })}</p>
               )}
               <div className="flex items-center gap-0.5 rounded-full border border-slate-200 bg-white p-0.5 shadow-sm">
                 {(["all", ...orderedCompanyIds(["MBC", "MBI"])] as CompanyFilter[]).map(c => ( // Đợt 25: công ty theo bản cài
@@ -1731,7 +1753,7 @@ export default function DashboardPage() {
                         : "text-slate-400 hover:text-slate-600"
                     )}
                   >
-                    {c === "all" ? "Tất cả" : c === "MBC" || c === "MBI" ? c : companyLabel(c)}
+                    {c === "all" ? t("overview.home.filterAll") : c === "MBC" || c === "MBI" ? c : companyLabel(c)}
                   </button>
                 ))}
               </div>
@@ -1740,7 +1762,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Zone 1: Cross-channel summary */}
-          <DashboardSection title="Tổng hợp kênh">
+          <DashboardSection title={t("overview.home.secChannels")}>
             <UnifiedOverview />
           </DashboardSection>
 
@@ -1755,13 +1777,13 @@ export default function DashboardPage() {
 
           {/* Zone 5: Business outcome — doanh thu Odoo + P&L Report API: gói Mắt Bão (Đợt 21 A2) */}
           {hasModule("matbao") && (<DashboardSection
-            title="Kết quả kinh doanh"
+            title={t("overview.home.secBusiness")}
             actions={
               <button
                 onClick={() => setMainTab("kpi-overview")}
                 className="flex items-center gap-1 text-xs font-semibold text-amber-700 hover:text-amber-800 hover:bg-amber-50 rounded-lg px-2 py-1 transition-colors"
               >
-                KPI Tổng quan <ArrowRight className="h-3 w-3" />
+                {t("overview.home.kpiOverviewBtn")} <ArrowRight className="h-3 w-3" />
               </button>
             }
           >
@@ -1771,7 +1793,7 @@ export default function DashboardPage() {
 
           {/* Zone 6: Daily trends (collapsible) */}
           <DashboardSection
-            title="Xu hướng theo ngày"
+            title={t("overview.home.secDaily")}
             collapsible
             defaultCollapsed={false}
           >
@@ -1780,10 +1802,10 @@ export default function DashboardPage() {
 
           {/* Zone 7: Active campaigns */}
           <DashboardSection
-            title="Chiến dịch đang chạy"
+            title={t("overview.home.secActive")}
             actions={
               <Link href="/campaigns" className="flex items-center gap-1 text-xs font-semibold text-amber-700 hover:text-amber-800 transition-colors">
-                Xem tất cả <ArrowRight className="h-3 w-3" />
+                {t("overview.home.viewAll")} <ArrowRight className="h-3 w-3" />
               </Link>
             }
           >

@@ -15,6 +15,8 @@ import { Button } from "@/components/ui/button";
 import { Loader2, Save, CheckCircle2, AlertCircle, DollarSign, Link2 } from "lucide-react";
 import NextLink from "next/link";
 import type { CPLThresholds } from "@/lib/cpl-calculator";
+import { useIntlLocale, useT } from "@/lib/i18n/client";
+import type { TFunction } from "@/lib/i18n/translate";
 
 // ─────────────────────────────────────────────
 // Types
@@ -74,12 +76,12 @@ const DEFAULT_CONFIG: RevenueConfig = {
 // Helpers
 // ─────────────────────────────────────────────
 
-function formatVND(n: number) {
-  return new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(n);
+function formatVND(n: number, loc: string) {
+  return new Intl.NumberFormat(loc, { style: "currency", currency: "VND" }).format(n);
 }
 
-function formatCount(n: number) {
-  return `${new Intl.NumberFormat("vi-VN").format(n)} đơn`;
+function formatCount(n: number, loc: string, t: TFunction) {
+  return t("creative.settingsRevenue.count", { n: new Intl.NumberFormat(loc).format(n) });
 }
 
 // ─────────────────────────────────────────────
@@ -87,19 +89,20 @@ function formatCount(n: number) {
 // ─────────────────────────────────────────────
 
 function CPLPreviewRow({ cpl }: { cpl: CPLThresholds }) {
+  const loc = useIntlLocale();
   return (
     <div className="flex flex-wrap gap-2 pt-1">
       <span className="inline-flex items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700">
         <span className="h-2 w-2 rounded-full bg-emerald-500" />
-        {cpl.labels.good} — ≤ {formatVND(cpl.good)}
+        {cpl.labels.good} — ≤ {formatVND(cpl.good, loc)}
       </span>
       <span className="inline-flex items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700">
         <span className="h-2 w-2 rounded-full bg-amber-400" />
-        {cpl.labels.warning} — ≤ {formatVND(cpl.warning)}
+        {cpl.labels.warning} — ≤ {formatVND(cpl.warning, loc)}
       </span>
       <span className="inline-flex items-center gap-1.5 rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700">
         <span className="h-2 w-2 rounded-full bg-red-500" />
-        {cpl.labels.critical} — &gt; {formatVND(cpl.warning)}
+        {cpl.labels.critical} — &gt; {formatVND(cpl.warning, loc)}
       </span>
     </div>
   );
@@ -126,11 +129,13 @@ function CompanyRevenueCard({
   kpiLoading: boolean;
   onChange: (patch: Partial<CompanyRevenue>) => void;
 }) {
+  const t = useT();
+  const loc = useIntlLocale();
   const isMbi = company === "MBI";
-  const targetLabel = isMbi ? "Mục tiêu đơn hàng tháng" : "Mục tiêu doanh thu tháng";
-  const kpiFieldLabel = isMbi ? "Đơn hàng MBI" : "Doanh thu MBC";
-  const cardTitle = isMbi ? "Đơn hàng & CPL — MBI" : "Doanh thu & CPL — MBC";
-  const fmtTarget = isMbi ? formatCount : formatVND;
+  const targetLabel = isMbi ? t("creative.settingsRevenue.mbi.target") : t("creative.settingsRevenue.mbc.target");
+  const kpiFieldLabel = isMbi ? t("creative.settingsRevenue.mbi.kpiField") : t("creative.settingsRevenue.mbc.kpiField");
+  const cardTitle = isMbi ? t("creative.settingsRevenue.mbi.cardTitle") : t("creative.settingsRevenue.mbc.cardTitle");
+  const fmtTarget = (n: number) => (isMbi ? formatCount(n, loc, t) : formatVND(n, loc));
 
   const patchLabel = (key: keyof CPLThresholds["labels"], value: string) => {
     onChange({
@@ -151,7 +156,7 @@ function CompanyRevenueCard({
           </CardTitle>
         </div>
         <CardDescription className="text-sm text-slate-500 mt-1">
-          {targetLabel} và ngưỡng CPL phân loại hiệu suất cho {company}.
+          {t("creative.settingsRevenue.card.desc", { target: targetLabel, company })}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
@@ -160,9 +165,9 @@ function CompanyRevenueCard({
           <div className="h-16 rounded-lg bg-slate-100 animate-pulse" />
         ) : kpiValue === null || kpiValue <= 0 ? (
           <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800">
-            Chưa đặt {kpiFieldLabel} (KPI) tháng {monthLabel} —{" "}
+            {t("creative.settingsRevenue.kpiNotSet", { field: kpiFieldLabel, month: monthLabel })}{" "}
             <NextLink href="/settings/kpi" className="inline-flex items-center gap-1 font-medium underline underline-offset-2">
-              vào Settings → KPI để đặt <Link2 className="h-3 w-3" />
+              {t("creative.settingsRevenue.kpiGoSet")}<Link2 className="h-3 w-3" />
             </NextLink>
           </div>
         ) : (
@@ -172,8 +177,8 @@ function CompanyRevenueCard({
               {fmtTarget(kpiValue)}
             </div>
             <p className="text-xs text-slate-400">
-              Tự động lấy từ {kpiFieldLabel} (KPI) tháng {monthLabel} —{" "}
-              <NextLink href="/settings/kpi" className="underline underline-offset-2">sửa ở Settings → KPI</NextLink>
+              {t("creative.settingsRevenue.kpiAuto", { field: kpiFieldLabel, month: monthLabel })}{" "}
+              <NextLink href="/settings/kpi" className="underline underline-offset-2">{t("creative.settingsRevenue.kpiEdit")}</NextLink>
             </p>
           </div>
         )}
@@ -183,13 +188,13 @@ function CompanyRevenueCard({
         {/* CPL thresholds — auto-computed from KPI every month, not typed in.
             By request: thresholds shift when the month's KPI target changes. */}
         <div className="flex items-center justify-between">
-          <p className="text-sm font-semibold text-slate-700">Ngưỡng CPL</p>
-          <span className="text-[11px] text-slate-400">Tự động tính lại theo KPI tháng {monthLabel}</span>
+          <p className="text-sm font-semibold text-slate-700">{t("creative.settingsRevenue.cpl.title")}</p>
+          <span className="text-[11px] text-slate-400">{t("creative.settingsRevenue.cpl.auto", { month: monthLabel })}</span>
         </div>
 
         {isMbi ? null : (
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-slate-700">AOV tham chiếu MBC</label>
+            <label className="text-sm font-medium text-slate-700">{t("creative.settingsRevenue.aov.label")}</label>
             <div className="flex items-center gap-2">
               <Input
                 type="number"
@@ -201,7 +206,7 @@ function CompanyRevenueCard({
               <span className="shrink-0 text-sm font-semibold text-slate-500">VND</span>
             </div>
             <p className="text-xs text-slate-400">
-              Giá trị trung bình/đơn thật gần nhất — dùng để quy đổi Doanh thu KPI thành số đơn cần, vì MBC đo bằng doanh thu chứ không phải số đơn trực tiếp.
+              {t("creative.settingsRevenue.aov.hint")}
             </p>
           </div>
         )}
@@ -211,7 +216,7 @@ function CompanyRevenueCard({
           {(["good", "warning", "critical"] as const).map((key) => (
             <div key={key} className="space-y-1.5">
               <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Nhãn {key === "good" ? "Tốt" : key === "warning" ? "Cần cải thiện" : "Nguy hiểm"}
+                {key === "good" ? t("creative.settingsRevenue.labels.good") : key === "warning" ? t("creative.settingsRevenue.labels.warning") : t("creative.settingsRevenue.labels.critical")}
               </label>
               <Input
                 type="text"
@@ -226,7 +231,7 @@ function CompanyRevenueCard({
         {/* Preview — giá trị thật đang dùng để phân loại, tính từ KPI + AOV */}
         <div className="rounded-lg border border-slate-100 bg-slate-50 p-3">
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Ngưỡng đang áp dụng (tính từ KPI tháng {monthLabel})
+            {t("creative.settingsRevenue.applied", { month: monthLabel })}
           </p>
           <CPLPreviewRow cpl={data.cpl} />
         </div>
@@ -244,6 +249,7 @@ type SaveStatus = "idle" | "saving" | "success" | "error";
 const MONTH_NAMES_VN = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"];
 
 export default function RevenueSettingsPage() {
+  const t = useT();
   const perms = useSettingsPermission();
   const [config, setConfig] = useState<RevenueConfig>(DEFAULT_CONFIG);
   const [loading, setLoading] = useState(true);
@@ -352,14 +358,14 @@ export default function RevenueSettingsPage() {
   return (
     <div className="space-y-6 max-w-3xl">
       {!perms.isLoading && !perms.canEditThresholds && (
-        <ReadOnlyBanner message="Chỉ Super Admin mới được chỉnh ngưỡng CPL và mục tiêu doanh thu. Bạn đang xem chế độ read-only." />
+        <ReadOnlyBanner message={t("creative.settingsRevenue.readOnly")} />
       )}
       <div className="flex items-center gap-2">
         <DollarSign className="h-5 w-5 text-blue-600" />
         <div>
-          <p className="text-sm font-medium text-slate-800">Mục tiêu doanh thu & ngưỡng CPL</p>
+          <p className="text-sm font-medium text-slate-800">{t("creative.settingsRevenue.title")}</p>
           <p className="text-xs text-slate-500">
-            Thiết lập ngưỡng CPL xác định mức hiệu suất chiến dịch cho từng công ty.
+            {t("creative.settingsRevenue.subtitle")}
           </p>
         </div>
       </div>
@@ -387,13 +393,13 @@ export default function RevenueSettingsPage() {
       {saveStatus === "success" && (
         <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
           <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
-          <p className="text-sm text-emerald-700">Đã lưu cấu hình doanh thu & CPL.</p>
+          <p className="text-sm text-emerald-700">{t("creative.settingsRevenue.saved")}</p>
         </div>
       )}
       {saveStatus === "error" && (
         <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
           <AlertCircle className="h-4 w-4 shrink-0 text-red-600" />
-          <p className="text-sm text-red-700">Lưu thất bại. Vui lòng thử lại.</p>
+          <p className="text-sm text-red-700">{t("creative.settingsRevenue.err.save")}</p>
         </div>
       )}
 
@@ -401,18 +407,18 @@ export default function RevenueSettingsPage() {
         <Button
           onClick={handleSave}
           disabled={saveStatus === "saving" || !perms.canEditThresholds}
-          title={!perms.canEditThresholds ? "Chỉ Super Admin mới được lưu cài đặt này" : undefined}
+          title={!perms.canEditThresholds ? t("creative.settingsRevenue.saveTitle") : undefined}
           className="gap-2 rounded-lg bg-amber-500 text-amber-950 hover:bg-amber-600 disabled:opacity-40"
         >
           {saveStatus === "saving" ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
-              Đang lưu...
+              {t("creative.settingsRevenue.saving")}
             </>
           ) : (
             <>
               <Save className="h-4 w-4" />
-              Lưu cài đặt
+              {t("creative.settingsRevenue.save")}
             </>
           )}
         </Button>

@@ -12,6 +12,9 @@
 // ============================================================
 
 import { useState } from "react";
+import { useIntlLocale, useT } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/messages";
+import type { TFunction } from "@/lib/i18n/translate";
 import {
   Sparkles, RefreshCw, AlertTriangle, TrendingUp, Wallet,
   ShoppingCart, CheckCircle2, CircleAlert, XCircle, Info,
@@ -32,14 +35,14 @@ interface Props {
 
 // ── Định dạng ─────────────────────────────────────────────────
 
-const full = (n: number) => `${n.toLocaleString("vi-VN")}đ`;
+const fullLoc = (n: number, loc: string) => `${n.toLocaleString(loc)}đ`;
 
 /** Rút gọn cho ô thống kê; số đầy đủ vẫn nằm ở tooltip. */
-function short(n: number): string {
+function shortLoc(n: number, loc: string, t: TFunction): string {
   const abs = Math.abs(n);
-  if (abs >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(2).replace(".", ",")} tỷ`;
-  if (abs >= 1_000_000) return `${Math.round(n / 1_000_000).toLocaleString("vi-VN")} tr`;
-  return n.toLocaleString("vi-VN");
+  if (abs >= 1_000_000_000) return t("overview.kpian.unitB", { v: (n / 1_000_000_000).toLocaleString(loc, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) });
+  if (abs >= 1_000_000) return t("overview.kpian.unitM", { v: Math.round(n / 1_000_000).toLocaleString(loc) });
+  return n.toLocaleString(loc);
 }
 
 const STATUS_STYLE: Record<MonthStatus, string> = {
@@ -52,10 +55,10 @@ const STATUS_STYLE: Record<MonthStatus, string> = {
   chua_toi: "bg-slate-50 text-slate-400 border-slate-200",
 };
 
-const OVERALL: Record<KpiAiNarrative["status"], { label: string; cls: string; Icon: typeof CheckCircle2 }> = {
-  on_track: { label: "Đang bám kế hoạch", cls: "bg-emerald-50 text-emerald-700 border-emerald-200", Icon: CheckCircle2 },
-  at_risk: { label: "Có rủi ro", cls: "bg-amber-50 text-amber-700 border-amber-200", Icon: CircleAlert },
-  off_track: { label: "Lệch kế hoạch", cls: "bg-rose-50 text-rose-700 border-rose-200", Icon: XCircle },
+const OVERALL: Record<KpiAiNarrative["status"], { label: MessageKey; cls: string; Icon: typeof CheckCircle2 }> = {
+  on_track: { label: "overview.kpian.overallOnTrack", cls: "bg-emerald-50 text-emerald-700 border-emerald-200", Icon: CheckCircle2 },
+  at_risk: { label: "overview.kpian.overallAtRisk", cls: "bg-amber-50 text-amber-700 border-amber-200", Icon: CircleAlert },
+  off_track: { label: "overview.kpian.overallOffTrack", cls: "bg-rose-50 text-rose-700 border-rose-200", Icon: XCircle },
 };
 
 const PRIORITY_STYLE: Record<string, string> = {
@@ -93,6 +96,10 @@ function StatBox({ Icon, label, value, title, sub, tone }: {
 // ── Khối chính ────────────────────────────────────────────────
 
 export function KpiAnalysisPanel({ year, targets, actuals, ready }: Props) {
+  const t = useT();
+  const loc = useIntlLocale();
+  const full = (n: number) => fullLoc(n, loc);
+  const short = (n: number) => shortLoc(n, loc, t);
   const [data, setData] = useState<KpiAnalysisResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -107,10 +114,10 @@ export function KpiAnalysisPanel({ year, targets, actuals, ready }: Props) {
         body: JSON.stringify({ year, targets, actuals, force }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? `Lỗi ${res.status}`);
+      if (!res.ok) throw new Error(json.error ?? t("overview.kpian.errStatus", { status: res.status }));
       setData(json as KpiAnalysisResponse);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Không phân tích được.");
+      setError(err instanceof Error ? err.message : t("overview.kpian.errFallback"));
     } finally {
       setLoading(false);
     }
@@ -125,10 +132,10 @@ export function KpiAnalysisPanel({ year, targets, actuals, ready }: Props) {
       <div className="flex flex-wrap items-center gap-3 p-4 border-b border-slate-100">
         <div className="flex-1 min-w-0">
           <h3 className="font-bold text-slate-800 flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-violet-500" /> Phân tích AI
+            <Sparkles className="h-4 w-4 text-violet-500" /> {t("overview.kpian.title")}
           </h3>
           <p className="text-sm text-slate-500">
-            Đọc toàn bộ bảng KPI năm {year}: đánh giá từng tháng, mức đạt KPI, ngân sách còn lại và việc nên làm tiếp.
+            {t("overview.kpian.desc", { year })}
           </p>
         </div>
         <button
@@ -138,19 +145,18 @@ export function KpiAnalysisPanel({ year, targets, actuals, ready }: Props) {
             "inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white",
             "bg-violet-600 hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed",
           )}
-          title={!ready ? "Đang tải dữ liệu bảng KPI…" : undefined}
+          title={!ready ? t("overview.kpian.loadingTitle") : undefined}
         >
           {loading
-            ? <><RefreshCw className="h-4 w-4 animate-spin" /> Đang phân tích…</>
-            : <><Sparkles className="h-4 w-4" /> {data ? "Phân tích lại" : "Phân tích"}</>}
+            ? <><RefreshCw className="h-4 w-4 animate-spin" /> {t("overview.kpian.analyzing")}</>
+            : <><Sparkles className="h-4 w-4" /> {data ? t("overview.kpian.reanalyze") : t("overview.kpian.analyze")}</>}
         </button>
       </div>
 
       <div className="p-4 space-y-4">
         {!data && !loading && !error && (
           <p className="text-sm text-slate-500">
-            Bấm <strong>Phân tích</strong> để AI xem qua các con số đang hiện trên bảng và đưa ra nhận xét.
-            Mọi con số trong kết quả đều do hệ thống tính từ chính bảng này — AI chỉ đọc và nhận định, không tự tính lại.
+            {t("overview.kpian.intro").split(/<b>(.*?)<\/b>/).map((part, i) => (i % 2 ? <strong key={i}>{part}</strong> : part))}
           </p>
         )}
 
@@ -166,31 +172,31 @@ export function KpiAnalysisPanel({ year, targets, actuals, ready }: Props) {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               <StatBox
                 Icon={TrendingUp}
-                label={`Doanh thu MBC (${facts.ytd.coverage.revenue.length} tháng đo được)`}
+                label={t("overview.kpian.statRevenueMbc", { n: facts.ytd.coverage.revenue.length })}
                 value={facts.ytd.revenueMbc.pct !== null ? `${facts.ytd.revenueMbc.pct}%` : "—"}
                 sub={`${short(facts.ytd.revenueMbc.actual ?? 0)} / ${short(facts.ytd.revenueMbc.target)}`}
-                title={`${full(facts.ytd.revenueMbc.actual ?? 0)} / kế hoạch ${full(facts.ytd.revenueMbc.target)}`}
+                title={t("overview.kpian.statRevenueTitle", { actual: full(facts.ytd.revenueMbc.actual ?? 0), target: full(facts.ytd.revenueMbc.target) })}
                 tone={facts.ytd.revenueMbc.pct === null ? undefined : facts.ytd.revenueMbc.pct >= 100 ? "good" : facts.ytd.revenueMbc.pct >= 95 ? "warn" : "bad"}
               />
               <StatBox
                 Icon={ShoppingCart}
-                label="Đơn hàng MBI"
+                label={t("overview.kpian.statOrdersMbi")}
                 value={facts.ytd.ordersMbi.pct !== null ? `${facts.ytd.ordersMbi.pct}%` : "—"}
-                sub={`${(facts.ytd.ordersMbi.actual ?? 0).toLocaleString("vi-VN")} / ${facts.ytd.ordersMbi.target.toLocaleString("vi-VN")} đơn`}
+                sub={t("overview.kpian.statOrdersSub", { actual: (facts.ytd.ordersMbi.actual ?? 0).toLocaleString(loc), target: facts.ytd.ordersMbi.target.toLocaleString(loc) })}
                 tone={facts.ytd.ordersMbi.pct === null ? undefined : facts.ytd.ordersMbi.pct >= 100 ? "good" : facts.ytd.ordersMbi.pct >= 95 ? "warn" : "bad"}
               />
               <StatBox
                 Icon={Wallet}
-                label={`Đã tiêu / ngân sách cả năm (${facts.ytd.coverage.totalSpend.length} tháng)`}
+                label={t("overview.kpian.statSpent", { n: facts.ytd.coverage.totalSpend.length })}
                 value={`${short(facts.ytd.yearSpentSoFar)}`}
-                sub={`trần cả năm ${short(facts.ytd.yearBudgetTotal)}`}
+                sub={t("overview.kpian.statCap", { v: short(facts.ytd.yearBudgetTotal) })}
                 title={`${full(facts.ytd.yearSpentSoFar)} / ${full(facts.ytd.yearBudgetTotal)}`}
               />
               <StatBox
                 Icon={Wallet}
-                label="Ngân sách QC còn lại"
+                label={t("overview.kpian.statBudgetLeft")}
                 value={short(facts.ytd.yearBudgetRemaining)}
-                sub={facts.ytd.ratioQcDt.actual !== null ? `QC/DT thực tế ${facts.ytd.ratioQcDt.actual}%` : undefined}
+                sub={facts.ytd.ratioQcDt.actual !== null ? t("overview.kpian.statRatio", { p: facts.ytd.ratioQcDt.actual }) : undefined}
                 title={full(facts.ytd.yearBudgetRemaining)}
                 tone={facts.ytd.yearBudgetRemaining < 0 ? "bad" : undefined}
               />
@@ -204,7 +210,7 @@ export function KpiAnalysisPanel({ year, targets, actuals, ready }: Props) {
                     const o = OVERALL[ai.status];
                     return (
                       <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold", o.cls)}>
-                        <o.Icon className="h-3.5 w-3.5" /> {o.label}
+                        <o.Icon className="h-3.5 w-3.5" /> {t(o.label)}
                       </span>
                     );
                   })()}
@@ -214,13 +220,13 @@ export function KpiAnalysisPanel({ year, targets, actuals, ready }: Props) {
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                   {ai.kpiAssessment && (
                     <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
-                      <div className="text-xs font-semibold text-slate-500 mb-1">MỨC ĐẠT KPI</div>
+                      <div className="text-xs font-semibold text-slate-500 mb-1">{t("overview.kpian.kpiAssess")}</div>
                       <p className="text-sm text-slate-700 whitespace-pre-line">{ai.kpiAssessment}</p>
                     </div>
                   )}
                   {ai.budgetAssessment && (
                     <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
-                      <div className="text-xs font-semibold text-slate-500 mb-1">CHI PHÍ & NGÂN SÁCH</div>
+                      <div className="text-xs font-semibold text-slate-500 mb-1">{t("overview.kpian.budgetAssess")}</div>
                       <p className="text-sm text-slate-700 whitespace-pre-line">{ai.budgetAssessment}</p>
                     </div>
                   )}
@@ -228,7 +234,7 @@ export function KpiAnalysisPanel({ year, targets, actuals, ready }: Props) {
 
                 {ai.recommendations.length > 0 && (
                   <div>
-                    <div className="text-xs font-semibold text-slate-500 mb-2">VIỆC NÊN LÀM</div>
+                    <div className="text-xs font-semibold text-slate-500 mb-2">{t("overview.kpian.todo")}</div>
                     <ol className="space-y-2">
                       {ai.recommendations.map((r, i) => (
                         <li key={i} className="rounded-xl border border-slate-200 p-3">
@@ -240,7 +246,7 @@ export function KpiAnalysisPanel({ year, targets, actuals, ready }: Props) {
                           </div>
                           {r.detail && <p className="text-sm text-slate-600 mt-1.5">{r.detail}</p>}
                           {r.expectedImpact && (
-                            <p className="text-xs text-emerald-700 mt-1">Kỳ vọng: {r.expectedImpact}</p>
+                            <p className="text-xs text-emerald-700 mt-1">{t("overview.kpian.expected", { v: r.expectedImpact })}</p>
                           )}
                         </li>
                       ))}
@@ -250,7 +256,7 @@ export function KpiAnalysisPanel({ year, targets, actuals, ready }: Props) {
 
                 {ai.watchOuts.length > 0 && (
                   <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
-                    <div className="text-xs font-semibold text-amber-800 mb-1">CẦN THEO DÕI</div>
+                    <div className="text-xs font-semibold text-amber-800 mb-1">{t("overview.kpian.watch")}</div>
                     <ul className="list-disc pl-5 space-y-1 text-sm text-amber-900">
                       {ai.watchOuts.map((w, i) => <li key={i}>{w}</li>)}
                     </ul>
@@ -261,26 +267,26 @@ export function KpiAnalysisPanel({ year, targets, actuals, ready }: Props) {
               data?.aiError && (
                 <div className="flex items-start gap-2 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-3">
                   <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-                  <span>Phần nhận định của AI chưa chạy được: {data.aiError} <br />Các con số phía trên và bên dưới vẫn do hệ thống tính, dùng bình thường được.</span>
+                  <span>{t("overview.kpian.aiErrPrefix")} {data.aiError} <br />{t("overview.kpian.aiErrSuffix")}</span>
                 </div>
               )
             )}
 
             {/* ── Từng tháng: trạng thái do hệ thống, câu nhận xét do AI ── */}
             <div>
-              <div className="text-xs font-semibold text-slate-500 mb-2">TỪNG THÁNG</div>
+              <div className="text-xs font-semibold text-slate-500 mb-2">{t("overview.kpian.byMonth")}</div>
               <div className="space-y-1.5">
                 {facts.months.filter(m => m.status !== "chua_toi").map(m => {
                   const note = ai?.monthNotes.find(n => n.month === m.month)?.note;
                   return (
                     <div key={m.month} className="flex flex-wrap items-start gap-2 text-sm">
-                      <span className="w-8 shrink-0 font-semibold text-slate-700">T{m.month}</span>
+                      <span className="w-8 shrink-0 font-semibold text-slate-700">{t("overview.kpian.monthShort", { m: m.month })}</span>
                       <span className={cn("shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold", STATUS_STYLE[m.status])}>
                         {MONTH_STATUS_LABEL[m.status]}
-                        {m.monthProgressPct !== null && ` · mới ${m.monthProgressPct}% số ngày`}
+                        {m.monthProgressPct !== null && t("overview.kpian.monthProgress", { p: m.monthProgressPct })}
                       </span>
                       {m.revenueMbc.pct !== null && (
-                        <span className="shrink-0 text-xs text-slate-500">DT {m.revenueMbc.pct}%</span>
+                        <span className="shrink-0 text-xs text-slate-500">{t("overview.kpian.revShort", { p: m.revenueMbc.pct })}</span>
                       )}
                       {m.flags.length > 0 && (
                         <span className="text-xs text-rose-600">{m.flags.join(" ")}</span>
@@ -296,7 +302,7 @@ export function KpiAnalysisPanel({ year, targets, actuals, ready }: Props) {
             {facts.dataGaps.length > 0 && (
               <div className="rounded-xl border border-slate-300 bg-slate-50 p-3">
                 <div className="text-xs font-semibold text-slate-600 mb-1 flex items-center gap-1.5">
-                  <Info className="h-3.5 w-3.5" /> CHỖ CHƯA ĐO ĐƯỢC — số 0đ ở những chỗ này không có nghĩa là không tiêu
+                  <Info className="h-3.5 w-3.5" /> {t("overview.kpian.gaps")}
                 </div>
                 <ul className="list-disc pl-5 space-y-0.5 text-sm text-slate-600">
                   {facts.dataGaps.map((g, i) => <li key={i}>{g}</li>)}
@@ -305,10 +311,10 @@ export function KpiAnalysisPanel({ year, targets, actuals, ready }: Props) {
             )}
 
             <p className="text-xs text-slate-400 border-t border-slate-100 pt-3">
-              Con số do hệ thống tính từ chính bảng KPI phía trên · Nhận định và đề xuất do AI viết dựa trên đúng các con số đó
+              {t("overview.kpian.footer")}
               {data?.model && ` · ${data.model}`}
-              {data?.generatedAt && ` · lúc ${new Date(data.generatedAt).toLocaleString("vi-VN")}`}
-              {data?.cached && " · dùng lại kết quả đã lưu (số liệu chưa đổi)"}
+              {data?.generatedAt && t("overview.kpian.footAt", { time: new Date(data.generatedAt).toLocaleString(loc) })}
+              {data?.cached && t("overview.kpian.footCached")}
             </p>
           </>
         )}

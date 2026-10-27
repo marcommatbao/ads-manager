@@ -21,6 +21,8 @@ import {
   RefreshCw, Sparkles, Undo2, XCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/messages";
 import { getJson, postJson, putJson, ApiError } from "@/components/case/api";
 import { vnd, datetimeVN } from "@/components/case/format";
 import { Button } from "@/components/ui/button";
@@ -53,20 +55,21 @@ function Badge({ cls, symbol, children }: { cls: string; symbol: string; childre
   );
 }
 
-const PRIORITY_META: Record<1 | 2 | 3, { label: string; symbol: string; cls: string }> = {
-  1: { label: "Làm ngay", symbol: "P1", cls: "bg-red-50 text-red-700 border-red-200" },
-  2: { label: "Nên làm", symbol: "P2", cls: "bg-amber-50 text-amber-700 border-amber-200" },
-  3: { label: "Xem xét", symbol: "P3", cls: "bg-slate-100 text-slate-500 border-slate-200" },
+const PRIORITY_META: Record<1 | 2 | 3, { label: MessageKey; symbol: string; cls: string }> = {
+  1: { label: "google.pmaxActions.p1", symbol: "P1", cls: "bg-red-50 text-red-700 border-red-200" },
+  2: { label: "google.pmaxActions.p2", symbol: "P2", cls: "bg-amber-50 text-amber-700 border-amber-200" },
+  3: { label: "google.pmaxActions.p3", symbol: "P3", cls: "bg-slate-100 text-slate-500 border-slate-200" },
 };
 
 // ── Kết quả một lần Kiểm trước / Ghi ──
 
 function ExecResultCard({ exec }: { exec: ControlExecution }) {
+  const t = useT();
   const ok = exec.status === "done";
   const validate = exec.mode === "validate";
   const title = validate
-    ? ok ? "Google chấp nhận — CHƯA ghi gì" : "Google từ chối khi kiểm — chưa ghi gì"
-    : ok ? "Đã ghi và đọc lại khớp" : "Ghi thất bại — xem lỗi bên dưới";
+    ? ok ? t("google.pmaxActions.valOk") : t("google.pmaxActions.valFail")
+    : ok ? t("google.pmaxActions.writeOk") : t("google.pmaxActions.writeFail");
   return (
     <div className={cn("rounded-lg border p-2.5 text-xs", !ok ? "border-red-200 bg-red-50" : validate ? "border-sky-200 bg-sky-50" : "border-emerald-200 bg-emerald-50")}>
       <div className={cn("flex items-center gap-1.5 font-semibold", !ok ? "text-red-700" : validate ? "text-sky-800" : "text-emerald-700")}>
@@ -83,7 +86,7 @@ function ExecResultCard({ exec }: { exec: ControlExecution }) {
           <table className="w-full text-[11px]">
             <thead>
               <tr className="border-b border-slate-100 text-left text-slate-500">
-                <th className="px-2 py-1 font-medium">Đọc lại</th>
+                <th className="px-2 py-1 font-medium">{t("google.pmaxActions.readback")}</th>
                 <th className="px-2 py-1 font-medium"></th>
               </tr>
             </thead>
@@ -115,6 +118,7 @@ function ApplyControls({
   confirmText: string;
   onDone: () => void;
 }) {
+  const t = useT();
   const confirmId = useId();
   const ids = items.map((p) => p.id);
   const sig = ids.slice().sort().join("|");
@@ -140,7 +144,7 @@ function ApplyControls({
       setValidateExec(json.execution as ControlExecution);
       setValidatedSig(json.execution?.status === "done" ? sig : null);
     } catch (e) {
-      setValidateErr(e instanceof ApiError ? e.message : "Không kiểm được — thử lại sau");
+      setValidateErr(e instanceof ApiError ? e.message : t("google.pmaxActions.validateErr"));
       setValidatedSig(null);
     } finally {
       setValidating(false);
@@ -157,10 +161,10 @@ function ApplyControls({
         setApplyOpen(false); setConfirmInput(""); setValidatedSig(null); setValidateExec(null);
         onDone();
       } else {
-        setApplyErr("Google từ chối — xem chi tiết bên dưới, chưa đóng hộp thoại.");
+        setApplyErr(t("google.pmaxActions.rejectedDialog"));
       }
     } catch (e) {
-      setApplyErr(e instanceof ApiError ? e.message : "Không ghi được — thử lại sau");
+      setApplyErr(e instanceof ApiError ? e.message : t("google.pmaxActions.writeErr"));
     } finally {
       setApplying(false);
     }
@@ -170,17 +174,17 @@ function ApplyControls({
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
         <Button type="button" variant="outline" size="sm" className="h-9 bg-white" onClick={doValidate} disabled={!ids.length || validating}>
-          {validating ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : null} Kiểm trước (không ghi)
+          {validating ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : null} {t("google.pmaxActions.validateBtn")}
         </Button>
         <Button
           type="button" size="sm" className="h-9"
           onClick={() => { setConfirmInput(""); setApplyErr(null); setApplyOpen(true); }}
           disabled={!canApply}
-          title={!canApply ? "Kiểm trước rồi mới áp dụng được" : undefined}
+          title={!canApply ? t("google.pmaxActions.validateFirst") : undefined}
         >
-          Áp dụng{ids.length > 0 ? ` (${ids.length})` : ""}
+          {t("google.pmaxActions.apply")}{ids.length > 0 ? ` (${ids.length})` : ""}
         </Button>
-        {!ids.length && <span className="text-[11px] text-slate-400">Chưa chọn việc nào</span>}
+        {!ids.length && <span className="text-[11px] text-slate-400">{t("google.pmaxActions.noneSelected")}</span>}
       </div>
       {validateErr && <p className="text-xs text-red-600">{validateErr}</p>}
       {validateExec && <ExecResultCard exec={validateExec} />}
@@ -189,8 +193,8 @@ function ApplyControls({
       <Dialog open={applyOpen} onOpenChange={(o) => { setApplyOpen(o); if (!o) setConfirmInput(""); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Ghi {items.length} việc lên tài khoản thật {company}?</DialogTitle>
-            <DialogDescription>Có thể hoàn tác sau nếu cần.</DialogDescription>
+            <DialogTitle>{t("google.pmaxActions.dialogTitle", { n: items.length, company })}</DialogTitle>
+            <DialogDescription>{t("google.pmaxActions.canUndo")}</DialogDescription>
           </DialogHeader>
           <ul className="max-h-56 space-y-1.5 overflow-y-auto rounded-lg border border-slate-100 bg-slate-50 p-2.5 text-xs">
             {items.map((p) => (
@@ -205,16 +209,16 @@ function ApplyControls({
           </ul>
           <div className="space-y-1.5">
             <label htmlFor={confirmId} className="text-xs font-medium text-slate-500">
-              Gõ <code className="rounded bg-slate-100 px-1 py-0.5">{confirmText}</code> để xác nhận
+              {t("google.pmaxActions.typePre")} <code className="rounded bg-slate-100 px-1 py-0.5">{confirmText}</code> {t("google.pmaxActions.typePost")}
             </label>
             <Input id={confirmId} value={confirmInput} onChange={(e) => setConfirmInput(e.target.value)} placeholder={confirmText} autoComplete="off" className="h-10" />
           </div>
           {applyErr && <p className="text-xs text-red-600">{applyErr}</p>}
           {writeExec && writeExec.status !== "done" && <ExecResultCard exec={writeExec} />}
           <DialogFooter>
-            <DialogClose render={<Button className="h-10" variant="outline" />}>Huỷ</DialogClose>
+            <DialogClose render={<Button className="h-10" variant="outline" />}>{t("google.pmaxActions.cancel")}</DialogClose>
             <Button className="h-10" onClick={doApply} disabled={applying || confirmInput.trim() !== confirmText}>
-              {applying && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} Ghi thật
+              {applying && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} {t("google.pmaxActions.writeReal")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -231,20 +235,21 @@ function AutoToggle({
   kind: AutoKind; enabled: boolean; label: string; maxPerDay: number; canEdit: boolean;
   onToggle: (kind: AutoKind, enable: boolean) => void;
 }) {
+  const t = useT();
   return (
     <div className="flex items-start justify-between gap-3 rounded-lg border border-indigo-100 bg-indigo-50/40 p-2.5">
       <div className="min-w-0">
-        <p className="text-xs font-semibold text-indigo-900">Tự động hằng ngày</p>
-        <p className="mt-0.5 text-[11px] text-indigo-700/80">{label} — tối đa {maxPerDay} việc/ngày, luôn kiểm trước, báo Teams, hoàn tác được.</p>
+        <p className="text-xs font-semibold text-indigo-900">{t("google.pmaxActions.autoDaily")}</p>
+        <p className="mt-0.5 text-[11px] text-indigo-700/80">{t("google.pmaxActions.autoDesc", { label, max: maxPerDay })}</p>
       </div>
       <button
         type="button"
         role="switch"
         aria-checked={enabled}
-        aria-label="Tự động hằng ngày"
+        aria-label={t("google.pmaxActions.autoDaily")}
         onClick={() => canEdit && onToggle(kind, !enabled)}
         disabled={!canEdit}
-        title={enabled ? "Đang bật — bấm để tắt" : "Đang tắt — bấm để bật"}
+        title={enabled ? t("google.pmaxActions.autoOn") : t("google.pmaxActions.autoOff")}
         className={cn("relative h-[22px] w-10 shrink-0 rounded-full transition-colors", enabled ? "bg-indigo-500" : "bg-slate-300", !canEdit && "opacity-50")}
       >
         <span className={cn("absolute top-[3px] h-4 w-4 rounded-full bg-white shadow-sm transition-transform", enabled ? "left-[22px]" : "left-[3px]")} />
@@ -273,6 +278,7 @@ function RecommendationCard({
   onAutoToggle: (kind: AutoKind, enable: boolean) => void;
   onApplied: () => void;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(rec.priority === 1);
   const meta = PRIORITY_META[rec.priority];
   const checkedCount = proposals.filter((p) => checked[p.id]).length;
@@ -281,18 +287,18 @@ function RecommendationCard({
     <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
       <div className="space-y-1.5">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge cls={meta.cls} symbol={meta.symbol}>{meta.label}</Badge>
+          <Badge cls={meta.cls} symbol={meta.symbol}>{t(meta.label)}</Badge>
           <h4 className="text-sm font-bold text-slate-800">{rec.title}</h4>
         </div>
         <p className="text-xs text-slate-500">{rec.why}</p>
         {rec.moneyAtStake !== null && (
-          <p className="text-xs font-semibold text-red-600">Đang chảy vào: {vnd(rec.moneyAtStake)}</p>
+          <p className="text-xs font-semibold text-red-600">{t("google.pmaxActions.atStake")}: {vnd(rec.moneyAtStake)}</p>
         )}
       </div>
 
       {rec.manualSteps && rec.manualSteps.length > 0 && (
         <div className="rounded-lg border border-amber-100 bg-amber-50/60 p-3">
-          <p className="text-xs font-semibold text-amber-800">Làm tay (Google không cho làm qua API)</p>
+          <p className="text-xs font-semibold text-amber-800">{t("google.pmaxActions.manual")}</p>
           <ol className="mt-1.5 list-decimal space-y-1 pl-4 text-xs text-amber-800">
             {rec.manualSteps.map((s, i) => <li key={i}>{s}</li>)}
           </ol>
@@ -303,7 +309,7 @@ function RecommendationCard({
         <div className="space-y-2">
           <button type="button" onClick={() => setOpen((o) => !o)} className="flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700">
             {open ? <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" /> : <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />}
-            {proposals.length} việc cụ thể{checkedCount > 0 ? ` · đã chọn ${checkedCount}` : ""}
+            {t("google.pmaxActions.specific", { n: proposals.length })}{checkedCount > 0 ? t("google.pmaxActions.selectedN", { n: checkedCount }) : ""}
           </button>
           {open && <ProposalList proposals={proposals} checked={checked} onToggle={onToggle} canEdit={canEdit} />}
           {canEdit && (
@@ -343,15 +349,16 @@ function GlobalApplyBar({
   confirmText: string;
   onApplied: () => void;
 }) {
+  const t = useT();
   const selected = proposals.filter((p) => checked[p.id]);
   return (
     <div className="space-y-2 rounded-xl border border-indigo-200 bg-indigo-50/60 p-3">
       <div className="flex flex-wrap items-center gap-2">
         <Button type="button" variant="outline" size="sm" className="h-9 bg-white" onClick={onSelectAllDefault}>
-          <Sparkles className="h-3.5 w-3.5" aria-hidden="true" /> Chọn tất cả việc tích sẵn
+          <Sparkles className="h-3.5 w-3.5" aria-hidden="true" /> {t("google.pmaxActions.selectAll")}
         </Button>
         <span className="text-xs font-semibold text-indigo-400">→</span>
-        <span className="text-xs text-indigo-700">Đã chọn {selected.length}/{proposals.length} việc (mọi thẻ)</span>
+        <span className="text-xs text-indigo-700">{t("google.pmaxActions.selectedOf", { a: selected.length, b: proposals.length })}</span>
       </div>
       <ApplyControls company={company} range={range} confirmText={confirmText} items={selected} onDone={onApplied} />
     </div>
@@ -361,6 +368,7 @@ function GlobalApplyBar({
 // ── Lịch sử áp dụng ──
 
 function HistoryRow({ h, onUndo }: { h: ControlExecution; onUndo: (id: string) => void }) {
+  const t = useT();
   const ok = h.status === "done";
   const isAuto = h.by === "Tự động (PMax)";
   return (
@@ -368,11 +376,11 @@ function HistoryRow({ h, onUndo }: { h: ControlExecution; onUndo: (id: string) =
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <span className={cn("flex items-center gap-1 font-semibold", ok ? "text-emerald-700" : "text-red-700")}>
           {ok ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> : <XCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
-          {h.mode === "validate" ? "Kiểm trước" : "Đã ghi"}
+          {h.mode === "validate" ? t("google.pmaxActions.hValidate") : t("google.pmaxActions.hWritten")}
         </span>
         <span className="text-slate-400">{datetimeVN(h.at)}</span>
         <span className="flex items-center gap-1 text-slate-500">
-          {isAuto ? <><Bot className="h-3 w-3 shrink-0" aria-hidden="true" /> Tự động (PMax)</> : h.by}
+          {isAuto ? <><Bot className="h-3 w-3 shrink-0" aria-hidden="true" /> {t("google.pmaxActions.autoPmax")}</> : h.by}
         </span>
       </div>
       {h.applied.length > 0 && (
@@ -388,7 +396,7 @@ function HistoryRow({ h, onUndo }: { h: ControlExecution; onUndo: (id: string) =
       {h.mode === "write" && (
         h.undoneAt ? (
           <div className="mt-2 rounded-md border border-slate-200 bg-white p-2 text-slate-600">
-            <p className="font-semibold">Đã hoàn tác lúc {datetimeVN(h.undoneAt)}</p>
+            <p className="font-semibold">{t("google.pmaxActions.undoneAt", { time: datetimeVN(h.undoneAt) })}</p>
             {h.undoReport && h.undoReport.length > 0 && (
               <ul className="mt-1 list-disc space-y-0.5 pl-4">{h.undoReport.map((l, i) => <li key={i}>{l}</li>)}</ul>
             )}
@@ -396,7 +404,7 @@ function HistoryRow({ h, onUndo }: { h: ControlExecution; onUndo: (id: string) =
         ) : ok ? (
           <div className="mt-2 flex justify-end">
             <Button variant="destructive" size="sm" className="h-8" onClick={() => onUndo(h.id)}>
-              <Undo2 className="h-3.5 w-3.5" aria-hidden="true" /> Hoàn tác
+              <Undo2 className="h-3.5 w-3.5" aria-hidden="true" /> {t("google.pmaxActions.undo")}
             </Button>
           </div>
         ) : null
@@ -406,6 +414,7 @@ function HistoryRow({ h, onUndo }: { h: ControlExecution; onUndo: (id: string) =
 }
 
 function HistorySection({ history, company, onChanged }: { history: ControlExecution[]; company: Company; onChanged: () => void }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [undoId, setUndoId] = useState<string | null>(null);
   const [undoing, setUndoing] = useState(false);
@@ -418,7 +427,7 @@ function HistorySection({ history, company, onChanged }: { history: ControlExecu
       setUndoId(null);
       onChanged();
     } catch (e) {
-      setUndoErr(e instanceof ApiError ? e.message : "Không hoàn tác được — thử lại sau");
+      setUndoErr(e instanceof ApiError ? e.message : t("google.pmaxActions.undoErr"));
     } finally {
       setUndoing(false);
     }
@@ -430,7 +439,7 @@ function HistorySection({ history, company, onChanged }: { history: ControlExecu
     <div>
       <button type="button" onClick={() => setOpen((o) => !o)} className="flex items-center gap-1 text-xs font-semibold text-slate-600 hover:text-slate-800">
         {open ? <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" /> : <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />}
-        Lịch sử áp dụng ({history.length})
+        {t("google.pmaxActions.history")} ({history.length})
       </button>
       {open && (
         <div className="mt-2 space-y-2">
@@ -441,14 +450,14 @@ function HistorySection({ history, company, onChanged }: { history: ControlExecu
       <Dialog open={!!undoId} onOpenChange={(o) => { if (!o) { setUndoId(null); setUndoErr(null); } }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle className="text-red-600">Hoàn tác lần áp dụng này?</DialogTitle>
-            <DialogDescription>Chỉ đảo những gì lần này đã đổi trên tài khoản — sửa tay của người khác sau đó được giữ nguyên.</DialogDescription>
+            <DialogTitle className="text-red-600">{t("google.pmaxActions.undoTitle")}</DialogTitle>
+            <DialogDescription>{t("google.pmaxActions.undoDesc")}</DialogDescription>
           </DialogHeader>
           {undoErr && <p className="text-xs text-red-600">{undoErr}</p>}
           <DialogFooter>
-            <DialogClose render={<Button className="h-10" variant="outline" />}>Giữ nguyên</DialogClose>
+            <DialogClose render={<Button className="h-10" variant="outline" />}>{t("google.pmaxActions.keep")}</DialogClose>
             <Button className="h-10" variant="destructive" onClick={() => undoId && runUndo(undoId)} disabled={undoing}>
-              {undoing && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} Hoàn tác
+              {undoing && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} {t("google.pmaxActions.undo")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -460,6 +469,7 @@ function HistorySection({ history, company, onChanged }: { history: ControlExecu
 // ── Root ──
 
 export function PmaxActionsPanel({ company, range }: { company: Company; range: Range }) {
+  const t = useT();
   const [data, setData] = useState<ControlsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [reloading, setReloading] = useState(false);
@@ -474,12 +484,12 @@ export function PmaxActionsPanel({ company, range }: { company: Company; range: 
       const json = await getJson(`/api/google/pmax/controls?company=${company}&from=${range.from}&to=${range.to}${force ? "&force=1" : ""}`);
       setData(json as ControlsResponse);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Lỗi kết nối tới Google Ads");
+      setError(e instanceof ApiError ? e.message : t("google.pmaxActions.connErr"));
     } finally {
       setLoading(false);
       setReloading(false);
     }
-  }, [company, range.from, range.to]);
+  }, [company, range.from, range.to, t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -513,7 +523,7 @@ export function PmaxActionsPanel({ company, range }: { company: Company; range: 
       setData((prev) => (prev ? { ...prev, auto: { ...prev.auto, kinds: json.kinds as AutoKind[] } } : prev));
     } catch (e) {
       setData((prev) => (prev ? { ...prev, auto: { ...prev.auto, kinds: before } } : prev));
-      setAutoErr(e instanceof ApiError ? e.message : "Không lưu được cài đặt tự động — thử lại sau");
+      setAutoErr(e instanceof ApiError ? e.message : t("google.pmaxActions.autoSaveErr"));
     }
   }
 
@@ -523,13 +533,13 @@ export function PmaxActionsPanel({ company, range }: { company: Company; range: 
     <section className="space-y-3">
       <div>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="flex items-center gap-1.5 text-base font-extrabold text-slate-900">✅ Việc nên làm</h3>
+          <h3 className="flex items-center gap-1.5 text-base font-extrabold text-slate-900">{t("google.pmaxActions.title")}</h3>
           <Button type="button" variant="outline" size="sm" className="h-9" onClick={() => load(true)} disabled={loading || reloading}>
-            {reloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />} Tải lại
+            {reloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />} {t("google.pmaxActions.reload")}
           </Button>
         </div>
         <p className="mt-1 text-[11px] italic text-slate-400">
-          {`Hỏi thêm trợ lý AI (nút tròn góc phải dưới): ví dụ "PMax ${company} đang đốt tiền ở đâu, nên làm gì?" — trợ lý đọc đúng số liệu này.`}
+          {t("google.pmaxActions.askAi", { company })}
         </p>
       </div>
 
@@ -548,13 +558,13 @@ export function PmaxActionsPanel({ company, range }: { company: Company; range: 
         <>
           {!data.canEdit && (
             <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
-              🔒 Cần quyền sửa để áp dụng — xem được, không ghi được.
+              {t("google.pmaxActions.needEdit")}
             </p>
           )}
 
           {data.recommendations.length === 0 ? (
             <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
-              ✓ Chưa có việc nào cần làm trong khoảng này.
+              {t("google.pmaxActions.none")}
             </p>
           ) : (
             <>

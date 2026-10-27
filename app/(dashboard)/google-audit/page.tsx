@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import type { AuditResult } from "@/lib/google-audit-engine";
 import { companyIds, companyLabel, orderedCompanyIds } from "@/lib/companies/registry";
+import { useT } from "@/lib/i18n/client";
 
 interface PreviewItem { label: string; detail: string }
 
@@ -29,6 +30,7 @@ interface FixState {
 }
 
 export default function GoogleAuditPage() {
+  const t = useT();
   const [company, setCompany] = useState<string>(() => orderedCompanyIds(["MBC"])[0] ?? "MBC") // Đợt 25: công ty theo bản cài (bản Mắt Bão y như cũ);
   const [loading, setLoading] = useState(true);
   const [result, setResult] = useState<AuditResult | null>(null);
@@ -52,15 +54,15 @@ export default function GoogleAuditPage() {
         setResult(json.data);
       } else {
         setResult(null);
-        setLoadError(json.error || "Không tải được kết quả audit.");
+        setLoadError(json.error || t("google.audit.loadFail"));
       }
     } catch (err) {
       setResult(null);
-      setLoadError(err instanceof Error ? err.message : "Không kết nối được tới máy chủ.");
+      setLoadError(err instanceof Error ? err.message : t("google.audit.connFail"));
     } finally {
       setLoading(false);
     }
-  }, [company]);
+  }, [company, t]);
 
   const runFix = async (checkName: string, checkId: string, confirm: boolean) => {
     setFixing(checkName);
@@ -87,10 +89,10 @@ export default function GoogleAuditPage() {
       } else {
         // Tương tự: bản cũ không có else — bấm xong nút hết quay, và không có
         // gì xảy ra trên màn hình dù lệnh đã hỏng.
-        setFixError({ name: checkName, msg: data.error || "Thao tác thất bại." });
+        setFixError({ name: checkName, msg: data.error || t("google.audit.opFail") });
       }
     } catch (e) {
-      setFixError({ name: checkName, msg: e instanceof Error ? e.message : "Không kết nối được tới máy chủ." });
+      setFixError({ name: checkName, msg: e instanceof Error ? e.message : t("google.audit.connFail") });
     } finally {
       setFixing(null);
     }
@@ -127,11 +129,11 @@ export default function GoogleAuditPage() {
             </div>
             Google Ads Account Audit
           </h1>
-          <p className="text-sm text-slate-500 mt-1">Hệ thống chẩn đoán 14 tiêu chí tài khoản Google Ads + 3 tiêu chí PMax (khi tài khoản chạy PMax)</p>
+          <p className="text-sm text-slate-500 mt-1">{t("google.audit.subtitle")}</p>
           <p className="text-xs text-slate-400 mt-1">
-            Xem thêm: <Link href="/google-pmax" className="text-blue-500 hover:underline">Chi tiết Asset PMax</Link>
+            {t("google.audit.seeMore")} <Link href="/google-pmax" className="text-blue-500 hover:underline">{t("google.audit.pmaxLink")}</Link>
             {" · "}
-            <Link href="/improvements" className="text-blue-500 hover:underline">Danh sách gợi ý ưu tiên</Link>
+            <Link href="/improvements" className="text-blue-500 hover:underline">{t("google.audit.improveLink")}</Link>
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -154,14 +156,14 @@ export default function GoogleAuditPage() {
       ) : loadError ? (
         <div className="rounded-xl border border-red-200 bg-red-50 p-6 space-y-3">
           <div className="flex items-center gap-2 text-red-800 font-bold">
-            <XCircle className="h-5 w-5" /> Không chạy được audit
+            <XCircle className="h-5 w-5" /> {t("google.audit.noRun")}
           </div>
           <p className="text-sm text-red-700 break-words">{loadError}</p>
           <p className="text-xs text-red-600">
-            Chưa có kết quả nào để hiển thị. Đây là lỗi tải dữ liệu, KHÔNG có nghĩa là tài khoản không có vấn đề.
+            {t("google.audit.noResult")}
           </p>
           <Button variant="outline" size="sm" onClick={fetchAudit} className="gap-2 border-red-300 text-red-700">
-            <RefreshCw className="h-3.5 w-3.5" /> Thử lại
+            <RefreshCw className="h-3.5 w-3.5" /> {t("google.audit.retry")}
           </Button>
         </div>
       ) : result && (
@@ -171,7 +173,7 @@ export default function GoogleAuditPage() {
             <div className="rounded-xl border border-red-200 bg-red-50 p-4 flex items-start gap-3">
               <XCircle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
               <div className="text-sm text-red-900">
-                <strong>Không đọc được bất kỳ tiêu chí nào.</strong> Đây là sự cố kết nối tới Google Ads, KHÔNG phải đánh giá về tài khoản — không có điểm nào được chấm.
+                <strong>{t("google.audit.noneReadA")}</strong> {t("google.audit.noneReadB")}
               </div>
             </div>
           )}
@@ -180,8 +182,7 @@ export default function GoogleAuditPage() {
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 flex items-start gap-3">
               <EyeOff className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
               <div className="text-sm text-amber-900">
-                <strong>{result.unreadableCount}/{result.checks.length} tiêu chí không đọc được dữ liệu</strong> và đã bị loại khỏi điểm tổng.
-                Điểm bên dưới tính trên {result.scoredCount} tiêu chí đọc được, không phải toàn bộ tài khoản.
+                <strong>{t("google.audit.unreadA", { n: result.unreadableCount, total: result.checks.length })}</strong> {t("google.audit.unreadB", { scored: result.scoredCount })}
               </div>
             </div>
           )}
@@ -196,30 +197,30 @@ export default function GoogleAuditPage() {
                    </div>
                 </div>
                 <h3 className="text-sm font-bold text-slate-600 mt-6 uppercase tracking-widest">Account Score</h3>
-                <p className="text-[10px] text-slate-400 mt-1">trên {result.scoredCount}/{result.checks.length} tiêu chí đọc được</p>
+                <p className="text-[10px] text-slate-400 mt-1">{t("google.audit.onReadable", { scored: result.scoredCount, total: result.checks.length })}</p>
              </div>
 
              <div className="col-span-2 flex flex-col justify-center space-y-4">
                 <div>
-                   <h3 className="text-lg font-bold text-slate-800">Tổng quan chẩn đoán</h3>
-                   <p className="text-sm text-slate-500 mt-1">Đã kiểm tra {result.scoredCount} điểm neo ảnh hưởng trực tiếp đến chi phí và tỷ lệ chuyển đổi (CPA/ROAS).</p>
+                   <h3 className="text-lg font-bold text-slate-800">{t("google.audit.overview")}</h3>
+                   <p className="text-sm text-slate-500 mt-1">{t("google.audit.checked", { n: result.scoredCount })}</p>
                 </div>
                 <div className="grid grid-cols-4 gap-3">
                    <div className="rounded-lg bg-emerald-50 border border-emerald-100 p-3">
                      <p className="text-2xl font-black text-emerald-600">{readable.filter(c => c.status === "PASS").length}</p>
-                     <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider mt-1">Đạt</p>
+                     <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider mt-1">{t("google.audit.pass")}</p>
                    </div>
                    <div className="rounded-lg bg-amber-50 border border-amber-100 p-3">
                      <p className="text-2xl font-black text-amber-600">{readable.filter(c => c.status === "WARNING").length}</p>
-                     <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider mt-1">Cần chú ý</p>
+                     <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider mt-1">{t("google.audit.warn")}</p>
                    </div>
                    <div className="rounded-lg bg-red-50 border border-red-100 p-3">
                      <p className="text-2xl font-black text-red-600">{readable.filter(c => c.status === "FAIL").length}</p>
-                     <p className="text-[10px] font-bold text-red-600 uppercase tracking-wider mt-1">Nghiêm trọng</p>
+                     <p className="text-[10px] font-bold text-red-600 uppercase tracking-wider mt-1">{t("google.audit.fail")}</p>
                    </div>
                    <div className="rounded-lg bg-slate-100 border border-slate-200 p-3">
                      <p className="text-2xl font-black text-slate-500">{result.unreadableCount}</p>
-                     <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mt-1">Chưa kiểm được</p>
+                     <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mt-1">{t("google.audit.unchecked")}</p>
                    </div>
                 </div>
              </div>
@@ -236,9 +237,9 @@ export default function GoogleAuditPage() {
           )}
 
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-slate-800">Chi tiết {result.checks.length} tiêu chí đánh giá</h2>
+            <h2 className="text-lg font-bold text-slate-800">{t("google.audit.detail", { n: result.checks.length })}</h2>
             <Button variant="outline" size="sm" onClick={fetchAudit} className="h-8 gap-2 border-slate-300">
-              <RefreshCw className="h-3.5 w-3.5 text-slate-500" /> Quét lại (Re-audit)
+              <RefreshCw className="h-3.5 w-3.5 text-slate-500" /> {t("google.audit.reaudit")}
             </Button>
           </div>
 
@@ -269,10 +270,10 @@ export default function GoogleAuditPage() {
                         unreadable ? "bg-slate-200 text-slate-600" :
                         check.status === "FAIL" ? "bg-red-100 text-red-700" :
                         check.status === "WARNING" ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"
-                      )}>{unreadable ? "CHƯA KIỂM ĐƯỢC" : check.status}</span>
+                      )}>{unreadable ? t("google.audit.unchecked2") : check.status}</span>
                       {!unreadable && <span className="text-[10px] text-slate-400 font-medium">Score: {check.score}/10</span>}
                       {check.dataStatus === "PARTIAL" && (
-                        <span className="text-[10px] font-bold uppercase rounded px-1.5 py-0.5 bg-sky-100 text-sky-700">Dữ liệu một phần</span>
+                        <span className="text-[10px] font-bold uppercase rounded px-1.5 py-0.5 bg-sky-100 text-sky-700">{t("google.audit.partial")}</span>
                       )}
                     </div>
                   </div>
@@ -289,7 +290,7 @@ export default function GoogleAuditPage() {
                      unreadable ? "text-slate-700" :
                      check.status === "FAIL" ? "text-red-900" :
                      check.status === "WARNING" ? "text-amber-900" : "text-emerald-700"
-                  )}>Chẩn đoán:</strong> {check.recommendation}
+                  )}>{t("google.audit.diagnosis")}</strong> {check.recommendation}
                 </div>
 
                 {check.dataStatus === "PARTIAL" && check.dataNote && (
@@ -302,7 +303,7 @@ export default function GoogleAuditPage() {
                      {showingErr && (
                        <div className="flex items-start gap-2 bg-red-50 text-red-800 p-2.5 rounded-lg border border-red-200 text-[11px]">
                          <XCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                         <p><strong>Thất bại:</strong> {fixError!.msg}</p>
+                         <p><strong>{t("google.audit.failed")}</strong> {fixError!.msg}</p>
                        </div>
                      )}
 
@@ -321,16 +322,16 @@ export default function GoogleAuditPage() {
 
                          {fixState!.guide && (
                            <div className="space-y-2 border-t border-current/10 pt-2 max-h-80 overflow-y-auto">
-                             <p className="opacity-90"><strong>Vì sao đáng sửa:</strong> {fixState!.guide.why}</p>
+                             <p className="opacity-90"><strong>{t("google.audit.why")}</strong> {fixState!.guide.why}</p>
                              {fixState!.guide.path && (
-                               <p className="opacity-75"><strong>Đường đi:</strong> {fixState!.guide.path}</p>
+                               <p className="opacity-75"><strong>{t("google.audit.path")}</strong> {fixState!.guide.path}</p>
                              )}
                              <ol className="list-decimal pl-4 space-y-1">
                                {fixState!.guide.steps.map((st, k) => <li key={k} className="leading-snug">{st}</li>)}
                              </ol>
                              {fixState!.guide.caution && (
                                <p className="text-[10px] text-amber-800 bg-amber-50 border border-amber-200 rounded p-2">
-                                 ⚠️ <strong>Coi chừng:</strong> {fixState!.guide.caution}
+                                 ⚠️ <strong>{t("google.audit.caution")}</strong> {fixState!.guide.caution}
                                </p>
                              )}
                            </div>
@@ -349,7 +350,7 @@ export default function GoogleAuditPage() {
 
                          {fixState!.truncated && (
                            <p className="text-[10px] opacity-80 border-t border-current/10 pt-1.5">
-                             ⚠️ Danh sách đã chạm trần số dòng — có thể còn mục khác chưa được liệt kê.
+                             {t("google.audit.truncated")}
                            </p>
                          )}
 
@@ -362,7 +363,7 @@ export default function GoogleAuditPage() {
                          {fixState!.mode !== "preview" && (
                            <div className="pt-1">
                              <Button size="sm" variant="outline" onClick={() => setFixState(null)} className="h-7 w-full text-[11px]">
-                               Đóng
+                               {t("google.audit.close")}
                              </Button>
                            </div>
                          )}
@@ -376,11 +377,11 @@ export default function GoogleAuditPage() {
                                className="h-7 flex-1 text-[11px] font-bold bg-red-600 hover:bg-red-700 text-white"
                              >
                                {fixing === check.name
-                                 ? <><Loader2 className="h-3 w-3 animate-spin mr-1" /> Đang ghi…</>
-                                 : "Xác nhận ghi vào Google Ads"}
+                                 ? <><Loader2 className="h-3 w-3 animate-spin mr-1" /> {t("google.audit.writing")}</>
+                                 : t("google.audit.confirm")}
                              </Button>
                              <Button size="sm" variant="outline" onClick={() => setFixState(null)} disabled={fixing !== null} className="h-7 text-[11px]">
-                               Huỷ
+                               {t("google.audit.cancel")}
                              </Button>
                            </div>
                          )}
@@ -407,18 +408,18 @@ export default function GoogleAuditPage() {
                          )}
                        >
                          {fixing === check.name ? (
-                           <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Đang kiểm…</>
+                           <><Loader2 className="h-3.5 w-3.5 animate-spin" /> {t("google.audit.checking")}</>
                          ) : check.fixable ? (
-                           <><Wand2 className="h-3.5 w-3.5 text-indigo-100" /> Xem trước cách sửa</>
+                           <><Wand2 className="h-3.5 w-3.5 text-indigo-100" /> {t("google.audit.previewFix")}</>
                          ) : (
-                           <><Info className="h-3.5 w-3.5 text-slate-400" /> Xem hướng dẫn xử lý</>
+                           <><Info className="h-3.5 w-3.5 text-slate-400" /> {t("google.audit.seeGuide")}</>
                          )}
                        </Button>
                      )}
 
                      {!check.fixable && !showingFix && (
                        <p className="text-[10px] text-slate-400 text-center">
-                         Tiêu chí này chưa có bước sửa tự động — công cụ chỉ đưa hướng dẫn.
+                         {t("google.audit.noAuto")}
                        </p>
                      )}
                    </div>

@@ -11,34 +11,38 @@ import { KeywordsView }                      from "./KeywordsView"
 // ─────────────────────────────────────
 import { getManualGuide, type ManualGuide } from "@/lib/improvement-manual-guide";
 import { isHiddenPage } from "@/lib/hidden-pages";
+import { useIntlLocale, useT } from "@/lib/i18n/client"
+import type { MessageKey } from "@/lib/i18n/messages"
+import type { TFunction } from "@/lib/i18n/translate"
 
 const SOURCE_ICON: Record<string, string> = { GOOGLE: "🔴", FACEBOOK: "🔵", CROSS_CHANNEL: "🟣" }
-const TYPE_LABEL:  Record<string, string> = {
-  PAUSE_KEYWORD:            "Pause Keyword",
-  PAUSE_SEARCH_TERM:        "Negative Search Term",
-  NEGATIVE_BRAND_LEAK:      "Fix Brand Leak",
-  PAUSE_LOW_CTR_AD:         "Pause Ad CTR thấp",
-  PAUSE_PMAX_ASSET:         "Fix PMax Asset",
-  PAUSE_FB_AD_FATIGUE:      "FB Ad Fatigue",
-  PAUSE_FB_AD_LOW_CTR:      "FB Ad CTR thấp",
-  INCREASE_BID_HIGH_ROAS:   "Tăng Bid ROAS cao",
-  INCREASE_BUDGET_CAPPED:   "Tăng Budget",
-  SHIFT_BUDGET_CHANNEL:     "Chuyển Budget kênh",
-  LOWER_TARGET_CPA:         "Hạ tCPA",
-  RAISE_BUDGET_TOP_CAMPAIGN:"Scale Campaign tốt",
-  ADD_EXACT_MATCH:          "Thêm Exact Match",
-  ADD_COMPETITOR_KW:        "Thêm Competitor KW",
-  EXPAND_REMARKETING:       "Mở rộng Remarketing",
-  DUPLICATE_FB_WINNING_ADSET:"Scale FB AdSet",
-  FIX_LOW_QS_KEYWORD:       "Fix Quality Score",
-  ADD_AD_EXTENSION:         "Thêm Ad Extension",
-  IMPROVE_PMAX_ASSETS:      "Cải thiện PMax Assets",
-  FIX_AD_STRENGTH:          "Fix Ad Strength",
-  FB_AUDIENCE_OVERLAP:      "Fix FB Overlap",
-  DEVICE_BID_ADJUSTMENT:    "Điều chỉnh Bid Device",
-  GEO_BID_ADJUSTMENT:       "Điều chỉnh Bid Địa lý",
-  DAYPART_OPPORTUNITY:      "Tối ưu Khung giờ",
+const TYPE_LABEL:  Record<string, MessageKey> = {
+  PAUSE_KEYWORD: "overview.improvements.type.PAUSE_KEYWORD",
+  PAUSE_SEARCH_TERM: "overview.improvements.type.PAUSE_SEARCH_TERM",
+  NEGATIVE_BRAND_LEAK: "overview.improvements.type.NEGATIVE_BRAND_LEAK",
+  PAUSE_LOW_CTR_AD: "overview.improvements.type.PAUSE_LOW_CTR_AD",
+  PAUSE_PMAX_ASSET: "overview.improvements.type.PAUSE_PMAX_ASSET",
+  PAUSE_FB_AD_FATIGUE: "overview.improvements.type.PAUSE_FB_AD_FATIGUE",
+  PAUSE_FB_AD_LOW_CTR: "overview.improvements.type.PAUSE_FB_AD_LOW_CTR",
+  INCREASE_BID_HIGH_ROAS: "overview.improvements.type.INCREASE_BID_HIGH_ROAS",
+  INCREASE_BUDGET_CAPPED: "overview.improvements.type.INCREASE_BUDGET_CAPPED",
+  SHIFT_BUDGET_CHANNEL: "overview.improvements.type.SHIFT_BUDGET_CHANNEL",
+  LOWER_TARGET_CPA: "overview.improvements.type.LOWER_TARGET_CPA",
+  RAISE_BUDGET_TOP_CAMPAIGN: "overview.improvements.type.RAISE_BUDGET_TOP_CAMPAIGN",
+  ADD_EXACT_MATCH: "overview.improvements.type.ADD_EXACT_MATCH",
+  ADD_COMPETITOR_KW: "overview.improvements.type.ADD_COMPETITOR_KW",
+  EXPAND_REMARKETING: "overview.improvements.type.EXPAND_REMARKETING",
+  DUPLICATE_FB_WINNING_ADSET: "overview.improvements.type.DUPLICATE_FB_WINNING_ADSET",
+  FIX_LOW_QS_KEYWORD: "overview.improvements.type.FIX_LOW_QS_KEYWORD",
+  ADD_AD_EXTENSION: "overview.improvements.type.ADD_AD_EXTENSION",
+  IMPROVE_PMAX_ASSETS: "overview.improvements.type.IMPROVE_PMAX_ASSETS",
+  FIX_AD_STRENGTH: "overview.improvements.type.FIX_AD_STRENGTH",
+  FB_AUDIENCE_OVERLAP: "overview.improvements.type.FB_AUDIENCE_OVERLAP",
+  DEVICE_BID_ADJUSTMENT: "overview.improvements.type.DEVICE_BID_ADJUSTMENT",
+  GEO_BID_ADJUSTMENT: "overview.improvements.type.GEO_BID_ADJUSTMENT",
+  DAYPART_OPPORTUNITY: "overview.improvements.type.DAYPART_OPPORTUNITY",
 }
+const typeLabel = (t: TFunction, type: string): string => (TYPE_LABEL[type] ? t(TYPE_LABEL[type]) : type)
 
 // ─────────────────────────────────────
 // MODAL: Hướng dẫn xử lý thủ công
@@ -50,6 +54,7 @@ function ManualGuideModal({
   imp: any
   onClose: () => void
 }) {
+  const t = useT()
   const router = useRouter()
   const guide  = getManualGuide(imp)
 
@@ -69,7 +74,7 @@ function ManualGuideModal({
               {SOURCE_ICON[imp.source]} {imp.source} · {imp.company}
             </p>
             <h2 className="text-base font-bold text-gray-900">
-              {TYPE_LABEL[imp.type] || imp.type}
+              {typeLabel(t, imp.type)}
             </h2>
           </div>
           <button
@@ -86,7 +91,7 @@ function ManualGuideModal({
           {/* Tóm tắt */}
           <div className="rounded-xl bg-blue-50 border border-blue-100 px-4 py-3">
             <p className="text-xs font-semibold text-blue-600 mb-1">
-              🎯 Bạn cần làm gì
+              {t("overview.improvements.modal.todo")}
             </p>
             <p className="text-sm text-blue-900 font-medium">{guide.whatToDo}</p>
           </div>
@@ -96,14 +101,14 @@ function ManualGuideModal({
             <div className="flex items-center gap-3 text-sm">
               {imp.currentMetric && (
                 <span className="rounded-lg bg-gray-100 px-3 py-1.5 text-gray-700">
-                  📊 Hiện tại: <strong>{imp.currentMetric}</strong>
+                  {t("overview.improvements.modal.current")}<strong>{imp.currentMetric}</strong>
                 </span>
               )}
               {imp.targetMetric && (
                 <>
                   <span className="text-gray-300">→</span>
                   <span className="rounded-lg bg-green-50 border border-green-200 px-3 py-1.5 text-green-700">
-                    ✅ Mục tiêu: <strong>{imp.targetMetric}</strong>
+                    {t("overview.improvements.modal.target")}<strong>{imp.targetMetric}</strong>
                   </span>
                 </>
               )}
@@ -113,7 +118,7 @@ function ManualGuideModal({
           {/* Steps */}
           <div className="space-y-2">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-              Các bước thực hiện
+              {t("overview.improvements.modal.steps")}
             </p>
             <div className="space-y-2">
               {guide.steps.map((step, i) => (
@@ -131,7 +136,7 @@ function ManualGuideModal({
           {imp.impact && (
             <div className="rounded-xl bg-yellow-50 border border-yellow-100 px-4 py-2.5">
               <p className="text-xs font-semibold text-yellow-700 mb-0.5">
-                💡 Tác động dự kiến
+                {t("overview.improvements.modal.impact")}
               </p>
               <p className="text-sm text-yellow-800">{imp.impact}</p>
             </div>
@@ -140,7 +145,7 @@ function ManualGuideModal({
           {/* AI Reasoning */}
           {imp.reasoning && (
             <div className="rounded-xl bg-purple-50 border border-purple-100 px-4 py-2.5">
-              <p className="text-xs font-semibold text-purple-600 mb-0.5">🤖 AI nhận xét</p>
+              <p className="text-xs font-semibold text-purple-600 mb-0.5">{t("overview.improvements.modal.aiNote")}</p>
               <p className="text-sm text-purple-800 italic">{imp.reasoning}</p>
             </div>
           )}
@@ -148,7 +153,7 @@ function ManualGuideModal({
           {/* External hint */}
           {guide.externalHint && (
             <p className="text-xs text-gray-400">
-              📍 Vị trí: {guide.externalHint}
+              {t("overview.improvements.modal.location", { hint: guide.externalHint })}
             </p>
           )}
         </div>
@@ -171,7 +176,7 @@ function ManualGuideModal({
                        text-sm font-medium text-gray-600 hover:bg-gray-50
                        transition-colors"
           >
-            Đóng
+            {t("overview.improvements.modal.close")}
           </button>
         </div>
       </div>
@@ -220,6 +225,8 @@ import { orderedCompanyIds } from "@/lib/companies/registry";
 // MAIN PAGE
 // ─────────────────────────────────────
 export default function ImprovementsPage() {
+  const t = useT()
+  const loc = useIntlLocale()
   const company = useAdsStore(s => s.selectedCompany)
   const store = useImprovementsStore()
 
@@ -258,15 +265,15 @@ export default function ImprovementsPage() {
         setDataErrors(errs)
       } else {
         useImprovementsStore.getState().setItems([])
-        setDataErrors([`Không tải được danh sách cải tiến (HTTP ${res.status})`])
+        setDataErrors([t("overview.improvements.loadListError", { status: res.status })])
       }
     } catch (e) {
       useImprovementsStore.getState().setItems([])
-      setDataErrors([e instanceof Error ? e.message : "Lỗi kết nối"])
+      setDataErrors([e instanceof Error ? e.message : t("overview.improvements.connError")])
     } finally {
       useImprovementsStore.getState().setLoading(false)
     }
-  }, [company])
+  }, [company, t])
 
   useEffect(() => {
     if (!company) return
@@ -304,14 +311,14 @@ export default function ImprovementsPage() {
       {dataErrors.length > 0 && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
           <p className="font-semibold mb-1">
-            Danh sách bên dưới CHƯA ĐẦY ĐỦ — {dataErrors.length} nguồn dữ liệu không lấy được
+            {t("overview.improvements.incomplete", { n: dataErrors.length })}
           </p>
           <ul className="list-disc pl-5 space-y-0.5 text-xs">
             {dataErrors.slice(0, 6).map((e, i) => <li key={i}>{e}</li>)}
-            {dataErrors.length > 6 && <li>… và {dataErrors.length - 6} nguồn khác</li>}
+            {dataErrors.length > 6 && <li>{t("overview.improvements.moreSources", { n: dataErrors.length - 6 })}</li>}
           </ul>
           <p className="text-xs mt-1.5 opacity-80">
-            Những hạng mục này chưa được soi, không phải là &quot;không có gì cần cải thiện&quot;.
+            {t("overview.improvements.notScanned")}
           </p>
         </div>
       )}
@@ -322,12 +329,12 @@ export default function ImprovementsPage() {
       {/* Header (Topbar) */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">⚡ Improvements</h1>
-          <p className="text-sm text-gray-500">Facebook + Google — tất cả trong 1 nơi</p>
+          <h1 className="text-xl font-bold text-gray-900">{t("overview.improvements.title")}</h1>
+          <p className="text-sm text-gray-500">{t("overview.improvements.subtitle")}</p>
           <p className="text-xs text-gray-400 mt-1">
             {/* Link tới trang đang tạm ẩn thì bỏ luôn, không để người dùng bấm
                 vào rồi gặp thông báo "trang đang tạm ẩn" — xem lib/hidden-pages.ts */}
-            Xem thêm:{" "}
+            {t("overview.improvements.seeMore")}{" "}
             {!isHiddenPage("/google-audit") && (
               <>
                 <Link href="/google-audit" className="text-blue-500 hover:underline">Google Audit</Link>
@@ -340,18 +347,18 @@ export default function ImprovementsPage() {
         <div className="flex gap-3">
           <div className="rounded-2xl bg-red-50 border border-red-200 px-4 py-2 text-center">
             <p className="text-2xl font-bold text-red-600">{highCount}</p>
-            <p className="text-xs text-red-500">High Priority</p>
+            <p className="text-xs text-red-500">{t("overview.improvements.highPriority")}</p>
           </div>
           <div className="rounded-2xl bg-orange-50 border border-orange-200 px-4 py-2 text-center">
             <p className="text-2xl font-bold text-orange-600">{mediumCount}</p>
-            <p className="text-xs text-orange-500">Medium</p>
+            <p className="text-xs text-orange-500">{t("overview.improvements.medium")}</p>
           </div>
           {totalImpact > 0 && (
             <div className="rounded-2xl bg-green-50 border border-green-200 px-4 py-2 text-center">
               <p className="text-lg font-bold text-green-600">
-                ₫{new Intl.NumberFormat("vi-VN").format(Math.round(totalImpact / 1_000_000))}M
+                ₫{new Intl.NumberFormat(loc).format(Math.round(totalImpact / 1_000_000))}M
               </p>
-              <p className="text-xs text-green-500" title="Tổng chi tiêu trong kỳ của các chiến dịch có khuyến nghị HIGH (mỗi chiến dịch 1 lần, không gồm ước lượng thô)">Chi tiêu dính lỗi HIGH</p>
+              <p className="text-xs text-green-500" title={t("overview.improvements.impactTip")}>{t("overview.improvements.impactLabel")}</p>
             </div>
           )}
         </div>
@@ -378,9 +385,9 @@ export default function ImprovementsPage() {
               onChange={(e) => store.setSortBy(e.target.value as any)}
               className="rounded-lg border px-3 py-2 text-sm text-gray-700 outline-none"
             >
-              <option value="priority">Priority</option>
-              <option value="impact">Impact</option>
-              <option value="confidence">Confidence</option>
+              <option value="priority">{t("overview.improvements.sort.priority")}</option>
+              <option value="impact">{t("overview.improvements.sort.impact")}</option>
+              <option value="confidence">{t("overview.improvements.sort.confidence")}</option>
             </select>
           </div>
 
@@ -421,12 +428,13 @@ export default function ImprovementsPage() {
 }
 
 function ViewModeTabs() {
+  const t = useT()
   const store = useImprovementsStore()
   const { viewMode, setViewMode } = store
 
   const tabs: Array<{ key: "cards" | "keywords"; label: string }> = [
-    { key: "cards", label: "Gợi ý" },
-    { key: "keywords", label: "🔎 Từ khóa" },
+    { key: "cards", label: t("overview.improvements.tab.cards") },
+    { key: "keywords", label: t("overview.improvements.tab.keywords") },
   ]
 
   return (
@@ -450,6 +458,7 @@ function ViewModeTabs() {
 }
 
 function PlatformTabs() {
+  const t = useT()
   const store = useImprovementsStore()
   const { platformFilter, setPlatformFilter } = store
   
@@ -462,7 +471,7 @@ function PlatformTabs() {
   }
 
   const tabs: any[] = [
-    { key: "ALL", label: "Tất cả", count: counts.all, icon: null, style: "neutral" },
+    { key: "ALL", label: t("overview.improvements.all"), count: counts.all, icon: null, style: "neutral" },
     { key: "FACEBOOK", label: "Facebook", count: counts.facebook, icon: <FacebookIcon size={14} />, style: "facebook" },
     { key: "GOOGLE", label: "Google", count: counts.google, icon: <GoogleIcon size={14} />, style: "google" },
   ]
@@ -512,25 +521,26 @@ function PlatformTabs() {
 }
 
 function StatusTabs({ activeCount, completedCount, dismissedCount }: any) {
+  const t = useT()
   const { statusFilter, setStatusFilter } = useImprovementsStore()
   return (
     <div className="flex gap-1 rounded-xl bg-gray-100 p-1 w-fit">
       {[
-        { label: `Active (${activeCount})`, value: "ACTIVE" },
-        { label: `Completed (${completedCount})`, value: "COMPLETED" },
-        { label: `Dismissed (${dismissedCount})`, value: "DISMISSED" },
-      ].map(t => (
+        { label: t("overview.improvements.status.active", { n: activeCount }), value: "ACTIVE" },
+        { label: t("overview.improvements.status.completed", { n: completedCount }), value: "COMPLETED" },
+        { label: t("overview.improvements.status.dismissed", { n: dismissedCount }), value: "DISMISSED" },
+      ].map(tab => (
         <button
-          key={t.value}
-          onClick={() => setStatusFilter(t.value as any)}
+          key={tab.value}
+          onClick={() => setStatusFilter(tab.value as any)}
           className={cn(
             "rounded-lg px-4 py-2 text-sm font-medium transition-all",
-            statusFilter === t.value
+            statusFilter === tab.value
               ? "bg-white text-gray-900 shadow-sm"
               : "text-gray-500 hover:text-gray-700 hover:bg-gray-200/50"
           )}
         >
-          {t.label}
+          {tab.label}
         </button>
       ))}
     </div>
@@ -538,6 +548,7 @@ function StatusTabs({ activeCount, completedCount, dismissedCount }: any) {
 }
 
 function AutoApplyBanner({ pageContext }: { pageContext: any }) {
+  const t = useT()
   const store = useImprovementsStore()
   const { platformFilter, statusFilter } = store
   
@@ -555,25 +566,25 @@ function AutoApplyBanner({ pageContext }: { pageContext: any }) {
 
   const config: Record<string, any> = {
     ALL: {
-      label:  `${currentItems.length} HIGH improvements có thể auto-apply`,
+      label:  t("overview.improvements.banner.all.label", { n: currentItems.length }),
       // KHÔNG hứa Undo: /api/improvements/apply trả 501 cho mọi yêu cầu undo
       // ("chưa được hỗ trợ") vì không chỗ nào ghi lại giá trị TRƯỚC khi sửa.
       // Hứa hoàn tác được trên một nút ghi thẳng vào tài khoản quảng cáo là
       // loại sai nguy hiểm nhất — người dùng bấm vì tin rằng lỡ tay còn gỡ được.
-      sub:    `FB: ${currentItems.filter((i)=>i.platform==="FACEBOOK").length} · GG: ${currentItems.filter((i)=>i.platform==="GOOGLE").length} — ⚠️ KHÔNG hoàn tác được, phải sửa tay trên Google/Meta Ads.`,
-      btnText:`Apply tất cả HIGH (${currentItems.length})`,
+      sub:    t("overview.improvements.banner.all.sub", { fb: currentItems.filter((i)=>i.platform==="FACEBOOK").length, gg: currentItems.filter((i)=>i.platform==="GOOGLE").length }),
+      btnText:t("overview.improvements.banner.all.btn", { n: currentItems.length }),
       color:  "red",
     },
     FACEBOOK: {
-      label:  `${currentItems.length} cải tiến Facebook có thể auto-apply`,
-      sub:    "CTR thấp, Khung giờ xấu, Creative mệt mỏi — ⚠️ KHÔNG hoàn tác được.",
-      btnText:`Apply FB HIGH (${currentItems.length})`,
+      label:  t("overview.improvements.banner.fb.label", { n: currentItems.length }),
+      sub:    t("overview.improvements.banner.fb.sub"),
+      btnText:t("overview.improvements.banner.fb.btn", { n: currentItems.length }),
       color:  "facebook",
     },
     GOOGLE: {
-      label:  `${currentItems.length} cải tiến Google có thể auto-apply`,
-      sub:    "Từ khóa kém, Khung giờ xấu — ⚠️ KHÔNG hoàn tác được.",
-      btnText:`Apply GG HIGH (${currentItems.length})`,
+      label:  t("overview.improvements.banner.gg.label", { n: currentItems.length }),
+      sub:    t("overview.improvements.banner.gg.sub"),
+      btnText:t("overview.improvements.banner.gg.btn", { n: currentItems.length }),
       color:  "google",
     },
   }
@@ -585,30 +596,31 @@ function AutoApplyBanner({ pageContext }: { pageContext: any }) {
     // vừa đồng ý cái gì, trên một nút ghi thẳng vào tài khoản đang tiêu tiền.
     const byType = new Map<string, number>()
     for (const i of currentItems as any[]) {
-      const t = String(i.type ?? "KHÔNG RÕ")
-      byType.set(t, (byType.get(t) ?? 0) + 1)
+      const ty = String(i.type ?? t("overview.improvements.confirm.unknownType"))
+      byType.set(ty, (byType.get(ty) ?? 0) + 1)
     }
     const TYPE_VI: Record<string, string> = {
-      PAUSE_KEYWORD: "Tạm dừng từ khoá",
-      UPDATE_KEYWORD_CPC: "Đổi giá thầu từ khoá",
-      UPDATE_BUDGET: "Đổi ngân sách chiến dịch",
-      UPDATE_TARGET_CPA: "Đổi Target CPA",
-      ADD_NEGATIVE: "Thêm từ khoá phủ định",
-      UPDATE_DEVICE_BID: "Đổi giá thầu theo thiết bị",
+      PAUSE_KEYWORD: t("overview.improvements.confirm.type.PAUSE_KEYWORD"),
+      UPDATE_KEYWORD_CPC: t("overview.improvements.confirm.type.UPDATE_KEYWORD_CPC"),
+      UPDATE_BUDGET: t("overview.improvements.confirm.type.UPDATE_BUDGET"),
+      UPDATE_TARGET_CPA: t("overview.improvements.confirm.type.UPDATE_TARGET_CPA"),
+      ADD_NEGATIVE: t("overview.improvements.confirm.type.ADD_NEGATIVE"),
+      UPDATE_DEVICE_BID: t("overview.improvements.confirm.type.UPDATE_DEVICE_BID"),
     }
     const lines = [...byType.entries()]
       .sort((a, b) => b[1] - a[1])
-      .map(([t, n]) => `  • ${TYPE_VI[t] ?? t}: ${n}`)
+      .map(([ty, n]) => `  • ${TYPE_VI[ty] ?? ty}: ${n}`)
       .join("\n")
     const sample = (currentItems as any[]).slice(0, 5)
       .map(i => `  – ${i.campaignName ?? i.title ?? i.id}`).join("\n")
 
     const confirmed = window.confirm(
-      `Ghi ${currentItems.length} thay đổi THẬT lên tài khoản quảng cáo:\n\n${lines}\n\n`
-      + `Ví dụ chiến dịch bị ảnh hưởng:\n${sample}`
-      + (currentItems.length > 5 ? `\n  … và ${currentItems.length - 5} mục nữa` : "")
-      + `\n\n⚠️ KHÔNG HOÀN TÁC ĐƯỢC. Tool không lưu giá trị cũ, nên muốn quay lại `
-      + `phải tự sửa tay trên Google/Meta Ads.\n\nTiếp tục?`
+      t("overview.improvements.confirm.body", {
+        n: currentItems.length,
+        lines,
+        sample,
+        more: currentItems.length > 5 ? t("overview.improvements.confirm.more", { n: currentItems.length - 5 }) : "",
+      })
     )
     if (!confirmed) return
 
@@ -628,9 +640,9 @@ function AutoApplyBanner({ pageContext }: { pageContext: any }) {
       })
       const json = await res.json()
       if (json.applied) {
-        pageContext.showToast(`✅ Đã apply ${json.applied}/${json.applied + json.failed} improvements!`, "success")
+        pageContext.showToast(t("overview.improvements.bulkApplied", { ok: json.applied, total: json.applied + json.failed }), "success")
       } else {
-        pageContext.showToast(json.error || "Không apply được improvement nào", "error")
+        pageContext.showToast(json.error || t("overview.improvements.bulkNone"), "error")
       }
       pageContext.fetchImprovements()
     } catch (err: any) {
@@ -669,7 +681,7 @@ function AutoApplyBanner({ pageContext }: { pageContext: any }) {
         )}
       >
         <CheckIcon size={14} strokeWidth={3} />
-        {pageContext.applying === "BULK" ? "Đang apply..." : curr.btnText}
+        {pageContext.applying === "BULK" ? t("overview.improvements.applying") : curr.btnText}
       </button>
     </div>
   )
@@ -696,6 +708,7 @@ function SinglePlatformView({ platform, pageContext }: any) {
 }
 
 function PlatformSectionHeader({ platform }: { platform: "FACEBOOK" | "GOOGLE" }) {
+  const t = useT()
   const store = useImprovementsStore()
   // Active filtered count
   const count = store.items.filter(i => i.platform === platform && i.status === store.statusFilter).length
@@ -710,8 +723,7 @@ function PlatformSectionHeader({ platform }: { platform: "FACEBOOK" | "GOOGLE" }
     )}>
       {platform === "FACEBOOK" ? <FacebookIcon size={16} /> : <GoogleIcon size={16} />}
       <span>
-        {platform === "FACEBOOK" ? "Facebook Ads" : "Google Ads"}
-        {" — "}{count} improvements
+        {t("overview.improvements.sectionHeader", { name: platform === "FACEBOOK" ? "Facebook Ads" : "Google Ads", n: count })}
       </span>
       <div className="flex-1 h-px bg-current opacity-20" />
     </div>
@@ -719,6 +731,7 @@ function PlatformSectionHeader({ platform }: { platform: "FACEBOOK" | "GOOGLE" }
 }
 
 function PriorityGroupList({ platform, pageContext }: { platform: Platform, pageContext: any }) {
+  const t = useT()
   const store = useImprovementsStore()
   const { statusFilter, sortBy } = store
   
@@ -741,7 +754,7 @@ function PriorityGroupList({ platform, pageContext }: { platform: Platform, page
   if (items.length === 0) {
     return (
       <div className="text-center py-6 text-sm text-gray-500 bg-gray-50 rounded-xl border border-dashed border-gray-200">
-        Không có improvements nào cho {platform === "FACEBOOK" ? "Facebook" : "Google"}
+        {t("overview.improvements.emptyPlatform", { name: platform === "FACEBOOK" ? "Facebook" : "Google" })}
       </div>
     )
   }
@@ -801,6 +814,7 @@ function PriorityGroupList({ platform, pageContext }: { platform: Platform, page
 }
 
 function PriorityGroup({ priority, items, platform, groupId, pageContext }: any) {
+  const t = useT()
   const store = useImprovementsStore()
   const { collapsedGroups, toggleGroup } = store
   const isCollapsed = collapsedGroups[groupId]
@@ -824,7 +838,7 @@ function PriorityGroup({ priority, items, platform, groupId, pageContext }: any)
           • {priority}
         </span>
         <span className="text-xs text-gray-500 font-medium">
-          {items.length} mục
+          {t("overview.improvements.itemsCount", { n: items.length })}
         </span>
         <div className="flex-1 h-px bg-gray-200" />
         <span className={cn(
@@ -852,9 +866,10 @@ function PriorityGroup({ priority, items, platform, groupId, pageContext }: any)
 }
 
 function ConfidenceBar({ value }: { value: number }) {
+  const t = useT()
   const filled = Math.round(value / 100 * 5)
   return (
-    <div className="flex items-center gap-1.5 ml-2" title="Độ tin cậy do luật gán sẵn theo loại khuyến nghị — không phải xác suất đo được">
+    <div className="flex items-center gap-1.5 ml-2" title={t("overview.improvements.confidenceTip")}>
       <div className="flex gap-0.5">
         {Array.from({length: 5}, (_, i) => (
           <span
@@ -872,6 +887,7 @@ function ConfidenceBar({ value }: { value: number }) {
 }
 
 function ImprovementCard({ item, showPlatformIcon, pageContext }: any) {
+  const t = useT()
   const store = useImprovementsStore()
   
   const justApplied = store.justApplied.has(item.id)
@@ -893,11 +909,11 @@ function ImprovementCard({ item, showPlatformIcon, pageContext }: any) {
       const json = await res.json()
       if (json.success) {
         store.addJustApplied(item.id)
-        pageContext.showToast(`✅ Đã apply: ${item.title}`)
+        pageContext.showToast(t("overview.improvements.applied", { title: item.title }))
         // Give time for UI feedback before refetch
         setTimeout(() => pageContext.fetchImprovements(), 1500)
       } else {
-        pageContext.showToast(json.errors?.[0] || json.error || "Lỗi khi apply", "error")
+        pageContext.showToast(json.errors?.[0] || json.error || t("overview.improvements.applyError"), "error")
       }
     } catch (err: any) {
       pageContext.showToast(err.message, "error")
@@ -920,10 +936,10 @@ function ImprovementCard({ item, showPlatformIcon, pageContext }: any) {
       const json = await res.json()
       if (json.success) {
         store.removeJustApplied(item.id)
-        pageContext.showToast(`↩️ Đã hoàn tác: ${item.title}`)
+        pageContext.showToast(t("overview.improvements.undone", { title: item.title }))
         pageContext.fetchImprovements()
       } else {
-        pageContext.showToast(json.error || "Không thể hoàn tác", "error")
+        pageContext.showToast(json.error || t("overview.improvements.undoError"), "error")
       }
     } catch (err: any) {
       pageContext.showToast(err.message, "error")
@@ -947,13 +963,13 @@ function ImprovementCard({ item, showPlatformIcon, pageContext }: any) {
       // unconditionally — including when the dismissal was rejected, in which
       // case the item reappeared on the next refresh with no explanation.
       if (!res.ok || json.success === false) {
-        pageContext.showToast(json.error || `Không bỏ qua được (HTTP ${res.status})`, "error")
+        pageContext.showToast(json.error || t("overview.improvements.dismissError", { status: res.status }), "error")
         return
       }
-      pageContext.showToast("Đã bỏ qua improvement")
+      pageContext.showToast(t("overview.improvements.dismissed"))
       pageContext.fetchImprovements()
     } catch (err) {
-      pageContext.showToast(err instanceof Error ? err.message : "Lỗi kết nối khi bỏ qua", "error")
+      pageContext.showToast(err instanceof Error ? err.message : t("overview.improvements.dismissConnError"), "error")
     }
   }
 
@@ -987,7 +1003,7 @@ function ImprovementCard({ item, showPlatformIcon, pageContext }: any) {
           {/* Row 1: Type + Confidence */}
           <div className="flex items-center flex-wrap gap-2">
             <span className="text-sm font-extrabold tracking-tight text-gray-900">
-              {TYPE_LABEL[item.type] || item.type}
+              {typeLabel(t, item.type)}
             </span>
             <span className="text-xs font-medium px-2 py-0.5 rounded bg-gray-100 text-gray-600">
               {item.company}
@@ -1032,7 +1048,7 @@ function ImprovementCard({ item, showPlatformIcon, pageContext }: any) {
           {item.impact && (
             <p className="text-xs font-semibold text-indigo-700 flex items-center gap-1.5 mt-2">
               <span className="text-base leading-none">💡</span> {item.impact}
-              {item.impactRough && <span className="text-[10px] font-normal text-slate-400">(ước lượng thô)</span>}
+              {item.impactRough && <span className="text-[10px] font-normal text-slate-400">{t("overview.improvements.roughShort")}</span>}
             </p>
           )}
         </div>
@@ -1046,7 +1062,7 @@ function ImprovementCard({ item, showPlatformIcon, pageContext }: any) {
               className="text-xs font-medium text-slate-400 hover:text-slate-700 px-3 py-1.5
                          rounded-lg hover:bg-slate-100 transition-colors"
             >
-              Bỏ qua
+              {t("overview.improvements.dismiss")}
             </button>
           )}
 
@@ -1057,7 +1073,7 @@ function ImprovementCard({ item, showPlatformIcon, pageContext }: any) {
               className="rounded-xl border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600
                          hover:bg-gray-50 disabled:opacity-50 transition-all bg-white shadow-sm"
             >
-              {pageContext.undoing === item.id ? "⏳ Đang hoàn tác..." : "↩️ Undo"}
+              {pageContext.undoing === item.id ? t("overview.improvements.undoing") : t("overview.improvements.undo")}
             </button>
           )}
 
@@ -1070,7 +1086,7 @@ function ImprovementCard({ item, showPlatformIcon, pageContext }: any) {
                 <path d="M12 20h9"></path>
                 <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
               </svg>
-              Xem & Sửa
+              {t("overview.improvements.viewEdit")}
             </button>
           )}
 
@@ -1082,14 +1098,14 @@ function ImprovementCard({ item, showPlatformIcon, pageContext }: any) {
                          text-xs font-bold text-amber-950 transition-all shadow-sm
                          disabled:opacity-50 border border-amber-600"
             >
-              {pageContext.applying === item.id ? "⏳..." : "✅ Apply"}
+              {pageContext.applying === item.id ? "⏳..." : t("overview.improvements.apply")}
             </button>
           )}
 
           {store.statusFilter === "COMPLETED" && (
             <span className="rounded-xl bg-green-100 border border-green-200 text-green-700
                              px-3 py-1 text-xs font-bold shadow-sm inline-flex items-center gap-1">
-              <CheckIcon size={12} strokeWidth={3} /> Đã apply
+              <CheckIcon size={12} strokeWidth={3} /> {t("overview.improvements.appliedBadge")}
             </span>
           )}
         </div>

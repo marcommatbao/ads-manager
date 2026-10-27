@@ -1,6 +1,7 @@
 "use client";
 
 import { companyIds } from "@/lib/companies/registry";
+import { useIntlLocale, useT } from "@/lib/i18n/client";
 import { useState, useEffect, useCallback } from "react";
 import {
   RefreshCw, Loader2, AlertTriangle, TrendingUp, TrendingDown,
@@ -115,6 +116,7 @@ function AlertBar({ alerts }: { alerts: IntelAlert[] }) {
 // ─────────────────────────────────────────────
 
 function SimilarWebKeyManager() {
+  const t = useT();
   const [keys, setKeys] = useState<SWKeyInfo[]>([]);
   const [activeKeyId, setActiveKeyId] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
@@ -186,10 +188,10 @@ function SimilarWebKeyManager() {
         <Key className="h-3 w-3" />
         {activeKey ? (
           <>
-            SimilarWeb · {daysLeft}d còn lại · {validKeys.length} keys
+            {t("meta.intel.sw.left", { n: daysLeft, keys: validKeys.length })}
           </>
         ) : (
-          <>⚠️ Cần thêm SimilarWeb key</>
+          <>{t("meta.intel.sw.need")}</>
         )}
       </div>
 
@@ -200,7 +202,7 @@ function SimilarWebKeyManager() {
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-slate-50 to-white">
               <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
                 <Key className="h-4 w-4 text-emerald-600" />
-                Quản lý SimilarWeb Keys
+                {t("meta.intel.sw.manage")}
               </h3>
               <button
                 onClick={() => setShowModal(false)}
@@ -214,12 +216,12 @@ function SimilarWebKeyManager() {
               {/* Instructions */}
               <div className="text-xs text-slate-500 bg-blue-50 rounded-xl p-3 border border-blue-100">
                 <p className="font-bold text-blue-700 mb-1 flex items-center gap-1">
-                  <Info className="h-3 w-3" /> Cách lấy API key (30 giây):
+                  <Info className="h-3 w-3" /> {t("meta.intel.sw.how")}
                 </p>
                 <ol className="list-decimal pl-4 space-y-0.5 text-blue-600">
-                  <li>Đăng ký trial tại similarweb.com bằng Gmail mới</li>
-                  <li>{`Vào Settings → API → Generate New Key`}</li>
-                  <li>Copy key và paste vào đây</li>
+                  <li>{t("meta.intel.sw.step1")}</li>
+                  <li>{t("meta.intel.sw.step2")}</li>
+                  <li>{t("meta.intel.sw.step3")}</li>
                 </ol>
               </div>
 
@@ -227,7 +229,7 @@ function SimilarWebKeyManager() {
               {keys.length > 0 && (
                 <div className="space-y-1.5">
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                    Keys hiện tại ({keys.length})
+                    {t("meta.intel.sw.current", { n: keys.length })}
                   </p>
                   {keys.map((k) => {
                     const expired = new Date(k.expiresAt).getTime() < Date.now();
@@ -268,7 +270,7 @@ function SimilarWebKeyManager() {
               {/* Add new key */}
               <div className="border-t border-slate-100 pt-4 space-y-3">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                  Thêm key mới
+                  {t("meta.intel.sw.addNew")}
                 </p>
                 <Input
                   value={newGmail}
@@ -293,7 +295,7 @@ function SimilarWebKeyManager() {
                   ) : (
                     <Plus className="h-3.5 w-3.5" />
                   )}
-                  Thêm key
+                  {t("meta.intel.sw.add")}
                 </Button>
               </div>
             </div>
@@ -313,6 +315,8 @@ function CompetitorDetailPanel({
 }: {
   competitor: CompetitorIntel;
 }) {
+  const t = useT();
+  const intl = useIntlLocale();
   const sw = competitor.similarWeb;
   const analysis = competitor.channelAnalysis;
   const fbTotal = competitor.fbAds.reduce((s, a) => s + a.adCount, 0);
@@ -333,7 +337,7 @@ function CompetitorDetailPanel({
           </div>
           {analysis && (
             <div className="text-right">
-              <p className="text-[10px] font-bold text-slate-400 uppercase">Kênh mạnh nhất</p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase">{t("meta.intel.det.strongest")}</p>
               <p className="text-sm font-bold text-violet-700">{analysis.dominantChannel}</p>
             </div>
           )}
@@ -350,12 +354,12 @@ function CompetitorDetailPanel({
             <div className="space-y-3">
               {sw.isEstimated && (
                 <div className="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5 flex items-center gap-1.5">
-                  ⚠️ Thiếu số SimilarWeb (API lỗi/bị chặn) — ô trống/N/A là chưa đo được, không có số bù
+                  {t("meta.intel.det.swMissing")}
                 </div>
               )}
               <div className="grid grid-cols-2 gap-2">
-                <StatCard label="Global Rank" value={sw.globalRank ? `#${sw.globalRank.toLocaleString()}` : "N/A"} />
-                <StatCard label="VN Rank" value={sw.countryRank ? `#${sw.countryRank.toLocaleString()}` : "N/A"} />
+                <StatCard label="Global Rank" value={sw.globalRank ? `#${sw.globalRank.toLocaleString(intl)}` : "N/A"} />
+                <StatCard label="VN Rank" value={sw.countryRank ? `#${sw.countryRank.toLocaleString(intl)}` : "N/A"} />
                 <StatCard
                   label="Monthly Visits"
                   value={
@@ -374,7 +378,7 @@ function CompetitorDetailPanel({
               <div className="space-y-1.5">
                 <p className="text-[10px] font-semibold text-slate-500">Traffic Sources</p>
                 {Object.values(sw.trafficSources).every((v) => !v) && (
-                  <p className="text-[10px] text-slate-400">Chưa đo được (SimilarWeb không trả nguồn traffic)</p>
+                  <p className="text-[10px] text-slate-400">{t("meta.intel.det.noSources")}</p>
                 )}
                 {Object.values(sw.trafficSources).some((v) => v > 0) && Object.entries(sw.trafficSources).map(([key, val]) => (
                   <div key={key} className="flex items-center gap-2 text-[10px]">
@@ -410,7 +414,7 @@ function CompetitorDetailPanel({
               )}
             </div>
           ) : (
-            <p className="text-xs text-slate-400">Chưa có dữ liệu</p>
+            <p className="text-xs text-slate-400">{t("meta.intel.det.noData")}</p>
           )}
         </div>
 
@@ -447,7 +451,7 @@ function CompetitorDetailPanel({
                 >
                   <p className="font-semibold text-slate-700 mb-1">{ad.pageName}</p>
                   <p className="line-clamp-2">
-                    {ad.latestAdText || "Không có nội dung"}
+                    {ad.latestAdText || t("meta.intel.det.noText")}
                   </p>
                   {ad.snapshotUrl && (
                     <a
@@ -456,7 +460,7 @@ function CompetitorDetailPanel({
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1 mt-1.5 text-[10px] text-blue-500 hover:text-blue-700 font-semibold"
                     >
-                      <ExternalLink className="h-3 w-3" /> Xem trên FB
+                      <ExternalLink className="h-3 w-3" /> {t("meta.intel.det.viewFb")}
                     </a>
                   )}
                 </div>
@@ -492,7 +496,7 @@ function CompetitorDetailPanel({
             <div className="space-y-3">
               {analysis.isEstimated && (
                 <div className="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5 flex items-center gap-1.5">
-                  ⚠️ Phân tích thiếu số SimilarWeb (API lỗi/bị chặn) — chỉ dựa trên phần đo được (quảng cáo đang chạy)
+                  {t("meta.intel.det.aiMissing")}
                 </div>
               )}
               <div className="p-3 rounded-xl bg-violet-50 border border-violet-100">
@@ -521,7 +525,7 @@ function CompetitorDetailPanel({
               </div>
             </div>
           ) : (
-            <p className="text-xs text-slate-400">Chưa có phân tích AI. Ấn Sync để bắt đầu.</p>
+            <p className="text-xs text-slate-400">{t("meta.intel.det.noAi")}</p>
           )}
         </div>
       </div>
@@ -556,6 +560,8 @@ const SCORE_KEYS: { key: string; label: string; icon: string }[] = [
 // ─────────────────────────────────────────────
 
 function MarketAnalysisPanel({ analysis }: { analysis: MarketAnalysis }) {
+  const t = useT();
+  const intl = useIntlLocale();
   const threatColor: Record<string, string> = {
     high: "bg-red-100 text-red-700 border-red-200",
     medium: "bg-amber-100 text-amber-700 border-amber-200",
@@ -569,10 +575,10 @@ function MarketAnalysisPanel({ analysis }: { analysis: MarketAnalysis }) {
           <Zap className="h-4 w-4 text-violet-500" /> AI Market Analysis
         </p>
         <p className="text-xs text-slate-400 mt-0.5">
-          Phân tích tất cả đối thủ bởi Gemini AI
+          {t("meta.intel.mkt.sub")}
           {analysis.analyzedAt && (
             <span className="ml-1 text-[10px] text-slate-300">
-              · {new Date(analysis.analyzedAt).toLocaleString("vi-VN", {
+              · {new Date(analysis.analyzedAt).toLocaleString(intl, {
                 hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit",
               })}
             </span>
@@ -585,7 +591,7 @@ function MarketAnalysisPanel({ analysis }: { analysis: MarketAnalysis }) {
         <div className="space-y-4">
           <div className="p-4 rounded-xl bg-gradient-to-br from-violet-50 to-blue-50 border border-violet-100">
             <p className="text-[10px] font-bold text-violet-500 uppercase tracking-wider mb-2 flex items-center gap-1">
-              <Globe className="h-3 w-3" /> Tổng quan thị trường
+              <Globe className="h-3 w-3" /> {t("meta.intel.mkt.overview")}
             </p>
             <p className="text-sm text-slate-700 leading-relaxed font-medium">
               {analysis.marketOverview}
@@ -594,7 +600,7 @@ function MarketAnalysisPanel({ analysis }: { analysis: MarketAnalysis }) {
 
           <div className="p-4 rounded-xl bg-amber-50 border border-amber-100">
             <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider mb-2 flex items-center gap-1">
-              <Target className="h-3 w-3" /> Kênh thống trị ngành
+              <Target className="h-3 w-3" /> {t("meta.intel.mkt.dominant")}
             </p>
             <p className="text-sm font-bold text-amber-800">
               {analysis.dominantChannels.channel.toUpperCase()}
@@ -604,7 +610,7 @@ function MarketAnalysisPanel({ analysis }: { analysis: MarketAnalysis }) {
             </p>
             {analysis.estimatedDomains && analysis.estimatedDomains.length > 0 && (
               <div className="mt-2 text-[10px] font-semibold text-amber-700 bg-amber-100/70 border border-amber-200 rounded-lg px-2 py-1.5 flex items-center gap-1.5">
-                ⚠️ Thiếu số SimilarWeb ở ({analysis.estimatedDomains.join(", ")}) — kết luận chỉ dựa trên phần đo được
+                {t("meta.intel.mkt.swMissing", { list: analysis.estimatedDomains.join(", ") })}
               </div>
             )}
           </div>
@@ -612,7 +618,7 @@ function MarketAnalysisPanel({ analysis }: { analysis: MarketAnalysis }) {
           {analysis.underinvestedChannels && analysis.underinvestedChannels.length > 0 && (
             <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-100">
               <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider mb-2 flex items-center gap-1">
-                <TrendingDown className="h-3 w-3" /> Kênh bỏ ngỏ
+                <TrendingDown className="h-3 w-3" /> {t("meta.intel.mkt.under")}
               </p>
               <div className="flex flex-wrap gap-1.5">
                 {analysis.underinvestedChannels.map((ch) => (
@@ -631,7 +637,7 @@ function MarketAnalysisPanel({ analysis }: { analysis: MarketAnalysis }) {
         {/* Col 2: Competitor Highlights */}
         <div className="space-y-3">
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-            <Shield className="h-3 w-3" /> Đánh giá từng đối thủ
+            <Shield className="h-3 w-3" /> {t("meta.intel.mkt.each")}
           </p>
           {analysis.competitorHighlights?.map((h) => (
             <div
@@ -643,10 +649,10 @@ function MarketAnalysisPanel({ analysis }: { analysis: MarketAnalysis }) {
                   {h.domain}
                   {analysis.estimatedDomains?.includes(h.domain) && (
                     <span
-                      title="Thiếu số SimilarWeb (API lỗi/bị chặn) — không có số bù"
+                      title={t("meta.intel.mkt.missingTitle")}
                       className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded px-1 py-0.5 shrink-0"
                     >
-                      ⚠️ thiếu số
+                      {t("meta.intel.mkt.missing")}
                     </span>
                   )}
                 </p>
@@ -660,7 +666,7 @@ function MarketAnalysisPanel({ analysis }: { analysis: MarketAnalysis }) {
                   threatColor[h.threat] || threatColor.low
                 )}
               >
-                {h.threat === "high" ? "🔴 Cao" : h.threat === "medium" ? "🟡 TB" : "🟢 Thấp"}
+                {h.threat === "high" ? t("meta.intel.threat.high") : h.threat === "medium" ? t("meta.intel.threat.medium") : t("meta.intel.threat.low")}
               </span>
             </div>
           ))}
@@ -669,14 +675,14 @@ function MarketAnalysisPanel({ analysis }: { analysis: MarketAnalysis }) {
         {/* Col 3: Opportunity for MBC */}
         <div className="space-y-4">
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-            <Lightbulb className="h-3 w-3 text-amber-500" /> Cơ hội cho MBC/MBI
+            <Lightbulb className="h-3 w-3 text-amber-500" /> {t("meta.intel.mkt.opp")}
           </p>
 
           <div className="p-4 rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200">
             <div className="flex items-center gap-2 mb-3">
               <span className="text-lg">🎯</span>
               <div>
-                <p className="text-[10px] font-bold text-blue-500 uppercase">Kênh tốt nhất</p>
+                <p className="text-[10px] font-bold text-blue-500 uppercase">{t("meta.intel.mkt.best")}</p>
                 <p className="text-sm font-bold text-blue-800">
                   {analysis.opportunityForMBC.bestChannel}
                 </p>
@@ -687,7 +693,7 @@ function MarketAnalysisPanel({ analysis }: { analysis: MarketAnalysis }) {
             </p>
             <div className="p-3 rounded-lg bg-white/80 border border-blue-100">
               <p className="text-[10px] font-bold text-blue-500 uppercase mb-1 flex items-center gap-1">
-                <ArrowRight className="h-3 w-3" /> Quick Win tuần này
+                <ArrowRight className="h-3 w-3" /> {t("meta.intel.mkt.quickWin")}
               </p>
               <p className="text-xs text-blue-800 font-medium leading-relaxed">
                 {analysis.opportunityForMBC.quickWin}
@@ -705,6 +711,8 @@ function MarketAnalysisPanel({ analysis }: { analysis: MarketAnalysis }) {
 // ─────────────────────────────────────────────
 
 export default function IntelligencePage() {
+  const t = useT();
+  const intl = useIntlLocale();
   const [competitors, setCompetitors] = useState<CompetitorIntel[]>([]);
   const [marketAnalysis, setMarketAnalysisState] = useState<MarketAnalysis | null>(null);
   const [alerts, setAlerts] = useState<IntelAlert[]>([]);
@@ -749,19 +757,19 @@ export default function IntelligencePage() {
 
   const handleSync = async () => {
     setSyncing(true);
-    setSyncProgress("Đang khởi tạo...");
+    setSyncProgress(t("meta.intel.sync.starting"));
     try {
-      setSyncProgress("Đang thu thập dữ liệu từ 4 nguồn + AI...");
+      setSyncProgress(t("meta.intel.sync.collecting"));
       const res = await fetch("/api/intelligence", { method: "POST" });
       const data = await res.json();
       setSyncProgress(
         data.success
           ? `✅ ${data.message}`
-          : `❌ ${data.error || "Lỗi không xác định"}`
+          : `❌ ${data.error || t("meta.intel.sync.unknown")}`
       );
       await fetchData();
     } catch {
-      setSyncProgress("❌ Sync thất bại");
+      setSyncProgress(t("meta.intel.sync.failed"));
     } finally {
       setSyncing(false);
       setTimeout(() => setSyncProgress(""), 5000);
@@ -777,14 +785,14 @@ export default function IntelligencePage() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-            🕵️ Competitor Intelligence
+            {t("meta.intel.title")}
           </h1>
           <p className="text-sm text-slate-400 mt-0.5">
-            {competitors.length} đối thủ · 4 nguồn dữ liệu · AI phân tích kênh
+            {t("meta.intel.sub", { n: competitors.length })}
             {lastSyncAt && (
               <span className="ml-2 text-[10px] text-slate-300">
-                · Sync lần cuối:{" "}
-                {new Date(lastSyncAt).toLocaleString("vi-VN", {
+                {t("meta.intel.lastSync")}
+                {new Date(lastSyncAt).toLocaleString(intl, {
                   hour: "2-digit",
                   minute: "2-digit",
                   day: "2-digit",
@@ -814,7 +822,7 @@ export default function IntelligencePage() {
             ) : (
               <RefreshCw className="h-3.5 w-3.5" />
             )}
-            {syncing ? "Đang sync..." : "🔄 Sync ngay"}
+            {syncing ? t("meta.intel.syncing") : t("meta.intel.syncNow")}
           </Button>
         </div>
       </div>
@@ -840,10 +848,10 @@ export default function IntelligencePage() {
               <div>
                   <p className="text-sm font-bold text-slate-800 flex items-center gap-2">
                      <Target className="h-4 w-4 text-teal-600" />
-                     Bid Strategy Health (Bản thân MBC)
+                     {t("meta.intel.bid.title")}
                   </p>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Xác định các chiến dịch đang bị Lạm phát giá thầu (Bid Inflation), Ngân sách không đủ cho Target CPA, & Kẹt mốc máy học — dữ liệu thật từ Google Ads.
+                    {t("meta.intel.bid.desc")}
                   </p>
               </div>
           </div>
@@ -851,7 +859,7 @@ export default function IntelligencePage() {
               {loadingBid ? (
                   <div className="flex items-center justify-center p-4"><Loader2 className="h-6 w-6 animate-spin text-teal-500"/></div>
               ) : bidIssues.length === 0 ? (
-                  <p className="text-sm text-slate-500 italic text-center py-4">Tất cả chiến dịch đang phân phối tốt, thuật toán ổn định.</p>
+                  <p className="text-sm text-slate-500 italic text-center py-4">{t("meta.intel.bid.ok")}</p>
               ) : (
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                      {bidIssues.map((issue, idx) => (
@@ -883,10 +891,10 @@ export default function IntelligencePage() {
       <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white">
           <p className="text-sm font-bold text-slate-800 flex items-center gap-2">
-            📊 Channel Dominance Map
+            {t("meta.intel.map.title")}
           </p>
           <p className="text-xs text-slate-400 mt-0.5">
-            Click vào đối thủ để xem chi tiết · Điểm 0-100 · Màu càng đỏ = đầu tư càng mạnh
+            {t("meta.intel.map.sub")}
           </p>
         </div>
 
@@ -898,10 +906,10 @@ export default function IntelligencePage() {
           <div className="flex flex-col items-center justify-center h-48 text-center p-5">
             <Activity className="h-8 w-8 text-slate-300 mb-3" />
             <p className="text-sm text-slate-500 font-medium">
-              Chưa có dữ liệu intelligence
+              {t("meta.intel.map.empty")}
             </p>
             <p className="text-xs text-slate-400 mt-1 mb-4">
-              Ấn nút &quot;Sync ngay&quot; để bắt đầu thu thập dữ liệu từ 4 nguồn
+              {t("meta.intel.map.emptyHint")}
             </p>
             <Button
               size="sm"
@@ -910,7 +918,7 @@ export default function IntelligencePage() {
               disabled={syncing}
             >
               <RefreshCw className="h-3.5 w-3.5" />
-              Sync ngay
+              {t("meta.intel.syncNowPlain")}
             </Button>
           </div>
         ) : (
@@ -919,7 +927,7 @@ export default function IntelligencePage() {
               <thead>
                 <tr className="border-b border-slate-100">
                   <th className="text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider pb-3 pt-4 px-5 w-36">
-                    Đối thủ
+                    {t("meta.intel.map.competitor")}
                   </th>
                   {SCORE_KEYS.map((sk) => (
                     <th
@@ -967,10 +975,10 @@ export default function IntelligencePage() {
                               {c.name}
                               {analysis?.isEstimated && (
                                 <span
-                                  title="Thiếu số SimilarWeb (API lỗi/bị chặn) — điểm kênh dưới đây chỉ tính từ phần đo được (quảng cáo đang chạy)"
+                                  title={t("meta.intel.map.swMissingTitle")}
                                   className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded px-1 py-0.5 shrink-0"
                                 >
-                                  ⚠️ thiếu số
+                                  {t("meta.intel.mkt.missing")}
                                 </span>
                               )}
                             </p>
@@ -1021,7 +1029,7 @@ export default function IntelligencePage() {
       {/* ── Heatmap Legend ── */}
       {hasData && (
         <div className="flex items-center gap-3 justify-center text-[10px] text-slate-400 font-medium">
-          <span>Chú thích:</span>
+          <span>{t("meta.intel.legend")}</span>
           <div className="flex items-center gap-1">
             <div className="w-4 h-3 rounded bg-slate-100" />
             <span>0–19</span>

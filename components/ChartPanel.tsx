@@ -15,6 +15,8 @@ import {
 } from "recharts";
 import type { ReportData } from "@/types/ads.types";
 import { cn } from "@/lib/utils";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
+import type { TFunction } from "@/lib/i18n/translate";
 
 // ---- Props ----
 interface ChartPanelProps {
@@ -30,11 +32,11 @@ function fmtDate(iso: string) {
   return `${d}/${m}`;
 }
 
-function fmtMoney(v: number) {
-  if (v >= 1_000_000_000) return `₫${(v / 1_000_000_000).toFixed(1)}Tỷ`;
-  if (v >= 1_000_000)     return `₫${(v / 1_000_000).toFixed(1)}Tr`;
+function fmtMoney(v: number, t: TFunction, intl: string) {
+  if (v >= 1_000_000_000) return `₫${(v / 1_000_000_000).toFixed(1)}${t("panels.chart.unitB")}`;
+  if (v >= 1_000_000)     return `₫${(v / 1_000_000).toFixed(1)}${t("panels.chart.unitM")}`;
   if (v >= 1_000)         return `₫${(v / 1_000).toFixed(0)}K`;
-  return `₫${Math.round(v).toLocaleString("vi-VN")}`;
+  return `₫${Math.round(v).toLocaleString(intl)}`;
 }
 
 // ---- Custom Tooltip ----
@@ -53,6 +55,8 @@ interface CustomTooltipProps {
 }
 
 function CustomTooltip({ active, payload, label, tab }: CustomTooltipProps) {
+  const t = useT();
+  const intl = useIntlLocale();
   if (!active || !payload?.length) return null;
 
   return (
@@ -66,7 +70,7 @@ function CustomTooltip({ active, payload, label, tab }: CustomTooltipProps) {
           <span style={{ color: entry.color }}>{entry.name}</span>
           <span className="font-semibold text-white">
             {tab === "spend"
-              ? fmtMoney(entry.value)
+              ? fmtMoney(entry.value, t, intl)
               : entry.dataKey === "roas"
               ? `${entry.value.toFixed(2)}x`
               : `${entry.value.toFixed(2)}%`}
@@ -94,6 +98,8 @@ function ChartSkeleton() {
 
 // ---- Main Component ----
 export default function ChartPanel({ data, isLoading = false }: ChartPanelProps) {
+  const t = useT();
+  const intl = useIntlLocale();
   const [activeTab, setActiveTab] = useState<Tab>("spend");
 
   // Aggregate by date — track raw values, compute derived fields at end
@@ -140,12 +146,12 @@ export default function ChartPanel({ data, isLoading = false }: ChartPanelProps)
       <div className="mb-4 flex items-center justify-between gap-4">
         <div>
           <h3 className="text-sm font-semibold text-slate-800">
-            {activeTab === "spend" ? "Chi tiêu theo ngày" : "CTR theo ngày"}
+            {activeTab === "spend" ? t("panels.chart.spendTitle") : t("panels.chart.ctrTitle")}
           </h3>
           <p className="text-xs text-slate-400 mt-0.5">
             {activeTab === "spend"
-              ? "Facebook vs Google — chi tiêu thực tế từng ngày"
-              : "Click-through rate theo ngày"}
+              ? t("panels.chart.spendSub")
+              : t("panels.chart.ctrSub")}
           </p>
         </div>
 
@@ -153,8 +159,8 @@ export default function ChartPanel({ data, isLoading = false }: ChartPanelProps)
         <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-0.5">
           {(
             [
-              { key: "spend", label: "Chi tiêu theo ngày" },
-              { key: "ctr",   label: "CTR theo ngày" },
+              { key: "spend", label: t("panels.chart.spendTitle") },
+              { key: "ctr",   label: t("panels.chart.ctrTitle") },
             ] as { key: Tab; label: string }[]
           ).map(({ key, label }) => (
             <button
@@ -179,7 +185,7 @@ export default function ChartPanel({ data, isLoading = false }: ChartPanelProps)
       ) : isEmpty ? (
         <div className="flex h-[200px] md:h-[280px] items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50">
           <p className="text-sm text-slate-400">
-            Không có dữ liệu. Kết nối tài khoản quảng cáo để xem biểu đồ.
+            {t("panels.chart.empty")}
           </p>
         </div>
       ) : activeTab === "spend" ? (
@@ -204,7 +210,7 @@ export default function ChartPanel({ data, isLoading = false }: ChartPanelProps)
               <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
               <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#94A3B8" }} axisLine={false} tickLine={false} />
               <YAxis
-                tickFormatter={fmtMoney}
+                tickFormatter={(v: number) => fmtMoney(v, t, intl)}
                 tick={{ fontSize: 11, fill: "#94A3B8" }}
                 axisLine={false}
                 tickLine={false}
@@ -217,7 +223,7 @@ export default function ChartPanel({ data, isLoading = false }: ChartPanelProps)
               <Area
                 type="monotone"
                 dataKey="spend"
-                name="Tổng chi"
+                name={t("panels.chart.total")}
                 stroke="#8B5CF6"
                 strokeWidth={1.5}
                 strokeDasharray="4 3"
@@ -280,7 +286,7 @@ export default function ChartPanel({ data, isLoading = false }: ChartPanelProps)
       {/* Note */}
       {activeTab === "spend" && !isEmpty && (
         <p className="mt-2 text-[10px] text-slate-400 text-center">
-          Chi tiêu thực tế từng ngày theo kênh. Tổng (nét đứt) = Facebook + Google.
+          {t("panels.chart.note")}
         </p>
       )}
     </div>

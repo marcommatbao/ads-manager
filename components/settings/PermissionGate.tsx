@@ -14,6 +14,7 @@
 // ============================================================
 
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 interface Props {
   /** Whether the user has the required permission. */
@@ -36,6 +37,7 @@ export function PermissionGate({
   className,
   children,
 }: Props) {
+  const t = useT();
   if (allowed) return <>{children}</>;
   if (fallback === "hide") return null;
 
@@ -43,7 +45,7 @@ export function PermissionGate({
   return (
     <div
       className={cn("pointer-events-none select-none opacity-40", className)}
-      title={reason ?? "Không có quyền"}
+      title={reason ?? t("creative.settingsGate.noPerm")}
       aria-disabled="true"
     >
       {children}
@@ -57,10 +59,11 @@ export function PermissionGate({
  * Thin banner shown at the top of settings sections for viewers.
  */
 export function ReadOnlyBanner({ message }: { message?: string }) {
+  const t = useT();
   return (
     <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
       <span className="text-base">🔒</span>
-      {message ?? "Bạn đang ở chế độ xem — không thể chỉnh sửa trang này"}
+      {message ?? t("creative.settingsGate.readOnly")}
     </div>
   );
 }

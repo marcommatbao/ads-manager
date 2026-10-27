@@ -19,6 +19,8 @@ import useSWR from "swr";
 import { ChevronDown, Search, Check, AlertTriangle, Loader2 } from "lucide-react";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
+import type { TFunction } from "@/lib/i18n/translate";
 import type { ConversionEventOption, PixelEventsPayload } from "@/lib/meta-pixel-events";
 
 export interface ConversionEventSelection {
@@ -51,9 +53,9 @@ export function optionToSelection(o: ConversionEventOption): ConversionEventSele
   return { pixelEvent: o.enumValue, label: o.label, key: o.key };
 }
 
-function formatCount(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(".0", "")}tr`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(".0", "")}k`;
+function formatCount(n: number, t: TFunction): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(".0", "")}${t("creative.brief.convPicker.millionSuffix")}`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(".0", "")}${t("creative.brief.convPicker.thousandSuffix")}`;
   return String(n);
 }
 
@@ -64,6 +66,7 @@ const fetcher = async (url: string): Promise<PixelEventsPayload> => {
 };
 
 export default function ConversionEventPicker({ pixelId, value, onChange }: Props) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
 
@@ -109,19 +112,19 @@ export default function ConversionEventPicker({ pixelId, value, onChange }: Prop
     }
     activeGroup.sort((a, b) => (b.count ?? 0) - (a.count ?? 0));
     return [
-      { title: `Sự kiện đang hoạt động${data ? ` (${data.statsWindowDays} ngày qua)` : ""}`, items: activeGroup },
-      { title: "Chuyển đổi tùy chỉnh", items: customConv },
+      { title: data ? t("creative.brief.convPicker.activeTitleDays", { days: data.statsWindowDays }) : t("creative.brief.convPicker.activeTitle"), items: activeGroup },
+      { title: t("creative.brief.convPicker.customConversions"), items: customConv },
       {
         title: data?.activityKnown
-          ? `Sự kiện khác — chưa ghi nhận lượt nào trong ${data.statsWindowDays} ngày`
-          : "Sự kiện chuyển đổi",
+          ? t("creative.brief.convPicker.otherEvents", { days: data.statsWindowDays })
+          : t("creative.brief.convPicker.conversionEvents"),
         items: rest,
       },
     ].filter((g) => g.items.length > 0);
-  }, [filtered, data]);
+  }, [filtered, data, t]);
 
   const selectedOption = options.find((o) => o.key === value.key);
-  const triggerLabel = selectedOption?.label ?? value.label ?? "Chọn sự kiện chuyển đổi";
+  const triggerLabel = selectedOption?.label ?? value.label ?? t("creative.brief.convPicker.choose");
 
   return (
     <div>
@@ -146,26 +149,26 @@ export default function ConversionEventPicker({ pixelId, value, onChange }: Prop
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Tìm sự kiện…"
+                placeholder={t("creative.brief.convPicker.search")}
                 className="w-full bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-300"
               />
             </div>
           </div>
 
           {!pixelId && (
-            <p className="px-3 py-3 text-xs text-slate-400">Chọn Facebook Pixel trước để nạp danh sách sự kiện.</p>
+            <p className="px-3 py-3 text-xs text-slate-400">{t("creative.brief.convPicker.needPixel")}</p>
           )}
 
           {loading && (
             <p className="flex items-center gap-2 px-3 py-3 text-xs text-slate-400">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Đang đọc sự kiện từ Pixel…
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> {t("creative.brief.convPicker.reading")}
             </p>
           )}
 
           {loadError && (
             <p className="flex items-start gap-1.5 px-3 py-2 text-[11px] text-red-600">
               <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
-              Không gọi được API sự kiện ({loadError instanceof Error ? loadError.message : String(loadError)}).
+              {t("creative.brief.convPicker.apiError", { message: loadError instanceof Error ? loadError.message : String(loadError) })}
             </p>
           )}
 
@@ -178,7 +181,7 @@ export default function ConversionEventPicker({ pixelId, value, onChange }: Prop
 
           <div className="max-h-72 overflow-y-auto py-1">
             {groups.length === 0 && !loading && pixelId && (
-              <p className="px-3 py-3 text-xs text-slate-400">Không có sự kiện nào khớp “{query}”.</p>
+              <p className="px-3 py-3 text-xs text-slate-400">{t("creative.brief.convPicker.noMatch", { query })}</p>
             )}
 
             {groups.map((group) => (
@@ -217,7 +220,7 @@ export default function ConversionEventPicker({ pixelId, value, onChange }: Prop
 
                       {typeof o.count === "number" && o.count > 0 && (
                         <span className="shrink-0 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
-                          {formatCount(o.count)} lượt
+                          {t("creative.brief.convPicker.count", { count: formatCount(o.count, t) })}
                         </span>
                       )}
                     </button>
@@ -231,12 +234,12 @@ export default function ConversionEventPicker({ pixelId, value, onChange }: Prop
 
       {data?.source === "fallback" && (
         <p className="mt-1 text-[10px] text-amber-600">
-          ⚠️ Đang hiển thị danh mục tiêu chuẩn tĩnh — chưa đọc được dữ liệu thật từ Pixel.
+          {t("creative.brief.convPicker.fallback")}
         </p>
       )}
       {data?.activityKnown === false && data?.source === "live" && (
         <p className="mt-1 text-[10px] text-slate-400">
-          Không đọc được lượt bắn của Pixel nên không đánh dấu sự kiện nào là “đang hoạt động”.
+          {t("creative.brief.convPicker.activityUnknown")}
         </p>
       )}
     </div>

@@ -14,33 +14,35 @@ import { PRODUCTS_BY_COMPANY } from "@/app/(dashboard)/creative/_constants";
 import type { AudienceSegment } from "@/app/(dashboard)/creative/_types";
 import type { BriefInput, CreativeBrief, BriefCompany, BriefPlatform, BriefObjective, BriefFunnelStage } from "@/lib/creative-brief/types";
 import { companyIds } from "@/lib/companies/registry";
+import { useT } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/messages";
 
 // ── Step config ───────────────────────────────────────────────
 
-const STEPS = [
-  { id: 1, label: "Sản phẩm",   icon: <Globe className="h-4 w-4" /> },
-  { id: 2, label: "Audience",   icon: <Users className="h-4 w-4" /> },
-  { id: 3, label: "Chiến lược", icon: <Settings className="h-4 w-4" /> },
-  { id: 4, label: "Brief",      icon: <FileText className="h-4 w-4" /> },
+const STEPS: { id: number; label: MessageKey; icon: React.ReactNode }[] = [
+  { id: 1, label: "creative.brief.builder.stepProduct",  icon: <Globe className="h-4 w-4" /> },
+  { id: 2, label: "creative.brief.builder.stepAudience", icon: <Users className="h-4 w-4" /> },
+  { id: 3, label: "creative.brief.builder.stepStrategy", icon: <Settings className="h-4 w-4" /> },
+  { id: 4, label: "creative.brief.builder.stepBrief",    icon: <FileText className="h-4 w-4" /> },
 ];
 
-const OBJECTIVE_OPTIONS: { value: BriefObjective; label: string; desc: string }[] = [
-  { value: "awareness",     label: "Nhận biết",    desc: "Brand mới hoặc sản phẩm mới ra mắt" },
-  { value: "consideration", label: "Cân nhắc",     desc: "Khách biết vấn đề, đang so sánh" },
-  { value: "conversion",    label: "Chuyển đổi",   desc: "Khách warm — push mua / đăng ký" },
-  { value: "retention",     label: "Giữ chân",     desc: "Gia hạn, upsell khách cũ" },
+const OBJECTIVE_OPTIONS: { value: BriefObjective; label: MessageKey; desc: MessageKey }[] = [
+  { value: "awareness",     label: "creative.brief.builder.objAwarenessLabel",     desc: "creative.brief.builder.objAwarenessDesc" },
+  { value: "consideration", label: "creative.brief.builder.objConsiderationLabel", desc: "creative.brief.builder.objConsiderationDesc" },
+  { value: "conversion",    label: "creative.brief.builder.objConversionLabel",    desc: "creative.brief.builder.objConversionDesc" },
+  { value: "retention",     label: "creative.brief.builder.objRetentionLabel",     desc: "creative.brief.builder.objRetentionDesc" },
 ];
 
-const FUNNEL_OPTIONS: { value: BriefFunnelStage; label: string; tag: string }[] = [
-  { value: "top",    label: "Top of Funnel (TOFU)", tag: "Cold audience" },
-  { value: "mid",    label: "Mid Funnel (MOFU)",    tag: "Warm audience" },
-  { value: "bottom", label: "Bottom Funnel (BOFU)", tag: "Hot audience" },
+const FUNNEL_OPTIONS: { value: BriefFunnelStage; label: MessageKey; tag: MessageKey }[] = [
+  { value: "top",    label: "creative.brief.builder.funnelTop",    tag: "creative.brief.builder.funnelTopTag" },
+  { value: "mid",    label: "creative.brief.builder.funnelMid",    tag: "creative.brief.builder.funnelMidTag" },
+  { value: "bottom", label: "creative.brief.builder.funnelBottom", tag: "creative.brief.builder.funnelBottomTag" },
 ];
 
-const PLATFORM_OPTIONS: { value: BriefPlatform; label: string }[] = [
+const PLATFORM_OPTIONS: { value: BriefPlatform; label: MessageKey | string }[] = [
   { value: "facebook", label: "Facebook / Meta" },
   { value: "google",   label: "Google Ads" },
-  { value: "both",     label: "Cả hai" },
+  { value: "both",     label: "creative.brief.builder.platformBoth" },
 ];
 
 // ── Sub-components ─────────────────────────────────────────────
@@ -71,6 +73,7 @@ function RadioCard<T extends string>({
 }
 
 function StepIndicator({ step, total }: { step: number; total: number }) {
+  const t = useT();
   return (
     <div className="flex items-center gap-2">
       {STEPS.map((s, i) => (
@@ -84,7 +87,7 @@ function StepIndicator({ step, total }: { step: number; total: number }) {
             {step > s.id ? <Check className="h-3.5 w-3.5" /> : s.id}
           </div>
           <span className={cn("text-[10px] hidden sm:block", step === s.id ? "text-indigo-600 font-semibold" : "text-slate-400")}>
-            {s.label}
+            {t(s.label)}
           </span>
           {i < STEPS.length - 1 && <div className={cn("w-6 h-px", step > s.id ? "bg-indigo-300" : "bg-slate-200")} />}
         </div>
@@ -101,6 +104,7 @@ interface Props {
 }
 
 export function BriefBuilder({ initialCompany = "MBC", onBriefGenerated }: Props) {
+  const t = useT();
   const [step, setStep] = useState(1);
 
   // Step 1
@@ -150,13 +154,12 @@ export function BriefBuilder({ initialCompany = "MBC", onBriefGenerated }: Props
       setAvailableSegs(json.data?.segments ?? []);
     } catch (err) {
       setSegError(
-        `Không thể tải danh sách segments (${err instanceof Error ? err.message : "lỗi không rõ"}). ` +
-        "Bạn có thể nhập mô tả audience thủ công.",
+        t("creative.brief.builder.segLoadError", { message: err instanceof Error ? err.message : t("creative.brief.builder.unknownError") }),
       );
     } finally {
       setSegLoading(false);
     }
-  }, [company, availableSegs.length]);
+  }, [company, availableSegs.length, t]);
 
   const goToStep = (next: number) => {
     if (next === 2) loadSegments();
@@ -172,7 +175,7 @@ export function BriefBuilder({ initialCompany = "MBC", onBriefGenerated }: Props
   };
 
   const generate = async () => {
-    if (!product) { setGenError("Vui lòng chọn sản phẩm"); return; }
+    if (!product) { setGenError(t("creative.brief.builder.pickProduct")); return; }
 
     setGenerating(true);
     setGenError(null);
@@ -210,10 +213,10 @@ export function BriefBuilder({ initialCompany = "MBC", onBriefGenerated }: Props
         setStep(4);
         onBriefGenerated?.(json.data.brief);
       } else {
-        setGenError(json.error ?? "Lỗi không xác định");
+        setGenError(json.error ?? t("creative.brief.builder.genUnknownError"));
       }
     } catch {
-      setGenError("Lỗi kết nối. Thử lại.");
+      setGenError(t("creative.brief.builder.connError"));
     } finally {
       setGenerating(false);
     }
@@ -231,11 +234,11 @@ export function BriefBuilder({ initialCompany = "MBC", onBriefGenerated }: Props
       {/* ── Step 1: Product ───────────────────────────────── */}
       {step === 1 && (
         <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-5">
-          <h2 className="text-sm font-bold text-slate-800">Sản phẩm & Platform</h2>
+          <h2 className="text-sm font-bold text-slate-800">{t("creative.brief.builder.step1Title")}</h2>
 
           {/* Company toggle */}
           <div>
-            <p className="text-[10px] font-bold text-slate-500 mb-2">CÔNG TY</p>
+            <p className="text-[10px] font-bold text-slate-500 mb-2">{t("creative.brief.builder.company")}</p>
             <div className="flex gap-2">
               {companyIds().map(c => (
                 <button
@@ -252,7 +255,7 @@ export function BriefBuilder({ initialCompany = "MBC", onBriefGenerated }: Props
 
           {/* Product grid */}
           <div>
-            <p className="text-[10px] font-bold text-slate-500 mb-2">SẢN PHẨM</p>
+            <p className="text-[10px] font-bold text-slate-500 mb-2">{t("creative.brief.builder.product")}</p>
             <div className="grid grid-cols-2 gap-2">
               {products.map(p => (
                 <button
@@ -275,10 +278,10 @@ export function BriefBuilder({ initialCompany = "MBC", onBriefGenerated }: Props
 
           {/* Platform */}
           <div>
-            <p className="text-[10px] font-bold text-slate-500 mb-2">PLATFORM</p>
+            <p className="text-[10px] font-bold text-slate-500 mb-2">{t("creative.brief.builder.platform")}</p>
             <div className="space-y-2">
               {PLATFORM_OPTIONS.map(opt => (
-                <RadioCard key={opt.value} value={opt.value} selected={platform} onClick={setPlatform} label={opt.label} />
+                <RadioCard key={opt.value} value={opt.value} selected={platform} onClick={setPlatform} label={opt.label.startsWith("creative.") ? t(opt.label as MessageKey) : opt.label} />
               ))}
             </div>
           </div>
@@ -288,7 +291,7 @@ export function BriefBuilder({ initialCompany = "MBC", onBriefGenerated }: Props
             onClick={() => goToStep(2)}
             disabled={!product}
           >
-            Tiếp tục <ChevronRight className="h-4 w-4" />
+            {t("creative.brief.builder.continue")} <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
       )}
@@ -296,16 +299,16 @@ export function BriefBuilder({ initialCompany = "MBC", onBriefGenerated }: Props
       {/* ── Step 2: Audience ──────────────────────────────── */}
       {step === 2 && (
         <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-5">
-          <h2 className="text-sm font-bold text-slate-800">Audience</h2>
+          <h2 className="text-sm font-bold text-slate-800">{t("creative.brief.builder.audience")}</h2>
 
           {/* Segment library */}
           <div>
             <p className="text-[10px] font-bold text-slate-500 mb-2">
-              CHỌN TỪ SEGMENT LIBRARY {segments.length > 0 && <span className="text-indigo-600">({segments.length} đã chọn)</span>}
+              {t("creative.brief.builder.segLibrary")} {segments.length > 0 && <span className="text-indigo-600">{t("creative.brief.builder.segSelected", { n: segments.length })}</span>}
             </p>
             {segLoading && (
               <div className="flex items-center gap-2 text-xs text-slate-400 py-4">
-                <Loader2 className="h-4 w-4 animate-spin" /> Đang tải segments...
+                <Loader2 className="h-4 w-4 animate-spin" /> {t("creative.brief.builder.segLoading")}
               </div>
             )}
             {segError && (
@@ -314,7 +317,7 @@ export function BriefBuilder({ initialCompany = "MBC", onBriefGenerated }: Props
               </p>
             )}
             {!segLoading && availableSegs.length === 0 && !segError && (
-              <p className="text-xs text-slate-400 py-2">Chưa có segments. Nhập mô tả audience bên dưới.</p>
+              <p className="text-xs text-slate-400 py-2">{t("creative.brief.builder.segEmpty")}</p>
             )}
             {availableSegs.length > 0 && (
               <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
@@ -347,20 +350,20 @@ export function BriefBuilder({ initialCompany = "MBC", onBriefGenerated }: Props
 
           {/* Custom note */}
           <div>
-            <p className="text-[10px] font-bold text-slate-500 mb-2">MÔ TẢ AUDIENCE (tuỳ chọn)</p>
+            <p className="text-[10px] font-bold text-slate-500 mb-2">{t("creative.brief.builder.audienceDesc")}</p>
             <textarea
               value={customNote}
               onChange={e => setCustomNote(e.target.value)}
-              placeholder="Ví dụ: Chủ doanh nghiệp SME HCM, 30-45 tuổi, đang dùng hosting cũ chậm..."
+              placeholder={t("creative.brief.builder.audiencePlaceholder")}
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs resize-none focus:outline-none focus:ring-2 focus:ring-indigo-300"
               rows={3}
             />
           </div>
 
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setStep(1)} className="gap-1 text-xs"><ChevronLeft className="h-3.5 w-3.5" /> Quay lại</Button>
+            <Button variant="outline" onClick={() => setStep(1)} className="gap-1 text-xs"><ChevronLeft className="h-3.5 w-3.5" /> {t("creative.brief.builder.back")}</Button>
             <Button className="flex-1 gap-2" onClick={() => goToStep(3)}>
-              Tiếp tục <ChevronRight className="h-4 w-4" />
+              {t("creative.brief.builder.continue")} <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
         </div>
@@ -369,39 +372,39 @@ export function BriefBuilder({ initialCompany = "MBC", onBriefGenerated }: Props
       {/* ── Step 3: Strategy ──────────────────────────────── */}
       {step === 3 && (
         <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-5">
-          <h2 className="text-sm font-bold text-slate-800">Chiến lược</h2>
+          <h2 className="text-sm font-bold text-slate-800">{t("creative.brief.builder.step3Title")}</h2>
 
           {/* Objective */}
           <div>
-            <p className="text-[10px] font-bold text-slate-500 mb-2">MỤC TIÊU</p>
+            <p className="text-[10px] font-bold text-slate-500 mb-2">{t("creative.brief.builder.objective")}</p>
             <div className="space-y-2">
               {OBJECTIVE_OPTIONS.map(opt => (
-                <RadioCard key={opt.value} value={opt.value} selected={objective} onClick={setObjective} label={opt.label} desc={opt.desc} />
+                <RadioCard key={opt.value} value={opt.value} selected={objective} onClick={setObjective} label={t(opt.label)} desc={t(opt.desc)} />
               ))}
             </div>
           </div>
 
           {/* Funnel stage */}
           <div>
-            <p className="text-[10px] font-bold text-slate-500 mb-2">GIAI ĐOẠN PHỄU</p>
+            <p className="text-[10px] font-bold text-slate-500 mb-2">{t("creative.brief.builder.funnelStage")}</p>
             <div className="space-y-2">
               {FUNNEL_OPTIONS.map(opt => (
                 <RadioCard key={opt.value} value={opt.value} selected={funnelStage} onClick={setFunnelStage}
-                  label={opt.label} desc={opt.tag} />
+                  label={t(opt.label)} desc={t(opt.tag)} />
               ))}
             </div>
           </div>
 
           {/* Optional fields */}
           <div className="space-y-3">
-            <p className="text-[10px] font-bold text-slate-500">THÔNG TIN THÊM (tuỳ chọn)</p>
-            <Input placeholder="Landing page URL" value={landingUrl} onChange={e => setLandingUrl(e.target.value)} className="text-xs" />
-            <Input placeholder="USP chính (để trống = tự động từ KB)" value={overrideUsp} onChange={e => setOverrideUsp(e.target.value)} className="text-xs" />
-            <Input placeholder="CTA tuỳ chỉnh (để trống = tự động)" value={overrideCta} onChange={e => setOverrideCta(e.target.value)} className="text-xs" />
-            <Input placeholder="Promotion (vd: Khuyến mãi 11/11)" value={promoLabel} onChange={e => setPromoLabel(e.target.value)} className="text-xs" />
+            <p className="text-[10px] font-bold text-slate-500">{t("creative.brief.builder.extra")}</p>
+            <Input placeholder={t("creative.brief.builder.landingUrl")} value={landingUrl} onChange={e => setLandingUrl(e.target.value)} className="text-xs" />
+            <Input placeholder={t("creative.brief.builder.usp")} value={overrideUsp} onChange={e => setOverrideUsp(e.target.value)} className="text-xs" />
+            <Input placeholder={t("creative.brief.builder.cta")} value={overrideCta} onChange={e => setOverrideCta(e.target.value)} className="text-xs" />
+            <Input placeholder={t("creative.brief.builder.promo")} value={promoLabel} onChange={e => setPromoLabel(e.target.value)} className="text-xs" />
             <div className="grid grid-cols-2 gap-2">
-              <Input placeholder="Ngân sách/ngày (₫)" value={budgetVnd} onChange={e => setBudgetVnd(e.target.value)} className="text-xs" />
-              <Input placeholder="Số ngày chạy" value={durationDays} onChange={e => setDurationDays(e.target.value)} className="text-xs" />
+              <Input placeholder={t("creative.brief.builder.dailyBudget")} value={budgetVnd} onChange={e => setBudgetVnd(e.target.value)} className="text-xs" />
+              <Input placeholder={t("creative.brief.builder.durationDays")} value={durationDays} onChange={e => setDurationDays(e.target.value)} className="text-xs" />
             </div>
           </div>
 
@@ -412,11 +415,11 @@ export function BriefBuilder({ initialCompany = "MBC", onBriefGenerated }: Props
           )}
 
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setStep(2)} className="gap-1 text-xs"><ChevronLeft className="h-3.5 w-3.5" /> Quay lại</Button>
+            <Button variant="outline" onClick={() => setStep(2)} className="gap-1 text-xs"><ChevronLeft className="h-3.5 w-3.5" /> {t("creative.brief.builder.back")}</Button>
             <Button className="flex-1 gap-2 bg-indigo-600 hover:bg-indigo-700" onClick={generate} disabled={generating}>
               {generating
-                ? <><Loader2 className="h-4 w-4 animate-spin" /> Đang tạo brief...</>
-                : <><Sparkles className="h-4 w-4" /> Tạo Brief</>}
+                ? <><Loader2 className="h-4 w-4 animate-spin" /> {t("creative.brief.builder.generating")}</>
+                : <><Sparkles className="h-4 w-4" /> {t("creative.brief.builder.generate")}</>}
             </Button>
           </div>
         </div>
@@ -426,14 +429,14 @@ export function BriefBuilder({ initialCompany = "MBC", onBriefGenerated }: Props
       {step === 4 && brief && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold text-slate-800">Creative Brief</h2>
+            <h2 className="text-sm font-bold text-slate-800">{t("creative.brief.builder.resultTitle")}</h2>
             <Button
               variant="outline"
               size="sm"
               className="gap-1 text-xs"
               onClick={() => { setBrief(null); setStep(1); }}
             >
-              <RefreshCw className="h-3.5 w-3.5" /> Tạo lại
+              <RefreshCw className="h-3.5 w-3.5" /> {t("creative.brief.builder.regenerate")}
             </Button>
           </div>
           <BriefPreview brief={brief} />

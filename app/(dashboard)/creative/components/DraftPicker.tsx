@@ -2,6 +2,7 @@
 
 import type { DraftMeta } from "@/lib/creative-ai-draft";
 import { useState } from "react";
+import { useT } from "@/lib/i18n/client";
 
 // ─────────────────────────────────────────────
 // DraftPicker
@@ -18,24 +19,25 @@ export function DraftPicker({
 }) {
   // Chụp mốc thời gian một lần lúc gắn component — xem chú thích cùng lý do ở
   // app/(dashboard)/competitors/page.tsx.
+  const t = useT();
   const [mountedAt] = useState(() => Date.now());
 
   function formatRelativeTime(iso: string): string {
     const diff = mountedAt - new Date(iso).getTime();
     const mins = Math.floor(diff / 60_000);
-    if (mins < 1) return "vừa xong";
-    if (mins < 60) return `${mins} phút trước`;
+    if (mins < 1) return t("creative.wizard.draft.justNow");
+    if (mins < 60) return t("creative.wizard.draft.minsAgo", { n: mins });
     const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `${hrs} giờ trước`;
-    return `${Math.floor(hrs / 24)} ngày trước`;
+    if (hrs < 24) return t("creative.wizard.draft.hrsAgo", { n: hrs });
+    return t("creative.wizard.draft.daysAgo", { n: Math.floor(hrs / 24) });
   }
 
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-        <h2 className="text-lg font-semibold mb-1">Tiếp tục campaign dở?</h2>
+        <h2 className="text-lg font-semibold mb-1">{t("creative.wizard.draft.title")}</h2>
         <p className="text-sm text-gray-500 mb-4">
-          Bạn có {drafts.length} campaign chưa hoàn thành
+          {t("creative.wizard.draft.count", { n: drafts.length })}
         </p>
 
         <div className="space-y-2 mb-6 max-h-64 overflow-y-auto">
@@ -54,14 +56,14 @@ export function DraftPicker({
                   <div>
                     <p className="font-medium text-sm">{draft.name}</p>
                     <p className="text-xs text-gray-400 mt-0.5">
-                      Đang ở Bước {draft.currentStep}/4
+                      {t("creative.wizard.draft.atStep", { n: draft.currentStep })}
                       {step1?.campaignName ? ` · ${step1.campaignName as string}` : ""}
                     </p>
                   </div>
                   <div className="text-right">
                     <p className="text-xs text-gray-400">{formatRelativeTime(draft.updatedAt)}</p>
                     <p className={`text-xs mt-0.5 ${daysLeft <= 1 ? "text-red-500" : "text-gray-300"}`}>
-                      Hết hạn sau {daysLeft} ngày
+                      {t("creative.wizard.draft.expiresIn", { n: daysLeft })}
                     </p>
                   </div>
                 </div>
@@ -83,7 +85,7 @@ export function DraftPicker({
             onClick={onNew}
             className="flex-1 rounded-xl border border-gray-200 py-2.5 text-sm text-gray-600 hover:bg-gray-50"
           >
-            + Tạo mới
+            {t("creative.wizard.draft.newBtn")}
           </button>
         </div>
       </div>

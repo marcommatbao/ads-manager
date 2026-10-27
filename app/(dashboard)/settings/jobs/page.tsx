@@ -4,6 +4,9 @@ import { useState, useEffect, useCallback } from "react";
 import { Loader2, Play, Pause, RefreshCw, CheckCircle2, XCircle, AlertTriangle, Clock, SkipForward, AlertCircle, Search, FileSearch } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useIntlLocale, useT } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/messages";
+import type { TFunction } from "@/lib/i18n/translate";
 
 // ── Types ────────────────────────────────────────────────
 
@@ -35,18 +38,18 @@ interface JobsResponse {
 
 // ── Helpers ───────────────────────────────────────────────
 
-function relTime(iso: string | null): string {
+function relTime(iso: string | null, t: TFunction): string {
   if (!iso) return "—";
   const d = Math.floor((Date.now() - Date.parse(iso)) / 1000);
-  if (d < 60)    return `${d}s trước`;
-  if (d < 3600)  return `${Math.floor(d / 60)}m trước`;
-  if (d < 86400) return `${Math.floor(d / 3600)}h trước`;
-  return `${Math.floor(d / 86400)}d trước`;
+  if (d < 60)    return t("creative.settingsJobs.ago.s", { n: d });
+  if (d < 3600)  return t("creative.settingsJobs.ago.m", { n: Math.floor(d / 60) });
+  if (d < 86400) return t("creative.settingsJobs.ago.h", { n: Math.floor(d / 3600) });
+  return t("creative.settingsJobs.ago.d", { n: Math.floor(d / 86400) });
 }
 
-function absTime(iso: string | null): string {
+function absTime(iso: string | null, loc: string): string {
   if (!iso) return "—";
-  return new Date(iso).toLocaleString("vi-VN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  return new Date(iso).toLocaleString(loc, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
 const RUN_STATUS: Record<JobRunStatus, { icon: React.ReactNode; cls: string }> = {
@@ -84,12 +87,13 @@ const EVENT_ACTION_STYLE: Record<NotifyEvent["action"], string> = {
   error:             "text-red-700 bg-red-50 border-red-200",
 };
 
-const EVENT_ACTION_LABEL: Record<NotifyEvent["action"], string> = {
-  sent: "Đã gửi", skipped_permanent: "Skip vĩnh viễn", skipped_retry: "Skip (sẽ thử lại)",
-  skipped_dedup: "Đã báo trước đó", error: "Lỗi",
+const EVENT_ACTION_LABEL: Record<NotifyEvent["action"], MessageKey> = {
+  sent: "creative.settingsJobs.ev.sent", skipped_permanent: "creative.settingsJobs.ev.skipPerm", skipped_retry: "creative.settingsJobs.ev.skipRetry",
+  skipped_dedup: "creative.settingsJobs.ev.skipDedup", error: "creative.settingsJobs.ev.error",
 };
 
 function OrdersNotifyEventLog() {
+  const t = useT();
   const [query, setQuery]     = useState("");
   const [events, setEvents]   = useState<NotifyEvent[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -111,7 +115,7 @@ function OrdersNotifyEventLog() {
       <div className="flex items-center gap-2">
         <FileSearch className="h-3.5 w-3.5 text-slate-400 shrink-0" />
         <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
-          Chi tiết từng đơn (sent/skip/error) — không cần xem log server
+          {t("creative.settingsJobs.log.title")}
         </p>
       </div>
       <div className="flex gap-2">
@@ -119,19 +123,19 @@ function OrdersNotifyEventLog() {
           <Search className="h-3.5 w-3.5 text-slate-400 absolute left-2 top-1/2 -translate-y-1/2" />
           <input
             className="w-full rounded-lg border border-slate-200 pl-7 pr-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-amber-400"
-            placeholder="Tìm theo mã đơn — vd: S6537276"
+            placeholder={t("creative.settingsJobs.log.placeholder")}
             value={query}
             onChange={e => setQuery(e.target.value)}
             onKeyDown={e => { if (e.key === "Enter") load(query); }}
           />
         </div>
         <Button variant="outline" size="sm" onClick={() => load(query)} disabled={loading} className="h-auto px-2 text-xs">
-          {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Tìm"}
+          {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : t("creative.settingsJobs.log.search")}
         </Button>
       </div>
       {events && events.length === 0 && (
         <p className="text-xs text-slate-400 italic">
-          {query ? `Không tìm thấy đơn nào khớp "${query}".` : "Chưa có event nào được ghi."}
+          {query ? t("creative.settingsJobs.log.notFound", { q: query }) : t("creative.settingsJobs.log.none")}
         </p>
       )}
       {events && events.length > 0 && (
@@ -139,7 +143,7 @@ function OrdersNotifyEventLog() {
           {events.map((e, i) => (
             <div key={`${e.orderId}-${e.ts}-${i}`} className="flex items-start gap-2 text-xs rounded-lg border border-slate-100 bg-white px-2 py-1.5">
               <span className={cn("shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded border", EVENT_ACTION_STYLE[e.action])}>
-                {EVENT_ACTION_LABEL[e.action]}
+                {t(EVENT_ACTION_LABEL[e.action])}
               </span>
               <div className="min-w-0 flex-1">
                 <span className="font-mono font-semibold text-slate-700">{e.orderName}</span>
@@ -147,7 +151,7 @@ function OrdersNotifyEventLog() {
                 <span className="text-slate-500">{e.pipeline}</span>
                 {e.reason && <p className="text-slate-500 mt-0.5 break-words">{e.reason}</p>}
               </div>
-              <span className="shrink-0 text-[10px] text-slate-400">{relTime(e.ts)}</span>
+              <span className="shrink-0 text-[10px] text-slate-400">{relTime(e.ts, t)}</span>
             </div>
           ))}
         </div>
@@ -170,6 +174,7 @@ interface TeamsWebhookRow {
 }
 
 function TeamsWebhooksPanel() {
+  const t = useT();
   // null = đang tải HOẶC không có quyền xem (guardViewCredentials 403) HOẶC
   // lỗi mạng — cả ba trường hợp panel đều ẩn, không cần state "canView" riêng.
   const [rows, setRows]       = useState<TeamsWebhookRow[] | null>(null);
@@ -211,8 +216,8 @@ function TeamsWebhooksPanel() {
         body: JSON.stringify({ [key]: value }),
       });
       const json = await res.json() as { ok?: boolean; message?: string };
-      if (json.ok) { showToast(json.message ?? "Đã lưu"); cancelEdit(key); await loadWebhooks(); }
-      else showToast(json.message ?? "Lỗi khi lưu", false);
+      if (json.ok) { showToast(json.message ?? t("creative.settingsJobs.tw.saved")); cancelEdit(key); await loadWebhooks(); }
+      else showToast(json.message ?? t("creative.settingsJobs.tw.saveErr"), false);
     } catch { showToast("Network error", false); }
     setSaving(s => ({ ...s, [key]: false }));
   };
@@ -232,13 +237,13 @@ function TeamsWebhooksPanel() {
     <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
       <div>
         <div className="flex items-center gap-2">
-          <p className="text-sm font-semibold text-slate-800">🔗 Webhook Teams</p>
+          <p className="text-sm font-semibold text-slate-800">{t("creative.settingsJobs.tw.title")}</p>
           <a href="/guide/ket-noi#teams" className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline">
-            Hướng dẫn →
+            {t("creative.settingsJobs.tw.guide")}
           </a>
         </div>
         <p className="text-xs text-slate-500 mt-0.5">
-          Link Teams cho từng loại thẻ. Đổi ở đây có hiệu lực ngay — không cần sửa code hay deploy lại.
+          {t("creative.settingsJobs.tw.desc")}
         </p>
       </div>
       <div className="space-y-2">
@@ -250,17 +255,17 @@ function TeamsWebhooksPanel() {
                 <input
                   autoFocus
                   className="mt-1 w-full rounded border border-slate-200 px-2 py-1 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-amber-400"
-                  placeholder="Dán link webhook Teams..."
+                  placeholder={t("creative.settingsJobs.tw.paste")}
                   value={editing[row.key]}
                   onChange={e => setEditing(ed => ({ ...ed, [row.key]: e.target.value }))}
                 />
               ) : (
                 <p className="text-xs font-mono text-slate-500 truncate">
-                  {row.connected ? row.value : "Chưa cấu hình"}
+                  {row.connected ? row.value : t("creative.settingsJobs.tw.notSet")}
                   {row.connected && (
                     <span className={cn("ml-1.5 text-[10px] font-sans", row.source === "env" ? "text-slate-400" : "text-emerald-600")}
-                      title={row.source === "env" ? "Đang chạy bằng biến môi trường Coolify — sửa ở đây sẽ không có tác dụng cho tới khi gỡ biến đó" : "Đang chạy bằng link lưu tại đây"}>
-                      {row.source === "env" ? "(biến môi trường)" : "(đặt ở đây)"}
+                      title={row.source === "env" ? t("creative.settingsJobs.tw.envTip") : t("creative.settingsJobs.tw.hereTip")}>
+                      {row.source === "env" ? t("creative.settingsJobs.tw.env") : t("creative.settingsJobs.tw.here")}
                     </span>
                   )}
                 </p>
@@ -268,15 +273,15 @@ function TeamsWebhooksPanel() {
             </div>
             {editing[row.key] !== undefined ? (
               <div className="flex gap-1 shrink-0">
-                <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => cancelEdit(row.key)}>Huỷ</Button>
+                <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => cancelEdit(row.key)}>{t("creative.settingsJobs.cancel")}</Button>
                 <Button size="sm" className="h-7 px-2 text-xs bg-amber-600 text-white hover:bg-amber-700"
                   disabled={!editing[row.key]?.trim() || saving[row.key]} onClick={() => save(row.key)}>
-                  {saving[row.key] ? <Loader2 className="h-3 w-3 animate-spin" /> : "Lưu"}
+                  {saving[row.key] ? <Loader2 className="h-3 w-3 animate-spin" /> : t("creative.settingsJobs.save")}
                 </Button>
               </div>
             ) : (
               <Button variant="outline" size="sm" className="h-7 px-2 text-xs shrink-0" onClick={() => startEdit(row.key)}>
-                Sửa
+                {t("creative.settingsJobs.edit")}
               </Button>
             )}
           </div>
@@ -292,25 +297,26 @@ function TeamsWebhooksPanel() {
 // ── Pause dialog ─────────────────────────────────────────
 
 function PauseDialog({ jobId, onConfirm, onCancel }: { jobId: string; onConfirm: (reason: string) => void; onCancel: () => void }) {
+  const t = useT();
   const [reason, setReason] = useState("");
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl space-y-4">
-        <p className="font-semibold text-slate-800">Tạm dừng job: <span className="font-mono text-sm text-slate-600">{jobId}</span></p>
-        <p className="text-xs text-slate-500">Nhập lý do — sẽ hiển thị trong trạng thái job và log.</p>
+        <p className="font-semibold text-slate-800">{t("creative.settingsJobs.pd.title")} <span className="font-mono text-sm text-slate-600">{jobId}</span></p>
+        <p className="text-xs text-slate-500">{t("creative.settingsJobs.pd.hint")}</p>
         <textarea
           className="w-full rounded-lg border border-slate-200 p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-400"
           rows={3}
-          placeholder="Ví dụ: Tạm dừng để điều tra anomaly ngày 17/6..."
+          placeholder={t("creative.settingsJobs.pd.placeholder")}
           value={reason}
           onChange={e => setReason(e.target.value)}
           autoFocus
         />
         <div className="flex gap-2 justify-end">
-          <Button variant="outline" size="sm" onClick={onCancel}>Huỷ</Button>
+          <Button variant="outline" size="sm" onClick={onCancel}>{t("creative.settingsJobs.cancel")}</Button>
           <Button size="sm" disabled={!reason.trim()} onClick={() => onConfirm(reason.trim())}
             className="bg-amber-600 text-white hover:bg-amber-700">
-            Xác nhận tạm dừng
+            {t("creative.settingsJobs.pd.confirm")}
           </Button>
         </div>
       </div>
@@ -329,6 +335,8 @@ function JobRow({
   onPause: () => void; onResume: () => void; onTrigger: () => void;
   acting: boolean; triggering: boolean;
 }) {
+  const t = useT();
+  const loc = useIntlLocale();
   const [expanded, setExpanded] = useState(false);
   const lastRun = state.lastRun;
   const runStatus = lastRun?.status;
@@ -357,9 +365,9 @@ function JobRow({
             {meta.schedulingStatus === "manual_only" && (
               <span
                 className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-500"
-                title="Không tự chạy theo lịch — chỉ chạy khi bấm Run thủ công"
+                title={t("creative.settingsJobs.manualTip")}
               >
-                CHỈ THỦ CÔNG
+                {t("creative.settingsJobs.manualOnly")}
               </span>
             )}
             <span className="text-xs text-slate-400">{meta.intervalLabel}</span>
@@ -372,10 +380,10 @@ function JobRow({
           {lastRun ? (
             <div className={cn("flex items-center gap-1 justify-end", RUN_STATUS[lastRun.status].cls)}>
               {RUN_STATUS[lastRun.status].icon}
-              <span className="text-xs font-medium">{relTime(lastRun.startedAt)}</span>
+              <span className="text-xs font-medium">{relTime(lastRun.startedAt, t)}</span>
             </div>
           ) : (
-            <span className="text-xs text-slate-400">Chưa chạy</span>
+            <span className="text-xs text-slate-400">{t("creative.settingsJobs.neverRun")}</span>
           )}
           {lastRun?.durationMs != null && (
             <p className="text-[10px] text-slate-400">{(lastRun.durationMs / 1000).toFixed(1)}s</p>
@@ -422,10 +430,10 @@ function JobRow({
               <AlertTriangle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
               <div>
                 <p className="text-xs font-semibold text-red-800">
-                  Job đã im {fmtDuration(state.staleForMs)} — đáng lẽ phải chạy {meta.intervalLabel?.toLowerCase() ?? "theo lịch"}
+                  {t("creative.settingsJobs.stale.title", { dur: fmtDuration(state.staleForMs, t), interval: meta.intervalLabel?.toLowerCase() ?? t("creative.settingsJobs.onSchedule") })}
                 </p>
                 <p className="text-xs text-red-700 mt-0.5">
-                  Không phải bị tạm dừng. Thường là crond trong container đã chết, hoặc máy chủ hết dung lượng đĩa nên job không ghi được kết quả.
+                  {t("creative.settingsJobs.stale.desc")}
                 </p>
               </div>
             </div>
@@ -434,9 +442,9 @@ function JobRow({
             <div className="flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-200 p-3">
               <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
               <div>
-                <p className="text-xs font-semibold text-amber-800">Job đang bị tạm dừng</p>
+                <p className="text-xs font-semibold text-amber-800">{t("creative.settingsJobs.paused")}</p>
                 {state.pauseReason && <p className="text-xs text-amber-700 mt-0.5">{state.pauseReason}</p>}
-                {state.pausedBy && <p className="text-[10px] text-amber-600 mt-0.5">Bởi {state.pausedBy} — {relTime(state.pausedAt)}</p>}
+                {state.pausedBy && <p className="text-[10px] text-amber-600 mt-0.5">{t("creative.settingsJobs.pausedBy", { by: state.pausedBy, when: relTime(state.pausedAt, t) })}</p>}
               </div>
             </div>
           )}
@@ -448,15 +456,15 @@ function JobRow({
           <div className="grid grid-cols-3 gap-3 text-xs">
             <div>
               <p className="text-slate-500 font-medium">Last success</p>
-              <p className="text-emerald-700 mt-0.5">{absTime(state.lastSuccess?.startedAt ?? null)}</p>
+              <p className="text-emerald-700 mt-0.5">{absTime(state.lastSuccess?.startedAt ?? null, loc)}</p>
             </div>
             <div>
               <p className="text-slate-500 font-medium">Last failure</p>
-              <p className="text-red-600 mt-0.5">{absTime(state.lastFailure?.startedAt ?? null)}</p>
+              <p className="text-red-600 mt-0.5">{absTime(state.lastFailure?.startedAt ?? null, loc)}</p>
             </div>
             <div>
               <p className="text-slate-500 font-medium">Next expected</p>
-              <p className="text-slate-700 mt-0.5">{absTime(state.nextExpectedAt)}</p>
+              <p className="text-slate-700 mt-0.5">{absTime(state.nextExpectedAt, loc)}</p>
             </div>
           </div>
 
@@ -467,7 +475,7 @@ function JobRow({
               {state.recentHistory.map(r => (
                 <div key={r.runId} className="flex items-center gap-2 text-xs">
                   <span className={cn("shrink-0", RUN_STATUS[r.status].cls)}>{RUN_STATUS[r.status].icon}</span>
-                  <span className="text-slate-500 w-20 shrink-0">{relTime(r.startedAt)}</span>
+                  <span className="text-slate-500 w-20 shrink-0">{relTime(r.startedAt, t)}</span>
                   {r.durationMs != null && <span className="text-slate-400 w-12 shrink-0">{(r.durationMs / 1000).toFixed(1)}s</span>}
                   <span className="text-slate-600 truncate">{r.resultSummary ?? r.errorSummary ?? r.status}</span>
                   <span className="text-slate-400 ml-auto shrink-0 text-[10px]">{r.triggeredBy}</span>
@@ -488,16 +496,18 @@ function JobRow({
 // ── Main page ─────────────────────────────────────────────
 
 /** 5400000 → "1 giờ 30 phút". Dùng cho cảnh báo job im. */
-function fmtDuration(ms: number | null): string {
+function fmtDuration(ms: number | null, t: TFunction): string {
   if (ms === null || ms <= 0) return "—";
   const mins = Math.floor(ms / 60_000);
   const h = Math.floor(mins / 60);
   const m = mins % 60;
-  if (h === 0) return `${m} phút`;
-  return m === 0 ? `${h} giờ` : `${h} giờ ${m} phút`;
+  if (h === 0) return t("creative.settingsJobs.dur.m", { m });
+  return m === 0 ? t("creative.settingsJobs.dur.h", { h }) : t("creative.settingsJobs.dur.hm", { h, m });
 }
 
 export default function JobsPage() {
+  const t = useT();
+  const loc = useIntlLocale();
   const [data, setData]           = useState<JobsResponse | null>(null);
   const [loading, setLoading]     = useState(true);
   const [pauseTarget, setPauseTarget] = useState<string | null>(null);
@@ -518,11 +528,11 @@ export default function JobsPage() {
     setRefreshing(true);
     try {
       const res = await fetch("/api/jobs", { cache: "no-store" });
-      if (res.ok) { setData(await res.json() as JobsResponse); setLoadError(null); setLoadedAt(new Date().toLocaleTimeString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })); }
-      else setLoadError(`Không tải được (HTTP ${res.status})`);
-    } catch { setLoadError("Lỗi mạng khi tải"); }
+      if (res.ok) { setData(await res.json() as JobsResponse); setLoadError(null); setLoadedAt(new Date().toLocaleTimeString(loc, { timeZone: "Asia/Ho_Chi_Minh" })); }
+      else setLoadError(t("creative.settingsJobs.err.http", { status: res.status }));
+    } catch { setLoadError(t("creative.settingsJobs.err.net")); }
     finally { setLoading(false); setRefreshing(false); }
-  }, []);
+  }, [t, loc]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -534,8 +544,8 @@ export default function JobsPage() {
         method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "pause", reason }),
       });
-      if (res.ok) { showToast(`Đã tạm dừng: ${jobId}`); await load(); }
-      else showToast("Lỗi khi tạm dừng", false);
+      if (res.ok) { showToast(t("creative.settingsJobs.toast.paused", { id: jobId })); await load(); }
+      else showToast(t("creative.settingsJobs.toast.pauseErr"), false);
     } catch { showToast("Network error", false); }
     setActing(a => ({ ...a, [jobId]: false }));
   };
@@ -547,8 +557,8 @@ export default function JobsPage() {
         method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "resume" }),
       });
-      if (res.ok) { showToast(`Đã khôi phục: ${jobId}`, true); await load(); }
-      else showToast("Lỗi khi resume", false);
+      if (res.ok) { showToast(t("creative.settingsJobs.toast.resumed", { id: jobId }), true); await load(); }
+      else showToast(t("creative.settingsJobs.toast.resumeErr"), false);
     } catch { showToast("Network error", false); }
     setActing(a => ({ ...a, [jobId]: false }));
   };
@@ -589,14 +599,14 @@ export default function JobsPage() {
             <span className="text-slate-500">{data.states.length} jobs</span>
             {pausedCount > 0 && <span className="text-amber-700 font-medium">{pausedCount} paused</span>}
             {failedCount > 0 && <span className="text-red-700 font-medium">{failedCount} last-failed</span>}
-            {staleCount > 0 && <span className="text-red-700 font-bold">{staleCount} đang im</span>}
+            {staleCount > 0 && <span className="text-red-700 font-bold">{t("creative.settingsJobs.silent", { n: staleCount })}</span>}
             <span className="text-slate-400">NBA_AUTO_APPLY = <span className={cn("font-semibold font-mono", data.nbaAutoApply === "on" ? "text-red-600" : "text-slate-600")}>{data.nbaAutoApply}</span></span>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {loadError ? <span className="text-[11px] text-red-600">{loadError}</span> : loadedAt && <span className="text-[11px] text-slate-400">Cập nhật lúc {loadedAt}</span>}
+          {loadError ? <span className="text-[11px] text-red-600">{loadError}</span> : loadedAt && <span className="text-[11px] text-slate-400">{t("creative.settingsJobs.updatedAt", { time: loadedAt })}</span>}
           <Button variant="outline" size="sm" onClick={load} disabled={refreshing} className="gap-1.5 text-xs border-slate-200">
-            <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} /> {refreshing ? "Đang tải…" : "Refresh"}
+            <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} /> {refreshing ? t("creative.settingsJobs.loadingEllipsis") : "Refresh"}
           </Button>
         </div>
       </div>
@@ -606,12 +616,9 @@ export default function JobsPage() {
         <div role="alert" className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4">
           <AlertTriangle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
           <div>
-            <p className="text-sm font-semibold text-red-800">Bộ hẹn giờ job đang KHÔNG chạy</p>
+            <p className="text-sm font-semibold text-red-800">{t("creative.settingsJobs.sched.title")}</p>
             <p className="text-xs text-red-700 mt-0.5">
-              {data.scheduler.status === "never"
-                ? "Chưa thấy nhịp hẹn giờ nào kể từ khi ứng dụng khởi động"
-                : `Lần hẹn giờ gần nhất cách đây ${Math.round((data.scheduler.ageSec ?? 0) / 60)} phút`} — mọi job tự động (báo cáo, cảnh báo, tự kiểm…) đang dừng.
-              Thường do tiến trình hẹn giờ trong container không khởi động được: khởi động lại ứng dụng; nếu vẫn vậy, xem log khởi động (dòng &ldquo;crond&rdquo;).
+              {t("creative.settingsJobs.sched.body", { head: data.scheduler.status === "never" ? t("creative.settingsJobs.sched.never") : t("creative.settingsJobs.sched.age", { n: Math.round((data.scheduler.ageSec ?? 0) / 60) }) })}
             </p>
           </div>
         </div>
@@ -624,7 +631,7 @@ export default function JobsPage() {
           <div>
             <p className="text-sm font-semibold text-red-800">NBA_AUTO_APPLY = on</p>
             <p className="text-xs text-red-700 mt-0.5">
-              {highRiskJobs} jobs có thể thực thi thay đổi thực trên tài khoản quảng cáo. Tắt về dry_run nếu không chắc chắn.
+              {t("creative.settingsJobs.nba", { n: highRiskJobs })}
             </p>
           </div>
         </div>

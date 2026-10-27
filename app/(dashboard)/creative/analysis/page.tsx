@@ -22,6 +22,8 @@ import {
   type CreativeScore,
 } from "@/lib/creative-scorer";
 import type { CreativeVariant } from "@/lib/creative-tracker";
+import { useIntlLocale, useT } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/messages";
 
 // ─────────────────────────────────────────────
 // SWR fetcher
@@ -39,8 +41,8 @@ function fmtNumber(n: number): string {
   return n.toString();
 }
 
-function fmtCurrency(n: number): string {
-  return new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 }).format(n);
+function fmtCurrency(n: number, loc: string): string {
+  return new Intl.NumberFormat(loc, { style: "currency", currency: "VND", maximumFractionDigits: 0 }).format(n);
 }
 
 function statusBadge(status: string): string {
@@ -51,6 +53,16 @@ function statusBadge(status: string): string {
     default:        return "bg-blue-100 text-blue-700";
   }
 }
+
+// Nhãn tiêu chí chấm điểm theo khoá (SCORE_DIMENSIONS.label trong lib là tiếng Việt cố định).
+const DIM_LABEL_KEY: Record<string, MessageKey> = {
+  hook: "creative.analysis.dim.hook",
+  clarity: "creative.analysis.dim.clarity",
+  socialProof: "creative.analysis.dim.socialProof",
+  offer: "creative.analysis.dim.offer",
+  cta: "creative.analysis.dim.cta",
+  imageText: "creative.analysis.dim.imageText",
+};
 
 function platformBadge(platform: string): string {
   return platform === "facebook"
@@ -125,6 +137,8 @@ function CircleScore({ score, size = 96, strokeWidth = 8 }: { score: number; siz
 // ─────────────────────────────────────────────
 
 function PerformanceTab() {
+  const t = useT();
+  const loc = useIntlLocale();
   const { data, error, isLoading } = useSWR<{ success: boolean; data: CreativeVariant[]; summary: Record<string, number> }>(
     "/api/creatives",
     fetcher,
@@ -183,7 +197,7 @@ function PerformanceTab() {
     return (
       <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
         <AlertCircle className="h-4 w-4 flex-shrink-0" />
-        Không thể tải dữ liệu creative. Vui lòng thử lại.
+        {t("creative.analysis.loadError")}
       </div>
     );
   }
@@ -193,26 +207,26 @@ function PerformanceTab() {
       {/* Stats row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard
-          label="Tổng creatives"
+          label={t("creative.analysis.totalCreatives")}
           value={String(totalCreatives)}
           icon={BarChart3}
         />
         <StatCard
-          label="CTR trung bình"
+          label={t("creative.analysis.avgCtr")}
           value={avgCtr === "—" ? "—" : `${avgCtr}%`}
-          sub="Tất cả platforms"
+          sub={t("creative.analysis.allPlatforms")}
           icon={TrendingUp}
         />
         <StatCard
-          label="Score trung bình"
+          label={t("creative.analysis.avgScore")}
           value={avgScore > 0 ? `${avgScore}` : "—"}
-          sub="AI quality score"
+          sub={t("creative.analysis.aiQualityScore")}
           icon={Sparkles}
         />
         <StatCard
-          label="Hiệu suất tốt nhất"
+          label={t("creative.analysis.bestPerformer")}
           value={bestPerformer ? `${bestPerformer.performance!.ctr.toFixed(2)}%` : "—"}
-          sub={bestPerformer?.headline?.slice(0, 20) ?? "Chưa có dữ liệu"}
+          sub={bestPerformer?.headline?.slice(0, 20) ?? t("creative.analysis.noData")}
           icon={Users}
         />
       </div>
@@ -221,9 +235,9 @@ function PerformanceTab() {
       {totalCreatives === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 py-16 text-center">
           <BarChart3 className="h-10 w-10 text-slate-300 mb-3" />
-          <p className="text-sm font-medium text-slate-500">Chưa có creative nào</p>
+          <p className="text-sm font-medium text-slate-500">{t("creative.analysis.noCreatives")}</p>
           <p className="text-xs text-slate-400 mt-1">
-            Tạo ad copy từ tab "Ad Copy" và lưu vào thư viện
+            {t("creative.analysis.noCreativesHint")}
           </p>
         </div>
       ) : (
@@ -235,10 +249,10 @@ function PerformanceTab() {
                   <th className="px-4 py-3 text-left">Creative</th>
                   <th className="px-4 py-3 text-left">Platform</th>
                   <th className="px-4 py-3 text-right">CTR</th>
-                  <th className="px-4 py-3 text-right">Lượt hiển thị</th>
-                  <th className="px-4 py-3 text-right">Chi phí</th>
+                  <th className="px-4 py-3 text-right">{t("creative.analysis.colImpressions")}</th>
+                  <th className="px-4 py-3 text-right">{t("creative.analysis.colCost")}</th>
                   <th className="px-4 py-3 text-right">Score</th>
-                  <th className="px-4 py-3 text-left">Trạng thái</th>
+                  <th className="px-4 py-3 text-left">{t("creative.analysis.colStatus")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
@@ -262,7 +276,7 @@ function PerformanceTab() {
                       {c.performance ? fmtNumber(c.performance.impressions) : "—"}
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums text-slate-700">
-                      {c.performance ? fmtCurrency(c.performance.spend) : "—"}
+                      {c.performance ? fmtCurrency(c.performance.spend, loc) : "—"}
                     </td>
                     <td className="px-4 py-3 text-right">
                       {c.ai_quality_score > 0 ? <span className={cn(
@@ -278,7 +292,7 @@ function PerformanceTab() {
                     </td>
                     <td className="px-4 py-3">
                       <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium capitalize", statusBadge(c.status))}>
-                        {c.status === "active" ? "Đang chạy" : c.status === "paused" ? "Tạm dừng" : c.status === "draft" ? "Nháp" : "Đã nghỉ"}
+                        {c.status === "active" ? t("creative.analysis.statusActive") : c.status === "paused" ? t("creative.analysis.statusPaused") : c.status === "draft" ? t("creative.analysis.statusDraft") : t("creative.analysis.statusRetired")}
                       </span>
                     </td>
                   </tr>
@@ -297,6 +311,7 @@ function PerformanceTab() {
 // ─────────────────────────────────────────────
 
 function ScoringTab() {
+  const t = useT();
   const [headline, setHeadline] = useState("");
   const [primaryText, setPrimaryText] = useState("");
   const [description, setDescription] = useState("");
@@ -328,44 +343,44 @@ function ScoringTab() {
       {/* Input form */}
       <div className="w-full lg:w-[40%]">
         <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-4">
-          <p className="text-sm font-medium text-slate-700">Nhập thông tin creative để chấm điểm</p>
+          <p className="text-sm font-medium text-slate-700">{t("creative.analysis.scoreFormTitle")}</p>
 
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-              Tiêu đề <span className="text-red-500">*</span>
+              {t("creative.analysis.fieldHeadline")} <span className="text-red-500">*</span>
             </label>
             <Input
               value={headline}
               onChange={(e) => setHeadline(e.target.value)}
-              placeholder="Tên miền .COM chỉ từ 99K"
+              placeholder={t("creative.analysis.headlinePlaceholder")}
               className="w-full"
             />
-            <p className="text-xs text-slate-400">{headline.length}/40 ký tự tối ưu</p>
+            <p className="text-xs text-slate-400">{t("creative.analysis.optimalChars", { n: headline.length, max: 40 })}</p>
           </div>
 
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-              Nội dung chính
+              {t("creative.analysis.fieldPrimary")}
             </label>
             <Textarea
               value={primaryText}
               onChange={(e) => setPrimaryText(e.target.value)}
-              placeholder="Nội dung quảng cáo… (chỉ dùng số liệu thật có nguồn)"
+              placeholder={t("creative.analysis.primaryPlaceholder")}
               className="w-full min-h-[80px]"
             />
           </div>
 
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-              Mô tả (description)
+              {t("creative.analysis.fieldDescription")}
             </label>
             <Input
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Đăng ký nhanh, dùng ngay"
+              placeholder={t("creative.analysis.descriptionPlaceholder")}
               className="w-full"
             />
-            <p className="text-xs text-slate-400">{description.length}/30 ký tự tối ưu</p>
+            <p className="text-xs text-slate-400">{t("creative.analysis.optimalChars", { n: description.length, max: 30 })}</p>
           </div>
 
           <div className="space-y-1.5">
@@ -373,7 +388,7 @@ function ScoringTab() {
             <Input
               value={ctaText}
               onChange={(e) => setCtaText(e.target.value)}
-              placeholder="Đăng ký ngay"
+              placeholder={t("creative.analysis.ctaPlaceholder")}
               className="w-full"
             />
           </div>
@@ -385,7 +400,7 @@ function ScoringTab() {
             <Input
               value={socialProof}
               onChange={(e) => setSocialProof(e.target.value)}
-              placeholder="Tiêu đề quảng cáo"
+              placeholder={t("creative.analysis.socialProofPlaceholder")}
               className="w-full"
             />
           </div>
@@ -395,7 +410,7 @@ function ScoringTab() {
             <Input
               value={offer}
               onChange={(e) => setOffer(e.target.value)}
-              placeholder="Giảm 50%, tặng kèm SSL"
+              placeholder={t("creative.analysis.offerPlaceholder")}
               className="w-full"
             />
           </div>
@@ -409,7 +424,7 @@ function ScoringTab() {
               className="h-4 w-4 rounded border-slate-300 accent-amber-500"
             />
             <label htmlFor="has-image" className="text-sm text-slate-600">
-              Có kèm ảnh / video
+              {t("creative.analysis.hasMedia")}
             </label>
           </div>
 
@@ -419,7 +434,7 @@ function ScoringTab() {
             className="w-full bg-amber-500 hover:bg-amber-600 text-amber-950 h-10"
           >
             <Search className="h-4 w-4 mr-2" />
-            Chấm điểm
+            {t("creative.analysis.scoreBtn")}
           </Button>
         </div>
       </div>
@@ -429,9 +444,9 @@ function ScoringTab() {
         {result === null ? (
           <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 py-16 text-center">
             <Sparkles className="h-10 w-10 text-slate-300 mb-3" />
-            <p className="text-sm font-medium text-slate-500">Chưa có kết quả</p>
+            <p className="text-sm font-medium text-slate-500">{t("creative.analysis.noResult")}</p>
             <p className="text-xs text-slate-400 mt-1">
-              Nhập thông tin và nhấn "Chấm điểm"
+              {t("creative.analysis.noResultHint")}
             </p>
           </div>
         ) : (
@@ -444,14 +459,14 @@ function ScoringTab() {
                   <div className="flex items-center gap-2">
                     <span className="text-2xl">{getGradeEmoji(result.grade)}</span>
                     <span className={cn("text-lg font-bold", colors!.text)}>
-                      Hạng {result.grade}
+                      {t("creative.analysis.grade", { g: result.grade })}
                     </span>
                   </div>
                   <p className={cn("mt-0.5 text-sm font-medium", colors!.text)}>
-                    CTR ước tính: {result.ctrEstimate}
+                    {t("creative.analysis.ctrEstimate", { v: result.ctrEstimate })}
                   </p>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Điểm tổng: {result.total}/100
+                    {t("creative.analysis.totalScore", { n: result.total })}
                   </p>
                 </div>
               </div>
@@ -459,14 +474,14 @@ function ScoringTab() {
 
             {/* Dimension breakdown */}
             <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-3">
-              <p className="text-sm font-semibold text-slate-700">Phân tích chi tiết</p>
+              <p className="text-sm font-semibold text-slate-700">{t("creative.analysis.breakdown")}</p>
               {SCORE_DIMENSIONS.map((dim) => {
                 const raw = result.scores[dim.key];
                 const pct = Math.round((raw / dim.max) * 100);
                 return (
                   <div key={dim.key} className="space-y-1">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="font-medium text-slate-600">{dim.label}</span>
+                      <span className="font-medium text-slate-600">{DIM_LABEL_KEY[dim.key] ? t(DIM_LABEL_KEY[dim.key]) : dim.label}</span>
                       <span className="tabular-nums text-slate-500">
                         {raw}/{dim.max}
                       </span>
@@ -485,7 +500,7 @@ function ScoringTab() {
             {/* Recommendations */}
             {result.suggestions.length > 0 && (
               <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-2">
-                <p className="text-sm font-semibold text-amber-800">Gợi ý cải thiện</p>
+                <p className="text-sm font-semibold text-amber-800">{t("creative.analysis.suggestions")}</p>
                 <ul className="space-y-1.5">
                   {result.suggestions.map((s, i) => (
                     <li key={i} className="text-sm text-amber-700 leading-relaxed">
@@ -508,21 +523,22 @@ function ScoringTab() {
 
 type TabId = "performance" | "scoring";
 
-const TABS: Array<{ id: TabId; label: string; icon: typeof BarChart3 }> = [
-  { id: "performance", label: "Hiệu suất", icon: BarChart3 },
-  { id: "scoring",     label: "Chấm điểm", icon: Sparkles },
+const TABS: Array<{ id: TabId; label: MessageKey; icon: typeof BarChart3 }> = [
+  { id: "performance", label: "creative.analysis.tabPerformance", icon: BarChart3 },
+  { id: "scoring",     label: "creative.analysis.tabScoring", icon: Sparkles },
 ];
 
 export default function AnalysisPage() {
+  const t = useT();
   const [activeTab, setActiveTab] = useState<TabId>("performance");
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-xl font-semibold text-slate-900">Phân tích Creative</h1>
+        <h1 className="text-xl font-semibold text-slate-900">{t("creative.analysis.title")}</h1>
         <p className="mt-0.5 text-sm text-slate-500">
-          Theo dõi hiệu suất và chấm điểm creative trước khi chạy
+          {t("creative.analysis.subtitle")}
         </p>
       </div>
 
@@ -540,7 +556,7 @@ export default function AnalysisPage() {
             )}
           >
             <Icon className="h-4 w-4" />
-            {label}
+            {t(label)}
           </button>
         ))}
       </div>

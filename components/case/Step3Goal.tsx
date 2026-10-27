@@ -16,6 +16,7 @@ import type { CampaignCase } from "@/lib/case/store";
 import type { Company } from "@/lib/case/types";
 import type { CaseBasis, TargetBasis } from "@/lib/case/verdict";
 import { evidenceGoalKind } from "@/lib/case/goal-kind";
+import { useT } from "@/lib/i18n/client";
 
 // Hình dạng tối thiểu của một dòng /api/case-targets — chỉ lấy phần cần để
 // gợi ý mục tiêu, KHÔNG import lib/case/targets.ts (đó là file backend có fs).
@@ -40,6 +41,7 @@ export function Step3Goal({
   onSubmitted: (next: CampaignCase) => void;
   busy?: boolean;
 }) {
+  const t = useT();
   const group = productGroupOf(c.campaignName);
   const groupLabel = PRODUCT_LABEL[group];
   const { data } = useSWR<{ success: true; rows: TargetRow[] }>("/api/case-targets", getJson);
@@ -78,14 +80,14 @@ export function Step3Goal({
   const ceilingN = Number(ceiling);
   const clientError =
     !target || !ceiling ? null
-    : !(targetN > 0) || !(ceilingN > 0) ? "Mục tiêu và trần phải > 0"
-    : basis === "cpa" && targetN > ceilingN ? "Chi phí/đơn mục tiêu phải ≤ trần"
-    : basis === "cpl" && targetN > ceilingN ? "Chi phí/lead mục tiêu phải ≤ trần"
-    : basis === "roas" && targetN < ceilingN ? "ROAS mục tiêu phải ≥ ROAS trần"
+    : !(targetN > 0) || !(ceilingN > 0) ? t("overview.step3.err.positive")
+    : basis === "cpa" && targetN > ceilingN ? t("overview.step3.err.cpa")
+    : basis === "cpl" && targetN > ceilingN ? t("overview.step3.err.cpl")
+    : basis === "roas" && targetN < ceilingN ? t("overview.step3.err.roas")
     : null;
 
   async function submit() {
-    if (clientError || !target || !ceiling) { setErr(clientError ?? "Điền đủ mục tiêu và trần"); return; }
+    if (clientError || !target || !ceiling) { setErr(clientError ?? t("overview.step3.err.fill")); return; }
     setSaving(true);
     setErr(null);
     try {
@@ -94,7 +96,7 @@ export function Step3Goal({
       });
       onSubmitted(json.case);
     } catch (e) {
-      setErr(e instanceof ApiError ? e.message : "Không chốt được mục tiêu");
+      setErr(e instanceof ApiError ? e.message : t("overview.step3.err.save"));
     } finally {
       setSaving(false);
     }
@@ -103,15 +105,15 @@ export function Step3Goal({
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-base font-bold text-slate-900">Chốt mục tiêu trước khi kết luận</h2>
-        <p className="mt-0.5 text-sm text-slate-500">Nguyên nhân ở bước 4 được chấm theo đúng mục tiêu chốt ở đây · sản phẩm: <b>{groupLabel}</b></p>
+        <h2 className="text-base font-bold text-slate-900">{t("overview.step3.title")}</h2>
+        <p className="mt-0.5 text-sm text-slate-500">{t("overview.step3.subtitle")} <b>{groupLabel}</b></p>
       </div>
 
       <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-4">
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-slate-700">Cách chấm</label>
+          <label className="mb-1.5 block text-sm font-medium text-slate-700">{t("overview.step3.basis")}</label>
           <div className="inline-flex rounded-lg border border-slate-200 p-0.5">
-            {(leads ? ([["cpl", "Chi phí/lead (CPL)"]] as const) : ([["cpa", "Chi phí/đơn (CPA)"], ["roas", "ROAS"]] as const)).map(([v, label]) => (
+            {(leads ? ([["cpl", t("overview.step3.basis.cpl")]] as const) : ([["cpa", t("overview.step3.basis.cpa")], ["roas", "ROAS"]] as const)).map(([v, label]) => (
               <button
                 key={v}
                 type="button"
@@ -128,36 +130,36 @@ export function Step3Goal({
         </div>
 
         <div>
-          <label htmlFor="ac-where" className="mb-1.5 block text-sm font-medium text-slate-700">{leads ? "Nơi ghi nhận lead" : "Nơi ghi nhận đơn"}</label>
+          <label htmlFor="ac-where" className="mb-1.5 block text-sm font-medium text-slate-700">{leads ? t("overview.step3.where.lead") : t("overview.step3.where.order")}</label>
           <Input
             id="ac-where"
             value={where}
             onChange={(e) => setWhere(e.target.value)}
-            placeholder={leads ? "Nơi ghi nhận lead, vd form trên Meta hoặc trang cảm ơn sau khi đăng ký" : "Trang ghi nhận đơn, vd trang cảm ơn sau thanh toán"}
+            placeholder={leads ? t("overview.step3.where.leadPh") : t("overview.step3.where.orderPh")}
           />
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label htmlFor="ac-target" className="mb-1.5 block text-sm font-medium text-slate-700">
-              {basis === "cpl" ? "Chi phí/lead mục tiêu" : basis === "cpa" ? "Chi phí/đơn mục tiêu" : "ROAS mục tiêu ≥"} <span className="text-red-500">*</span>
+              {basis === "cpl" ? t("overview.step3.target.cpl") : basis === "cpa" ? t("overview.step3.target.cpa") : t("overview.step3.target.roas")} <span className="text-red-500">*</span>
             </label>
             <Input id="ac-target" inputMode="numeric" value={target} onChange={(e) => setTarget(e.target.value)} required />
           </div>
           <div>
             <label htmlFor="ac-cap" className="mb-1.5 block text-sm font-medium text-slate-700">
-              {basis === "cpl" ? "Trần chi phí/lead" : basis === "cpa" ? "Trần chi phí/đơn" : "Trần ROAS (đỏ khi dưới)"} <span className="text-red-500">*</span>
+              {basis === "cpl" ? t("overview.step3.ceil.cpl") : basis === "cpa" ? t("overview.step3.ceil.cpa") : t("overview.step3.ceil.roas")} <span className="text-red-500">*</span>
             </label>
             <Input id="ac-cap" inputMode="numeric" value={ceiling} onChange={(e) => setCeiling(e.target.value)} required />
           </div>
         </div>
         {basis !== "roas" && targetN > 0 && ceilingN > 0 && (
-          <p className="text-xs text-slate-400">Vượt trần = {vnd(ceilingN)}/{basis === "cpl" ? "lead" : "đơn"} trở lên bị đánh đỏ.</p>
+          <p className="text-xs text-slate-400">{t("overview.step3.overCeil", { amount: vnd(ceilingN), unit: basis === "cpl" ? t("overview.step3.unit.lead") : t("overview.step3.unit.order") })}</p>
         )}
 
         <label className="flex min-h-10 cursor-pointer items-center gap-2 text-sm text-slate-700">
           <Checkbox checked={saveAsDefault} onCheckedChange={setSaveAsDefault} />
-          Lưu làm mặc định cho sản phẩm <b>{groupLabel} ({c.company})</b>
+          {t("overview.step3.saveDefault")} <b>{groupLabel} ({c.company})</b>
         </label>
 
         {(clientError || err) && (
@@ -166,9 +168,9 @@ export function Step3Goal({
       </div>
 
       <div className="flex justify-between">
-        <Button className="h-10" variant="outline" onClick={onBack} disabled={busy || saving}>← Bước 2</Button>
+        <Button className="h-10" variant="outline" onClick={onBack} disabled={busy || saving}>{t("overview.step3.back")}</Button>
         <Button className="h-10" onClick={submit} disabled={busy || saving || !!clientError}>
-          {saving ? "Đang chốt…" : "Chốt mục tiêu & xem nguyên nhân →"}
+          {saving ? t("overview.step3.saving") : t("overview.step3.submit")}
         </Button>
       </div>
     </div>

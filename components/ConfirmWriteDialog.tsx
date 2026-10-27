@@ -24,6 +24,8 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose,
 } from "@/components/ui/dialog";
 import { useToast, type ToastApi } from "@/components/Toast";
+import { useT } from "@/lib/i18n/client";
+import type { TFunction } from "@/lib/i18n/translate";
 
 /** Phải khớp WRITE_CONFIRM_TEXT ở lib/write-guard.ts (module server, không import được từ client). */
 export const WRITE_CONFIRM_TEXT = "XAC NHAN";
@@ -80,7 +82,7 @@ export interface GuardedWriteHandlers {
 
 type Phase = "idle" | "validating" | "confirm" | "writing";
 
-async function callGuarded(call: GuardedCall, extra: Record<string, unknown>): Promise<GuardedResponse> {
+async function callGuarded(call: GuardedCall, extra: Record<string, unknown>, t: TFunction): Promise<GuardedResponse> {
   try {
     const res = await fetch(call.url, {
       method: call.method ?? "POST",
@@ -89,13 +91,13 @@ async function callGuarded(call: GuardedCall, extra: Record<string, unknown>): P
     });
     const json = (await res.json().catch(() => ({}))) as Partial<GuardedResponse>;
     if (typeof json.success === "boolean") return json as GuardedResponse;
-    return { success: res.ok, error: json.error ?? `Lỗi không xác định (${res.status})` };
+    return { success: res.ok, error: json.error ?? t("panels.confirmwrite.unknownErrorStatus", { status: res.status }) };
   } catch {
-    return { success: false, error: "Lỗi kết nối — thử lại sau" };
+    return { success: false, error: t("panels.confirmwrite.connError") };
   }
 }
 
-async function undoOne(company: string, id: string): Promise<{ id: string; success: boolean; error?: string }> {
+async function undoOne(company: string, id: string, t: TFunction): Promise<{ id: string; success: boolean; error?: string }> {
   try {
     const res = await fetch("/api/write-log", {
       method: "POST",
@@ -104,22 +106,22 @@ async function undoOne(company: string, id: string): Promise<{ id: string; succe
     });
     const json = await res.json().catch(() => ({}));
     if (json?.success) return { id, success: true };
-    return { id, success: false, error: json?.error ?? `Lỗi không xác định (${res.status})` };
+    return { id, success: false, error: json?.error ?? t("panels.confirmwrite.unknownErrorStatus", { status: res.status }) };
   } catch {
-    return { id, success: false, error: "Lỗi kết nối — thử lại sau" };
+    return { id, success: false, error: t("panels.confirmwrite.connError") };
   }
 }
 
 /** Hoàn tác từng writeId MỘT (mỗi lần ghi là một lệnh nguyên khối riêng — hỏng cái này không đụng cái khác). */
-async function undoMany(company: string, ids: string[], toast: ToastApi["toast"]) {
+async function undoMany(company: string, ids: string[], toast: ToastApi["toast"], t: TFunction) {
   const results: { id: string; success: boolean; error?: string }[] = [];
-  for (const id of ids) results.push(await undoOne(company, id));
+  for (const id of ids) results.push(await undoOne(company, id, t));
   const failed = results.filter((r) => !r.success);
   if (failed.length === 0) {
-    toast({ title: ids.length > 1 ? `✅ Đã hoàn tác ${ids.length} lần ghi` : "✅ Đã hoàn tác", variant: "success" });
+    toast({ title: ids.length > 1 ? t("panels.confirmwrite.undoneMany", { n: ids.length }) : t("panels.confirmwrite.undone"), variant: "success" });
   } else {
     toast({
-      title: failed.length === ids.length ? "❌ Không hoàn tác được" : `⚠️ Đã hoàn tác ${ids.length - failed.length}/${ids.length}`,
+      title: failed.length === ids.length ? t("panels.confirmwrite.undoFailed") : t("panels.confirmwrite.undoPartial", { done: ids.length - failed.length, total: ids.length }),
       description: failed.map((f) => f.error).join("; "),
       variant: "error",
     });
@@ -132,6 +134,7 @@ async function undoMany(company: string, ids: string[], toast: ToastApi["toast"]
  */
 export function useGuardedWrite() {
   const { toast } = useToast();
+  const t = useT();
   const [phase, setPhase] = useState<Phase>("idle");
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState<{ calls: GuardedCall[]; req: GuardedWriteRequest; handlers?: GuardedWriteHandlers } | null>(null);
@@ -152,10 +155,10 @@ export function useGuardedWrite() {
     setPhase("validating");
     setWriteError(null);
     try {
-      const responses = await Promise.all(calls.map((c) => callGuarded(c, { validateOnly: true })));
+      const responses = await Promise.all(calls.map((c) => callGuarded(c, { validateOnly: true }, t)));
       const failed = responses.find((r) => !r.success);
       if (failed) {
-        handlers?.onValidateFail?.(failed.error ?? "Kiểm trước thất bại — chưa ghi gì");
+        handlers?.onValidateFail?.(failed.error ?? t("panels.confirmwrite.validateFailed"));
         setPhase("idle");
         return;
       }
@@ -164,16 +167,16 @@ export function useGuardedWrite() {
       setPhase("confirm");
       setOpen(true);
     } catch (e) {
-      handlers?.onValidateFail?.(e instanceof Error ? e.message : "Không kiểm được — thử lại sau");
+      handlers?.onValidateFail?.(e instanceof Error ? e.message : t("panels.confirmwrite.validateUnable"));
       setPhase("idle");
     }
-  }, [phase]);
+  }, [phase, t]);
 
   const undoAction = useCallback((company: string, writeIds: (string | undefined)[]) => {
     const ids = writeIds.filter((id): id is string => !!id);
     if (!ids.length) return undefined;
-    return { label: "Hoàn tác", onClick: () => undoMany(company, ids, toast) };
-  }, [toast]);
+    return { label: t("panels.confirmwrite.undo"), onClick: () => undoMany(company, ids, toast, t) };
+  }, [toast, t]);
 
   const confirmWrite = useCallback(async () => {
     if (!pending || confirmInput.trim() !== WRITE_CONFIRM_TEXT) return;
@@ -181,11 +184,11 @@ export function useGuardedWrite() {
     setWriteError(null);
     try {
       const { calls, req, handlers } = pending;
-      const responses = await Promise.all(calls.map((c) => callGuarded(c, { confirmText: confirmInput.trim() })));
+      const responses = await Promise.all(calls.map((c) => callGuarded(c, { confirmText: confirmInput.trim() }, t)));
       const results: GuardedCallResult[] = calls.map((c, i) => ({
         label: c.label,
         success: !!responses[i].success,
-        error: responses[i].success ? undefined : (responses[i].error ?? "Lỗi không xác định"),
+        error: responses[i].success ? undefined : (responses[i].error ?? t("panels.confirmwrite.unknownError")),
         writeId: responses[i].writeId,
         raw: responses[i],
       }));
@@ -195,10 +198,10 @@ export function useGuardedWrite() {
       if (anyFail) handlers?.onFailure?.(results);
       else handlers?.onSuccess?.(results);
     } catch (e) {
-      setWriteError(e instanceof Error ? e.message : "Không ghi được — thử lại sau");
+      setWriteError(e instanceof Error ? e.message : t("panels.confirmwrite.writeUnable"));
       setPhase("confirm");
     }
-  }, [pending, confirmInput, cancel]);
+  }, [pending, confirmInput, cancel, t]);
 
   const dialog = (
     <GuardedWriteDialogView
@@ -229,6 +232,7 @@ function GuardedWriteDialogView({
   onConfirm: () => void;
 }) {
   const confirmId = useId();
+  const t = useT();
   if (!pending) return null;
   const { calls, req } = pending;
   const lines = req.summary ?? calls.map((c) => c.label);
@@ -238,7 +242,7 @@ function GuardedWriteDialogView({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{req.title}</DialogTitle>
-          <DialogDescription>{req.description ?? "Có thể hoàn tác sau nếu cần."}</DialogDescription>
+          <DialogDescription>{req.description ?? t("panels.confirmwrite.defaultDesc")}</DialogDescription>
         </DialogHeader>
         <ul className="max-h-56 space-y-1.5 overflow-y-auto rounded-lg border border-slate-100 bg-slate-50 p-2.5 text-xs">
           {lines.map((line, i) => (
@@ -247,7 +251,7 @@ function GuardedWriteDialogView({
         </ul>
         <div className="space-y-1.5">
           <label htmlFor={confirmId} className="text-xs font-medium text-slate-500">
-            Gõ <code className="rounded bg-slate-100 px-1 py-0.5">{WRITE_CONFIRM_TEXT}</code> để xác nhận
+            {t("panels.confirmwrite.typePrefix")} <code className="rounded bg-slate-100 px-1 py-0.5">{WRITE_CONFIRM_TEXT}</code> {t("panels.confirmwrite.typeSuffix")}
           </label>
           <Input
             id={confirmId}
@@ -260,14 +264,14 @@ function GuardedWriteDialogView({
         </div>
         {writeError && <p className="text-xs text-red-600">{writeError}</p>}
         <DialogFooter>
-          <DialogClose render={<Button className="h-10" variant="outline" />}>Huỷ</DialogClose>
+          <DialogClose render={<Button className="h-10" variant="outline" />}>{t("panels.confirmwrite.cancel")}</DialogClose>
           <Button
             className="h-10"
             variant="destructive"
             onClick={onConfirm}
             disabled={writing || confirmInput.trim() !== WRITE_CONFIRM_TEXT}
           >
-            {writing && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} Ghi thật
+            {writing && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} {t("panels.confirmwrite.write")}
           </Button>
         </DialogFooter>
       </DialogContent>

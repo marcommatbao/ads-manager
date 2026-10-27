@@ -14,6 +14,9 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Save, RefreshCw, AlertTriangle, CheckCircle2, Lock, ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useIntlLocale, useT } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/messages";
+import type { TFunction } from "@/lib/i18n/translate";
 import { BUILTIN_AD_CHANNELS, type AdChannelDef } from "@/lib/settings/ad-channels-def";
 import KpiExtraSpend, { extraSpendErrors, type ExtraSpendEntry } from "@/components/settings/KpiExtraSpend";
 
@@ -24,10 +27,10 @@ type ChannelBudget = Record<string, number>;
 /** Kênh nào có số liệu chi phí thực tế tự động, kênh nào phải khai tay. Nói ra
  *  ngay tại chỗ nhập trần, vì đặt trần cho một kênh không ai khai chi phí thì
  *  thanh tiến độ mãi mãi là 0% — trông như đang tiêu rất ít. */
-const channelSource = (c: AdChannelDef): string =>
-  c.key === "google" ? "Chi phí thực tế lấy tự động qua Google Ads API"
-    : c.key === "facebook" ? "Chi phí thực tế lấy tự động qua Meta API"
-      : "Chi phí thực tế phải khai tay ở Settings → Chi phí kênh khác";
+const channelSource = (c: AdChannelDef, t: TFunction): string =>
+  c.key === "google" ? t("creative.settingsKpi.src.google")
+    : c.key === "facebook" ? t("creative.settingsKpi.src.facebook")
+      : t("creative.settingsKpi.src.manual");
 
 const emptyChannels = (chs: AdChannelDef[]): ChannelBudget =>
   Object.fromEntries(chs.map(c => [c.key, 0]));
@@ -50,14 +53,13 @@ const emptyMonth = (chs: AdChannelDef[]): MonthKpi => ({
 });
 
 const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
-const QUARTERS = [
-  { label: "QUÝ I", months: [1, 2, 3] },
-  { label: "QUÝ II", months: [4, 5, 6] },
-  { label: "QUÝ III", months: [7, 8, 9] },
-  { label: "QUÝ IV", months: [10, 11, 12] },
+const QUARTERS: { label: MessageKey; months: number[] }[] = [
+  { label: "creative.settingsKpi.q1", months: [1, 2, 3] },
+  { label: "creative.settingsKpi.q2", months: [4, 5, 6] },
+  { label: "creative.settingsKpi.q3", months: [7, 8, 9] },
+  { label: "creative.settingsKpi.q4", months: [10, 11, 12] },
 ];
 
-const fmt = (v: number) => v.toLocaleString("vi-VN");
 type TotalField = "revenueMbc" | "adSpendMbc" | "adSpendMbi" | "ordersMbi";
 type ChannelField = "adSpendMbcByChannel" | "adSpendMbiByChannel";
 
@@ -65,12 +67,29 @@ const sumChannels = (b: ChannelBudget | undefined) =>
   Object.values(b ?? {}).reduce((s, v) => s + (Number(v) || 0), 0);
 
 /** Một công ty = một ô tổng + một bảng phân bổ kênh. */
-const SPEND_SIDES: { total: TotalField; channels: ChannelField; label: string }[] = [
-  { total: "adSpendMbc", channels: "adSpendMbcByChannel", label: "Chi QC MBC" },
-  { total: "adSpendMbi", channels: "adSpendMbiByChannel", label: "Chi QC MBI" },
+const SPEND_SIDES: { total: TotalField; channels: ChannelField; label: MessageKey }[] = [
+  { total: "adSpendMbc", channels: "adSpendMbcByChannel", label: "creative.settingsKpi.spendMbc" },
+  { total: "adSpendMbi", channels: "adSpendMbiByChannel", label: "creative.settingsKpi.spendMbi" },
 ];
 
+// Chuỗi dịch có <b>…</b> / <i>…</i> → in đậm / in nghiêng (chỉ chuỗi tĩnh do mình viết trong lib/i18n/messages).
+function rich(s: string): React.ReactNode[] {
+  const out: React.ReactNode[] = [];
+  const re = /<(b|i)>(.*?)<\/\1>/g;
+  let last = 0, n = 0, m: RegExpExecArray | null;
+  while ((m = re.exec(s))) {
+    if (m.index > last) out.push(s.slice(last, m.index));
+    out.push(m[1] === "b" ? <strong key={n++}>{m[2]}</strong> : <em key={n++}>{m[2]}</em>);
+    last = re.lastIndex;
+  }
+  if (last < s.length) out.push(s.slice(last));
+  return out;
+}
+
 export default function KpiSettingsPage() {
+  const t = useT();
+  const intl = useIntlLocale();
+  const fmt = (v: number) => v.toLocaleString(intl);
   const now = new Date().getFullYear();
   const [year, setYear] = useState(now);
   const [channels, setChannels] = useState<AdChannelDef[]>(BUILTIN_AD_CHANNELS);
@@ -96,7 +115,7 @@ export default function KpiSettingsPage() {
       const res = await fetch(`/api/settings/kpi?year=${year}`);
       const text = await res.text();
       const json = text ? JSON.parse(text) : {};
-      if (!res.ok || !json.success) throw new Error(json.error ?? `Lỗi tải KPI (HTTP ${res.status})`);
+      if (!res.ok || !json.success) throw new Error(json.error ?? t("creative.settingsKpi.err.loadKpi", { status: res.status }));
       const chs: AdChannelDef[] = Array.isArray(json.channels) && json.channels.length > 0 ? json.channels : BUILTIN_AD_CHANNELS;
       setChannels(chs);
       setCanManageChannels(!!json.canManageChannels);
@@ -112,9 +131,9 @@ export default function KpiSettingsPage() {
       })));
       setCanEdit(!!json.canEdit);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Lỗi kết nối");
+      setError(err instanceof Error ? err.message : t("creative.settingsKpi.err.conn"));
     } finally { setLoading(false); }
-  }, [year]);
+  }, [year, t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -149,7 +168,7 @@ export default function KpiSettingsPage() {
       });
       const text = await res.text();
       const json = text ? JSON.parse(text) : {};
-      if (!res.ok || !json.channel) throw new Error(json.error ?? `Thêm kênh thất bại (HTTP ${res.status})`);
+      if (!res.ok || !json.channel) throw new Error(json.error ?? t("creative.settingsKpi.err.addChannel", { status: res.status }));
       const list: AdChannelDef[] = json.channels ?? [...channels, json.channel];
       setChannels(list);
       // Thêm số 0 cho kênh mới vào từng tháng, giữ nguyên các ô đang sửa dở.
@@ -159,9 +178,9 @@ export default function KpiSettingsPage() {
         adSpendMbiByChannel: { ...emptyChannels(list), ...m.adSpendMbiByChannel },
       })));
       setNewChannel("");
-      setChNote(`Đã thêm kênh “${json.channel.label ?? label}” — nhập trần rồi bấm Lưu KPI; chi phí thực tế khai ở Settings → Chi phí kênh khác`);
+      setChNote(t("creative.settingsKpi.note.added", { label: json.channel.label ?? label }));
     } catch (err) {
-      setChError(err instanceof Error ? err.message : "Lỗi kết nối");
+      setChError(err instanceof Error ? err.message : t("creative.settingsKpi.err.conn"));
     } finally { setChBusy(false); }
   };
 
@@ -174,15 +193,15 @@ export default function KpiSettingsPage() {
       });
       const text = await res.text();
       const json = text ? JSON.parse(text) : {};
-      if (!res.ok || !json.channels) throw new Error(json.error ?? `Đổi trạng thái kênh thất bại (HTTP ${res.status})`);
+      if (!res.ok || !json.channels) throw new Error(json.error ?? t("creative.settingsKpi.err.toggle", { status: res.status }));
       setChannels(json.channels);
     } catch (err) {
-      setChError(err instanceof Error ? err.message : "Lỗi kết nối");
+      setChError(err instanceof Error ? err.message : t("creative.settingsKpi.err.conn"));
     } finally { setChBusy(false); }
   };
 
   const overAllocated = useMemo(() => {
-    const out: { month: number; label: string; over: number }[] = [];
+    const out: { month: number; label: MessageKey; over: number }[] = [];
     months.forEach((m, i) => {
       for (const side of SPEND_SIDES) {
         const over = sumChannels(m[side.channels]) - (m[side.total] ?? 0);
@@ -199,7 +218,7 @@ export default function KpiSettingsPage() {
   const extraTip = (i: number) => {
     const part = (c: "MBC" | "MBI") => {
       const list = (months[i]?.extraSpend ?? []).filter(e => e.company === c && (Number(e.amount) || 0) > 0);
-      const kinds = Array.from(new Set(list.map(e => e.kind === "new_product" ? "sản phẩm mới" : "đối tác hỗ trợ"))).join(", ");
+      const kinds = Array.from(new Set(list.map(e => e.kind === "new_product" ? t("creative.settingsKpi.kind.newProduct") : t("creative.settingsKpi.kind.partner")))).join(", ");
       return `${c}: +${fmt(extraOf(i, c))}đ${kinds ? ` (${kinds})` : ""}`;
     };
     return `${part("MBC")} · ${part("MBI")}`;
@@ -208,7 +227,7 @@ export default function KpiSettingsPage() {
   const yearExtra = (company?: "MBC" | "MBI") => months.reduce((a, _m, i) => a + extraOf(i, company), 0);
   const extraNote = (fixed: number, company?: "MBC" | "MBI") => {
     const ex = yearExtra(company);
-    return ex > 0 ? `+ bổ sung ${fmt(ex)}đ → trần thực tế ${fmt(fixed + ex)}đ` : undefined;
+    return ex > 0 ? t("creative.settingsKpi.extraNote", { extra: fmt(ex), cap: fmt(fixed + ex) }) : undefined;
   };
 
   const save = async () => {
@@ -225,11 +244,11 @@ export default function KpiSettingsPage() {
         const detail = Array.isArray(json.errors)
           ? json.errors.map((e: { message: string }) => e.message).join(" · ")
           : null;
-        throw new Error(detail ?? json.error ?? `Lưu thất bại (HTTP ${res.status})`);
+        throw new Error(detail ?? json.error ?? t("creative.settingsKpi.err.save", { status: res.status }));
       }
       setSaved(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Lỗi lưu");
+      setError(err instanceof Error ? err.message : t("creative.settingsKpi.err.saveShort"));
     } finally { setSaving(false); }
   };
 
@@ -244,44 +263,44 @@ export default function KpiSettingsPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex-1 min-w-0">
-          <h2 className="text-lg font-bold text-slate-800">Chỉ tiêu KPI theo tháng</h2>
+          <h2 className="text-lg font-bold text-slate-800">{t("creative.settingsKpi.title")}</h2>
           <p className="text-sm text-slate-500">
-            DT Quý tự cộng 3 tháng · Tổng Chi QC = MBC + MBI tự tính · Chi QC chia được theo kênh.
+            {t("creative.settingsKpi.subtitle")}
           </p>
         </div>
         <select value={year} onChange={e => setYear(Number(e.target.value))}
           className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-amber-400">
-          {[now - 1, now, now + 1].map(y => <option key={y} value={y}>Năm {y}</option>)}
+          {[now - 1, now, now + 1].map(y => <option key={y} value={y}>{t("creative.settingsKpi.year", { y })}</option>)}
         </select>
         <button onClick={load} disabled={loading} className="p-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 disabled:opacity-50">
           <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
         </button>
         {canEdit && (
           <button onClick={save} disabled={saving || overAllocated.length > 0 || extraErrors.length > 0}
-            title={overAllocated.length > 0 ? "Còn tháng phân bổ vượt tổng Chi QC — sửa trước khi lưu" : extraErrors.length > 0 ? "Còn khoản chi bổ sung nhập chưa đúng — sửa trước khi lưu" : undefined}
+            title={overAllocated.length > 0 ? t("creative.settingsKpi.tip.over") : extraErrors.length > 0 ? t("creative.settingsKpi.tip.extra") : undefined}
             className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-amber-500 text-amber-950 text-sm font-semibold hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed">
-            <Save className="h-4 w-4" /> {saving ? "Đang lưu…" : "Lưu KPI"}
+            <Save className="h-4 w-4" /> {saving ? t("creative.settingsKpi.saving") : t("creative.settingsKpi.saveBtn")}
           </button>
         )}
       </div>
 
       {!canEdit && !loading && (
         <div className="flex items-center gap-2 text-sm text-slate-500 bg-slate-50 border border-slate-200 rounded-xl p-3">
-          <Lock className="h-4 w-4 shrink-0" /> Bạn chỉ xem được KPI (chỉ admin được sửa).
+          <Lock className="h-4 w-4 shrink-0" /> {t("creative.settingsKpi.readonly")}
         </div>
       )}
       {error && <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-xl p-3"><AlertTriangle className="h-4 w-4 shrink-0" /> {error}</div>}
-      {saved && <div className="flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl p-3"><CheckCircle2 className="h-4 w-4 shrink-0" /> Đã lưu KPI năm {year}.</div>}
+      {saved && <div className="flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl p-3"><CheckCircle2 className="h-4 w-4 shrink-0" /> {t("creative.settingsKpi.savedMsg", { year })}</div>}
 
       {overAllocated.length > 0 && (
         <div className="flex gap-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl p-3">
           <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
           <div>
-            <p className="font-semibold">Chưa lưu được — có tháng chia cho kênh nhiều hơn tổng Chi QC:</p>
+            <p className="font-semibold">{t("creative.settingsKpi.over.title")}</p>
             <ul className="mt-1 space-y-0.5 text-[13px]">
               {overAllocated.map(o => (
                 <li key={`${o.month}-${o.label}`}>
-                  Tháng {o.month} · {o.label}: vượt <strong>{fmt(o.over)}đ</strong>
+                  {t("creative.settingsKpi.over.item", { month: o.month, label: t(o.label) })} <strong>{fmt(o.over)}đ</strong>
                 </li>
               ))}
             </ul>
@@ -293,7 +312,7 @@ export default function KpiSettingsPage() {
         <div className="flex gap-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl p-3">
           <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
           <div>
-            <p className="font-semibold">Chưa lưu được — khoản chi bổ sung nhập chưa đúng:</p>
+            <p className="font-semibold">{t("creative.settingsKpi.extraErr.title")}</p>
             <ul className="mt-1 space-y-0.5 text-[13px]">
               {extraErrors.map(msg => <li key={msg}>{msg}</li>)}
             </ul>
@@ -307,12 +326,12 @@ export default function KpiSettingsPage() {
             <input
               value={newChannel} onChange={e => setNewChannel(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter") addChannel(); }}
-              maxLength={40} placeholder="vd: ChatGPT Ads, Microsoft Ads" aria-label="Tên kênh quảng cáo mới"
+              maxLength={40} placeholder={t("creative.settingsKpi.newCh.placeholder")} aria-label={t("creative.settingsKpi.newCh.aria")}
               className="w-64 border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-amber-400"
             />
             <button type="button" onClick={addChannel} disabled={chBusy || !newChannel.trim()}
               className="px-3 py-1.5 rounded-lg bg-amber-500 text-amber-950 text-xs font-semibold hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed">
-              + Thêm kênh quảng cáo
+              {t("creative.settingsKpi.newCh.add")}
             </button>
           </div>
           {chError && <p className="text-red-700" role="alert">{chError}</p>}
@@ -323,7 +342,7 @@ export default function KpiSettingsPage() {
                 <li key={c.key} className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1">
                   <span className={cn("font-medium", c.hidden ? "text-slate-400 line-through" : "text-slate-700")}>{c.label}</span>
                   <button type="button" onClick={() => toggleChannel(c)} disabled={chBusy}
-                    className="text-amber-700 hover:underline disabled:opacity-50">{c.hidden ? "Hiện" : "Ẩn"}</button>
+                    className="text-amber-700 hover:underline disabled:opacity-50">{c.hidden ? t("creative.settingsKpi.show") : t("creative.settingsKpi.hide")}</button>
                 </li>
               ))}
             </ul>
@@ -334,13 +353,10 @@ export default function KpiSettingsPage() {
       {!loading && (
         <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-xs text-blue-900 space-y-1">
           <p>
-            <strong>Phân bổ theo kênh là tuỳ chọn.</strong> Kênh để trống = chưa đặt trần, Dashboard sẽ không
-            vẽ thanh cho kênh đó. Tổng các kênh được phép nhỏ hơn tổng Chi QC — phần chênh hiện ở dòng
-            <em> chưa phân bổ</em>.
+            {rich(t("creative.settingsKpi.info1"))}
           </p>
           <p>
-            Chi phí thực tế của <strong>Google và Facebook</strong> hệ thống tự lấy qua API. <strong>{manualLabels.length > 0 ? manualLabels.join(" và ") : "TikTok và Zalo"}</strong> không có API — phải khai ở <em>Settings → Chi phí kênh khác</em>, không khai thì trần
-            đặt ở đây luôn hiện 0%.
+            {rich(t("creative.settingsKpi.info2", { manual: manualLabels.length > 0 ? manualLabels.join(t("creative.settingsKpi.and")) : t("creative.settingsKpi.defaultManual") }))}
           </p>
         </div>
       )}
@@ -352,13 +368,13 @@ export default function KpiSettingsPage() {
           <table className="w-full border-collapse text-sm min-w-[1100px]">
             <thead>
               <tr>
-                <th className="sticky left-0 z-10 bg-slate-800 text-white text-left px-3 py-2 text-xs font-semibold">Chỉ tiêu</th>
+                <th className="sticky left-0 z-10 bg-slate-800 text-white text-left px-3 py-2 text-xs font-semibold">{t("creative.settingsKpi.th.metric")}</th>
                 {QUARTERS.map(q => (
-                  <th key={q.label} colSpan={3} className="bg-amber-400 text-slate-900 px-2 py-1.5 text-xs font-bold text-center border-l border-white">{q.label}</th>
+                  <th key={q.label} colSpan={3} className="bg-amber-400 text-slate-900 px-2 py-1.5 text-xs font-bold text-center border-l border-white">{t(q.label)}</th>
                 ))}
               </tr>
               <tr>
-                <th className="sticky left-0 z-10 bg-slate-700 text-white text-left px-3 py-1.5 text-[11px] font-semibold">DT Quý (MBC) →</th>
+                <th className="sticky left-0 z-10 bg-slate-700 text-white text-left px-3 py-1.5 text-[11px] font-semibold">{t("creative.settingsKpi.th.quarterRev")}</th>
                 {QUARTERS.map(q => (
                   <th key={q.label} colSpan={3} className="bg-blue-50 text-blue-700 px-2 py-1.5 text-[11px] font-bold text-center tabular-nums border-l border-white">
                     {fmt(quarterRevenue(q.months))}đ
@@ -366,15 +382,15 @@ export default function KpiSettingsPage() {
                 ))}
               </tr>
               <tr>
-                <th className="sticky left-0 z-10 bg-slate-100 text-slate-500 text-left px-3 py-1.5 text-[11px]">Tháng</th>
+                <th className="sticky left-0 z-10 bg-slate-100 text-slate-500 text-left px-3 py-1.5 text-[11px]">{t("creative.settingsKpi.th.month")}</th>
                 {MONTHS.map(m => (
-                  <th key={m} className={cn("px-2 py-1.5 text-[11px] font-semibold text-slate-500 text-center", m % 3 === 1 && "border-l border-slate-200")}>T{m}</th>
+                  <th key={m} className={cn("px-2 py-1.5 text-[11px] font-semibold text-slate-500 text-center", m % 3 === 1 && "border-l border-slate-200")}>{t("creative.settingsKpi.monthShort", { m })}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {/* Doanh thu MBC */}
-              <TotalRow label="Doanh thu MBC" field="revenueMbc" months={months} canEdit={canEdit} onChange={setCell} />
+              <TotalRow label={t("creative.settingsKpi.row.revenue")} field="revenueMbc" months={months} canEdit={canEdit} onChange={setCell} />
 
               {/* Chi QC MBC / MBI + phân bổ kênh */}
               {SPEND_SIDES.map(side => {
@@ -387,10 +403,10 @@ export default function KpiSettingsPage() {
                           type="button"
                           onClick={() => setOpen(o => ({ ...o, [side.channels]: !o[side.channels] }))}
                           className="flex items-center gap-1 hover:text-amber-600"
-                          title={expanded ? "Thu gọn phân bổ theo kênh" : "Mở phân bổ theo kênh"}
+                          title={expanded ? t("creative.settingsKpi.collapse") : t("creative.settingsKpi.expand")}
                         >
                           {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-                          {side.label}
+                          {t(side.label)}
                         </button>
                       </td>
                       {MONTHS.map((m, i) => (
@@ -410,13 +426,13 @@ export default function KpiSettingsPage() {
                       const ch = chDef.key;
                       return (
                       <tr key={`${side.channels}-${ch}`} className="bg-slate-50/50">
-                        <td className="sticky left-0 z-10 bg-slate-50 px-3 py-1 text-[11px] text-slate-500 whitespace-nowrap" title={channelSource(chDef)}>
+                        <td className="sticky left-0 z-10 bg-slate-50 px-3 py-1 text-[11px] text-slate-500 whitespace-nowrap" title={channelSource(chDef, t)}>
                           <span className="text-slate-300 mr-1">└</span>{chDef.label}
                           {chDef.source === "manual" && (
-                            <span className="ml-1 text-[9px] text-amber-600" title={channelSource(chDef)}>(nhập tay)</span>
+                            <span className="ml-1 text-[9px] text-amber-600" title={channelSource(chDef, t)}>{t("creative.settingsKpi.manualTag")}</span>
                           )}
                           {chDef.hidden && (
-                            <span className="ml-1 text-[9px] text-slate-400">(đã ẩn)</span>
+                            <span className="ml-1 text-[9px] text-slate-400">{t("creative.settingsKpi.hiddenTag")}</span>
                           )}
                         </td>
                         {MONTHS.map((m, i) => (
@@ -437,15 +453,15 @@ export default function KpiSettingsPage() {
                     {expanded && (
                       <tr className="bg-slate-50/50 border-b border-slate-200">
                         <td className="sticky left-0 z-10 bg-slate-50 px-3 py-1 text-[11px] font-medium text-slate-500 whitespace-nowrap">
-                          <span className="text-slate-300 mr-1">└</span>chưa phân bổ
+                          <span className="text-slate-300 mr-1">└</span>{t("creative.settingsKpi.unalloc")}
                         </td>
                         {MONTHS.map((m, i) => {
                           const rest = (months[i]?.[side.total] ?? 0) - sumChannels(months[i]?.[side.channels]);
                           return (
                             <td key={m} className={cn("px-2 py-1 text-right text-[11px] tabular-nums", m % 3 === 1 && "border-l border-slate-200")}>
                               {rest < 0 ? (
-                                <span className="font-bold text-red-600" title="Phân bổ cho các kênh đang nhiều hơn tổng Chi QC tháng này">
-                                  vượt {fmt(-rest)}đ
+                                <span className="font-bold text-red-600" title={t("creative.settingsKpi.overTip")}>
+                                  {t("creative.settingsKpi.overAmt", { n: fmt(-rest) })}
                                 </span>
                               ) : (
                                 <span className={rest === 0 ? "text-slate-300" : "text-slate-500"}>{fmt(rest)}đ</span>
@@ -460,11 +476,11 @@ export default function KpiSettingsPage() {
               })}
 
               {/* Đơn hàng MBI */}
-              <TotalRow label="Đơn hàng MBI" field="ordersMbi" months={months} canEdit={canEdit} onChange={setCell} />
+              <TotalRow label={t("creative.settingsKpi.row.orders")} field="ordersMbi" months={months} canEdit={canEdit} onChange={setCell} />
 
               {/* Tổng Chi QC (auto) */}
               <tr className="border-t border-slate-200 bg-violet-50/40">
-                <td className="sticky left-0 z-10 bg-violet-50 px-3 py-2 text-xs font-bold text-violet-700 whitespace-nowrap">Tổng Chi QC (auto)</td>
+                <td className="sticky left-0 z-10 bg-violet-50 px-3 py-2 text-xs font-bold text-violet-700 whitespace-nowrap">{t("creative.settingsKpi.totalAuto")}</td>
                 {MONTHS.map((m, i) => (
                   <td key={m} className={cn("px-2 py-2 text-right text-xs font-bold text-violet-700 tabular-nums", m % 3 === 1 && "border-l border-slate-200")}>
                     {fmt(totalAdSpend(i))}đ
@@ -474,7 +490,7 @@ export default function KpiSettingsPage() {
               {hasAnyExtra && (
                 <>
                   <tr className="border-t border-slate-100 bg-violet-50/20">
-                    <td className="sticky left-0 z-10 bg-violet-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 whitespace-nowrap">+ Bổ sung</td>
+                    <td className="sticky left-0 z-10 bg-violet-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 whitespace-nowrap">{t("creative.settingsKpi.extraRow")}</td>
                     {MONTHS.map((m, i) => {
                       const ex = extraOf(i);
                       return (
@@ -486,7 +502,7 @@ export default function KpiSettingsPage() {
                   </tr>
                   <tr className="border-t border-slate-100 bg-violet-50/40">
                     <td className="sticky left-0 z-10 bg-violet-50 px-3 py-2 text-xs font-bold text-violet-700 whitespace-nowrap">
-                      Trần thực tế <span className="font-normal text-[10px] text-violet-500">(cố định + bổ sung)</span>
+                      {t("creative.settingsKpi.cap")} <span className="font-normal text-[10px] text-violet-500">{t("creative.settingsKpi.capNote")}</span>
                     </td>
                     {MONTHS.map((m, i) => (
                       <td key={m} title={extraTip(i)} className={cn("px-2 py-2 text-right text-xs font-bold text-violet-700 tabular-nums", m % 3 === 1 && "border-l border-slate-200")}>
@@ -513,23 +529,23 @@ export default function KpiSettingsPage() {
       {!loading && (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-            <TotalCard label="Tổng KPI Doanh Thu (MBC)" value={`${fmt(yearTotal("revenueMbc"))}đ`} accent="text-blue-700 bg-blue-50" />
-            <TotalCard label="Tổng KPI Đơn Hàng (MBI)" value={fmt(yearTotal("ordersMbi"))} accent="text-emerald-700 bg-emerald-50" />
-            <TotalCard label="Tổng Chi QC MBC" value={`${fmt(yearTotal("adSpendMbc"))}đ`} sub={extraNote(yearTotal("adSpendMbc"), "MBC")} accent="text-slate-700 bg-slate-100" />
-            <TotalCard label="Tổng Chi QC MBI" value={`${fmt(yearTotal("adSpendMbi"))}đ`} sub={extraNote(yearTotal("adSpendMbi"), "MBI")} accent="text-slate-700 bg-slate-100" />
-            <TotalCard label="Tổng Chi QC (MBC+MBI)" value={`${fmt(yearAdSpend)}đ`} sub={extraNote(yearAdSpend)} accent="text-violet-700 bg-violet-50" strong />
+            <TotalCard label={t("creative.settingsKpi.tot.revenue")} value={`${fmt(yearTotal("revenueMbc"))}đ`} accent="text-blue-700 bg-blue-50" />
+            <TotalCard label={t("creative.settingsKpi.tot.orders")} value={fmt(yearTotal("ordersMbi"))} accent="text-emerald-700 bg-emerald-50" />
+            <TotalCard label={t("creative.settingsKpi.tot.mbc")} value={`${fmt(yearTotal("adSpendMbc"))}đ`} sub={extraNote(yearTotal("adSpendMbc"), "MBC")} accent="text-slate-700 bg-slate-100" />
+            <TotalCard label={t("creative.settingsKpi.tot.mbi")} value={`${fmt(yearTotal("adSpendMbi"))}đ`} sub={extraNote(yearTotal("adSpendMbi"), "MBI")} accent="text-slate-700 bg-slate-100" />
+            <TotalCard label={t("creative.settingsKpi.tot.all")} value={`${fmt(yearAdSpend)}đ`} sub={extraNote(yearAdSpend)} accent="text-violet-700 bg-violet-50" strong />
           </div>
 
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
-            <h3 className="text-sm font-bold text-slate-700 mb-3">Phân bổ theo kênh — cả năm {year}</h3>
+            <h3 className="text-sm font-bold text-slate-700 mb-3">{t("creative.settingsKpi.yearAlloc", { year })}</h3>
             <div className="overflow-x-auto">
               <table className="w-full text-sm min-w-[520px]">
                 <thead>
                   <tr className="text-[11px] uppercase text-slate-400">
-                    <th className="text-left font-semibold px-2 py-1.5">Công ty</th>
+                    <th className="text-left font-semibold px-2 py-1.5">{t("creative.settingsKpi.th.company")}</th>
                     {rowChannels.map(c => <th key={c.key} className="text-right font-semibold px-2 py-1.5">{c.label}</th>)}
-                    <th className="text-right font-semibold px-2 py-1.5">Chưa phân bổ</th>
-                    <th className="text-right font-semibold px-2 py-1.5">Tổng Chi QC</th>
+                    <th className="text-right font-semibold px-2 py-1.5">{t("creative.settingsKpi.th.unalloc")}</th>
+                    <th className="text-right font-semibold px-2 py-1.5">{t("creative.settingsKpi.th.totalSpend")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -539,14 +555,14 @@ export default function KpiSettingsPage() {
                     const rest = total - allocated;
                     return (
                       <tr key={side.total} className="border-t border-slate-100">
-                        <td className="px-2 py-2 text-xs font-semibold text-slate-600 whitespace-nowrap">{side.label}</td>
+                        <td className="px-2 py-2 text-xs font-semibold text-slate-600 whitespace-nowrap">{t(side.label)}</td>
                         {rowChannels.map(c => (
                           <td key={c.key} className="px-2 py-2 text-right text-xs tabular-nums text-slate-700">
                             {fmt(yearChannel(side.channels, c.key))}đ
                           </td>
                         ))}
                         <td className={cn("px-2 py-2 text-right text-xs tabular-nums font-semibold", rest < 0 ? "text-red-600" : "text-slate-400")}>
-                          {rest < 0 ? `vượt ${fmt(-rest)}đ` : `${fmt(rest)}đ`}
+                          {rest < 0 ? t("creative.settingsKpi.overAmt", { n: fmt(-rest) }) : `${fmt(rest)}đ`}
                         </td>
                         <td className="px-2 py-2 text-right text-xs tabular-nums font-bold text-violet-700">{fmt(total)}đ</td>
                       </tr>
@@ -556,7 +572,7 @@ export default function KpiSettingsPage() {
               </table>
             </div>
             <p className="text-[11px] text-slate-400 mt-2">
-              Số cả năm chỉ để nhìn tổng thể — trần chặn theo <strong>từng tháng</strong>, không phải theo năm.
+              {rich(t("creative.settingsKpi.yearNote"))}
             </p>
           </div>
         </>

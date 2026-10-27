@@ -13,12 +13,18 @@ import { splitTrackingUrl } from "@/lib/google-tracking-url";
 import { Button } from "@/components/ui/button";
 import GooglePlaybookPanel, { type GooglePlaybookLaunchState } from "@/components/playbook/GooglePlaybookPanel";
 import { companyLabel } from "@/lib/companies/registry";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/messages";
+
+function rich(s: string) {
+  return s.split(/<b>(.*?)<\/b>/).map((part, i) => (i % 2 ? <b key={i}>{part}</b> : part))
+}
 
 // ── Google Products by Company ──
 
-const GOOGLE_PRODUCTS: Record<string, Array<{ id: string; icon: string; label: string }>> = {
+const GOOGLE_PRODUCTS: Record<string, Array<{ id: string; icon: string; label: string; tk?: MessageKey }>> = {
   MBC: [
-    { id: "DOMAIN",           icon: "🌐", label: "Tên miền" },
+    { id: "DOMAIN",           icon: "🌐", label: "Tên miền", tk: "panels.gcreative.prod.domain" },
     { id: "HOSTING",          icon: "🖥️",  label: "Hosting / Cloud" },
     { id: "EMAIL_BUSINESS",   icon: "📧", label: "Email BIZ" },
     { id: "SALE_AI",          icon: "🤖", label: "Sale.ai" },
@@ -27,17 +33,17 @@ const GOOGLE_PRODUCTS: Record<string, Array<{ id: string; icon: string; label: s
     { id: "GOOGLE_WORKSPACE", icon: "🔵", label: "Google Workspace" },
   ],
   MBI: [
-    { id: "HOA_DON_DIEN_TU",  icon: "🧾", label: "Hóa đơn điện tử" },
-    { id: "CHU_KY_SO",        icon: "✍️",  label: "Chữ ký số" },
-    { id: "HOP_DONG_DIEN_TU", icon: "📄", label: "Hợp đồng điện tử" },
-    { id: "HOA_DON_ECOM",     icon: "🛒", label: "Hóa đơn Ecom" },
+    { id: "HOA_DON_DIEN_TU",  icon: "🧾", label: "Hóa đơn điện tử", tk: "panels.gcreative.prod.einvoice" },
+    { id: "CHU_KY_SO",        icon: "✍️",  label: "Chữ ký số", tk: "panels.gcreative.prod.digisign" },
+    { id: "HOP_DONG_DIEN_TU", icon: "📄", label: "Hợp đồng điện tử", tk: "panels.gcreative.prod.econtract" },
+    { id: "HOA_DON_ECOM",     icon: "🛒", label: "Hóa đơn Ecom", tk: "panels.gcreative.prod.ecom" },
   ],
 };
 
-const CAMPAIGN_TYPES = [
+const CAMPAIGN_TYPES: ReadonlyArray<{ value: string; label: string; tk?: MessageKey; icon: typeof Search }> = [
   { value: "SEARCH", label: "Search (RSA)",      icon: Search },
   { value: "PMAX",   label: "Performance Max",   icon: Zap },
-  { value: "BOTH",   label: "Cả hai",            icon: Target },
+  { value: "BOTH",   label: "Cả hai", tk: "panels.gcreative.ct.both", icon: Target },
 ] as const;
 
 type CampaignType = "SEARCH" | "PMAX" | "BOTH";
@@ -89,6 +95,8 @@ export default function GoogleCreativePanel({
   company, segment, onBack,
   initialProductId, initialProductName, initialCampaignType,
 }: GoogleCreativePanelProps) {
+  const t = useT();
+  const loc = useIntlLocale();
   // Resolve initial product ID to UPPER_CASE format used by the API
   const resolvedInitialId = initialProductId
     ? (initialProductId === "custom" ? "custom" : (PRODUCT_ID_MAP[initialProductId] ?? initialProductId))
@@ -197,16 +205,16 @@ export default function GoogleCreativePanel({
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
-        throw new Error(data.error || "Lỗi tạo creative");
+        throw new Error(data.error || t("panels.gcreative.err.generate"));
       }
       setResult(data);
       setResultTab(campaignType === "PMAX" ? "pmax" : "rsa");
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Unknown error");
+      setError(e instanceof Error ? e.message : t("panels.gcreative.err.generic"));
     } finally {
       setLoading(false);
     }
-  }, [selectedProduct, customProductName, company, campaignType, segment]);
+  }, [selectedProduct, customProductName, company, campaignType, segment, t]);
 
   // ── Copy all RSA ──
   const copyAllRSA = useCallback(() => {
@@ -267,7 +275,7 @@ export default function GoogleCreativePanel({
         body: JSON.stringify({ creativeId: result.id, section: editing.section, field: editing.field, index: editing.index, text: draft }),
       });
       const data = await res.json();
-      if (!data.success) throw new Error(data.error ?? "Không lưu được");
+      if (!data.success) throw new Error(data.error ?? t("panels.gcreative.err.saveFail"));
       // Đồng bộ lại state từ thứ SERVER đã ghi, không tự tính ở client —
       // charCount/isValid là hai trường quyết định dòng này có lên Google không.
       setResult((prev: AnyJSON) => {
@@ -281,11 +289,11 @@ export default function GoogleCreativePanel({
       });
       setEditing(null);
     } catch (e) {
-      setEditError(e instanceof Error ? e.message : "Lỗi không rõ");
+      setEditError(e instanceof Error ? e.message : t("panels.gcreative.err.unknown"));
     } finally {
       setSaving(false);
     }
-  }, [editing, draft, result]);
+  }, [editing, draft, result, t]);
 
   /** Ô sửa dùng chung cho tiêu đề và mô tả. */
   const editorRow = (field: "headlines" | "descriptions", index: number, limit: number) => {
@@ -308,9 +316,9 @@ export default function GoogleCreativePanel({
         </span>
         <Button size="sm" className="h-7 text-xs" disabled={saving || over || draft.trim().length === 0}
           onClick={() => void saveEdit()}>
-          {saving ? "Đang lưu..." : "Lưu"}
+          {saving ? t("panels.gcreative.edit.saving") : t("panels.gcreative.edit.save")}
         </Button>
-        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setEditing(null)}>Huỷ</Button>
+        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setEditing(null)}>{t("panels.gcreative.edit.cancel")}</Button>
       </div>
     );
   };
@@ -344,18 +352,18 @@ export default function GoogleCreativePanel({
         body: JSON.stringify({ company, keywords: list }),
       });
       const data = await res.json();
-      if (!data.success) throw new Error(data.error ?? "Không đo được");
+      if (!data.success) throw new Error(data.error ?? t("panels.gcreative.err.measure"));
       const map = new Map<string, KwMetric>();
       for (const m of (data.requested ?? []) as KwMetric[]) map.set(m.keyword.toLowerCase(), m);
       setVolumes(map);
       setKwSuggestions((data.suggestions ?? []) as KwMetric[]);
       setKwNote(data.note ?? null);
     } catch (e) {
-      setVolumeError(e instanceof Error ? e.message : "Lỗi không rõ");
+      setVolumeError(e instanceof Error ? e.message : t("panels.gcreative.err.unknown"));
     } finally {
       setMeasuring(false);
     }
-  }, [result, company]);
+  }, [result, company, t]);
 
   // TỰ ĐỘNG đo ngay khi có bộ từ khoá mới.
   //
@@ -394,18 +402,18 @@ export default function GoogleCreativePanel({
     const m = volumes.get(keyword.toLowerCase());
     if (!m) return null;
     if (m.avgMonthlySearches === null) {
-      return <span className="text-[10px] text-slate-400 italic whitespace-nowrap">Google không có dữ liệu</span>;
+      return <span className="text-[10px] text-slate-400 italic whitespace-nowrap">{t("panels.gcreative.vol.noData")}</span>;
     }
     return (
       <span className="text-[10px] whitespace-nowrap">
         <b className={cn(
           m.avgMonthlySearches >= 1000 ? "text-emerald-700"
           : m.avgMonthlySearches >= 100 ? "text-slate-700" : "text-slate-400",
-        )}>{m.avgMonthlySearches.toLocaleString("vi-VN")}</b>
-        <span className="text-slate-400">/tháng</span>
+        )}>{m.avgMonthlySearches.toLocaleString(loc)}</b>
+        <span className="text-slate-400">{t("panels.gcreative.vol.perMonth")}</span>
         {m.competition && <span className="ml-1.5 text-slate-400">· {m.competition}</span>}
         {m.topOfPageBidHighVnd ? (
-          <span className="ml-1.5 text-slate-400">· thầu ₫{m.topOfPageBidHighVnd.toLocaleString("vi-VN")}</span>
+          <span className="ml-1.5 text-slate-400">{t("panels.gcreative.vol.bid", { amount: m.topOfPageBidHighVnd.toLocaleString(loc) })}</span>
         ) : null}
       </span>
     );
@@ -432,17 +440,17 @@ export default function GoogleCreativePanel({
         body: JSON.stringify({ creativeId: result.id, ...payload }),
       });
       const data = await res.json();
-      if (!data.success) throw new Error(data.error ?? "Không lưu được");
+      if (!data.success) throw new Error(data.error ?? t("panels.gcreative.err.saveFail"));
       setResult((prev: AnyJSON) => prev?.keywords
         ? { ...prev, keywords: { ...prev.keywords, keywords: data.keywords } }
         : prev);
       setKwWarning(data.warning ?? null);
     } catch (e) {
-      setKwError(e instanceof Error ? e.message : "Lỗi không rõ");
+      setKwError(e instanceof Error ? e.message : t("panels.gcreative.err.unknown"));
     } finally {
       setKwBusy(false);
     }
-  }, [result]);
+  }, [result, t]);
 
   const addKeyword = (keyword: string, matchType: string) =>
     patchKeywords({ action: "add", keyword, matchType });
@@ -471,19 +479,19 @@ export default function GoogleCreativePanel({
       .then((j: { success?: boolean; actions?: ConvAction[]; error?: string; metricsAvailable?: boolean; metricsError?: string }) => {
         if (cancelled) return;
         if (!j.success || !Array.isArray(j.actions)) {
-          setConvError(j.error ?? "Không đọc được hành động chuyển đổi");
+          setConvError(j.error ?? t("panels.gcreative.err.convRead"));
           return;
         }
         setConvActions(j.actions);
-        setConvMetricsError(j.metricsAvailable === false ? String(j.metricsError ?? "không rõ") : null);
+        setConvMetricsError(j.metricsAvailable === false ? String(j.metricsError ?? t("panels.gcreative.unknownShort")) : null);
         // Mặc định: đơn hàng (Purchase) và phải CÓ dữ liệu thật. Không có cái
         // nào đạt thì để TRỐNG — thà giữ hành vi cũ còn hơn tự chọn bừa một
         // tín hiệu rồi bắt Google tối ưu theo nó.
         setSelectedConvActions(j.actions.filter(a => a.recommended).map(a => a.resourceName));
       })
-      .catch(() => { if (!cancelled) setConvError("Không gọi được API hành động chuyển đổi"); });
+      .catch(() => { if (!cancelled) setConvError(t("panels.gcreative.err.convApi")); });
     return () => { cancelled = true; };
-  }, [company]);
+  }, [company, t]);
 
   // ── Tiện ích hình ảnh cho Search ────────────────────────────────────────
   // Quảng cáo Search KHÔNG có ảnh trong bản thân nó — đó là bản chất của Google
@@ -518,11 +526,11 @@ export default function GoogleCreativePanel({
         const canvas = document.createElement("canvas");
         canvas.width = cw; canvas.height = ch;
         const ctx = canvas.getContext("2d");
-        if (!ctx) return reject(new Error("Trình duyệt không cắt được ảnh"));
+        if (!ctx) return reject(new Error(t("panels.gcreative.err.cropFail")));
         ctx.drawImage(im, Math.round((w - cw) / 2), Math.round((h - ch) / 2), cw, ch, 0, 0, cw, ch);
         resolve({ dataUrl: canvas.toDataURL("image/jpeg", 0.92), w: cw, h: ch });
       };
-      im.onerror = () => reject(new Error("Không mở được ảnh để cắt"));
+      im.onerror = () => reject(new Error(t("panels.gcreative.err.cropOpen")));
       im.src = dataUrl;
     });
 
@@ -533,20 +541,20 @@ export default function GoogleCreativePanel({
       let dataUrl = await new Promise<string>((res, rej) => {
         const r = new FileReader();
         r.onload = () => res(String(r.result));
-        r.onerror = () => rej(new Error("Không đọc được tệp"));
+        r.onerror = () => rej(new Error(t("panels.gcreative.err.fileRead")));
         r.readAsDataURL(file);
       });
       let dim = await new Promise<{ w: number; h: number }>((res, rej) => {
         const im = new window.Image();
         im.onload = () => res({ w: im.naturalWidth, h: im.naturalHeight });
-        im.onerror = () => rej(new Error("Tệp không phải ảnh hợp lệ"));
+        im.onerror = () => rej(new Error(t("panels.gcreative.err.notImage")));
         im.src = dataUrl;
       });
 
       // Lệch tỉ lệ thì cắt về tỉ lệ GẦN NHẤT trong nhóm đang chọn, thay vì từ chối.
       const allowed = imgPurpose === "LOGO"
-        ? [{ r: 1, label: "Logo vuông 1:1" }, { r: 4, label: "Logo ngang 4:1" }]
-        : [{ r: 1.91, label: "Ngang 1.91:1" }, { r: 1, label: "Vuông 1:1" }, { r: 0.8, label: "Dọc 4:5" }];
+        ? [{ r: 1, label: t("panels.gcreative.img.logoSquare") }, { r: 4, label: t("panels.gcreative.img.logoWide") }]
+        : [{ r: 1.91, label: t("panels.gcreative.img.wide") }, { r: 1, label: t("panels.gcreative.img.square") }, { r: 0.8, label: t("panels.gcreative.img.tall") }];
       const ratio = dim.w / dim.h;
       const exact = allowed.find(a => Math.abs(ratio - a.r) <= a.r * 0.02);
       let cropNote: string | null = null;
@@ -554,7 +562,7 @@ export default function GoogleCreativePanel({
         const nearest = allowed.reduce((best, a) =>
           Math.abs(ratio - a.r) < Math.abs(ratio - best.r) ? a : best, allowed[0]);
         const cropped = await cropToRatio(dataUrl, dim.w, dim.h, nearest.r);
-        cropNote = `đã tự cắt ${dim.w}×${dim.h} → ${cropped.w}×${cropped.h} (${nearest.label})`;
+        cropNote = t("panels.gcreative.img.cropNote", { from: `${dim.w}×${dim.h}`, to: `${cropped.w}×${cropped.h}`, label: nearest.label });
         dataUrl = cropped.dataUrl;
         dim = { w: cropped.w, h: cropped.h };
       }
@@ -565,15 +573,15 @@ export default function GoogleCreativePanel({
         body: JSON.stringify({ company, name: file.name, dataUrl, width: dim.w, height: dim.h, campaignType, purpose: imgPurpose, currentCount: images.length }),
       });
       const data = await res.json();
-      if (!data.success) throw new Error(data.error ?? "Google từ chối ảnh");
+      if (!data.success) throw new Error(data.error ?? t("panels.gcreative.err.imgRejected"));
       // Cắt rồi thì NÓI RA — người dùng phải biết ảnh gửi đi khác ảnh họ chọn.
       setImages(prev => [...prev, { ...(data.asset as UploadedImage), cropNote } as UploadedImage]);
     } catch (e) {
-      setImageError(e instanceof Error ? e.message : "Lỗi không rõ");
+      setImageError(e instanceof Error ? e.message : t("panels.gcreative.err.unknown"));
     } finally {
       setUploading(false);
     }
-  }, [company, campaignType, images.length, imgPurpose]);
+  }, [company, campaignType, images.length, imgPurpose, t]);
 
   // ── Thư viện tài sản: chọn lại ảnh ĐÃ CÓ trong tài khoản ────────────────
   // Phần lớn ảnh cần dùng đã nằm sẵn trong tài khoản — do lần chạy trước tải
@@ -598,15 +606,15 @@ export default function GoogleCreativePanel({
     try {
       const res = await fetch(`/api/google/assets/library?company=${company}&type=IMAGE`);
       const data = await res.json();
-      if (!data.success) throw new Error(data.error ?? "Không đọc được thư viện tài sản");
+      if (!data.success) throw new Error(data.error ?? t("panels.gcreative.err.libRead"));
       setLibImages(data.images as LibraryImage[]);
       setLibOddRatio(Number(data.oddRatioCount ?? 0));
     } catch (e) {
-      setLibError(e instanceof Error ? e.message : "Lỗi không rõ");
+      setLibError(e instanceof Error ? e.message : t("panels.gcreative.err.unknown"));
     } finally {
       setLibLoading(false);
     }
-  }, [company]);
+  }, [company, t]);
 
   // ── Sitelink: tiện ích rẻ nhất mà tác dụng rõ nhất của quảng cáo Search ──
   // Không tốn thêm tiền, chỉ làm mẩu quảng cáo cao hơn và cho người đọc nhảy
@@ -650,10 +658,10 @@ export default function GoogleCreativePanel({
     setPasteUrl("");
     setPasteNote(
       r.params.length > 0
-        ? `✅ Đã tách: trang đích → ${r.finalUrl} · ${r.params.length} tham số (${r.params.map(p => p.key).join(", ")}) → ô UTM.`
+        ? t("panels.gcreative.paste.split", { url: r.finalUrl, n: r.params.length, keys: r.params.map(p => p.key).join(", ") })
           + (r.droppedHash ? ` ${r.problem}` : "")
-        : `✅ Đã đặt trang đích → ${r.finalUrl}. Link không có tham số theo dõi nào nên ô UTM giữ nguyên.`);
-  }, [pasteUrl]);
+        : t("panels.gcreative.paste.set", { url: r.finalUrl }));
+  }, [pasteUrl, t]);
 
   const biddingPayload = useCallback(() => ({
     strategy: bidStrategy,
@@ -690,10 +698,10 @@ export default function GoogleCreativePanel({
     try {
       const res = await fetch(`/api/google/geo-targets?company=${company}`);
       const data = await res.json();
-      if (!data.success) throw new Error(data.error ?? "Không đọc được danh sách vị trí");
+      if (!data.success) throw new Error(data.error ?? t("panels.gcreative.err.geoRead"));
       setGeoList(data.locations as GeoRow[]);
     } catch (e) {
-      setGeoError(e instanceof Error ? e.message : "Lỗi không rõ");
+      setGeoError(e instanceof Error ? e.message : t("panels.gcreative.err.unknown"));
     } finally {
       setGeoLoading(false);
     }
@@ -717,14 +725,14 @@ export default function GoogleCreativePanel({
     try {
       const res = await fetch(`/api/google/assets/library?company=${company}&type=VIDEO`);
       const data = await res.json();
-      if (!data.success) throw new Error(data.error ?? "Không đọc được video");
+      if (!data.success) throw new Error(data.error ?? t("panels.gcreative.err.videoRead"));
       setVidLibrary(data.videos as VideoRow[]);
     } catch (e) {
-      setVidError(e instanceof Error ? e.message : "Lỗi không rõ");
+      setVidError(e instanceof Error ? e.message : t("panels.gcreative.err.unknown"));
     } finally {
       setVidLoading(false);
     }
-  }, [company]);
+  }, [company, t]);
 
   const loadSitelinkLibrary = useCallback(async () => {
     setSlLoading(true);
@@ -732,14 +740,14 @@ export default function GoogleCreativePanel({
     try {
       const res = await fetch(`/api/google/assets/library?company=${company}&type=SITELINK`);
       const data = await res.json();
-      if (!data.success) throw new Error(data.error ?? "Không đọc được sitelink");
+      if (!data.success) throw new Error(data.error ?? t("panels.gcreative.err.sitelinkRead"));
       setSlLibrary(data.sitelinks as SitelinkRow[]);
     } catch (e) {
-      setSlError(e instanceof Error ? e.message : "Lỗi không rõ");
+      setSlError(e instanceof Error ? e.message : t("panels.gcreative.err.unknown"));
     } finally {
       setSlLoading(false);
     }
-  }, [company]);
+  }, [company, t]);
 
   // ── Trạng thái duyệt chính sách của campaign VỪA TẠO ────────────────────
   // Google duyệt BẤT ĐỒNG BỘ: ngay sau khi tạo, mọi thứ đều "đang duyệt". Nên
@@ -772,17 +780,17 @@ export default function GoogleCreativePanel({
       if (campaignId && /^\d+$/.test(campaignId)) qs.set("campaignId", campaignId);
       const res = await fetch(`/api/google/policy-status?${qs}`);
       const data = await res.json();
-      if (!data.success) throw new Error(data.error ?? "Không đọc được");
+      if (!data.success) throw new Error(data.error ?? t("panels.gcreative.err.policyRead"));
       setPolicyRows(data.rows as PolicyRow[]);
       setPolicySummary(data.summary as Record<string, number>);
       setPolicyPartial(data.partial ? (data.queryErrors as string[]) : null);
-      setPolicyCheckedAt(new Date().toLocaleTimeString("vi-VN"));
+      setPolicyCheckedAt(new Date().toLocaleTimeString(loc));
     } catch (e) {
-      setPolicyError(e instanceof Error ? e.message : "Lỗi không rõ");
+      setPolicyError(e instanceof Error ? e.message : t("panels.gcreative.err.unknown"));
     } finally {
       setPolicyLoading(false);
     }
-  }, [company]);
+  }, [company, t]);
 
   // ── Kiểm trước khi tạo (validate_only) ──
   // Google kiểm bằng đúng bộ luật của lệnh thật rồi trả lỗi mà KHÔNG ghi gì lên
@@ -827,13 +835,13 @@ export default function GoogleCreativePanel({
       const data = await res.json();
       setPrecheck(data.success
         ? data
-        : { verdict: "KHÔNG KIỂM ĐƯỢC", summary: data.error ?? "Lỗi không rõ", googleErrors: data.detail });
+        : { verdict: "KHÔNG KIỂM ĐƯỢC", summary: data.error ?? t("panels.gcreative.err.unknown"), googleErrors: data.detail });
     } catch (err) {
-      setPrecheck({ verdict: "KHÔNG KIỂM ĐƯỢC", summary: err instanceof Error ? err.message : "Lỗi mạng" });
+      setPrecheck({ verdict: "KHÔNG KIỂM ĐƯỢC", summary: err instanceof Error ? err.message : t("panels.gcreative.err.network") });
     } finally {
       setPrechecking(false);
     }
-  }, [result, launchCampaignName, company, dailyBudget, selectedConvActions, images, campaignType, selectedGeo, geoTargetType, biddingPayload]);
+  }, [result, launchCampaignName, company, dailyBudget, selectedConvActions, images, campaignType, selectedGeo, geoTargetType, biddingPayload, t]);
 
   // ── Launch Campaign ──
   // `launchActive` = tạo xong BẬT CHẠY LUÔN. Mặc định false (tạo ở PAUSED).
@@ -937,8 +945,8 @@ export default function GoogleCreativePanel({
         // Chạy cả hai thì lỗi của từng cái không ném ra ngoài — gom lý do + kết
         // quả dọn dẹp lại để màn hình kết quả nói được cái nào hỏng và vì sao.
         const failNotes = [
-          !searchData.success && [`Search: ${searchData.error ?? "thất bại"}`, searchData.rollback].filter(Boolean).join(" — "),
-          !pmaxData.success && [`PMax: ${pmaxData.error ?? "thất bại"}`, pmaxData.rollback].filter(Boolean).join(" — "),
+          !searchData.success && [`Search: ${searchData.error ?? t("panels.gcreative.failed")}`, searchData.rollback].filter(Boolean).join(" — "),
+          !pmaxData.success && [`PMax: ${pmaxData.error ?? t("panels.gcreative.failed")}`, pmaxData.rollback].filter(Boolean).join(" — "),
         ].filter(Boolean) as string[];
         if (failNotes.length > 0) setLaunchError(failNotes.join(" | "));
         const pol = [...(searchData.policyTopics ?? []), ...(pmaxData.policyTopics ?? [])];
@@ -951,10 +959,10 @@ export default function GoogleCreativePanel({
           success: succeeded === 2,
           partialSuccess: succeeded === 1,
           message: succeeded === 2
-            ? "Tạo cả Search + PMax thành công!"
+            ? t("panels.gcreative.launch.both.ok")
             : succeeded === 1
-            ? "Tạo một phần thành công"
-            : "Cả hai campaign thất bại",
+            ? t("panels.gcreative.launch.partial")
+            : t("panels.gcreative.launch.bothFail"),
           results: { search: searchData, pmax: pmaxData },
           summary: { succeeded, total: 2 },
           geoNames: selectedGeo.map(g => g.nameVi),
@@ -962,7 +970,7 @@ export default function GoogleCreativePanel({
         if (searchData.success) void loadPolicyStatus(searchData.campaignResourceName);
       }
     } catch (e: unknown) {
-      setLaunchError(e instanceof Error ? e.message : "Unknown error");
+      setLaunchError(e instanceof Error ? e.message : t("panels.gcreative.err.generic"));
     } finally {
       setLaunching(false);
     }
@@ -979,7 +987,7 @@ export default function GoogleCreativePanel({
     //
     // ESLint đã cảnh báo đúng dòng này từ đầu (react-hooks/exhaustive-deps),
     // nhưng ở mức warning nên lẫn vào 7 cảnh báo khác và không ai đọc.
-  }, [result, launchCampaignName, dailyBudget, company, campaignType, images, sitelinks, videos, selectedGeo, geoTargetType, biddingPayload, utmSuffix, urlOverride, selectedConvActions, loadPolicyStatus, playbookProductKey]);
+  }, [result, launchCampaignName, dailyBudget, company, campaignType, images, sitelinks, videos, selectedGeo, geoTargetType, biddingPayload, utmSuffix, urlOverride, selectedConvActions, loadPolicyStatus, playbookProductKey, t]);
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // RENDER — Product Selection
@@ -987,8 +995,8 @@ export default function GoogleCreativePanel({
 
   // Product label for display
   const productLabel = selectedProduct === "custom"
-    ? (customProductName || "Tùy chỉnh")
-    : (products.find(p => p.id === selectedProduct)?.label ?? selectedProduct);
+    ? (customProductName || t("panels.gcreative.custom"))
+    : (() => { const pp = products.find(p => p.id === selectedProduct); return pp ? (pp.tk ? t(pp.tk) : pp.label) : selectedProduct; })();
 
   // True when product was pre-filled from Step 1 and hasn't been changed
   const isPreFilled = !!resolvedInitialId && selectedProduct === resolvedInitialId;
@@ -1006,7 +1014,7 @@ export default function GoogleCreativePanel({
                   {products.find(p => p.id === selectedProduct)?.icon ?? "✏️"}
                 </span>
                 <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Sản phẩm</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{t("panels.gcreative.product")}</p>
                   <p className="text-sm font-bold text-slate-800">{productLabel}</p>
                 </div>
                 <CheckCircle className="h-4 w-4 text-emerald-500 ml-1" />
@@ -1015,13 +1023,13 @@ export default function GoogleCreativePanel({
                 onClick={() => { setSelectedProduct(""); }}
                 className="text-xs text-slate-400 underline hover:text-slate-600"
               >
-                Đổi sản phẩm
+                {t("panels.gcreative.changeProduct")}
               </button>
             </div>
           ) : (
             <>
           <h3 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
-            🔴 Chọn sản phẩm muốn quảng cáo — {brandName}
+            {t("panels.gcreative.pickProduct", { brand: brandName })}
           </h3>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
             {products.map(p => {
@@ -1044,7 +1052,7 @@ export default function GoogleCreativePanel({
                   )}
                   <span className="text-2xl">{p.icon}</span>
                   <span className={cn("text-xs font-semibold", isSelected ? "text-red-700" : "text-slate-600")}>
-                    {p.label}
+                    {p.tk ? t(p.tk) : p.label}
                   </span>
                 </button>
               );
@@ -1066,7 +1074,7 @@ export default function GoogleCreativePanel({
               )}
               <span className="text-2xl">✏️</span>
               <span className={cn("text-xs font-semibold", selectedProduct === "custom" ? "text-red-700" : "text-slate-500")}>
-                Tùy chỉnh
+                {t("panels.gcreative.custom")}
               </span>
             </button>
           </div>
@@ -1075,17 +1083,17 @@ export default function GoogleCreativePanel({
           {selectedProduct === "custom" && (
             <div className="mt-4 rounded-xl border-2 border-red-200 bg-red-50/40 p-4 space-y-1.5">
               <label className="block text-xs font-semibold text-red-700 uppercase tracking-wide">
-                ✏️ Tên sản phẩm / dịch vụ <span className="text-red-400">*</span>
+                {t("panels.gcreative.custom.name")} <span className="text-red-400">*</span>
               </label>
               <input
                 type="text"
                 autoFocus
                 value={customProductName}
                 onChange={e => setCustomProductName(e.target.value)}
-                placeholder="Ví dụ: Vibe Hosting, Phần mềm ABC…"
+                placeholder={t("panels.gcreative.custom.ph")}
                 className="w-full rounded-lg border border-red-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-100"
               />
-              <p className="text-[11px] text-red-400">Nhập tên sản phẩm mới hoặc đang test — AI sẽ gen keywords và ad copy dựa trên tên này.</p>
+              <p className="text-[11px] text-red-400">{t("panels.gcreative.custom.hint")}</p>
             </div>
           )}
             </>
@@ -1097,16 +1105,16 @@ export default function GoogleCreativePanel({
           {initialCampaignType && isPreFilled ? (
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Loại campaign</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{t("panels.gcreative.ctype")}</p>
                 <p className="text-sm font-bold text-slate-800">
-                  {initialCampaignType === "SEARCH" ? "🔎 Search (RSA)" : initialCampaignType === "PMAX" ? "⚡ Performance Max" : "🔎⚡ Search + PMax"}
+                  {initialCampaignType === "SEARCH" ? "🔎 Search (RSA)" : initialCampaignType === "PMAX" ? "⚡ Performance Max" : t("panels.gcreative.ctype.both")}
                 </p>
               </div>
               <CheckCircle className="h-4 w-4 text-emerald-500" />
             </div>
           ) : (
             <>
-              <h3 className="text-sm font-semibold text-slate-700 mb-4">Loại campaign</h3>
+              <h3 className="text-sm font-semibold text-slate-700 mb-4">{t("panels.gcreative.ctype")}</h3>
               <div className="flex gap-3">
                 {CAMPAIGN_TYPES.map(ct => {
                   const Icon = ct.icon;
@@ -1123,7 +1131,7 @@ export default function GoogleCreativePanel({
                       )}
                     >
                       <Icon className="h-4 w-4" />
-                      {ct.label}
+                      {ct.tk ? t(ct.tk) : ct.label}
                     </button>
                   );
                 })}
@@ -1143,7 +1151,7 @@ export default function GoogleCreativePanel({
         {/* Actions */}
         <div className="flex items-center justify-between">
           <Button variant="outline" className="gap-1.5 text-xs" onClick={onBack}>
-            <ArrowLeft className="h-3.5 w-3.5" /> Quay lại
+            <ArrowLeft className="h-3.5 w-3.5" /> {t("panels.gcreative.back")}
           </Button>
           <Button
             onClick={handleGenerate}
@@ -1151,9 +1159,9 @@ export default function GoogleCreativePanel({
             className="gap-2 bg-gradient-to-r from-red-600 to-orange-600 text-white hover:from-red-700 hover:to-orange-700 disabled:opacity-40 shadow-lg px-6 py-5"
           >
             {loading ? (
-              <><Loader2 className="h-4 w-4 animate-spin" /> Đang tạo...</>
+              <><Loader2 className="h-4 w-4 animate-spin" /> {t("panels.gcreative.generating")}</>
             ) : (
-              <><Sparkles className="h-4 w-4" /> ✨ Tạo Creative AI</>
+              <><Sparkles className="h-4 w-4" /> {t("panels.gcreative.generate")}</>
             )}
           </Button>
         </div>
@@ -1253,7 +1261,7 @@ export default function GoogleCreativePanel({
                           </span>
                           <span>{h.isValid ? "✅" : "⚠️"}</span>
                           <button onClick={() => startEdit("headlines", h.id - 1, String(h.text))}
-                            className="text-slate-400 hover:text-blue-600 text-xs px-1" title="Sửa">✏️</button>
+                            className="text-slate-400 hover:text-blue-600 text-xs px-1" title={t("panels.gcreative.edit.title")}>✏️</button>
                         </>)}
                     </div>
                   ))}
@@ -1267,9 +1275,9 @@ export default function GoogleCreativePanel({
                         valid < 3 ? "bg-red-50 border border-red-200 text-red-700" : "bg-amber-50 border border-amber-200 text-amber-700")}>
                         <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
                         <span>
-                          {over} tiêu đề vượt 30 ký tự sẽ <b>bị BỎ</b> khi launch (không phải bị chặn) — còn lại <b>{valid}</b>.
-                          {valid < 3 && <> Google đòi <b>tối thiểu 3 tiêu đề</b>, quảng cáo sẽ không tạo được.</>}
-                          {" "}Bấm ✏️ để sửa ngắn lại.
+                          {rich(t("panels.gcreative.rsa.overH", { n: over, valid }))}
+                          {valid < 3 && <>{" "}{rich(t("panels.gcreative.rsa.minH"))}</>}
+                          {" "}{t("panels.gcreative.rsa.fixHint")}
                         </span>
                       </p>
                     );
@@ -1301,7 +1309,7 @@ export default function GoogleCreativePanel({
                           </span>
                           <span>{d.isValid ? "✅" : "⚠️"}</span>
                           <button onClick={() => startEdit("descriptions", d.id - 1, String(d.text))}
-                            className="text-slate-400 hover:text-blue-600 text-xs px-1" title="Sửa">✏️</button>
+                            className="text-slate-400 hover:text-blue-600 text-xs px-1" title={t("panels.gcreative.edit.title")}>✏️</button>
                         </>)}
                     </div>
                   ))}
@@ -1314,9 +1322,9 @@ export default function GoogleCreativePanel({
                         valid < 2 ? "bg-red-50 border border-red-200 text-red-700" : "bg-amber-50 border border-amber-200 text-amber-700")}>
                         <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
                         <span>
-                          {over} mô tả vượt 90 ký tự sẽ <b>bị BỎ</b> khi launch — còn lại <b>{valid}</b>.
-                          {valid < 2 && <> Google đòi <b>tối thiểu 2 mô tả</b>, quảng cáo sẽ không tạo được.</>}
-                          {" "}Bấm ✏️ để sửa ngắn lại.
+                          {rich(t("panels.gcreative.rsa.overD", { n: over, valid }))}
+                          {valid < 2 && <>{" "}{rich(t("panels.gcreative.rsa.minD"))}</>}
+                          {" "}{t("panels.gcreative.rsa.fixHint")}
                         </span>
                       </p>
                     );
@@ -1331,10 +1339,10 @@ export default function GoogleCreativePanel({
                 <p className="text-xs font-semibold text-blue-700 mb-2">💡 Pin Suggestions:</p>
                 <div className="flex gap-6 text-xs text-blue-600">
                   {result.rsa.pinSuggestions.position1 && (
-                    <span>Vị trí 1: Headlines {result.rsa.pinSuggestions.position1.join(", ")}</span>
+                    <span>{t("panels.gcreative.pin.pos1", { list: result.rsa.pinSuggestions.position1.join(", ") })}</span>
                   )}
                   {result.rsa.pinSuggestions.position2 && (
-                    <span>Vị trí 2: Headlines {result.rsa.pinSuggestions.position2.join(", ")}</span>
+                    <span>{t("panels.gcreative.pin.pos2", { list: result.rsa.pinSuggestions.position2.join(", ") })}</span>
                   )}
                 </div>
               </div>
@@ -1344,7 +1352,7 @@ export default function GoogleCreativePanel({
             <div className="flex gap-2 pt-2">
               <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={copyAllRSA}>
                 {copiedId === "rsa-all" ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
-                {copiedId === "rsa-all" ? "Đã copy!" : "Copy tất cả"}
+                {copiedId === "rsa-all" ? t("panels.gcreative.copied") : t("panels.gcreative.copyAll")}
               </Button>
             </div>
           </div>
@@ -1404,7 +1412,7 @@ export default function GoogleCreativePanel({
             {result.pmax.audienceSignals && (
               <div className="rounded-lg bg-purple-50 border border-purple-200 p-4">
                 <p className="text-xs font-semibold text-purple-700 mb-3">
-                  🎯 Audience Signals {company === "MBI" ? "(MBI — Kế toán / CFO / Thuế)" : "(MBC — SMB / IT / Marketing)"}:
+                  {t("panels.gcreative.pm.audience", { seg: company === "MBI" ? t("panels.gcreative.pm.seg.mbi") : t("panels.gcreative.pm.seg.mbc") })}
                 </p>
                 <div className="space-y-2 text-xs text-purple-600">
                   {result.pmax.audienceSignals.inMarketSegments && (
@@ -1438,7 +1446,7 @@ export default function GoogleCreativePanel({
             {/* Additional Asset Group Ideas */}
             {result.pmax.additionalAssetGroupIdeas?.length > 0 && (
               <div className="rounded-lg bg-indigo-50 border border-indigo-200 p-4">
-                <p className="text-xs font-semibold text-indigo-700 mb-3">💡 Gợi ý thêm Asset Group:</p>
+                <p className="text-xs font-semibold text-indigo-700 mb-3">{t("panels.gcreative.pm.ideas")}</p>
                 <div className="space-y-2">
                   {(result.pmax.additionalAssetGroupIdeas as AnyJSON[]).map((idea: AnyJSON, i: number) => (
                     <div key={i} className="flex items-center gap-3 rounded-md bg-white border border-indigo-200 p-3">
@@ -1467,8 +1475,8 @@ export default function GoogleCreativePanel({
             </div>
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={measureVolumes} disabled={measuring}
-                title="Hỏi Google Keyword Planner lượng tìm kiếm thật — miễn phí, không tính vào hạn mức Meta">
-                {measuring ? <><Loader2 className="h-3 w-3 animate-spin" /> Đang hỏi Google...</> : <>📊 Đo lượng tìm thật</>}
+                title={t("panels.gcreative.kw.measureTitle")}>
+                {measuring ? <><Loader2 className="h-3 w-3 animate-spin" /> {t("panels.gcreative.kw.asking")}</> : <>{t("panels.gcreative.kw.measure")}</>}
               </Button>
               <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={exportKeywordsCSV}>
                 <Download className="h-3 w-3" /> Export CSV
@@ -1504,8 +1512,7 @@ export default function GoogleCreativePanel({
               // Nói thẳng nhãn HIGH/MED/LOW là gì. Màu đỏ/vàng rất dễ bị đọc
               // thành "nhiều người tìm", trong khi nó chỉ là AI tự chấm.
               <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
-                ℹ️ Nhãn <b>HIGH/MED/LOW</b> là <b>mức độ ý định mua do AI tự chấm</b> — không phải lượng tìm kiếm.
-                Bấm <b>📊 Đo lượng tìm thật</b> để hỏi chính Google xem mỗi tháng có bao nhiêu người gõ.
+                {rich(t("panels.gcreative.kw.info"))}
               </p>
             )}
             {kwNote && <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">⚠️ {kwNote}</p>}
@@ -1523,11 +1530,10 @@ export default function GoogleCreativePanel({
               return (
                 <div className="rounded-lg border border-emerald-200 bg-emerald-50/40 p-3">
                   <p className="text-xs font-bold text-emerald-800">
-                    💡 Google gợi ý {groups.length} cụm từ khoá kèm lượt tìm thật
+                    {t("panels.gcreative.kw.suggest", { n: groups.length })}
                   </p>
                   <p className="text-[10px] text-emerald-700/80 mb-2">
-                    Gộp từ {kwSuggestions.length} dòng Google trả về — các cách viết khác dấu của cùng một cụm
-                    đã nhập làm một. Xếp theo lượt tìm giảm dần. Bấm để thêm (loại khớp <b>PHRASE</b>, đổi được sau).
+                    {rich(t("panels.gcreative.kw.suggestNote", { n: kwSuggestions.length }))}
                   </p>
 
                   <div className="flex flex-wrap gap-1.5">
@@ -1553,21 +1559,21 @@ export default function GoogleCreativePanel({
                         <button key={i} disabled={kwBusy || added || !!blockedBy}
                           onClick={() => void addKeyword(g.canonical.keyword, "PHRASE")}
                           title={blockedBy
-                            ? `Không thêm được: từ khoá phủ định "${blockedBy.keyword}" sẽ chặn cụm này. Bỏ cụm phủ định đó trước nếu vẫn muốn dùng.`
-                            : added ? "Đã có trong bộ từ khoá"
+                            ? t("panels.gcreative.kw.blockedBy", { neg: String(blockedBy.keyword) })
+                            : added ? t("panels.gcreative.kw.added")
                             : g.variants.length > 0
-                              ? `Thêm "${g.canonical.keyword}". Gộp ${g.variants.length} cách viết khác: ${g.variants.map(v => v.keyword).join(" · ")}`
-                              : `Thêm "${g.canonical.keyword}" vào bộ từ khoá`}
+                              ? t("panels.gcreative.kw.addMerged", { kw: g.canonical.keyword, n: g.variants.length, list: g.variants.map(v => v.keyword).join(" · ") })
+                              : t("panels.gcreative.kw.addTo", { kw: g.canonical.keyword })}
                           className={cn("rounded-full border px-2 py-0.5 text-[10px] transition-colors",
                             blockedBy ? "bg-amber-50 border-amber-300 text-amber-800 cursor-not-allowed"
                             : added ? "bg-slate-100 border-slate-200 text-slate-400 cursor-default"
                             : "bg-white border-emerald-200 hover:bg-emerald-100 hover:border-emerald-400 disabled:opacity-50")}>
                           {blockedBy ? "⚠" : added ? "✓" : "+"} {g.canonical.keyword}
                           <b className={cn("ml-1", added ? "text-slate-400" : "text-emerald-700")}>
-                            {(g.volume ?? 0).toLocaleString("vi-VN")}/th
+                            {(g.volume ?? 0).toLocaleString(loc)}{t("panels.gcreative.kw.perMonthShort")}
                           </b>
                           {g.variants.length > 0 && (
-                            <span className="ml-1 text-slate-400">+{g.variants.length} cách viết</span>
+                            <span className="ml-1 text-slate-400">{t("panels.gcreative.kw.variants", { n: g.variants.length })}</span>
                           )}
                         </button>
                       );
@@ -1577,20 +1583,20 @@ export default function GoogleCreativePanel({
                   {groups.length > 40 && (
                     <button onClick={() => setShowAllSuggestions(v => !v)}
                       className="mt-2 text-[10px] font-semibold text-emerald-800 underline hover:text-emerald-900">
-                      {showAllSuggestions ? "Thu gọn" : `Xem thêm ${groups.length - 40} cụm nữa`}
+                      {showAllSuggestions ? t("panels.gcreative.kw.collapse") : t("panels.gcreative.kw.more", { n: groups.length - 40 })}
                     </button>
                   )}
 
                   <p className="text-[10px] text-emerald-700/70 mt-1.5">
-                    <span className="text-amber-700">⚠</span> = đang bị từ khoá phủ định của bạn chặn ·
-                    <span className="text-slate-500"> ✓</span> = đã có trong bộ từ khoá
+                    <span className="text-amber-700">⚠</span> {t("panels.gcreative.kw.legendBlocked")} ·
+                    <span className="text-slate-500"> ✓</span> {t("panels.gcreative.kw.legendAdded")}
                   </p>
                 </div>
               );
             })()}
             {/* Thêm từ khoá tay */}
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-2">
-              <p className="text-xs font-bold text-slate-700">➕ Thêm từ khoá</p>
+              <p className="text-xs font-bold text-slate-700">{t("panels.gcreative.kw.add")}</p>
               <div className="flex items-center gap-2 flex-wrap">
                 <input
                   value={newKw}
@@ -1601,29 +1607,29 @@ export default function GoogleCreativePanel({
                       setNewKw("");
                     }
                   }}
-                  placeholder="VD: đăng ký tên miền .com giá rẻ"
+                  placeholder={t("panels.gcreative.kw.addPh")}
                   className="flex-1 min-w-[220px] rounded border border-slate-300 px-2 py-1.5 text-sm outline-none focus:border-blue-400"
                 />
                 <div className="flex rounded border border-slate-300 overflow-hidden">
-                  {(["EXACT", "PHRASE", "BROAD"] as const).map(t => (
-                    <button key={t} onClick={() => setNewKwType(t)}
+                  {(["EXACT", "PHRASE", "BROAD"] as const).map(mt => (
+                    <button key={mt} onClick={() => setNewKwType(mt)}
                       className={cn("px-2.5 py-1.5 text-[11px] font-semibold",
-                        newKwType === t ? "bg-slate-800 text-white" : "bg-white text-slate-600 hover:bg-slate-100")}>
-                      {t}
+                        newKwType === mt ? "bg-slate-800 text-white" : "bg-white text-slate-600 hover:bg-slate-100")}>
+                      {mt}
                     </button>
                   ))}
                 </div>
                 <Button size="sm" className="h-8 text-xs" disabled={kwBusy || !newKw.trim()}
                   onClick={() => { void addKeyword(newKw.trim(), newKwType); setNewKw(""); }}>
-                  Thêm
+                  {t("panels.gcreative.kw.addBtn")}
                 </Button>
               </div>
               {kwError && <p className="text-[11px] text-red-600">❌ {kwError}</p>}
               {kwWarning && <p className="text-[11px] text-amber-700">⚠️ {kwWarning}</p>}
               <p className="text-[10px] text-slate-400">
-                <b>EXACT</b> khớp đúng cụm — chính xác nhất, ít lượt hiện nhất.
-                <b className="ml-2">PHRASE</b> khớp cụm kèm biến thể gần.
-                <b className="ml-2">BROAD</b> rộng nhất, dễ hiện cho truy vấn không liên quan — nên giữ dưới 20%.
+                <b>EXACT</b> {t("panels.gcreative.kw.matchHelp.exact")}
+                <b className="ml-2">PHRASE</b> {t("panels.gcreative.kw.matchHelp.phrase")}
+                <b className="ml-2">BROAD</b> {t("panels.gcreative.kw.matchHelp.broad")}
               </p>
             </div>
 
@@ -1643,7 +1649,7 @@ export default function GoogleCreativePanel({
                       : "bg-white border-slate-200 text-slate-400 hover:border-slate-300"
                   )}
                 >
-                  {level === "ALL" ? "Tất cả" : level === "HIGH" ? "🔴 HIGH" : level === "MED" ? "🟡 MED" : "⚪ LOW"}
+                  {level === "ALL" ? t("panels.gcreative.all") : level === "HIGH" ? "🔴 HIGH" : level === "MED" ? "🟡 MED" : "⚪ LOW"}
                 </button>
               ))}
             </div>
@@ -1681,7 +1687,7 @@ export default function GoogleCreativePanel({
                               "text-[10px] font-bold",
                               kw.intentLevel === "HIGH" ? "text-red-500" :
                               kw.intentLevel === "MED" ? "text-amber-500" : "text-slate-400"
-                            )} title="Mức độ ý định mua do AI tự chấm — không phải lượng tìm kiếm">
+                            )} title={t("panels.gcreative.kw.intentTitle")}>
                               {kw.intentLevel}
                             </span>
                           </div>
@@ -1704,29 +1710,29 @@ export default function GoogleCreativePanel({
                     return (
                     <div key={realIndex} className="flex items-center gap-3 rounded-lg border border-slate-200 px-4 py-2 text-xs">
                       <div className="flex rounded overflow-hidden border border-slate-200">
-                        {(["EXACT", "PHRASE", "BROAD"] as const).map(t => (
-                          <button key={t} disabled={kwBusy || kw.matchType === t}
-                            onClick={() => void patchKeywords({ action: "setMatchType", index: realIndex, matchType: t })}
-                            title={`Đổi sang ${t}`}
+                        {(["EXACT", "PHRASE", "BROAD"] as const).map(mt => (
+                          <button key={mt} disabled={kwBusy || kw.matchType === mt}
+                            onClick={() => void patchKeywords({ action: "setMatchType", index: realIndex, matchType: mt })}
+                            title={t("panels.gcreative.kw.switchTo", { type: mt })}
                             className={cn("px-1.5 py-0.5 text-[9px] font-bold transition-colors",
-                              kw.matchType === t
-                                ? (t === "EXACT" ? "bg-emerald-100 text-emerald-700"
-                                  : t === "PHRASE" ? "bg-blue-100 text-blue-700"
+                              kw.matchType === mt
+                                ? (mt === "EXACT" ? "bg-emerald-100 text-emerald-700"
+                                  : mt === "PHRASE" ? "bg-blue-100 text-blue-700"
                                   : "bg-amber-100 text-amber-700")
                                 : "bg-white text-slate-300 hover:bg-slate-100 hover:text-slate-600")}>
-                            {t[0]}
+                            {mt[0]}
                           </button>
                         ))}
                       </div>
                       <span className="flex-1 text-slate-700">
                         {kw.keyword}
-                        {kw.addedBy === "user" && <span className="ml-1.5 text-[9px] text-slate-400">(thêm tay)</span>}
+                        {kw.addedBy === "user" && <span className="ml-1.5 text-[9px] text-slate-400">{t("panels.gcreative.kw.byHand")}</span>}
                       </span>
                       {volumeBadge(String(kw.keyword))}
-                      <span className="text-[10px] font-bold text-slate-400" title="Mức độ ý định mua do AI tự chấm — không phải lượng tìm kiếm">{kw.intentLevel}</span>
+                      <span className="text-[10px] font-bold text-slate-400" title={t("panels.gcreative.kw.intentTitle")}>{kw.intentLevel}</span>
                       <button disabled={kwBusy}
                         onClick={() => void patchKeywords({ action: "remove", index: realIndex })}
-                        title="Xoá từ khoá này" className="text-slate-300 hover:text-red-600 px-1">✕</button>
+                        title={t("panels.gcreative.kw.remove")} className="text-slate-300 hover:text-red-600 px-1">✕</button>
                     </div>
                     );
                   })}
@@ -1737,11 +1743,10 @@ export default function GoogleCreativePanel({
             {result.keywords.negativeKeywords && (
               <div className="rounded-lg bg-red-50 border border-red-200 p-4">
                 <p className="text-xs font-semibold text-red-700 mb-1">
-                  🚫 Từ khoá phủ định ({(result.keywords.negativeKeywords as AnyJSON[]).length}) — chặn lượt tìm không liên quan
+                  {t("panels.gcreative.neg.title", { n: (result.keywords.negativeKeywords as AnyJSON[]).length })}
                 </p>
                 <p className="text-[10px] text-red-600/80 mb-2">
-                  Gắn ở <b>cấp chiến dịch</b>, áp cho mọi nhóm quảng cáo. Bỏ cái nào bạn thấy không đúng —
-                  ví dụ đang chạy khuyến mãi tặng gói dùng thử thì nên bỏ nhóm &quot;miễn phí&quot;.
+                  {rich(t("panels.gcreative.neg.note"))}
                 </p>
                 <div className="flex flex-wrap gap-1.5">
                   {(result.keywords.negativeKeywords as AnyJSON[]).map((nk: AnyJSON, i: number) => (
@@ -1750,7 +1755,7 @@ export default function GoogleCreativePanel({
                         nk.source === "ai" ? "bg-violet-100 text-violet-800"
                         : nk.source === "manual" ? "bg-slate-200 text-slate-800"
                         : "bg-red-100 text-red-700")}>
-                      {nk.source === "ai" && <span title="AI sinh theo phân khúc bạn chọn">✨</span>}
+                      {nk.source === "ai" && <span title={t("panels.gcreative.neg.aiTitle")}>✨</span>}
                       {nk.keyword}
                       <button
                         onClick={() => setResult((prev: AnyJSON) => {
@@ -1759,12 +1764,12 @@ export default function GoogleCreativePanel({
                             negativeKeywords: (prev.keywords.negativeKeywords as AnyJSON[]).filter((_, j) => j !== i) } };
                           return next;
                         })}
-                        className="opacity-50 hover:opacity-100 hover:text-red-900" title="Bỏ cụm này">✕</button>
+                        className="opacity-50 hover:opacity-100 hover:text-red-900" title={t("panels.gcreative.neg.dropTitle")}>✕</button>
                     </span>
                   ))}
                 </div>
                 <p className="text-[10px] text-slate-400 mt-1.5">
-                  <span className="text-violet-700">✨</span> = AI sinh theo phân khúc · còn lại là bộ chặn mặc định của ngành.
+                  <span className="text-violet-700">✨</span> {t("panels.gcreative.neg.legend2")}
                 </p>
 
                 {/* Cụm bị LOẠI vì sẽ chặn chính từ khoá của mình. Google áp từ
@@ -1773,11 +1778,11 @@ export default function GoogleCreativePanel({
                 {Array.isArray(result.keywords.negativeConflicts) && (result.keywords.negativeConflicts as AnyJSON[]).length > 0 && (
                   <div className="mt-2 rounded bg-amber-50 border border-amber-200 px-2 py-1.5">
                     <p className="text-[10px] font-semibold text-amber-900">
-                      Đã tự bỏ {(result.keywords.negativeConflicts as AnyJSON[]).length} cụm vì chúng sẽ chặn chính từ khoá của bạn:
+                      {t("panels.gcreative.neg.conflict", { n: (result.keywords.negativeConflicts as AnyJSON[]).length })}
                     </p>
                     <ul className="mt-0.5 space-y-0.5 text-[10px] text-amber-800">
                       {(result.keywords.negativeConflicts as AnyJSON[]).map((cf: AnyJSON, i: number) => (
-                        <li key={i}>· &quot;{cf.negative}&quot; sẽ chặn: {(cf.blocks as string[]).join(" · ")}</li>
+                        <li key={i}>{t("panels.gcreative.neg.willBlock", { neg: String(cf.negative), list: (cf.blocks as string[]).join(" · ") })}</li>
                       ))}
                     </ul>
                   </div>
@@ -1789,11 +1794,9 @@ export default function GoogleCreativePanel({
                 của MỌI chiến dịch tool tạo ra trước bản này. */}
             {!result.keywords.negativeKeywords && (
               <div className="rounded-lg bg-amber-50 border border-amber-300 p-3">
-                <p className="text-xs font-semibold text-amber-900">⚠️ Chiến dịch này chưa có từ khoá phủ định nào</p>
+                <p className="text-xs font-semibold text-amber-900">{t("panels.gcreative.neg.none")}</p>
                 <p className="text-[11px] text-amber-800 mt-1">
-                  Với match type BROAD và PHRASE, tiền dễ chảy vào &quot;tuyển dụng&quot;, &quot;miễn phí&quot;,
-                  &quot;crack&quot;, &quot;cách tự làm&quot;… Sinh lại nội dung để tool bổ sung bộ chặn,
-                  hoặc tự thêm trong Google Ads sau khi tạo.
+                  {t("panels.gcreative.neg.noneNote")}
                 </p>
               </div>
             )}
@@ -1804,8 +1807,8 @@ export default function GoogleCreativePanel({
                 <p className="text-xs font-semibold text-emerald-700 mb-2">💰 Bidding Recommendation:</p>
                 <div className="text-xs text-emerald-600 space-y-1">
                   <p><span className="font-semibold">Strategy:</span> {result.keywords.biddingRecommendation.strategy}</p>
-                  <p><span className="font-semibold">Target CPA:</span> {new Intl.NumberFormat("vi-VN").format(result.keywords.biddingRecommendation.targetCPA ?? 0)}₫</p>
-                  <p><span className="font-semibold">Lý do:</span> {result.keywords.biddingRecommendation.reasoning}</p>
+                  <p><span className="font-semibold">Target CPA:</span> {new Intl.NumberFormat(loc).format(result.keywords.biddingRecommendation.targetCPA ?? 0)}₫</p>
+                  <p><span className="font-semibold">{t("panels.gcreative.reason")}</span> {result.keywords.biddingRecommendation.reasoning}</p>
                 </div>
               </div>
             )}
@@ -1832,39 +1835,39 @@ export default function GoogleCreativePanel({
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm space-y-3">
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <div>
-              <h3 className="text-sm font-bold text-slate-800">🛡️ Google duyệt chính sách</h3>
+              <h3 className="text-sm font-bold text-slate-800">{t("panels.gcreative.pol.title")}</h3>
               <p className="text-[11px] text-slate-500 mt-0.5">
-                Phán quyết <b>thật</b> đọc trực tiếp từ tài khoản — cho cả quảng cáo lẫn ảnh.
-                {policyCheckedAt && <span className="text-slate-400"> · đọc lúc {policyCheckedAt}</span>}
+                {rich(t("panels.gcreative.pol.sub"))}
+                {policyCheckedAt && <span className="text-slate-400">{t("panels.gcreative.pol.readAt", { time: policyCheckedAt })}</span>}
               </p>
             </div>
             <Button variant="outline" size="sm" className="gap-1.5 text-xs" disabled={policyLoading}
               onClick={() => void loadPolicyStatus(
                 (launchResult as AnyJSON)?.results?.search?.campaignResourceName,
               )}>
-              {policyLoading ? <><Loader2 className="h-3 w-3 animate-spin" /> Đang đọc...</> : <>🔄 Xem lại</>}
+              {policyLoading ? <><Loader2 className="h-3 w-3 animate-spin" /> {t("panels.gcreative.pol.reading")}</> : <>{t("panels.gcreative.pol.recheck")}</>}
             </Button>
           </div>
 
           {policyError && <p className="text-[11px] text-red-600">❌ {policyError}</p>}
           {policyPartial && (
             <p className="rounded border border-red-300 bg-red-50 px-2 py-1.5 text-[11px] text-red-800">
-              ⚠️ <b>Đọc CHƯA đủ</b> — {policyPartial.join(" · ")}. Kết quả bên dưới không đầy đủ.
+              {rich(t("panels.gcreative.pol.partial", { list: policyPartial.join(" · ") }))}
             </p>
           )}
 
           {policySummary && (
             <div className="flex flex-wrap gap-2 text-[11px]">
-              {policySummary.bad > 0 && <span className="rounded-full bg-red-100 text-red-700 px-2 py-0.5 font-bold">❌ {policySummary.bad} bị từ chối</span>}
-              {policySummary.warn > 0 && <span className="rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 font-bold">⚠️ {policySummary.warn} bị giới hạn</span>}
-              {policySummary.pending > 0 && <span className="rounded-full bg-slate-100 text-slate-600 px-2 py-0.5 font-bold">⏳ {policySummary.pending} đang duyệt</span>}
-              {policySummary.ok > 0 && <span className="rounded-full bg-emerald-100 text-emerald-700 px-2 py-0.5 font-bold">✅ {policySummary.ok} được duyệt</span>}
+              {policySummary.bad > 0 && <span className="rounded-full bg-red-100 text-red-700 px-2 py-0.5 font-bold">{t("panels.gcreative.pol.bad", { n: policySummary.bad })}</span>}
+              {policySummary.warn > 0 && <span className="rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 font-bold">{t("panels.gcreative.pol.warn", { n: policySummary.warn })}</span>}
+              {policySummary.pending > 0 && <span className="rounded-full bg-slate-100 text-slate-600 px-2 py-0.5 font-bold">{t("panels.gcreative.pol.pending", { n: policySummary.pending })}</span>}
+              {policySummary.ok > 0 && <span className="rounded-full bg-emerald-100 text-emerald-700 px-2 py-0.5 font-bold">{t("panels.gcreative.pol.ok", { n: policySummary.ok })}</span>}
             </div>
           )}
 
           {policyRows && policyRows.length === 0 && (
             <p className="text-[11px] text-slate-500">
-              Chưa có mục nào để đọc. Google thường mất vài phút mới ghi nhận quảng cáo mới — bấm <b>Xem lại</b> sau ít phút.
+              {rich(t("panels.gcreative.pol.empty"))}
             </p>
           )}
 
@@ -1880,7 +1883,7 @@ export default function GoogleCreativePanel({
             <div className="space-y-1.5 max-h-[26rem] overflow-y-auto">
               {needAction.length === 0 && approved.length > 0 && !showApprovedPolicy && (
                 <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] text-emerald-900">
-                  ✅ <b>Không có mục nào bị từ chối hay giới hạn.</b> Cả {approved.length} mục đều được duyệt và đang chạy bình thường.
+                  {rich(t("panels.gcreative.pol.allOk", { n: approved.length }))}
                 </p>
               )}
               {shown.map((r, i) => (
@@ -1906,8 +1909,8 @@ export default function GoogleCreativePanel({
                     // an toàn — in NGUYÊN VĂN để tra được trên trang trợ giúp
                     // của Google, thay vì diễn giải sai đi.
                     <p className="mt-1 text-[10px] text-slate-500">
-                      Google nêu lý do: <b className="font-mono">{r.topics.join(", ")}</b>
-                      {" "}— tra đúng mã này trong Trung tâm trợ giúp Google Ads để biết cách sửa.
+                      {t("panels.gcreative.pol.reasonLbl")} <b className="font-mono">{r.topics.join(", ")}</b>
+                      {" "}{t("panels.gcreative.pol.reasonHelp")}
                     </p>
                   )}
                 </div>
@@ -1919,8 +1922,8 @@ export default function GoogleCreativePanel({
                 <button onClick={() => setShowApprovedPolicy(v => !v)}
                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-50">
                   {showApprovedPolicy
-                    ? `▲ Thu gọn ${approved.length} mục đã duyệt`
-                    : `▼ Xem ${approved.length} mục đã duyệt (không cần làm gì)`}
+                    ? t("panels.gcreative.pol.collapse", { n: approved.length })
+                    : t("panels.gcreative.pol.expand", { n: approved.length })}
                 </button>
               )}
             </div>
@@ -1928,9 +1931,7 @@ export default function GoogleCreativePanel({
           })()}
 
           <p className="text-[10px] text-slate-400 leading-snug">
-            Google duyệt <b>bất đồng bộ</b>: quảng cáo mới tạo sẽ ở trạng thái đang duyệt vài giờ, có khi tới 1 ngày làm việc.
-            Quảng cáo bị từ chối <b>chỉ khiến riêng nó không chạy</b> — tài khoản không bị làm sao.
-            <b> Bị giới hạn</b> nghĩa là vẫn chạy nhưng không hiện ở một số vùng/ngữ cảnh, dễ bị đọc nhầm thành ổn.
+            {rich(t("panels.gcreative.pol.foot"))}
           </p>
         </div>
       )}
@@ -1944,7 +1945,7 @@ export default function GoogleCreativePanel({
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="text-xs font-semibold text-slate-600 mb-1 block">Tên Campaign</label>
+            <label className="text-xs font-semibold text-slate-600 mb-1 block">{t("panels.gcreative.ln.campName")}</label>
             <input
               type="text"
               value={launchCampaignName}
@@ -1954,7 +1955,7 @@ export default function GoogleCreativePanel({
             />
           </div>
           <div>
-            <label className="text-xs font-semibold text-slate-600 mb-1 block">Budget / ngày (₫)</label>
+            <label className="text-xs font-semibold text-slate-600 mb-1 block">{t("panels.gcreative.ln.budget")}</label>
             <div className="relative">
               <DollarSign className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
               <input
@@ -1967,7 +1968,7 @@ export default function GoogleCreativePanel({
               />
             </div>
             <p className="text-[10px] text-slate-400 mt-1">
-              {new Intl.NumberFormat("vi-VN").format(dailyBudget)}₫/ngày
+              {t("panels.gcreative.ln.perDay", { amount: new Intl.NumberFormat(loc).format(dailyBudget) })}
             </p>
           </div>
         </div>
@@ -1975,23 +1976,20 @@ export default function GoogleCreativePanel({
         {/* ── Mục tiêu tối ưu ── */}
         <div className="rounded-lg border border-slate-200 bg-white p-3 space-y-2">
           <div>
-            <p className="text-xs font-bold text-slate-700">🎯 Google tối ưu cho hành động nào</p>
+            <p className="text-xs font-bold text-slate-700">{t("panels.gcreative.conv.title")}</p>
             <p className="text-[10px] text-slate-400 mt-0.5">
-              Không chọn ⇒ Google đuổi theo <b>toàn bộ</b> hành động đang bật ở cấp tài khoản
-              (đơn hàng, xem trang liên hệ, gọi điện… trộn làm một).
+              {rich(t("panels.gcreative.conv.note"))}
             </p>
           </div>
 
           {convError && <p className="text-[11px] text-red-600">❌ {convError}</p>}
           {convMetricsError && (
             <p className="rounded bg-amber-50 border border-amber-200 px-2 py-1 text-[11px] text-amber-900">
-              ⚠️ Không đọc được số chuyển đổi 30 ngày ({convMetricsError}). Các mục hiện <b>&quot;chưa đo được&quot;</b>,
-              không phải <b>bằng không</b> — và gợi ý <b>NÊN CHỌN</b> bên dưới chỉ dựa vào loại hành động,
-              chưa được dữ liệu xác nhận.
+              {rich(t("panels.gcreative.conv.metricsErr", { err: convMetricsError }))}
             </p>
           )}
           {!convError && convActions.length === 0 && (
-            <p className="text-[11px] text-slate-400">Đang đọc từ Google Ads…</p>
+            <p className="text-[11px] text-slate-400">{t("panels.gcreative.conv.reading")}</p>
           )}
 
           <div className="space-y-1">
@@ -2011,15 +2009,15 @@ export default function GoogleCreativePanel({
                       prev.includes(a.resourceName) ? prev.filter(x => x !== a.resourceName) : [...prev, a.resourceName])} />
                   <span className="flex-1 min-w-0">
                     <span className="text-xs font-semibold text-slate-800">{a.name}</span>
-                    {a.recommended && <span className="ml-1.5 text-[9px] font-bold text-emerald-700 bg-emerald-100 rounded px-1 py-0.5">NÊN CHỌN</span>}
-                    {!a.countsAsConversion && <span className="ml-1.5 text-[9px] font-bold text-slate-500 bg-slate-100 rounded px-1 py-0.5">không tính vào Conversions</span>}
-                    {dead && <span className="ml-1.5 text-[9px] font-bold text-amber-800 bg-amber-100 rounded px-1 py-0.5">0 chuyển đổi 30 ngày</span>}
-                    {unmeasured && <span className="ml-1.5 text-[9px] font-bold text-slate-600 bg-slate-100 rounded px-1 py-0.5">chưa đo được</span>}
+                    {a.recommended && <span className="ml-1.5 text-[9px] font-bold text-emerald-700 bg-emerald-100 rounded px-1 py-0.5">{t("panels.gcreative.conv.recommended")}</span>}
+                    {!a.countsAsConversion && <span className="ml-1.5 text-[9px] font-bold text-slate-500 bg-slate-100 rounded px-1 py-0.5">{t("panels.gcreative.conv.notCounted")}</span>}
+                    {dead && <span className="ml-1.5 text-[9px] font-bold text-amber-800 bg-amber-100 rounded px-1 py-0.5">{t("panels.gcreative.conv.dead")}</span>}
+                    {unmeasured && <span className="ml-1.5 text-[9px] font-bold text-slate-600 bg-slate-100 rounded px-1 py-0.5">{t("panels.gcreative.conv.unmeasuredShort")}</span>}
                     <span className="block text-[10px] text-slate-400">
                       {a.categoryVi ?? a.category} · {a.origin} ·{" "}
-                      {a.conversions30d === null ? "chưa đo được số chuyển đổi" : `${a.conversions30d.toLocaleString("vi-VN")} chuyển đổi`}
-                      {(a.conversionValue30d ?? 0) > 0 && ` · ₫${a.conversionValue30d!.toLocaleString("vi-VN")}`}
-                      {a.conversions30d !== null && " (30 ngày)"}
+                      {a.conversions30d === null ? t("panels.gcreative.conv.unmeasuredCount") : t("panels.gcreative.conv.count", { n: a.conversions30d.toLocaleString(loc) })}
+                      {(a.conversionValue30d ?? 0) > 0 && ` · ₫${a.conversionValue30d!.toLocaleString(loc)}`}
+                      {a.conversions30d !== null && t("panels.gcreative.conv.30d")}
                     </span>
                   </span>
                 </label>
@@ -2029,7 +2027,7 @@ export default function GoogleCreativePanel({
 
           {selectedConvActions.length === 0 && convActions.length > 0 && (
             <p className="rounded bg-amber-50 border border-amber-200 px-2 py-1.5 text-[11px] text-amber-800">
-              ⚠️ Chưa chọn mục tiêu nào — Google sẽ tối ưu theo <b>mọi</b> hành động đang bật. Campaign vẫn tạo được, nhưng bạn sẽ không biết nó đang đuổi theo cái gì.
+              {rich(t("panels.gcreative.conv.none"))}
             </p>
           )}
         </div>
@@ -2037,20 +2035,18 @@ export default function GoogleCreativePanel({
         {/* ── Tiện ích hình ảnh ── */}
         <div className="rounded-lg border border-slate-200 bg-white p-3 space-y-2">
           <div>
-            <p className="text-xs font-bold text-slate-700">🖼️ Tiện ích hình ảnh (không bắt buộc)</p>
+            <p className="text-xs font-bold text-slate-700">{t("panels.gcreative.img.title")}</p>
             <p className="text-[10px] text-slate-400 mt-0.5">
-              Quảng cáo Search không có ảnh bên trong — ảnh này hiện <b>bên cạnh</b> quảng cáo, chủ yếu trên di động.
-              Google nhận <b>ngang 1.91:1</b> (1200×628) · <b>vuông 1:1</b> (1200×1200) · <b>dọc 4:5</b> (960×1200), tối đa 5MB.
-              Riêng <b>ảnh dọc chỉ chạy ở Performance Max</b> — campaign Search nhận nhưng không bao giờ hiển thị.
+              {rich(t("panels.gcreative.img.note"))}
             </p>
           </div>
 
           {/* Mục đích PHẢI chọn tay: logo vuông và ảnh marketing vuông cùng
               là 1:1, đoán hộ là đoán sai một nửa số lần. */}
           <div className="flex items-center gap-2">
-            <span className="text-[10px] text-slate-500">Loại:</span>
+            <span className="text-[10px] text-slate-500">{t("panels.gcreative.img.type")}</span>
             <div className="flex rounded border border-slate-200 overflow-hidden">
-              {([["MARKETING", "Ảnh quảng cáo"], ["LOGO", "Logo"]] as const).map(([v, label]) => (
+              {([["MARKETING", t("panels.gcreative.img.purpose.ad")], ["LOGO", t("panels.gcreative.img.purpose.logo")]] as const).map(([v, label]) => (
                 <button key={v} onClick={() => setImgPurpose(v)}
                   className={cn("px-2.5 py-1 text-[11px] font-semibold",
                     imgPurpose === v ? "bg-slate-800 text-white" : "bg-white text-slate-600 hover:bg-slate-50")}>
@@ -2059,7 +2055,7 @@ export default function GoogleCreativePanel({
               ))}
             </div>
             <span className="text-[10px] text-slate-400">
-              {imgPurpose === "LOGO" ? "vuông 1:1 (≥128×128) hoặc ngang 4:1 (≥512×128)" : "ngang 1.91:1 · vuông 1:1 · dọc 4:5"}
+              {imgPurpose === "LOGO" ? t("panels.gcreative.img.hintLogo") : t("panels.gcreative.img.hintAd")}
             </span>
           </div>
 
@@ -2075,7 +2071,7 @@ export default function GoogleCreativePanel({
                 e.target.value = "";
                 void (async () => { for (const f of files) await handleImagePick(f); })();
               }} />
-            {uploading ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Đang tải lên Google...</> : <>➕ Tải ảnh mới từ máy (PNG/JPG)</>}
+            {uploading ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> {t("panels.gcreative.img.uploading")}</> : <>{t("panels.gcreative.img.upload")}</>}
           </label>
 
           {/* Chọn lại ảnh ĐÃ CÓ trong tài khoản — không phải tải lên lần nữa. */}
@@ -2083,21 +2079,20 @@ export default function GoogleCreativePanel({
             onClick={() => { setLibOpen(o => !o); if (!libImages && !libLoading) void loadImageLibrary(); }}
             className="w-full flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:border-blue-400 hover:bg-blue-50/40">
             {libLoading
-              ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Đang đọc thư viện tài khoản {company}...</>
-              : <>📚 Chọn ảnh có sẵn trong tài khoản {company} {libOpen ? "▲" : "▼"}</>}
+              ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> {t("panels.gcreative.lib.loading", { company })}</>
+              : <>{t("panels.gcreative.lib.pick", { company, arrow: libOpen ? "▲" : "▼" })}</>}
           </button>
 
           {libOpen && (
             <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-2 space-y-1.5">
               {libError && <p className="text-[11px] text-red-600">❌ {libError}</p>}
               {libImages && libImages.length === 0 && (
-                <p className="text-[11px] text-slate-500">Tài khoản chưa có ảnh nào dùng được cho quảng cáo.</p>
+                <p className="text-[11px] text-slate-500">{t("panels.gcreative.lib.none")}</p>
               )}
               {libImages && libImages.length > 0 && (
                 <>
                   <p className="text-[10px] text-slate-500">
-                    {libImages.length} ảnh trong thư viện tài khoản. Ảnh mờ là loại campaign đang tạo
-                    ({campaignType === "PMAX" ? "Performance Max" : campaignType === "BOTH" ? "Search + PMax" : "Search"}) không dùng được — bấm vào để xem lý do.
+                    {t("panels.gcreative.lib.count", { n: libImages.length, type: campaignType === "PMAX" ? "Performance Max" : campaignType === "BOTH" ? "Search + PMax" : "Search" })}
                   </p>
                   <div className="max-h-64 overflow-y-auto space-y-1">
                     {libImages.map(img => {
@@ -2109,7 +2104,7 @@ export default function GoogleCreativePanel({
                           disabled={picked || images.length >= 20}
                           title={img.blockedReason ?? undefined}
                           onClick={() => {
-                            if (!usable) { setImageError(img.blockedReason ?? "Ảnh này không dùng được cho loại campaign đang tạo."); return; }
+                            if (!usable) { setImageError(img.blockedReason ?? t("panels.gcreative.lib.unusable")); return; }
                             setImageError(null);
                             setImages(prev => [...prev, {
                               resourceName: img.resourceName, name: img.name, fieldType: img.fieldType,
@@ -2136,9 +2131,7 @@ export default function GoogleCreativePanel({
                   người dùng nhớ mình có tấm đó lại tưởng tool đọc thiếu. */}
               {libImages && libOddRatio > 0 && (
                 <p className="text-[10px] text-slate-400 border-t border-slate-200 pt-1.5">
-                  Còn <b>{libOddRatio}</b> ảnh nữa trong tài khoản không hiện ở đây vì tỉ lệ không khớp khuôn nào Google nhận
-                  (ngang 1.91:1 · vuông 1:1 · dọc 4:5 · logo 1:1 / 4:1). Ảnh trong thư viện <b>không cắt lại được</b> —
-                  muốn dùng thì tải lên từ máy, tool sẽ tự cắt.
+                  {rich(t("panels.gcreative.lib.odd", { n: libOddRatio }))}
                 </p>
               )}
             </div>
@@ -2146,7 +2139,7 @@ export default function GoogleCreativePanel({
 
           {imageError && <p className="text-[11px] text-red-600">❌ {imageError}</p>}
           <p className="text-[10px] text-slate-400">
-            Đã chọn <b className={images.length >= 20 ? "text-red-600" : "text-slate-600"}>{images.length}/20</b> ảnh — Google giới hạn 20 ảnh mỗi campaign.
+            {t("panels.gcreative.img.chosenPre")} <b className={images.length >= 20 ? "text-red-600" : "text-slate-600"}>{images.length}/20</b> {t("panels.gcreative.img.chosenPost")}
           </p>
 
           {/* PMax KHÔNG PHỤC VỤ ĐƯỢC nếu thiếu logo + ảnh ngang + ảnh vuông.
@@ -2155,22 +2148,21 @@ export default function GoogleCreativePanel({
           {(campaignType === "PMAX" || campaignType === "BOTH") && (() => {
             const have = new Set(images.map(i => i.fieldType));
             const need = [
-              ["LOGO", "Logo vuông 1:1"],
-              ["MARKETING_IMAGE", "Ảnh ngang 1.91:1"],
-              ["SQUARE_MARKETING_IMAGE", "Ảnh vuông 1:1"],
+              ["LOGO", t("panels.gcreative.img.logoSquare")],
+              ["MARKETING_IMAGE", t("panels.gcreative.img.landscapeImg")],
+              ["SQUARE_MARKETING_IMAGE", t("panels.gcreative.img.squareImg")],
             ] as const;
             const missing = need.filter(([ft]) => !have.has(ft));
             if (missing.length === 0) {
               return (
                 <p className="rounded bg-emerald-50 border border-emerald-200 px-2 py-1.5 text-[11px] text-emerald-800">
-                  ✅ Đủ <b>logo + ảnh ngang + ảnh vuông</b> — nhóm tài sản PMax đủ điều kiện phục vụ.
+                  {rich(t("panels.gcreative.pmx.ok"))}
                 </p>
               );
             }
             return (
               <p className="rounded bg-red-50 border border-red-300 px-2 py-1.5 text-[11px] text-red-800">
-                ⛔ <b>PMax sẽ KHÔNG hiển thị lượt nào</b> nếu thiếu: {missing.map(([, l]) => l).join(" · ")}.
-                Google không chặn lúc tạo — nó chỉ <b>lặng lẽ không phục vụ</b>. Bổ sung trước khi Launch.
+                {rich(t("panels.gcreative.pmx.missing", { list: missing.map(([, l]) => l).join(" · ") }))}
               </p>
             );
           })()}
@@ -2185,13 +2177,13 @@ export default function GoogleCreativePanel({
                   {img.warning && <span className="text-amber-600" title={img.warning}>⚠️</span>}
                   {img.cropNote && <span className="text-sky-600 text-[10px]" title={img.cropNote}>✂️ {img.cropNote}</span>}
                   <button onClick={() => setImages(prev => prev.filter((_, j) => j !== i))}
-                    className="text-slate-300 hover:text-red-600 px-1" title="Bỏ khỏi campaign này">✕</button>
+                    className="text-slate-300 hover:text-red-600 px-1" title={t("panels.gcreative.img.removeTitle")}>✕</button>
                 </div>
               ))}
               {/* Xoá khỏi danh sách chỉ là không gắn vào campaign — ảnh vẫn nằm
                   trong thư viện tài sản của tài khoản. Nói rõ để khỏi tưởng đã xoá hẳn. */}
               <p className="text-[10px] text-slate-400">
-                Bỏ ở đây chỉ là không gắn vào campaign này; ảnh vẫn còn trong thư viện tài sản của tài khoản Google Ads.
+                {t("panels.gcreative.img.removeNote")}
               </p>
             </div>
           )}
@@ -2201,11 +2193,9 @@ export default function GoogleCreativePanel({
         {campaignType !== "SEARCH" && (
           <div className="border border-slate-200 rounded-lg p-3 space-y-2">
             <div>
-              <h4 className="text-xs font-bold text-slate-700">🎬 Video YouTube</h4>
+              <h4 className="text-xs font-bold text-slate-700">{t("panels.gcreative.vid.title")}</h4>
               <p className="text-[10px] text-slate-400 mt-0.5">
-                Performance Max chạy cả trên YouTube. <b>Không đưa video thì Google tự dựng một cái</b> từ
-                ảnh và chữ của bạn — vẫn chạy, nhưng thường rất thô và bạn không kiểm soát được nội dung
-                mang tên thương hiệu mình. Chỉ Performance Max dùng được, quảng cáo Tìm kiếm không có video.
+                {rich(t("panels.gcreative.vid.note"))}
               </p>
             </div>
 
@@ -2213,15 +2203,15 @@ export default function GoogleCreativePanel({
               onClick={() => { setVidOpen(o => !o); if (!vidLibrary && !vidLoading) void loadVideoLibrary(); }}
               className="w-full flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:border-blue-400 hover:bg-blue-50/40">
               {vidLoading
-                ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Đang đọc video của tài khoản {company}...</>
-                : <>📺 Chọn video có sẵn trong tài khoản {company} {vidOpen ? "▲" : "▼"}</>}
+                ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> {t("panels.gcreative.vid.loading", { company })}</>
+                : <>{t("panels.gcreative.vid.pick", { company, arrow: vidOpen ? "▲" : "▼" })}</>}
             </button>
 
             {vidOpen && (
               <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-2 space-y-1.5">
                 {vidError && <p className="text-[11px] text-red-600">❌ {vidError}</p>}
                 {vidLibrary && vidLibrary.length === 0 && (
-                  <p className="text-[11px] text-slate-500">Tài khoản chưa có video nào. Dán link YouTube bên dưới.</p>
+                  <p className="text-[11px] text-slate-500">{t("panels.gcreative.vid.none")}</p>
                 )}
                 {vidLibrary && vidLibrary.length > 0 && (
                   <div className="max-h-56 overflow-y-auto space-y-1">
@@ -2264,13 +2254,13 @@ export default function GoogleCreativePanel({
                   setVideos(prev => [...prev, { input: vidPaste.trim(), title: vidPaste.trim() }]);
                   setVidPaste("");
                 }}
-                placeholder="hoặc dán link YouTube rồi Enter (watch / youtu.be / shorts / embed)"
+                placeholder={t("panels.gcreative.vid.ph")}
                 className="flex-1 rounded border border-slate-300 px-2 py-1 text-[11px]" />
               <button
                 onClick={() => { if (!vidPaste.trim()) return; setVideos(prev => [...prev, { input: vidPaste.trim(), title: vidPaste.trim() }]); setVidPaste(""); }}
                 disabled={!vidPaste.trim()}
                 className="rounded border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40">
-                Thêm
+                {t("panels.gcreative.kw.addBtn")}
               </button>
             </div>
 
@@ -2282,23 +2272,21 @@ export default function GoogleCreativePanel({
                     <span className="text-emerald-600">✓</span>
                     <span className="flex-1 truncate text-slate-700">{v.title}</span>
                     {v.resourceName
-                      ? <span className="text-[9px] font-bold text-slate-500 bg-slate-100 rounded px-1 py-0.5">có sẵn</span>
-                      : <span className="text-[9px] font-bold text-blue-700 bg-blue-100 rounded px-1 py-0.5">link mới</span>}
+                      ? <span className="text-[9px] font-bold text-slate-500 bg-slate-100 rounded px-1 py-0.5">{t("panels.gcreative.vid.existing")}</span>
+                      : <span className="text-[9px] font-bold text-blue-700 bg-blue-100 rounded px-1 py-0.5">{t("panels.gcreative.vid.newLink")}</span>}
                     <button onClick={() => setVideos(prev => prev.filter((_, j) => j !== i))}
-                      className="text-slate-300 hover:text-red-600 px-1" title="Bỏ khỏi campaign này">✕</button>
+                      className="text-slate-300 hover:text-red-600 px-1" title={t("panels.gcreative.img.removeTitle")}>✕</button>
                   </div>
                 ))}
                 <p className="text-[10px] text-slate-400">
-                  Link mới sẽ được tạo thành tài sản video trong tài khoản lúc bấm tạo campaign.
-                  Link không đọc được mã sẽ bị bỏ kèm lý do, không làm hỏng cả lượt tạo.
+                  {t("panels.gcreative.vid.linkNote")}
                 </p>
               </div>
             )}
 
             {videos.length === 0 && (
               <p className="rounded bg-amber-50 border border-amber-200 px-2 py-1.5 text-[11px] text-amber-800">
-                ⚠️ Chưa chọn video — <b>Google sẽ tự dựng một video</b> từ ảnh và chữ của bạn để chạy trên YouTube.
-                Nó không hỏi trước, và kết quả thường không dùng để quảng bá thương hiệu được.
+                {rich(t("panels.gcreative.vid.warn"))}
               </p>
             )}
           </div>
@@ -2313,11 +2301,9 @@ export default function GoogleCreativePanel({
         {true && (
           <div className="border border-slate-200 rounded-lg p-3 space-y-2">
             <div>
-              <h4 className="text-xs font-bold text-slate-700">🔗 Sitelink (liên kết trang)</h4>
+              <h4 className="text-xs font-bold text-slate-700">{t("panels.gcreative.sl.title")}</h4>
               <p className="text-[10px] text-slate-400 mt-0.5">
-                Các đường dẫn phụ hiện <b>ngay dưới</b> quảng cáo (&quot;Bảng giá&quot;, &quot;Đăng ký tên miền&quot;…).
-                <b> Không tốn thêm tiền</b> — chỉ làm mẩu quảng cáo cao hơn và cho người đọc nhảy thẳng vào đúng trang
-                thay vì rơi vào trang chủ. Google thường chỉ hiển thị khi campaign có <b>từ 4 cái trở lên</b>, tối đa 20.
+                {rich(t("panels.gcreative.sl.note"))}
               </p>
             </div>
 
@@ -2325,8 +2311,8 @@ export default function GoogleCreativePanel({
               onClick={() => { setSlOpen(o => !o); if (!slLibrary && !slLoading) void loadSitelinkLibrary(); }}
               className="w-full flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:border-blue-400 hover:bg-blue-50/40">
               {slLoading
-                ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Đang đọc sitelink của tài khoản {company}...</>
-                : <>📚 Chọn sitelink có sẵn trong tài khoản {company} {slOpen ? "▲" : "▼"}</>}
+                ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> {t("panels.gcreative.sl.loading", { company })}</>
+                : <>{t("panels.gcreative.sl.pick", { company, arrow: slOpen ? "▲" : "▼" })}</>}
             </button>
 
             {slOpen && (
@@ -2334,7 +2320,7 @@ export default function GoogleCreativePanel({
                 {slError && <p className="text-[11px] text-red-600">❌ {slError}</p>}
                 {slLibrary && slLibrary.length === 0 && (
                   <p className="text-[11px] text-slate-500">
-                    Tài khoản chưa có sitelink nào. Dựng trong Google Ads ở mục Tài sản → Liên kết trang, rồi quay lại đây chọn.
+                    {t("panels.gcreative.sl.none")}
                   </p>
                 )}
                 {slLibrary && slLibrary.length > 0 && (
@@ -2362,7 +2348,7 @@ export default function GoogleCreativePanel({
                             )}
                             {/* URL đích PHẢI hiện: sitelink trỏ sai trang là tiền
                                 đổ vào đúng chỗ không bán được gì. */}
-                            <span className="block text-slate-400 truncate">{sl.finalUrl ?? "(không có URL — Google sẽ từ chối)"}</span>
+                            <span className="block text-slate-400 truncate">{sl.finalUrl ?? t("panels.gcreative.sl.noUrl")}</span>
                           </span>
                         </button>
                       );
@@ -2375,7 +2361,7 @@ export default function GoogleCreativePanel({
             {sitelinks.length > 0 && (
               <>
                 <p className="text-[10px] text-slate-400">
-                  Đã chọn <b className="text-slate-600">{sitelinks.length}/20</b> sitelink.
+                  {t("panels.gcreative.sl.chosenPre")} <b className="text-slate-600">{sitelinks.length}/20</b> sitelink.
                 </p>
                 <div className="flex flex-wrap gap-1">
                   {sitelinks.map(sl => (
@@ -2383,7 +2369,7 @@ export default function GoogleCreativePanel({
                       className="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-[11px] text-emerald-800">
                       {sl.linkText}
                       <button onClick={() => setSitelinks(prev => prev.filter(s => s.resourceName !== sl.resourceName))}
-                        className="text-emerald-400 hover:text-red-600" title="Bỏ khỏi campaign này">✕</button>
+                        className="text-emerald-400 hover:text-red-600" title={t("panels.gcreative.img.removeTitle")}>✕</button>
                     </span>
                   ))}
                 </div>
@@ -2394,14 +2380,12 @@ export default function GoogleCreativePanel({
                 tạo được, chỉ là gần như không bao giờ thấy chúng ngoài SERP. */}
             {sitelinks.length > 0 && sitelinks.length < 4 && (
               <p className="rounded bg-amber-50 border border-amber-200 px-2 py-1.5 text-[11px] text-amber-800">
-                ⚠️ Mới có <b>{sitelinks.length}</b> sitelink. Google thường <b>chỉ hiển thị</b> tiện ích này khi campaign
-                có từ <b>4</b> cái trở lên — chọn thêm {4 - sitelinks.length} cái nữa.
+                {rich(t("panels.gcreative.sl.few", { n: sitelinks.length, more: 4 - sitelinks.length }))}
               </p>
             )}
             {sitelinks.length === 0 && (
               <p className="rounded bg-slate-50 border border-slate-200 px-2 py-1.5 text-[11px] text-slate-600">
-                Chưa chọn sitelink nào — campaign vẫn tạo được, nhưng quảng cáo sẽ hiện <b>trơ một dòng</b>,
-                không có liên kết phụ. Đây là thứ dễ thêm nhất mà ảnh hưởng rõ nhất tới tỉ lệ bấm.
+                {rich(t("panels.gcreative.sl.empty"))}
               </p>
             )}
           </div>
@@ -2414,20 +2398,20 @@ export default function GoogleCreativePanel({
             vị trí hay không, mà campaign thiếu vị trí được Google phục vụ ra
             TOÀN THẾ GIỚI. */}
         <div className="border border-slate-200 rounded-lg p-3 space-y-2">
-          <h4 className="text-xs font-bold text-slate-700">🎯 Nhắm mục tiêu</h4>
+          <h4 className="text-xs font-bold text-slate-700">{t("panels.gcreative.tg.title")}</h4>
 
           {/* Vị trí ────────────────────────────────────────────────────── */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] text-slate-500">Vị trí</span>
+              <span className="text-[10px] text-slate-500">{t("panels.gcreative.tg.loc")}</span>
               <span className="text-[10px] text-slate-400">
-                {selectedGeo.length === 0 ? "mặc định: cả nước" : `đã chọn ${selectedGeo.length}`}
+                {selectedGeo.length === 0 ? t("panels.gcreative.tg.default") : t("panels.gcreative.tg.chosen", { n: selectedGeo.length })}
               </span>
             </div>
 
             {selectedGeo.length === 0 ? (
               <p className="rounded border border-slate-200 bg-slate-50 px-2 py-1.5 text-[11px] font-semibold text-slate-700">
-                🇻🇳 Việt Nam (cả nước)
+                {t("panels.gcreative.tg.vn")}
               </p>
             ) : (
               <div className="flex flex-wrap gap-1">
@@ -2436,11 +2420,11 @@ export default function GoogleCreativePanel({
                     className="inline-flex items-center gap-1 rounded-full border border-blue-300 bg-blue-50 px-2 py-0.5 text-[11px] text-blue-900">
                     {g.nameVi}
                     <button onClick={() => setSelectedGeo(prev => prev.filter(x => x.resourceName !== g.resourceName))}
-                      className="text-blue-400 hover:text-red-600" title="Bỏ vị trí này">✕</button>
+                      className="text-blue-400 hover:text-red-600" title={t("panels.gcreative.tg.removeLoc")}>✕</button>
                   </span>
                 ))}
                 <button onClick={() => setSelectedGeo([])}
-                  className="text-[10px] text-slate-400 hover:text-slate-700 underline px-1">bỏ hết, quay về cả nước</button>
+                  className="text-[10px] text-slate-400 hover:text-slate-700 underline px-1">{t("panels.gcreative.tg.clear")}</button>
               </div>
             )}
 
@@ -2448,8 +2432,8 @@ export default function GoogleCreativePanel({
               onClick={() => { setGeoOpen(o => !o); if (!geoList && !geoLoading) void loadGeoTargets(); }}
               className="w-full flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 hover:border-blue-400 hover:bg-blue-50/40">
               {geoLoading
-                ? <><Loader2 className="h-3 w-3 animate-spin" /> Đang đọc danh sách vị trí...</>
-                : <>📍 Chọn tỉnh / thành phố cụ thể {geoOpen ? "▲" : "▼"}</>}
+                ? <><Loader2 className="h-3 w-3 animate-spin" /> {t("panels.gcreative.tg.reading")}</>
+                : <>{t("panels.gcreative.tg.pickCity", { arrow: geoOpen ? "▲" : "▼" })}</>}
             </button>
 
             {geoError && <p className="text-[11px] text-red-600">❌ {geoError}</p>}
@@ -2459,7 +2443,7 @@ export default function GoogleCreativePanel({
                 <input
                   value={geoQuery}
                   onChange={e => setGeoQuery(e.target.value)}
-                  placeholder="Gõ tên: Hà Nội, TPHCM, Đà Nẵng, Sài Gòn..."
+                  placeholder={t("panels.gcreative.tg.searchPh")}
                   className="w-full rounded border border-slate-300 px-2 py-1 text-[11px]"
                 />
                 <div className="max-h-56 overflow-y-auto space-y-0.5">
@@ -2472,7 +2456,7 @@ export default function GoogleCreativePanel({
                       .replace(/đ/gi, "d").replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
                     const rows = q ? geoList.filter(g => g.searchKey.includes(q)) : geoList;
                     if (rows.length === 0) {
-                      return <p className="text-[11px] text-slate-500 px-1 py-2">Không tìm thấy. Thử gõ không dấu, ví dụ &quot;ha noi&quot;.</p>;
+                      return <p className="text-[11px] text-slate-500 px-1 py-2">{t("panels.gcreative.tg.notFound")}</p>;
                     }
                     return rows.slice(0, 120).map(g => {
                       const picked = selectedGeo.some(x => x.resourceName === g.resourceName);
@@ -2499,7 +2483,7 @@ export default function GoogleCreativePanel({
                             g.tier === "country" ? "bg-slate-200 text-slate-700"
                               : g.tier === "province" ? "bg-emerald-100 text-emerald-800"
                                 : "bg-amber-100 text-amber-800")}>
-                            {g.tier === "country" ? "Cả nước" : g.tier === "province" ? "Tỉnh/TP" : "Vùng hẹp hơn"}
+                            {g.tier === "country" ? t("panels.gcreative.tg.tier.country") : g.tier === "province" ? t("panels.gcreative.tg.tier.province") : t("panels.gcreative.tg.tier.narrow")}
                           </span>
                         </button>
                       );
@@ -2507,10 +2491,7 @@ export default function GoogleCreativePanel({
                   })()}
                 </div>
                 <p className="text-[10px] text-slate-400 border-t border-slate-200 pt-1.5">
-                  Sau sáp nhập 2025, Google giữ <b>cả hai</b> bộ đơn vị. <b className="text-emerald-700">Tỉnh/TP</b> là
-                  đơn vị cấp tỉnh đầy đủ; <b className="text-amber-700">Vùng hẹp hơn</b> chỉ là một phần bên trong nó
-                  (vd &quot;Hà Nội (nội thành)&quot;). Hai cái tên gần giống nhau nhưng vùng phủ khác hẳn — đọc dòng
-                  xám bên dưới tên để chắc.
+                  {rich(t("panels.gcreative.tg.merge"))}
                 </p>
               </div>
             )}
@@ -2518,11 +2499,11 @@ export default function GoogleCreativePanel({
 
           {/* Kiểu nhắm ──────────────────────────────────────────────────── */}
           <div className="space-y-1">
-            <span className="text-[10px] text-slate-500">Nhắm ai trong vùng đó</span>
+            <span className="text-[10px] text-slate-500">{t("panels.gcreative.tg.who")}</span>
             <div className="flex rounded border border-slate-200 overflow-hidden">
               {([
-                ["PRESENCE", "Chỉ người trong vùng"],
-                ["PRESENCE_OR_INTEREST", "Thêm người ngoài quan tâm"],
+                ["PRESENCE", t("panels.gcreative.tg.presence")],
+                ["PRESENCE_OR_INTEREST", t("panels.gcreative.tg.interest")],
               ] as const).map(([v, label]) => (
                 <button key={v} onClick={() => setGeoTargetType(v)}
                   className={cn("flex-1 px-2 py-1 text-[11px] font-semibold",
@@ -2533,20 +2514,19 @@ export default function GoogleCreativePanel({
             </div>
             <p className="text-[10px] text-slate-400">
               {geoTargetType === "PRESENCE"
-                ? "Chỉ người đang ở trong vùng đã chọn. Đây là lựa chọn đúng khi bán trong nước."
-                : "⚠️ Gồm cả người Ở NƯỚC NGOÀI đang tìm về Việt Nam — đây là lý do quen thuộc của chuyện \"sao quảng cáo hiện ở nước ngoài\"."}
+                ? t("panels.gcreative.tg.presenceNote")
+                : t("panels.gcreative.tg.interestNote")}
             </p>
           </div>
 
           {/* Ngôn ngữ ───────────────────────────────────────────────────── */}
           <div className="space-y-1">
-            <span className="text-[10px] text-slate-500">Ngôn ngữ</span>
+            <span className="text-[10px] text-slate-500">{t("panels.gcreative.tg.lang")}</span>
             <p className="rounded border border-slate-200 bg-slate-50 px-2 py-1.5 text-[11px] font-semibold text-slate-700">
-              Tiếng Việt + Tiếng Anh
+              {t("panels.gcreative.tg.langVal")}
             </p>
             <p className="text-[10px] text-slate-400">
-              Nhắm cả tiếng Anh có chủ đích: nhiều khách kỹ thuật (hosting, tên miền, máy chủ) để Chrome/Google
-              ở tiếng Anh — bỏ nhóm này là tự cắt mất khách thật.
+              {t("panels.gcreative.tg.langNote")}
             </p>
           </div>
         </div>
@@ -2557,21 +2537,21 @@ export default function GoogleCreativePanel({
           // manual_cpc. Không hiện lựa chọn mà Google không chạy được.
           const pmaxOnly = campaignType === "PMAX";
           const STRATS: Array<{ k: BidStrategy; label: string; what: string; when: string; pmax: boolean }> = [
-            { k: "MAXIMIZE_CONVERSIONS", label: "Tối đa chuyển đổi", pmax: true,
-              what: "Tiêu hết ngân sách để lấy NHIỀU chuyển đổi nhất, không quan tâm mỗi cái giá bao nhiêu.",
-              when: "Mặc định an toàn cho campaign mới." },
-            { k: "MAXIMIZE_CONVERSION_VALUE", label: "Tối đa giá trị chuyển đổi", pmax: true,
-              what: "Đuổi theo TỔNG TIỀN của chuyển đổi — ưu tiên đơn to hơn đơn nhiều.",
-              when: "Chỉ dùng khi hành động chuyển đổi có gửi giá trị tiền về Google." },
-            { k: "MAXIMIZE_CLICKS", label: "Tối đa lượt bấm", pmax: false,
-              what: "Mua nhiều lượt bấm nhất. KHÔNG nhìn chuyển đổi.",
-              when: "Kéo lưu lượng lúc mới mở, hoặc khi chưa đo được chuyển đổi." },
-            { k: "MANUAL_CPC", label: "CPC thủ công", pmax: false,
-              what: "Bạn tự đặt giá thầu, Google không tự chỉnh.",
-              when: "Kiểm soát chặt vài ngày đầu — đổi lại phải theo dõi tay hằng ngày." },
-            { k: "TARGET_IMPRESSION_SHARE", label: "Tỉ lệ hiển thị mục tiêu", pmax: false,
-              what: "Đấu thầu để quảng cáo XUẤT HIỆN ở vị trí và tần suất bạn chọn.",
-              when: "Giữ thương hiệu luôn hiện. Đuổi theo độ hiển thị, KHÔNG đuổi theo đơn hàng." },
+            { k: "MAXIMIZE_CONVERSIONS", label: t("panels.gcreative.bid.s1.label"), pmax: true,
+              what: t("panels.gcreative.bid.s1.what"),
+              when: t("panels.gcreative.bid.s1.when") },
+            { k: "MAXIMIZE_CONVERSION_VALUE", label: t("panels.gcreative.bid.s2.label"), pmax: true,
+              what: t("panels.gcreative.bid.s2.what"),
+              when: t("panels.gcreative.bid.s2.when") },
+            { k: "MAXIMIZE_CLICKS", label: t("panels.gcreative.bid.s3.label"), pmax: false,
+              what: t("panels.gcreative.bid.s3.what"),
+              when: t("panels.gcreative.bid.s3.when") },
+            { k: "MANUAL_CPC", label: t("panels.gcreative.bid.s4.label"), pmax: false,
+              what: t("panels.gcreative.bid.s4.what"),
+              when: t("panels.gcreative.bid.s4.when") },
+            { k: "TARGET_IMPRESSION_SHARE", label: t("panels.gcreative.bid.s5.label"), pmax: false,
+              what: t("panels.gcreative.bid.s5.what"),
+              when: t("panels.gcreative.bid.s5.when") },
           ];
           const avail = STRATS.filter(s => !pmaxOnly || s.pmax);
           const cur = avail.find(s => s.k === bidStrategy) ?? avail[0];
@@ -2586,9 +2566,9 @@ export default function GoogleCreativePanel({
           return (
             <div className="border border-slate-200 rounded-lg p-3 space-y-2">
               <div>
-                <h4 className="text-xs font-bold text-slate-700">💰 Chiến lược đấu thầu</h4>
+                <h4 className="text-xs font-bold text-slate-700">{t("panels.gcreative.bid.title")}</h4>
                 <p className="text-[10px] text-slate-400 mt-0.5">
-                  Quyết định Google tiêu tiền để đuổi theo cái gì. Chọn sai thì tiền đi lệch ngay từ ngày đầu.
+                  {t("panels.gcreative.bid.sub")}
                 </p>
               </div>
 
@@ -2607,17 +2587,17 @@ export default function GoogleCreativePanel({
               </div>
 
               <p className="rounded bg-slate-50 border border-slate-200 px-2 py-1.5 text-[10px] text-slate-600">
-                <b>Khi nào dùng:</b> {cur.when}
+                <b>{t("panels.gcreative.bid.when")}</b> {cur.when}
               </p>
 
               {/* Tham số riêng của từng chiến lược */}
               {bidStrategy === "MAXIMIZE_CONVERSIONS" && (
                 <div className="space-y-1">
-                  <label className="block text-[10px] text-slate-500">Target CPA — giá bạn chịu được cho mỗi chuyển đổi (để trống = Google tự chạy)</label>
+                  <label className="block text-[10px] text-slate-500">{t("panels.gcreative.bid.cpa")}</label>
                   <div className="flex items-center gap-2">
-                    <input inputMode="numeric" value={targetCpaVnd?.toLocaleString("vi-VN") ?? ""}
+                    <input inputMode="numeric" value={targetCpaVnd?.toLocaleString(loc) ?? ""}
                       onChange={e => setTargetCpaVnd(num(e.target.value))}
-                      placeholder="để trống cho Google tự chạy"
+                      placeholder={t("panels.gcreative.bid.cpaPh")}
                       className="flex-1 rounded border border-slate-300 px-2 py-1 text-[11px]" />
                     <span className="text-[11px] text-slate-500">₫</span>
                   </div>
@@ -2626,12 +2606,12 @@ export default function GoogleCreativePanel({
                   {aiCpa ? (
                     <button onClick={() => setTargetCpaVnd(aiCpa)}
                       className="text-[10px] text-blue-700 underline hover:text-blue-900">
-                      Dùng số AI đề xuất: {aiCpa.toLocaleString("vi-VN")}₫
+                      {t("panels.gcreative.bid.useAi", { amount: aiCpa.toLocaleString(loc) })}
                     </button>
                   ) : null}
                   {targetCpaVnd != null && targetCpaVnd > dailyBudget && (
                     <p className="rounded bg-amber-50 border border-amber-200 px-2 py-1 text-[10px] text-amber-900">
-                      ⚠️ Target CPA <b>cao hơn ngân sách ngày</b> ({dailyBudget.toLocaleString("vi-VN")}₫) — mỗi ngày chưa đủ tiền cho một chuyển đổi, Google sẽ rất khó tiêu hết ngân sách.
+                      {rich(t("panels.gcreative.bid.cpaOver", { budget: dailyBudget.toLocaleString(loc) }))}
                     </p>
                   )}
                 </div>
@@ -2639,36 +2619,35 @@ export default function GoogleCreativePanel({
 
               {bidStrategy === "MAXIMIZE_CONVERSION_VALUE" && (
                 <div className="space-y-1">
-                  <label className="block text-[10px] text-slate-500">Target ROAS — thu về bao nhiêu % trên mỗi đồng chi (để trống = Google tự chạy)</label>
+                  <label className="block text-[10px] text-slate-500">{t("panels.gcreative.bid.roas")}</label>
                   <div className="flex items-center gap-2">
                     <input inputMode="numeric" value={targetRoasPct ?? ""}
                       onChange={e => setTargetRoasPct(num(e.target.value))}
-                      placeholder="vd 300 = thu 3đ trên mỗi 1đ chi"
+                      placeholder={t("panels.gcreative.bid.roasPh")}
                       className="flex-1 rounded border border-slate-300 px-2 py-1 text-[11px]" />
                     <span className="text-[11px] text-slate-500">%</span>
                   </div>
                   {targetRoasPct != null && targetRoasPct < 100 && (
                     <p className="rounded bg-amber-50 border border-amber-200 px-2 py-1 text-[10px] text-amber-900">
-                      ⚠️ Dưới 100% nghĩa là <b>thu về ít hơn số tiền bỏ ra</b>. Cố ý thì được, nhưng nói trước để khỏi gõ nhầm.
+                      {rich(t("panels.gcreative.bid.roasLow"))}
                     </p>
                   )}
                   {targetRoasPct != null && targetRoasPct > 2000 && (
                     <p className="rounded bg-amber-50 border border-amber-200 px-2 py-1 text-[10px] text-amber-900">
-                      ⚠️ {targetRoasPct}% là rất cao — Google sẽ chỉ đấu ở những lượt gần như chắc thắng và thường tiêu được rất ít ngân sách.
+                      {t("panels.gcreative.bid.roasHigh", { pct: targetRoasPct })}
                     </p>
                   )}
                   <p className="text-[10px] text-slate-400">
-                    Chiến lược này chỉ có nghĩa khi hành động chuyển đổi <b>gửi giá trị tiền</b> về Google.
-                    Kiểm ở khối &quot;Google tối ưu cho hành động nào&quot; — mục nào có số tiền thì mới dùng được.
+                    {rich(t("panels.gcreative.bid.roasNote"))}
                   </p>
                 </div>
               )}
 
               {(bidStrategy === "MAXIMIZE_CLICKS" || bidStrategy === "TARGET_IMPRESSION_SHARE") && (
                 <div className="space-y-1">
-                  <label className="block text-[10px] text-slate-500">Trần CPC — giá tối đa cho một lượt bấm</label>
+                  <label className="block text-[10px] text-slate-500">{t("panels.gcreative.bid.ceiling")}</label>
                   <div className="flex items-center gap-2">
-                    <input inputMode="numeric" value={cpcCeilingVnd?.toLocaleString("vi-VN") ?? ""}
+                    <input inputMode="numeric" value={cpcCeilingVnd?.toLocaleString(loc) ?? ""}
                       onChange={e => setCpcCeilingVnd(num(e.target.value))}
                       placeholder="vd 20.000"
                       className="flex-1 rounded border border-slate-300 px-2 py-1 text-[11px]" />
@@ -2676,7 +2655,7 @@ export default function GoogleCreativePanel({
                   </div>
                   {cpcCeilingVnd == null && (
                     <p className="rounded bg-amber-50 border border-amber-200 px-2 py-1 text-[10px] text-amber-900">
-                      ⚠️ Chưa đặt trần — Google được tự do trả giá cao cho một lượt bấm. Đặt trần là cách rẻ nhất để giữ giá.
+                      {t("panels.gcreative.bid.ceilingNone")}
                     </p>
                   )}
                 </div>
@@ -2684,12 +2663,12 @@ export default function GoogleCreativePanel({
 
               {bidStrategy === "TARGET_IMPRESSION_SHARE" && (
                 <div className="space-y-1">
-                  <label className="block text-[10px] text-slate-500">Muốn hiện ở đâu, với tần suất bao nhiêu</label>
+                  <label className="block text-[10px] text-slate-500">{t("panels.gcreative.bid.where")}</label>
                   <div className="flex rounded border border-slate-200 overflow-hidden">
                     {([
-                      ["ABSOLUTE_TOP_OF_PAGE", "Vị trí đầu tiên"],
-                      ["TOP_OF_PAGE", "Đầu trang"],
-                      ["ANYWHERE_ON_PAGE", "Bất kỳ đâu"],
+                      ["ABSOLUTE_TOP_OF_PAGE", t("panels.gcreative.bid.loc.abs")],
+                      ["TOP_OF_PAGE", t("panels.gcreative.bid.loc.top")],
+                      ["ANYWHERE_ON_PAGE", t("panels.gcreative.bid.loc.any")],
                     ] as const).map(([v, l]) => (
                       <button key={v} onClick={() => setIsLocation(v)}
                         className={cn("flex-1 px-2 py-1 text-[10px] font-semibold",
@@ -2703,7 +2682,7 @@ export default function GoogleCreativePanel({
                   </div>
                   {isPercent >= 90 && (
                     <p className="rounded bg-amber-50 border border-amber-200 px-2 py-1 text-[10px] text-amber-900">
-                      ⚠️ {isPercent}% là gần như luôn muốn xuất hiện — càng cao thì giá mỗi lượt bấm càng đắt rất nhanh.
+                      {t("panels.gcreative.bid.isHigh", { pct: isPercent })}
                     </p>
                   )}
                 </div>
@@ -2711,15 +2690,15 @@ export default function GoogleCreativePanel({
 
               {bidStrategy === "MANUAL_CPC" && (
                 <div className="space-y-1">
-                  <label className="block text-[10px] text-slate-500">Giá thầu CPC ở cấp nhóm quảng cáo</label>
+                  <label className="block text-[10px] text-slate-500">{t("panels.gcreative.bid.manual")}</label>
                   <div className="flex items-center gap-2">
-                    <input inputMode="numeric" value={manualCpcVnd.toLocaleString("vi-VN")}
+                    <input inputMode="numeric" value={manualCpcVnd.toLocaleString(loc)}
                       onChange={e => setManualCpcVnd(num(e.target.value) ?? 5000)}
                       className="flex-1 rounded border border-slate-300 px-2 py-1 text-[11px]" />
                     <span className="text-[11px] text-slate-500">₫</span>
                   </div>
                   <p className="rounded bg-amber-50 border border-amber-200 px-2 py-1 text-[10px] text-amber-900">
-                    ⚠️ Không có tự động hoá nào chạy hộ — phải tự theo dõi và chỉnh giá thầu hằng ngày.
+                    {t("panels.gcreative.bid.manualWarn")}
                   </p>
                 </div>
               )}
@@ -2728,9 +2707,7 @@ export default function GoogleCreativePanel({
               {((bidStrategy === "MAXIMIZE_CONVERSIONS" && targetCpaVnd != null) ||
                 (bidStrategy === "MAXIMIZE_CONVERSION_VALUE" && targetRoasPct != null)) && (
                 <p className="rounded bg-slate-50 border border-slate-200 px-2 py-1.5 text-[10px] text-slate-600">
-                  Campaign mới chưa có lịch sử chuyển đổi mà đặt mục tiêu cứng (CPA/ROAS) thì Google
-                  chưa có gì để học và thường <b>tiêu rất ít hoặc gần như không chạy</b>. Cân nhắc để trống
-                  vài ngày đầu rồi hãy siết.
+                  {rich(t("panels.gcreative.bid.coldStart"))}
                 </p>
               )}
             </div>
@@ -2739,7 +2716,7 @@ export default function GoogleCreativePanel({
 
         {/* ── Trang đích + UTM ─────────────────────────────────────────────── */}
         <div className="border border-slate-200 rounded-lg p-3 space-y-2">
-          <h4 className="text-xs font-bold text-slate-700">🔗 Trang đích</h4>
+          <h4 className="text-xs font-bold text-slate-700">{t("panels.gcreative.lp.title")}</h4>
 
           {/* Dán nguyên link quen thuộc — tool tự đặt đúng chỗ. */}
           <div className="flex items-center gap-1.5">
@@ -2747,11 +2724,11 @@ export default function GoogleCreativePanel({
               value={pasteUrl}
               onChange={e => setPasteUrl(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); applyPastedUrl(); } }}
-              placeholder="Dán nguyên link có sẵn UTM rồi Enter — tool tự tách"
+              placeholder={t("panels.gcreative.lp.pastePh")}
               className="flex-1 rounded border border-slate-300 px-2 py-1 text-[11px]" />
             <button onClick={applyPastedUrl} disabled={!pasteUrl.trim()}
               className="rounded border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40">
-              Tách
+              {t("panels.gcreative.lp.split")}
             </button>
           </div>
           {pasteNote && (
@@ -2759,29 +2736,28 @@ export default function GoogleCreativePanel({
           )}
 
           <div>
-            <label className="block text-[10px] text-slate-500">Địa chỉ trang (để trống = dùng link mặc định của sản phẩm)</label>
+            <label className="block text-[10px] text-slate-500">{t("panels.gcreative.lp.addr")}</label>
             <input
               value={urlOverride}
               onChange={e => setUrlOverride(e.target.value)}
-              placeholder={(result.product?.finalUrl as string) || "link mặc định của sản phẩm"}
+              placeholder={(result.product?.finalUrl as string) || t("panels.gcreative.lp.defaultPh")}
               className="w-full rounded border border-slate-300 px-2 py-1 text-[11px]" />
           </div>
 
-          <h4 className="text-xs font-bold text-slate-700 pt-1">🔖 Tham số UTM</h4>
+          <h4 className="text-xs font-bold text-slate-700 pt-1">{t("panels.gcreative.utm.title")}</h4>
           <input
             value={utmSuffix}
             onChange={e => setUtmSuffix(e.target.value)}
-            placeholder="để trống nếu không muốn gắn"
+            placeholder={t("panels.gcreative.utm.ph")}
             className="w-full rounded border border-slate-300 px-2 py-1 text-[11px] font-mono" />
           <p className="text-[10px] text-slate-400">
-            Google tự ghép chuỗi này vào <b>mọi link</b> của chiến dịch — quảng cáo, sitelink, tiện ích —
-            nên không phải sửa từng chỗ. <code>{"{campaign}"}</code> tool thay bằng tên chiến dịch;
-            <code> {"{keyword}"}</code> Google tự thay bằng từ khoá đã khớp.
+            {rich(t("panels.gcreative.utm.n1"))}
+            {" "}<code>{"{campaign}"}</code> {t("panels.gcreative.utm.n2")}
+            <code> {"{keyword}"}</code> {t("panels.gcreative.utm.n3")}
           </p>
           {!utmSuffix.trim() && (
             <p className="rounded bg-amber-50 border border-amber-200 px-2 py-1.5 text-[10px] text-amber-900">
-              ⚠️ Không gắn UTM thì <b>GA4 không tách được</b> lưu lượng của chiến dịch này với các chiến dịch khác,
-              và mọi báo cáo quy kết doanh thu sẽ lệch.
+              {rich(t("panels.gcreative.utm.none"))}
             </p>
           )}
         </div>
@@ -2826,43 +2802,39 @@ export default function GoogleCreativePanel({
             <div className={cn("rounded-lg border px-3 py-2 text-[11px]",
               weak ? "border-amber-300 bg-amber-50" : "border-emerald-200 bg-emerald-50/60")}>
               <p className={cn("font-semibold", weak ? "text-amber-900" : "text-emerald-900")}>
-                {weak ? "⚠️" : "✅"} Tiêu đề chứa từ khoá: <b>{headsWithKw}/{heads.length}</b> tiêu đề ·
-                phủ <b>{covered.length}/{kws.length}</b> từ khoá
-                {measured && <> · <b>{TOP_N - topMissing.length}/{Math.min(TOP_N, top.length)}</b> từ khoá nhiều lượt tìm nhất</>}
+                {weak ? "⚠️" : "✅"} {t("panels.gcreative.hk.lead")} <b>{headsWithKw}/{heads.length}</b> {t("panels.gcreative.hk.cover")}
+                <b>{covered.length}/{kws.length}</b> {t("panels.gcreative.hk.kw")}
+                {measured && <> · <b>{TOP_N - topMissing.length}/{Math.min(TOP_N, top.length)}</b> {t("panels.gcreative.hk.top")}</>}
               </p>
 
               {measured && topMissing.length > 0 && (
                 <div className="mt-1 rounded bg-white/70 border border-amber-200 px-2 py-1.5">
                   <p className="text-amber-900 font-semibold">
-                    Thiếu {topMissing.length} từ khoá <b>nhiều lượt tìm nhất</b> — đây chính là thứ Google đòi ở
+                    {rich(t("panels.gcreative.hk.missA", { n: topMissing.length }))}
                     <i> &quot;Include popular keywords in your headlines&quot;</i>:
                   </p>
                   <ul className="mt-0.5 space-y-0.5">
                     {topMissing.map((x, i) => (
                       <li key={i} className="text-amber-800">
-                        · <b>{x.kw}</b> — {x.vol?.toLocaleString("vi-VN") ?? "?"} lượt tìm/tháng
+                        · <b>{x.kw}</b> — {t("panels.gcreative.hk.volMo2", { vol: x.vol?.toLocaleString(loc) ?? "?" })}
                       </li>
                     ))}
                   </ul>
                   <p className="mt-1 text-[10px] text-slate-600">
-                    Sửa vài tiêu đề ở phần nội dung phía trên cho chứa nguyên văn các cụm này. Đổi một tiêu đề
-                    ít giá trị (cụm 0 lượt tìm) thành cụm nhiều lượt tìm là cách nhanh nhất.
+                    {t("panels.gcreative.hk.fix")}
                   </p>
                 </div>
               )}
 
               {measured && topMissing.length === 0 && (
                 <p className="mt-0.5 text-emerald-800">
-                  Đã phủ đủ {Math.min(TOP_N, top.length)} từ khoá nhiều lượt tìm nhất. Ad strength của Google
-                  cập nhật <b>sau vài phút tới vài giờ</b> — con số trong trình soạn thảo lúc đầu chỉ là ước lượng tạm.
+                  {rich(t("panels.gcreative.hk.covered", { n: Math.min(TOP_N, top.length) }))}
                 </p>
               )}
 
               {!measured && (
                 <p className="mt-0.5 text-amber-800">
-                  Chưa đo được lượt tìm nên đây chỉ là <b>phép đếm thô</b>: đếm tiêu đề có chứa bất kỳ từ khoá nào.
-                  Google nhìn từ khoá <b>phổ biến</b> — một tiêu đề chứa cụm 0 lượt tìm vẫn được đếm ở đây nhưng
-                  không giúp gì cho Ad strength.
+                  {rich(t("panels.gcreative.hk.raw"))}
                 </p>
               )}
             </div>
@@ -2874,25 +2846,23 @@ export default function GoogleCreativePanel({
             hộ là quyết thay người chạy quảng cáo. */}
         {measuring && (
           <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-600 flex items-center gap-2">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Đang hỏi Google lượt tìm kiếm thật của từng từ khoá...
+            <Loader2 className="h-3.5 w-3.5 animate-spin" /> {t("panels.gcreative.dead.measuring")}
           </p>
         )}
         {!measuring && volumeError && (
           <p className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
-            ⚠️ <b>Chưa đo được lượt tìm kiếm thật</b>: {volumeError}
-            {" "}Bộ từ khoá bên dưới là do <b>AI tự nghĩ</b>, chưa có số liệu Google xác nhận.
-            Nhãn HIGH/MED/LOW là mức ý định mua AI tự chấm, <b>không phải</b> lượt tìm kiếm.
+            {rich(t("panels.gcreative.dead.err", { err: volumeError }))}
+            {" "}{rich(t("panels.gcreative.dead.err2"))}
           </p>
         )}
         {!measuring && volumes && deadKeywords.length > 0 && (
           <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
             <p className="font-semibold">
-              ⚠️ {deadKeywords.length}/{(result.keywords?.keywords as AnyJSON[])?.length ?? 0} từ khoá được Google báo <b>gần như không ai tìm</b> (0 lượt/tháng)
+              {rich(t("panels.gcreative.dead.head", { n: deadKeywords.length, total: (result.keywords?.keywords as AnyJSON[])?.length ?? 0 }))}
             </p>
-            <p className="mt-0.5 text-amber-800">{deadKeywords.slice(0, 8).join(" · ")}{deadKeywords.length > 8 ? ` … và ${deadKeywords.length - 8} từ nữa` : ""}</p>
+            <p className="mt-0.5 text-amber-800">{deadKeywords.slice(0, 8).join(" · ")}{deadKeywords.length > 8 ? t("panels.gcreative.dead.more", { n: deadKeywords.length - 8 }) : ""}</p>
             <p className="mt-1 text-amber-800">
-              Tool <b>không tự xoá</b> — từ khoá mới hoặc ngách thường 0 lượt mà vẫn đáng chạy.
-              Muốn bỏ thì sửa ở bảng từ khoá phía trên trước khi tạo chiến dịch.
+              {rich(t("panels.gcreative.dead.note"))}
             </p>
           </div>
         )}
@@ -2900,11 +2870,9 @@ export default function GoogleCreativePanel({
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-700 flex items-center gap-2">
           <AlertTriangle className="h-4 w-4 flex-shrink-0" />
           {campaignType !== "BOTH"
-            ? <>Nút <strong>&quot;Tạo campaign (tắt sẵn)&quot;</strong> tạo ở trạng thái PAUSED để bạn review trước.
-               Nút <strong>&quot;Tạo &amp; Chạy Ngay&quot;</strong> bật luôn — tiền bắt đầu tiêu từ lúc bấm.
-               {campaignType === "PMAX" && " Với Performance Max, tool bật cả campaign lẫn nhóm tài sản — thiếu một trong hai là campaign hiện \"đang chạy\" mà không phục vụ lượt nào."}</>
-            : <>Tạo <strong>cả hai</strong> thì campaign ra ở trạng thái <strong>PAUSED</strong> — hai chiến dịch
-               chạy song song, bật ngay dễ để lại trạng thái nửa vời. Review trên Google Ads rồi bật tay.</>}
+            ? <>{rich(t("panels.gcreative.note.single"))}
+               {campaignType === "PMAX" && t("panels.gcreative.note.pmax")}</>
+            : <>{rich(t("panels.gcreative.note.both"))}</>}
         </div>
 
         {launchError && (
@@ -2919,19 +2887,18 @@ export default function GoogleCreativePanel({
             chối chung chung của Google. */}
         {urlCheck && (
           <div className="rounded-lg border-2 border-red-400 bg-red-50 p-3 space-y-1.5">
-            <p className="text-xs font-bold text-red-900">🔗 Trang đích không mở được — đã dừng trước khi tạo</p>
+            <p className="text-xs font-bold text-red-900">{t("panels.gcreative.uc.title")}</p>
             <p className="text-[11px] text-red-800">{urlCheck.problem}</p>
             <div className="rounded bg-white border border-red-200 px-2 py-1.5 text-[11px] space-y-0.5">
-              <p className="text-slate-700">Đường dẫn: <b className="break-all">{urlCheck.url || "(chưa có)"}</b></p>
+              <p className="text-slate-700">{t("panels.gcreative.uc.path")} <b className="break-all">{urlCheck.url || t("panels.gcreative.uc.none")}</b></p>
               {urlCheck.finalUrl && urlCheck.finalUrl !== urlCheck.url && (
-                <p className="text-slate-700">Sau chuyển hướng: <b className="break-all">{urlCheck.finalUrl}</b></p>
+                <p className="text-slate-700">{t("panels.gcreative.uc.redirect")} <b className="break-all">{urlCheck.finalUrl}</b></p>
               )}
-              {urlCheck.status != null && <p className="text-slate-700">Mã trả về: <b>{urlCheck.status}</b></p>}
+              {urlCheck.status != null && <p className="text-slate-700">{t("panels.gcreative.uc.status")} <b>{urlCheck.status}</b></p>}
             </div>
             <p className="text-[10px] text-slate-600">
-              Tool kiểm trước vì Google từ chối ca này bằng <b>DESTINATION_NOT_WORKING</b> — loại cấm hẳn — mà
-              lời từ chối lại không nhắc gì tới đường dẫn, nên rất dễ đi sửa nhầm câu chữ.
-              <b> Chưa có gì được tạo trên tài khoản.</b>
+              {rich(t("panels.gcreative.uc.note"))}
+              <b> {t("panels.gcreative.uc.note2")}</b>
             </p>
           </div>
         )}
@@ -2941,13 +2908,13 @@ export default function GoogleCreativePanel({
         {launchPolicy.length === 0 && launchRawDetails != null && (
           <details className="rounded-lg border border-amber-300 bg-amber-50 p-3">
             <summary className="text-xs font-bold text-amber-900 cursor-pointer">
-              📋 Google có gửi kèm chi tiết — bấm để xem (tool chưa đọc được dạng này)
+              {t("panels.gcreative.raw.sum")}
             </summary>
             <pre className="mt-2 max-h-56 overflow-auto rounded bg-white/70 p-2 text-[10px] whitespace-pre-wrap text-slate-700">
               {JSON.stringify(launchRawDetails, null, 2)}
             </pre>
             <p className="mt-1 text-[10px] text-amber-800">
-              Gửi nguyên khối này cho người phát triển — trong đó có chủ đề chính sách và chữ bị gắn cờ.
+              {t("panels.gcreative.raw.note")}
             </p>
           </details>
         )}
@@ -2955,19 +2922,15 @@ export default function GoogleCreativePanel({
         {/* Google KHÔNG gửi chi tiết nào. Nói thẳng, và chỉ đường khác. */}
         {launchPolicy.length === 0 && launchRawDetails == null && launchError?.includes("policy") && (
           <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-[11px] text-amber-900 space-y-1">
-            <p className="font-bold">Google không nói rõ chủ đề nào bị vi phạm</p>
+            <p className="font-bold">{t("panels.gcreative.nodet.title")}</p>
             <p>
-              Lời từ chối này đến từ <b>bản tóm tắt chính sách</b> của quảng cáo, và lần này Google không gửi
-              kèm chi tiết. Hai cách tìm ra nguyên nhân:
+              {rich(t("panels.gcreative.nodet.a"))}
             </p>
             <p>
-              <b>1.</b> Bấm <b>&quot;Tạo campaign (tắt sẵn)&quot;</b> sau khi <b>tải lại trang</b> (F5) —
-              bản mới bóc được chi tiết khi Google có gửi.
+              {rich(t("panels.gcreative.nodet.b1"))}
             </p>
             <p>
-              <b>2.</b> Sửa bớt nội dung nghi ngờ rồi thử lại từng phần. Nhóm hay bị chặn với dịch vụ số:
-              nhắc tới <b>thủ tục giấy tờ / hành chính công</b>, <b>cam kết tuyệt đối</b> (&quot;100% đậu&quot;,
-              &quot;bao đậu&quot;), <b>tên thương hiệu của bên khác</b>, hoặc trang đích không mở được từ ngoài.
+              {rich(t("panels.gcreative.nodet.b2"))}
             </p>
           </div>
         )}
@@ -2986,22 +2949,19 @@ export default function GoogleCreativePanel({
               {launchPolicy.some(p => p.topic === "DESTINATION_NOT_WORKING") ? (
                 <>
                   <p className="text-xs font-bold text-red-900">
-                    🔗 Google KHÔNG mở được trang đích của quảng cáo
+                    {t("panels.gcreative.lp.dnw.title")}
                   </p>
                   <p className="text-[11px] text-red-800 mt-0.5">
-                    Đây <b>không phải lỗi câu chữ</b> và cũng không phải lỗi cấu hình. Google cho trình thu thập
-                    vào thử trang đích, vào không được thì từ chối quảng cáo. <b>Sửa câu chữ bao nhiêu lần cũng
-                    không qua</b> — phải sửa đường dẫn.
+                    {rich(t("panels.gcreative.lp.dnw.note"))}
                   </p>
                 </>
               ) : (
                 <>
                   <p className="text-xs font-bold text-red-900">
-                    🚫 Google từ chối nội dung quảng cáo vì chính sách
+                    {t("panels.gcreative.pv.title")}
                   </p>
                   <p className="text-[11px] text-red-800 mt-0.5">
-                    Đây <b>không phải lỗi cấu hình</b> — vị trí, ngôn ngữ, đấu thầu đều đúng.
-                    Google chặn <b>câu chữ</b> trong quảng cáo. Sửa những dòng bên dưới rồi tạo lại.
+                    {rich(t("panels.gcreative.pv.note"))}
                   </p>
                 </>
               )}
@@ -3013,59 +2973,55 @@ export default function GoogleCreativePanel({
                   <b className="text-red-900">{p.topic}</b>
                   <span className={cn("ml-1.5 rounded px-1.5 py-0.5 text-[9px] font-bold",
                     p.type === "PROHIBITED" ? "bg-red-200 text-red-900" : "bg-amber-200 text-amber-900")}>
-                    {p.type === "PROHIBITED" ? "CẤM HẲN" : p.type === "LIMITED" ? "HẠN CHẾ" : p.type}
+                    {p.type === "PROHIBITED" ? t("panels.gcreative.pv.prohibited") : p.type === "LIMITED" ? t("panels.gcreative.pv.limited") : p.type}
                   </span>
                 </p>
 
                 {p.texts.length > 0 && (
                   <div>
-                    <p className="text-[10px] text-red-800 font-semibold">Chữ bị gắn cờ — sửa đúng những dòng này:</p>
+                    <p className="text-[10px] text-red-800 font-semibold">{t("panels.gcreative.pv.flagged")}</p>
                     <ul className="mt-0.5 space-y-0.5">
-                      {p.texts.map((t, j) => (
-                        <li key={j} className="text-[11px] text-slate-800 bg-red-100 rounded px-1.5 py-0.5">&quot;{t}&quot;</li>
+                      {p.texts.map((tx, j) => (
+                        <li key={j} className="text-[11px] text-slate-800 bg-red-100 rounded px-1.5 py-0.5">&quot;{tx}&quot;</li>
                       ))}
                     </ul>
                   </div>
                 )}
 
                 {p.websites.length > 0 && (
-                  <p className="text-[10px] text-red-800">Trang bị gắn cờ: {p.websites.join(" · ")}</p>
+                  <p className="text-[10px] text-red-800">{t("panels.gcreative.pv.site", { list: p.websites.join(" · ") })}</p>
                 )}
 
                 {p.destination && (
                   <p className="text-[10px] text-red-800">
-                    Trang đích không mở được: {p.destination.url ?? "(không rõ URL)"}
-                    {p.destination.httpErrorCode ? ` · mã HTTP ${p.destination.httpErrorCode}` : ""}
-                    {p.destination.dnsError ? ` · lỗi DNS ${p.destination.dnsError}` : ""}
-                    {" — "}kiểm tra trang có mở được từ ngoài internet không.
+                    {t("panels.gcreative.pv.dest", { url: p.destination.url ?? t("panels.gcreative.pv.unknownUrl") })}
+                    {p.destination.httpErrorCode ? t("panels.gcreative.pv.http", { code: p.destination.httpErrorCode }) : ""}
+                    {p.destination.dnsError ? t("panels.gcreative.pv.dns", { err: p.destination.dnsError }) : ""}
+                    {" — "}{t("panels.gcreative.pv.checkOpen")}
                   </p>
                 )}
 
                 {p.topic === "DESTINATION_NOT_WORKING" && p.texts.length === 0 && !p.destination && (
                   <p className="text-[10px] text-red-800">
-                    Google không nói rõ đường dẫn nào. Mở thử <b>trang đích của sản phẩm này</b> ở tab ẩn danh —
-                    nếu ra 404 thì đó chính là nguyên nhân. Tool nay tự kiểm trang đích trước khi tạo, nên lần
-                    sau sẽ chặn sớm kèm mã lỗi cụ thể.
+                    {rich(t("panels.gcreative.pv.noPath"))}
                   </p>
                 )}
                 <p className="text-[10px] text-slate-500">
                   {p.topic === "DESTINATION_NOT_WORKING"
-                    ? "Sửa đường dẫn trang đích, hoặc sửa trang cho mở được. Không liên quan tới câu chữ quảng cáo."
+                    ? t("panels.gcreative.pv.fix1")
                     : p.type === "PROHIBITED"
-                    ? "Nhóm CẤM HẲN không xin miễn trừ được — bắt buộc phải đổi câu chữ."
+                    ? t("panels.gcreative.pv.fix2")
                     : p.exemptible
-                      ? "Nhóm này có thể xin miễn trừ trong Google Ads, hoặc đổi câu chữ cho an toàn."
-                      : "Đổi câu chữ, hoặc xử lý trên Google Ads rồi tạo lại."}
+                      ? t("panels.gcreative.pv.fix3")
+                      : t("panels.gcreative.pv.fix4")}
                 </p>
               </div>
             ))}
 
             <p className="rounded bg-white border border-red-200 px-2 py-1.5 text-[10px] text-slate-600">
               {launchPolicy.some(p => p.topic === "DESTINATION_NOT_WORKING")
-                ? <>Chọn <b>Sản phẩm khác</b> có trang đích còn sống, hoặc báo người phát triển cập nhật đường dẫn
-                   cho sản phẩm này. Sửa câu chữ sẽ không giúp gì.</>
-                : <>Sửa ở phần nội dung quảng cáo phía trên (bấm vào từng dòng để sửa), hoặc bấm
-                   <b> Sản phẩm khác</b> rồi sinh lại nội dung.</>}
+                ? <>{rich(t("panels.gcreative.pv.foot1"))}</>
+                : <>{rich(t("panels.gcreative.pv.foot2"))}</>}
             </p>
           </div>
         )}
@@ -3078,15 +3034,15 @@ export default function GoogleCreativePanel({
             : "border-amber-200 bg-amber-50 text-amber-800",
           )}>
             <p className="font-bold">
-              {precheck.verdict === "HỢP LỆ" ? "✅" : precheck.verdict === "TỪ CHỐI" ? "❌" : "⚠️"} Google nói: {precheck.verdict}
+              {precheck.verdict === "HỢP LỆ" ? "✅" : precheck.verdict === "TỪ CHỐI" ? "❌" : "⚠️"} {t("panels.gcreative.pc.says")} {precheck.verdict === "HỢP LỆ" ? t("panels.gcreative.pc.valid") : precheck.verdict === "TỪ CHỐI" ? t("panels.gcreative.pc.rejected") : precheck.verdict === "KHÔNG KIỂM ĐƯỢC" ? t("panels.gcreative.pc.unchecked") : precheck.verdict}
               {precheck.campaignType && (
                 <span className="ml-1.5 rounded bg-white/70 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
-                  đã kiểm loại: {precheck.campaignType}
+                  {t("panels.gcreative.pc.type", { type: precheck.campaignType })}
                 </span>
               )}
               {precheck.unchecked && (
                 <span className="ml-1.5 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-900">
-                  ⚠️ CHƯA kiểm: {precheck.unchecked}
+                  {t("panels.gcreative.pc.notChecked", { what: precheck.unchecked })}
                 </span>
               )}
             </p>
@@ -3096,7 +3052,7 @@ export default function GoogleCreativePanel({
                 "HỢP LỆ" bao luôn phần chưa hề được kiểm. */}
             {precheck.notCheckable && (
               <p className="rounded bg-amber-50 border border-amber-200 p-2 text-amber-900">
-                ⚠️ <strong>Không nằm trong phạm vi kiểm:</strong> {precheck.notCheckable}
+                ⚠️ <strong>{t("panels.gcreative.pc.scope")}</strong> {precheck.notCheckable}
               </p>
             )}
             {/* Trang đích — để TRƯỚC phần soi câu chữ vì đo trên hai tài khoản
@@ -3106,27 +3062,27 @@ export default function GoogleCreativePanel({
             {precheck.finalUrlCheck && (
               !precheck.finalUrlCheck.ok ? (
                 <div className="rounded border border-red-300 bg-red-50 px-2 py-1.5 space-y-0.5">
-                  <p className="text-[11px] font-bold text-red-800">⛔ Trang đích không mở được</p>
+                  <p className="text-[11px] font-bold text-red-800">{t("panels.gcreative.pc.urlFail")}</p>
                   <p className="text-[10px] leading-snug text-red-700">{precheck.finalUrlCheck.problem}</p>
                   <p className="text-[10px] text-slate-600 break-all">
-                    Đã thử:{" "}
+                    {t("panels.gcreative.pc.tried")}{" "}
                     <a href={precheck.finalUrlCheck.url} target="_blank" rel="noopener noreferrer"
                       className="font-mono text-sky-700 underline hover:text-sky-900">{precheck.finalUrlCheck.url}</a>
-                    {precheck.finalUrlCheck.status != null && <> — máy chủ trả mã <b>{precheck.finalUrlCheck.status}</b></>}
+                    {precheck.finalUrlCheck.status != null && <> {t("panels.gcreative.pc.serverCodePre")} <b>{precheck.finalUrlCheck.status}</b></>}
                     {precheck.finalUrlCheck.finalUrl && precheck.finalUrlCheck.finalUrl !== precheck.finalUrlCheck.url && (
-                      <> · sau chuyển hướng tới <span className="font-mono">{precheck.finalUrlCheck.finalUrl}</span></>
+                      <> {t("panels.gcreative.pc.redirected")} <span className="font-mono">{precheck.finalUrlCheck.finalUrl}</span></>
                     )}
                   </p>
                 </div>
               ) : precheck.finalUrlCheck.problem ? (
                 <p className="rounded border border-amber-300 bg-amber-50 px-2 py-1.5 text-[10px] leading-snug text-amber-900">
-                  ⚠️ <b>Chưa kiểm được trang đích:</b> {precheck.finalUrlCheck.problem}
+                  ⚠️ <b>{t("panels.gcreative.pc.urlWarnLbl")}</b> {precheck.finalUrlCheck.problem}
                 </p>
               ) : (
                 <p className="rounded bg-white/60 px-2 py-1.5 text-[11px] text-slate-600">
-                  🔗 Trang đích mở được (mã {precheck.finalUrlCheck.status})
+                  {t("panels.gcreative.pc.urlOk", { status: String(precheck.finalUrlCheck.status) })}
                   {precheck.finalUrlCheck.finalUrl && precheck.finalUrlCheck.finalUrl !== precheck.finalUrlCheck.url && (
-                    <> — chuyển hướng tới <span className="font-mono break-all">{precheck.finalUrlCheck.finalUrl}</span></>
+                    <> {t("panels.gcreative.pc.redir2")} <span className="font-mono break-all">{precheck.finalUrlCheck.finalUrl}</span></>
                   )}
                 </p>
               )
@@ -3138,7 +3094,7 @@ export default function GoogleCreativePanel({
             {Array.isArray(precheck.rejectedKeywords) && precheck.rejectedKeywords.length > 0 && (
               <div className="rounded border border-amber-300 bg-amber-50 px-2 py-1.5 space-y-0.5">
                 <p className="text-[11px] font-bold text-amber-900">
-                  ⚠️ {precheck.rejectedKeywords.length} từ khoá vượt trần Google — sẽ bị <b>BỎ</b> khi tạo (không chặn cả lần tạo)
+                  {rich(t("panels.gcreative.rk.head", { n: precheck.rejectedKeywords.length }))}
                 </p>
                 {precheck.rejectedKeywords.slice(0, 8).map((k, i) => (
                   <p key={i} className="text-[10px] leading-snug text-slate-700">
@@ -3146,10 +3102,10 @@ export default function GoogleCreativePanel({
                   </p>
                 ))}
                 {precheck.rejectedKeywords.length > 8 && (
-                  <p className="text-[10px] text-amber-700">…và {precheck.rejectedKeywords.length - 8} từ nữa.</p>
+                  <p className="text-[10px] text-amber-700">{t("panels.gcreative.rk.more", { n: precheck.rejectedKeywords.length - 8 })}</p>
                 )}
                 <p className="text-[10px] text-amber-700/80 italic">
-                  Trần đo thật trên tài khoản: tối đa <b>10 từ</b> và <b>80 ký tự</b> mỗi từ khoá.
+                  {rich(t("panels.gcreative.rk.limit"))}
                 </p>
               </div>
             )}
@@ -3157,19 +3113,14 @@ export default function GoogleCreativePanel({
             {precheck.checked && (
               <>
                 <p className="opacity-70">
-                  Đã kiểm: {String(precheck.checked.headlines)}
-                  {precheck.checked.headlinesTotal ? `/${String(precheck.checked.headlinesTotal)}` : ""} tiêu đề ·{" "}
-                  {String(precheck.checked.descriptions)} mô tả ·{" "}
-                  {String(precheck.checked.keywordsChecked)}/{String(precheck.checked.keywordsTotal)} từ khoá ·{" "}
-                  {String(precheck.checked.bidding ?? "")} · {String(precheck.checked.finalUrl)}
+                  {t("panels.gcreative.ck.line", { h: String(precheck.checked.headlines), ht: precheck.checked.headlinesTotal ? `/${String(precheck.checked.headlinesTotal)}` : "", d: String(precheck.checked.descriptions), kc: String(precheck.checked.keywordsChecked), kt: String(precheck.checked.keywordsTotal), bid: String(precheck.checked.bidding ?? ""), url: String(precheck.checked.finalUrl) })}
                 </p>
                 {/* Tiêu đề quá dài KHÔNG chặn launch — nó bị BỎ. Không nói ra thì
                     "HỢP LỆ" bị đọc thành "cả 15 tiêu đề đều ổn", launch xong mới
                     phát hiện thiếu mất một cái. */}
                 {Array.isArray(precheck.checked.droppedHeadlines) && precheck.checked.droppedHeadlines.length > 0 && (
                   <p className="rounded bg-amber-100/60 border border-amber-300 px-2 py-1 text-amber-900">
-                    ⚠️ {precheck.checked.droppedHeadlines.length} tiêu đề vượt 30 ký tự sẽ bị <b>BỎ</b> khi launch (không phải bị chặn):{" "}
-                    {(precheck.checked.droppedHeadlines as string[]).join(" · ")}. Sửa ngắn lại nếu muốn giữ.
+                    {rich(t("panels.gcreative.ck.dropped", { n: precheck.checked.droppedHeadlines.length, list: (precheck.checked.droppedHeadlines as string[]).join(" · ") }))}
                   </p>
                 )}
               </>
@@ -3181,9 +3132,7 @@ export default function GoogleCreativePanel({
                 không lẫn vào nhau. */}
             {precheck.unchecked && (
               <p className="rounded bg-amber-50 border border-amber-200 px-2 py-1.5 text-[11px] text-amber-900">
-                Bạn chọn <b>Cả hai</b> — phép kiểm chỉ dựng được một campaign mỗi lượt, nên nó đã kiểm
-                <b> Search</b> và <b>CHƯA kiểm {precheck.unchecked}</b>. Muốn kiểm PMax thì chuyển sang
-                <b> Perf Max</b> ở bước chọn loại rồi bấm Kiểm trước lần nữa.
+                {rich(t("panels.gcreative.ck.both", { what: precheck.unchecked }))}
               </p>
             )}
 
@@ -3193,24 +3142,18 @@ export default function GoogleCreativePanel({
                 KHÔNG soi được chính sách nội dung. Không nói ra thì chữ "HỢP
                 LỆ" thành lời hứa sai đúng ở chỗ hay chặn nhất. */}
             <p className="rounded bg-slate-100 border border-slate-300 px-2 py-1.5 text-[11px] text-slate-700">
-              ⚠️ Phép kiểm này <b>KHÔNG bắt được lỗi chính sách CÂU CHỮ</b>. Đã đo: gửi thử một quảng cáo
-              có nội dung thuộc nhóm Google cấm rõ ràng, chế độ kiểm-không-tạo vẫn trả về <b>chấp nhận</b>.
-              Google chỉ duyệt câu chữ khi quảng cáo được <b>tạo thật</b>. Nên &quot;HỢP LỆ&quot; ở đây nghĩa là
-              <b> lệnh đúng cấu trúc + trang đích mở được</b>, không phải &quot;quảng cáo sẽ được duyệt&quot;.
+              {rich(t("panels.gcreative.ck.limit"))}
             </p>
 
             {precheck.policy && (
               precheck.policy.clean ? (
                 <p className="rounded bg-white/60 px-2 py-1.5 text-[11px] text-slate-600">
-                  🛡️ Soi chính sách nội dung: <b>không thấy vi phạm luật biên tập nào</b> (viết hoa toàn bộ,
-                  dấu câu lặp, số điện thoại trong chữ, khẳng định tuyệt đối, link rút gọn).
-                  Đây là <b>phỏng đoán của tool</b>, không phải phán quyết của Google.
+                  {rich(t("panels.gcreative.ck.clean"))}
                 </p>
               ) : (
                 <div className="rounded border border-amber-300 bg-amber-50/80 px-2 py-1.5 space-y-1">
                   <p className="text-[11px] font-bold text-amber-900">
-                    🛡️ Soi chính sách nội dung — {precheck.policy.findings.filter(f => f.severity === "block").length} nghiêm trọng,{" "}
-                    {precheck.policy.findings.filter(f => f.severity === "warn").length} cần xem lại
+                    {t("panels.gcreative.ck.found", { b: precheck.policy.findings.filter(f => f.severity === "block").length, w: precheck.policy.findings.filter(f => f.severity === "warn").length })}
                   </p>
                   {precheck.policy.findings.map((f, i) => (
                     <p key={i} className="text-[10px] leading-snug">
@@ -3222,8 +3165,7 @@ export default function GoogleCreativePanel({
                     </p>
                   ))}
                   <p className="text-[10px] text-amber-700/80 italic">
-                    Đây là phỏng đoán theo luật biên tập của Google, KHÔNG phải phán quyết. Sạch ở đây không đảm bảo
-                    được duyệt; bị bắt ở đây cũng chưa chắc Google từ chối.
+                    {t("panels.gcreative.ck.guess")}
                   </p>
                 </div>
               )
@@ -3239,19 +3181,19 @@ export default function GoogleCreativePanel({
 
         <div className="flex items-center justify-between pt-2 gap-2 flex-wrap">
           <Button variant="outline" className="gap-1.5 text-xs" onClick={() => setResult(null)}>
-            <ArrowLeft className="h-3.5 w-3.5" /> Sản phẩm khác
+            <ArrowLeft className="h-3.5 w-3.5" /> {t("panels.gcreative.btn.otherProduct")}
           </Button>
           <Button
             variant="outline"
             onClick={handlePrecheck}
             disabled={!launchCampaignName || prechecking || launching}
             className="gap-2 text-xs border-slate-300"
-            title="Gửi Google kiểm mà KHÔNG tạo gì trên tài khoản"
+            title={t("panels.gcreative.btn.precheckTitle")}
           >
             {prechecking ? (
-              <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Đang hỏi Google...</>
+              <><Loader2 className="h-3.5 w-3.5 animate-spin" /> {t("panels.gcreative.kw.asking")}</>
             ) : (
-              <>🔍 Kiểm trước (không tạo gì)</>
+              <>{t("panels.gcreative.btn.precheck")}</>
             )}
           </Button>
           <Button
@@ -3260,9 +3202,9 @@ export default function GoogleCreativePanel({
             className="gap-2 bg-gradient-to-r from-red-600 to-orange-600 text-white hover:from-red-700 hover:to-orange-700 disabled:opacity-40 shadow-lg px-6 py-5"
           >
             {launching ? (
-              <><Loader2 className="h-4 w-4 animate-spin" /> Đang tạo campaign...</>
+              <><Loader2 className="h-4 w-4 animate-spin" /> {t("panels.gcreative.btn.creating")}</>
             ) : (
-              <><Rocket className="h-4 w-4" /> 🚀 Tạo campaign (tắt sẵn)</>
+              <><Rocket className="h-4 w-4" /> {t("panels.gcreative.btn.create")}</>
             )}
           </Button>
 
@@ -3278,8 +3220,8 @@ export default function GoogleCreativePanel({
                 className="gap-2 bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-40 shadow-lg px-6 py-5"
               >
                 {launching
-                  ? <><Loader2 className="h-4 w-4 animate-spin" /> Đang tạo và bật...</>
-                  : <>⚠️ Bấm lần nữa để CHẠY THẬT</>}
+                  ? <><Loader2 className="h-4 w-4 animate-spin" /> {t("panels.gcreative.btn.creatingRun")}</>
+                  : <>{t("panels.gcreative.btn.confirmRun")}</>}
               </Button>
             ) : (
               <Button
@@ -3287,9 +3229,9 @@ export default function GoogleCreativePanel({
                 onClick={() => setConfirmRunNow(true)}
                 disabled={!launchCampaignName || launching}
                 className="gap-2 border-amber-400 text-amber-700 hover:bg-amber-50 px-6 py-5"
-                title="Tạo xong bật chạy luôn — không cần vào Google Ads bật tay"
+                title={t("panels.gcreative.btn.runTitle")}
               >
-                ▶️ Tạo &amp; Chạy Ngay
+                {t("panels.gcreative.btn.run")}
               </Button>
             )
           )}
@@ -3297,11 +3239,9 @@ export default function GoogleCreativePanel({
 
         {confirmRunNow && (
           <p className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
-            <b>Bấm lần nữa là tiền bắt đầu tiêu ngay</b>, ngân sách {dailyBudget.toLocaleString("vi-VN")}₫/ngày.
-            Tool sẽ tạo campaign, đặt mục tiêu chuyển đổi, gắn ảnh và sitelink <b>rồi mới bật</b> — bật trước
-            là để campaign chạy khi chưa biết nó đuổi theo cái gì.
-            {" "}Đổi ý thì <button onClick={() => setConfirmRunNow(false)} className="underline font-semibold">huỷ</button>,
-            hoặc bấm &quot;Tạo campaign (tắt sẵn)&quot; để review trên Google Ads trước.
+            {rich(t("panels.gcreative.run.warn", { budget: dailyBudget.toLocaleString(loc) }))}
+            {" "}{t("panels.gcreative.run.warn2")} <button onClick={() => setConfirmRunNow(false)} className="underline font-semibold">{t("panels.gcreative.run.cancel")}</button>,
+            {t("panels.gcreative.run.warn3")}
           </p>
         )}
       </div>
@@ -3321,6 +3261,9 @@ function LaunchSuccessScreen({ data, company, pmax, onNewCampaign, onBack }: {
   onNewCampaign: () => void;
   onBack: () => void;
 }) {
+  const t = useT();
+  const loc = useIntlLocale();
+  void loc;
   const allSuccess = data.success;
   const partial = data.partialSuccess;
   /** Tên tiếng Việt của các vị trí đã gửi, do panel đính kèm lúc launch. */
@@ -3349,21 +3292,19 @@ function LaunchSuccessScreen({ data, company, pmax, onNewCampaign, onBack }: {
           const missing = (p.missingImageTypes ?? []) as Array<{ label: string; recommended: string }>;
           return (
             <div className="mt-3 rounded-lg border-2 border-red-300 bg-red-50 p-3 text-left">
-              <p className="text-sm font-bold text-red-800">⛔ Campaign này CHƯA hiển thị được lượt nào</p>
+              <p className="text-sm font-bold text-red-800">{t("panels.gcreative.ls.noServe")}</p>
               <p className="mt-1 text-xs text-red-700">
-                Nhóm tài sản thiếu: <b>{missing.map(m => `${m.label} (${m.recommended})`).join(" · ")}</b>.
-                Google đòi đủ <b>logo + ảnh ngang + ảnh vuông</b> mới phục vụ — và nó <b>không báo lỗi</b>,
-                chỉ lặng lẽ không hiển thị.
+                {rich(t("panels.gcreative.ls.missing", { list: missing.map(m => `${m.label} (${m.recommended})`).join(" · ") }))}
               </p>
               <p className="mt-1 text-xs text-red-700">
-                Bổ sung ở <b>PMax Insights → Khám phá → nhóm tài sản → Thêm ảnh</b>, hoặc trong Google Ads.
+                {rich(t("panels.gcreative.ls.addMore"))}
               </p>
             </div>
           );
         })()}
         {data.summary && (
           <p className="text-sm text-slate-500 mt-1">
-            {data.summary.succeeded}/{data.summary.total} campaigns thành công
+            {t("panels.gcreative.ls.summary", { ok: data.summary.succeeded, total: data.summary.total })}
           </p>
         )}
       </div>
@@ -3407,22 +3348,22 @@ function LaunchSuccessScreen({ data, company, pmax, onNewCampaign, onBack }: {
         return (
           <div key={k} className="rounded-xl border border-slate-200 bg-white p-4 space-y-2 text-xs">
             <p className="font-bold text-slate-800 text-sm">
-              Đã gửi lên Google — {k === "pmax" ? "Performance Max" : "Search"}
+              {t("panels.gcreative.ls.sent", { type: k === "pmax" ? "Performance Max" : "Search" })}
             </p>
 
             {themes !== undefined && (
               <p className="text-slate-700">
-                Chủ đề tìm kiếm: <b>{themes}</b> đã tạo
+                {t("panels.gcreative.ls.themesPre")} <b>{themes}</b> {t("panels.gcreative.ls.themesPost")}
                 {r.searchThemesDropped > 0 && (
-                  <span className="text-amber-700"> · bỏ {r.searchThemesDropped} vì vượt trần 50 của Google</span>
+                  <span className="text-amber-700">{t("panels.gcreative.ls.themesDrop", { n: r.searchThemesDropped })}</span>
                 )}
-                {" — "}<span className="text-slate-500">đối chiếu ở Google Ads → chiến dịch → Search themes.</span>
+                {" — "}<span className="text-slate-500">{t("panels.gcreative.ls.compare1")}</span>
               </p>
             )}
 
             {dropped.length > 0 && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-2">
-                <p className="font-semibold text-amber-900">Bị bỏ {dropped.length} dòng nội dung — Google KHÔNG nhận:</p>
+                <p className="font-semibold text-amber-900">{t("panels.gcreative.ls.dropped", { n: dropped.length })}</p>
                 <ul className="mt-1 space-y-0.5 text-amber-800 max-h-32 overflow-y-auto">
                   {dropped.map((d, i) => <li key={i}>· {d}</li>)}
                 </ul>
@@ -3434,13 +3375,13 @@ function LaunchSuccessScreen({ data, company, pmax, onNewCampaign, onBack }: {
                 dấu hiệu có gì đó rơi giữa đường. */}
             {bidding && (
               <p className="text-slate-700">
-                Đấu thầu: <b>{bidding.summary}</b>
-                {" — "}<span className="text-slate-500">đối chiếu ở Google Ads → chiến dịch → Cài đặt → Giá thầu.</span>
+                {t("panels.gcreative.ls.bidding")} <b>{bidding.summary}</b>
+                {" — "}<span className="text-slate-500">{t("panels.gcreative.ls.compare2")}</span>
               </p>
             )}
             {biddingWarnings.length > 0 && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-2">
-                <p className="font-semibold text-amber-900">Lưu ý về cấu hình đấu thầu:</p>
+                <p className="font-semibold text-amber-900">{t("panels.gcreative.ls.bidWarn")}</p>
                 <ul className="mt-1 space-y-0.5 text-amber-800">
                   {biddingWarnings.map((w, i) => <li key={i}>· {w}</li>)}
                 </ul>
@@ -3452,28 +3393,27 @@ function LaunchSuccessScreen({ data, company, pmax, onNewCampaign, onBack }: {
                 nặng hơn hẳn thiếu ảnh hay thiếu sitelink. */}
             {targetingApplied === false && (
               <div className="rounded-lg border-2 border-red-400 bg-red-50 p-2">
-                <p className="font-bold text-red-900">⛔ KHÔNG đặt được vị trí / ngôn ngữ</p>
+                <p className="font-bold text-red-900">{t("panels.gcreative.ls.noTarget")}</p>
                 <p className="mt-1 text-red-800">
-                  {targetingError ?? "Lý do không rõ"}
+                  {targetingError ?? t("panels.gcreative.ls.unknownReason")}
                 </p>
                 <p className="mt-1 text-red-800">
-                  Campaign <b>không có tiêu chí vị trí</b> sẽ được Google phục vụ ra <b>TOÀN THẾ GIỚI</b>.
-                  Vào Google Ads → chiến dịch → <b>Vị trí</b> đặt Việt Nam <b>trước khi bật</b>.
+                  {rich(t("panels.gcreative.ls.noLoc"))}
                 </p>
               </div>
             )}
             {targetingApplied === true && targeting && (
               <p className="text-slate-700">
-                Nhắm mục tiêu:{" "}
+                {t("panels.gcreative.ls.targeting")}{" "}
                 <b>
                   {targeting.wholeCountry
-                    ? "Việt Nam (cả nước)"
+                    ? t("panels.gcreative.tg.vnShort")
                     : geoNames.length > 0
                       ? geoNames.join(", ")
-                      : `${targeting.locationCount} vị trí`}
+                      : t("panels.gcreative.ls.nLocs", { n: targeting.locationCount })}
                 </b>
                 {" · "}<b>{targeting.languages.join(" + ")}</b>
-                {" — "}<span className="text-slate-500">đối chiếu ở Google Ads → chiến dịch → Vị trí / Ngôn ngữ.</span>
+                {" — "}<span className="text-slate-500">{t("panels.gcreative.ls.compare3")}</span>
               </p>
             )}
 
@@ -3482,16 +3422,16 @@ function LaunchSuccessScreen({ data, company, pmax, onNewCampaign, onBack }: {
                 câu "đã tạo thành công" vốn chỉ nói về campaign. */}
             {(imagesAttached !== undefined || sitelinksAttached !== undefined) && (
               <p className="text-slate-700">
-                Đã gắn: <b>{imagesAttached ?? 0}</b> ảnh · <b>{sitelinksAttached ?? 0}</b> sitelink
-                {videosLinked !== undefined && <> · <b>{videosLinked}</b> video</>}
-                {negativesAdded !== undefined && <> · <b>{negativesAdded}</b> từ khoá phủ định</>}
-                {" — "}<span className="text-slate-500">đối chiếu ở Google Ads → chiến dịch → Tài sản.</span>
+                {t("panels.gcreative.ls.attached")} <b>{imagesAttached ?? 0}</b> {t("panels.gcreative.ls.images")} · <b>{sitelinksAttached ?? 0}</b> sitelink
+                {videosLinked !== undefined && <> · <b>{videosLinked}</b> {t("panels.gcreative.ls.video")}</>}
+                {negativesAdded !== undefined && <> · <b>{negativesAdded}</b> {t("panels.gcreative.ls.negs")}</>}
+                {" — "}<span className="text-slate-500">{t("panels.gcreative.ls.compare4")}</span>
               </p>
             )}
 
             {imageNote && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-2">
-                <p className="font-semibold text-amber-900">Ghi chú về ảnh:</p>
+                <p className="font-semibold text-amber-900">{t("panels.gcreative.ls.imgNote")}</p>
                 <p className="mt-1 text-amber-800">{imageNote}</p>
               </div>
             )}
@@ -3503,15 +3443,15 @@ function LaunchSuccessScreen({ data, company, pmax, onNewCampaign, onBack }: {
                 mới phát hiện 0 lượt hiển thị. */}
             {servingReasons.length > 0 && (() => {
               const VI: Record<string, string> = {
-                CAMPAIGN_PAUSED: "Chiến dịch đang tắt",
-                CAMPAIGN_REMOVED: "Chiến dịch đã xoá",
-                CAMPAIGN_PENDING: "Chiến dịch chưa tới ngày chạy",
-                CAMPAIGN_ENDED: "Chiến dịch đã kết thúc",
-                ASSET_GROUP_PAUSED: "Nhóm tài sản đang tắt",
-                ASSET_GROUP_REMOVED: "Nhóm tài sản đã xoá",
-                ASSET_GROUP_DISAPPROVED: "Nhóm tài sản bị Google TỪ CHỐI vì chính sách",
-                ASSET_GROUP_LIMITED: "Nhóm tài sản bị hạn chế hiển thị",
-                ASSET_GROUP_UNDER_REVIEW: "Google đang duyệt — chưa hiển thị",
+                CAMPAIGN_PAUSED: t("panels.gcreative.sr.CAMPAIGN_PAUSED"),
+                CAMPAIGN_REMOVED: t("panels.gcreative.sr.CAMPAIGN_REMOVED"),
+                CAMPAIGN_PENDING: t("panels.gcreative.sr.CAMPAIGN_PENDING"),
+                CAMPAIGN_ENDED: t("panels.gcreative.sr.CAMPAIGN_ENDED"),
+                ASSET_GROUP_PAUSED: t("panels.gcreative.sr.ASSET_GROUP_PAUSED"),
+                ASSET_GROUP_REMOVED: t("panels.gcreative.sr.ASSET_GROUP_REMOVED"),
+                ASSET_GROUP_DISAPPROVED: t("panels.gcreative.sr.ASSET_GROUP_DISAPPROVED"),
+                ASSET_GROUP_LIMITED: t("panels.gcreative.sr.ASSET_GROUP_LIMITED"),
+                ASSET_GROUP_UNDER_REVIEW: t("panels.gcreative.sr.ASSET_GROUP_UNDER_REVIEW"),
               };
               // Lọc lý do đã tự hết sau khi bật: campaign/nhóm vừa được bật
               // thì hai lý do này là số liệu CŨ, in ra chỉ gây hoang mang.
@@ -3522,14 +3462,13 @@ function LaunchSuccessScreen({ data, company, pmax, onNewCampaign, onBack }: {
               return (
                 <div className={cn("rounded-lg border p-2", bad ? "border-red-300 bg-red-50" : "border-amber-200 bg-amber-50")}>
                   <p className={cn("font-semibold", bad ? "text-red-900" : "text-amber-900")}>
-                    {bad ? "⛔ Nhóm tài sản CHƯA phục vụ được" : "Nhóm tài sản chưa hiển thị vì:"}
+                    {bad ? t("panels.gcreative.sr.bad") : t("panels.gcreative.sr.warn")}
                   </p>
                   <ul className={cn("mt-1 space-y-0.5", bad ? "text-red-800" : "text-amber-800")}>
                     {live.map((x, i) => <li key={i}>· {VI[x] ?? x}</li>)}
                   </ul>
                   <p className={cn("mt-1", bad ? "text-red-800" : "text-amber-800")}>
-                    Google <b>không chặn lúc tạo</b> — campaign vẫn hiện &quot;đang chạy&quot; trong khi không
-                    phục vụ lượt nào. Xử lý trên Google Ads trước khi trông vào số liệu.
+                    {rich(t("panels.gcreative.sr.note"))}
                   </p>
                 </div>
               );
@@ -3537,28 +3476,27 @@ function LaunchSuccessScreen({ data, company, pmax, onNewCampaign, onBack }: {
 
             {assetGroupsActivated !== undefined && assetGroupsActivated > 0 && (
               <p className="text-slate-700">
-                Đã bật thêm <b>{assetGroupsActivated}</b> nhóm tài sản — Performance Max cần cả campaign lẫn
-                nhóm tài sản cùng bật thì mới phục vụ.
+                {rich(t("panels.gcreative.ag.on", { n: assetGroupsActivated }))}
               </p>
             )}
 
             {negativeNote && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-2">
-                <p className="font-semibold text-amber-900">Từ khoá phủ định:</p>
+                <p className="font-semibold text-amber-900">{t("panels.gcreative.ls.negNote")}</p>
                 <p className="mt-1 text-amber-800">{negativeNote}</p>
               </div>
             )}
 
             {videoNote && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-2">
-                <p className="font-semibold text-amber-900">Ghi chú về video:</p>
+                <p className="font-semibold text-amber-900">{t("panels.gcreative.ls.vidNote")}</p>
                 <p className="mt-1 text-amber-800">{videoNote}</p>
               </div>
             )}
 
             {sitelinkNote && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-2">
-                <p className="font-semibold text-amber-900">Ghi chú về sitelink:</p>
+                <p className="font-semibold text-amber-900">{t("panels.gcreative.ls.slNote")}</p>
                 <p className="mt-1 text-amber-800">{sitelinkNote}</p>
               </div>
             )}
@@ -3567,12 +3505,11 @@ function LaunchSuccessScreen({ data, company, pmax, onNewCampaign, onBack }: {
               <div className={cn("rounded-lg border p-2",
                 goal.error ? "border-red-300 bg-red-50" : goal.applied ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50")}>
                 <p className={cn("font-semibold", goal.error ? "text-red-800" : "text-emerald-900")}>
-                  Mục tiêu chuyển đổi: {goal.error ? "KHÔNG đặt được" : goal.applied ? "đã đặt" : "không có gì để đặt"}
+                  {t("panels.gcreative.g.label", { state: goal.error ? t("panels.gcreative.g.err") : goal.applied ? t("panels.gcreative.g.applied") : t("panels.gcreative.g.nothing") })}
                 </p>
                 {goal.error && (
                   <p className="mt-1 text-red-700">
-                    {goal.error} — chiến dịch vẫn được tạo và đang PAUSED. Vào Google Ads → chiến dịch → <b>Goals</b> đặt tay
-                    TRƯỚC khi bật, không thì nó sẽ đuổi theo toàn bộ hành động của tài khoản.
+                    {goal.error} {rich(t("panels.gcreative.g.errNote"))}
                   </p>
                 )}
                 {!goal.error && (goal.enabled?.length > 0 || goal.disabled?.length > 0) && (
@@ -3581,13 +3518,13 @@ function LaunchSuccessScreen({ data, company, pmax, onNewCampaign, onBack }: {
                         đã bật đúng từ trước không vào `enabled`, nên bản cũ in
                         "Bật 0 nhóm" trong khi campaign thật sự đang bật
                         PURCHASE — đọc lên thành "không có mục tiêu nào". */}
-                    Đang bật <b>{goal.finalEnabled?.length ?? goal.enabled?.length ?? 0}</b> nhóm mục tiêu
+                    {rich(t("panels.gcreative.g.on", { n: goal.finalEnabled?.length ?? goal.enabled?.length ?? 0 }))}
                     {(goal.finalEnabled?.length ?? 0) === 0 && (goal.enabled?.length ?? 0) === 0 && (
-                      <span className="text-red-700"> — ⛔ không nhóm nào bật thì Google không biết đuổi theo cái gì</span>
+                      <span className="text-red-700">{t("panels.gcreative.g.none")}</span>
                     )}
                     {". "}
                     <span className="text-slate-500">
-                      (lần này đổi: bật thêm {goal.enabled?.length ?? 0} · tắt bớt {goal.disabled?.length ?? 0})
+                      {t("panels.gcreative.g.changed", { on: goal.enabled?.length ?? 0, off: goal.disabled?.length ?? 0 })}
                     </span>
                   </p>
                 )}
@@ -3595,7 +3532,7 @@ function LaunchSuccessScreen({ data, company, pmax, onNewCampaign, onBack }: {
                   <p key={i} className="mt-1 text-slate-600">{n}</p>
                 ))}
                 <p className="mt-1 text-slate-500">
-                  Kiểm chứng: Google Ads → chiến dịch → <b>Goals</b> — phải khớp với thứ đã tích ở đây.
+                  {rich(t("panels.gcreative.g.verify"))}
                 </p>
               </div>
             )}
@@ -3626,11 +3563,11 @@ function LaunchSuccessScreen({ data, company, pmax, onNewCampaign, onBack }: {
                   <b className={data.results.search.status === "ENABLED" ? "text-emerald-700" : "text-slate-600"}>
                     {data.results.search.status ?? "PAUSED"}
                   </b>
-                  {data.results.search.status === "ENABLED" && " — đang chạy, tiền đang tiêu"}
+                  {data.results.search.status === "ENABLED" && t("panels.gcreative.ls.running")}
                 </p>
               ) : (
                 <p className="text-xs text-red-600">
-                  Lỗi: {data.results.search.error}
+                  {t("panels.gcreative.ls.err", { error: String(data.results.search.error) })}
                 </p>
               )}
             </div>
@@ -3657,11 +3594,11 @@ function LaunchSuccessScreen({ data, company, pmax, onNewCampaign, onBack }: {
                   <b className={data.results.pmax.status === "ENABLED" ? "text-emerald-700" : "text-slate-600"}>
                     {data.results.pmax.status ?? "PAUSED"}
                   </b>
-                  {data.results.pmax.status === "ENABLED" && " — đang chạy, tiền đang tiêu"}
+                  {data.results.pmax.status === "ENABLED" && t("panels.gcreative.ls.running")}
                 </p>
               ) : (
                 <p className="text-xs text-red-600">
-                  Lỗi: {data.results.pmax.error}
+                  {t("panels.gcreative.ls.err", { error: String(data.results.pmax.error) })}
                 </p>
               )}
             </div>
@@ -3685,8 +3622,8 @@ function LaunchSuccessScreen({ data, company, pmax, onNewCampaign, onBack }: {
             <div className="rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-800 flex items-center gap-3">
               <AlertTriangle className="h-5 w-5 flex-shrink-0" />
               <div>
-                <p className="font-semibold">Bạn bấm &quot;Chạy Ngay&quot; nhưng campaign KHÔNG bật được</p>
-                <p className="text-xs">{s.activationError} — campaign đã tạo xong và <b>đang PAUSED</b>. Vào Google Ads bật tay.</p>
+                <p className="font-semibold">{t("panels.gcreative.ls.actFail")}</p>
+                <p className="text-xs">{s.activationError} {rich(t("panels.gcreative.ls.actFail2"))}</p>
               </div>
             </div>
           );
@@ -3696,10 +3633,9 @@ function LaunchSuccessScreen({ data, company, pmax, onNewCampaign, onBack }: {
             <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-4 text-sm text-emerald-900 flex items-center gap-3">
               <Rocket className="h-5 w-5 flex-shrink-0" />
               <div>
-                <p className="font-semibold">🚀 Campaign {kind} ĐANG CHẠY — tiền bắt đầu tiêu từ bây giờ</p>
+                <p className="font-semibold">{t("panels.gcreative.ls.live", { kind })}</p>
                 <p className="text-xs">
-                  Không cần vào Google Ads bật nữa. Theo dõi vài giờ đầu ở tab <b>Radar chính sách</b> —
-                  quảng cáo bị từ chối thì campaign vẫn &quot;đang chạy&quot; mà không hiển thị lượt nào.
+                  {rich(t("panels.gcreative.ls.live2"))}
                 </p>
               </div>
             </div>
@@ -3709,8 +3645,8 @@ function LaunchSuccessScreen({ data, company, pmax, onNewCampaign, onBack }: {
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 flex items-center gap-3">
             <AlertTriangle className="h-5 w-5 flex-shrink-0" />
             <div>
-              <p className="font-semibold">Campaign đang PAUSED</p>
-              <p className="text-xs">Review lần cuối trên Google Ads rồi bật lên để chạy.</p>
+              <p className="font-semibold">{t("panels.gcreative.ls.paused")}</p>
+              <p className="text-xs">{t("panels.gcreative.ls.paused2")}</p>
             </div>
           </div>
         );
@@ -3720,7 +3656,7 @@ function LaunchSuccessScreen({ data, company, pmax, onNewCampaign, onBack }: {
       {data.results?.pmax?.success && data.results.pmax.imageGuidance && (
         <div className="rounded-xl border border-violet-200 bg-violet-50 p-4">
           <p className="text-sm font-semibold text-violet-700 mb-3 flex items-center gap-2">
-            📸 PMax cần upload ảnh thủ công:
+            {t("panels.gcreative.ls.imgManual")}
           </p>
           <div className="space-y-2">
             {Object.entries(data.results.pmax.imageGuidance).map(([key, val]) => (
@@ -3742,17 +3678,17 @@ function LaunchSuccessScreen({ data, company, pmax, onNewCampaign, onBack }: {
             rel="noopener noreferrer"
             className="flex-1 flex items-center justify-center gap-2 rounded-lg border-2 border-red-500 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 hover:bg-red-100 transition-colors"
           >
-            <ExternalLink className="h-4 w-4" /> 🔗 Mở Google Ads để review
+            <ExternalLink className="h-4 w-4" /> {t("panels.gcreative.ls.open")}
           </a>
         )}
         <Button variant="outline" className="flex-1 gap-2" onClick={() => window.location.href = "/campaigns"}>
-          <BarChart3 className="h-4 w-4" /> 📊 Xem trong Campaigns
+          <BarChart3 className="h-4 w-4" /> {t("panels.gcreative.ls.view")}
         </Button>
         <Button
           className="flex-1 gap-2 bg-gradient-to-r from-amber-500 to-orange-600 text-amber-950 hover:from-amber-600 hover:to-orange-700"
           onClick={onNewCampaign}
         >
-          <Plus className="h-4 w-4" /> ➕ Tạo Campaign mới
+          <Plus className="h-4 w-4" /> {t("panels.gcreative.ls.new")}
         </Button>
       </div>
     </div>
@@ -3795,6 +3731,7 @@ function Section({ title, items, expanded, toggle, sectionKey, onEdit, editingIn
   saving?: boolean;
   editError?: string | null;
 }) {
+  const t = useT();
   if (!items?.length) return null;
   const isOpen = expanded.has(sectionKey);
   return (
@@ -3827,13 +3764,13 @@ function Section({ title, items, expanded, toggle, sectionKey, onEdit, editingIn
                         chữ, không chỉ đổi màu, vì đây là mất nội dung chứ không
                         phải chuyện thẩm mỹ. */}
                     <span className={cn("text-xs font-mono", draftOk ? "text-emerald-600" : "text-red-600 font-bold")}>
-                      {len}/{limit} {draftOk ? "" : "— sẽ KHÔNG được gửi lên Google"}
+                      {len}/{limit} {draftOk ? "" : t("panels.gcreative.sec.notSent")}
                     </span>
                     <div className="flex gap-2">
                       <Button size="sm" className="h-7 text-xs" onClick={onSave} disabled={saving || !draftOk}>
-                        {saving ? "Đang lưu…" : "Lưu"}
+                        {saving ? t("panels.gcreative.edit.savingEll") : t("panels.gcreative.edit.save")}
                       </Button>
-                      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={onCancel} disabled={saving}>Huỷ</Button>
+                      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={onCancel} disabled={saving}>{t("panels.gcreative.edit.cancel")}</Button>
                     </div>
                   </div>
                   {editError && <p className="text-xs text-red-600">{editError}</p>}
@@ -3850,7 +3787,7 @@ function Section({ title, items, expanded, toggle, sectionKey, onEdit, editingIn
                 </span>
                 <span>{ok ? "✅" : "⚠️"}</span>
                 {onEdit && (
-                  <button onClick={() => onEdit(i, text)} className="text-xs text-blue-600 hover:underline shrink-0">Sửa</button>
+                  <button onClick={() => onEdit(i, text)} className="text-xs text-blue-600 hover:underline shrink-0">{t("panels.gcreative.edit.title")}</button>
                 )}
               </div>
             );

@@ -17,6 +17,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useSession } from "@/components/SessionProvider";
 import { resolveCompanyScope } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
+import type { TFunction } from "@/lib/i18n/translate";
 import { getJson, ApiError } from "@/components/case/api";
 import { FacebookHealthView } from "@/components/measure/FacebookHealthView";
 import { GoogleHealthView } from "@/components/measure/GoogleHealthView";
@@ -36,8 +38,8 @@ type HealthResponse =
   | ({ success: true; platform: "google" } & GoogleHealth);
 
 /** Thông điệp thân thiện khi Meta/Google chặn vì vượt hạn mức gọi API (#613…). */
-function quotaHint(message: string): string | null {
-  return /hạn mức|quota|rate limit|#613/i.test(message) ? "Thử lại sau khoảng 10 phút." : null;
+function quotaHint(message: string, t: TFunction): string | null {
+  return /hạn mức|quota|rate limit|#613/i.test(message) ? t("meta.measure.td.quota") : null;
 }
 
 /**
@@ -77,6 +79,7 @@ function HealthSkeletonFallback() {
 }
 
 function DoLuongPageInner() {
+  const t = useT();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useSession();
@@ -119,13 +122,13 @@ function DoLuongPageInner() {
     } catch (e) {
       // "Kéo lại" hỏng thì KHÔNG giữ số cũ trên màn — chuyển hẳn sang trạng
       // thái lỗi để không ai đọc nhầm số đã lỗi thời là số mới.
-      setPullError(e instanceof ApiError ? e.message : "Không kéo lại được số liệu đo lường");
+      setPullError(e instanceof ApiError ? e.message : t("meta.measure.pg.pullFail"));
     } finally {
       setPulling(false);
     }
   }
 
-  const effectiveErrorMessage = pullError ?? (error instanceof ApiError ? error.message : error ? "Có lỗi khi tải dữ liệu" : null);
+  const effectiveErrorMessage = pullError ?? (error instanceof ApiError ? error.message : error ? t("meta.measure.pg.loadFail") : null);
   const channelLabel = platform === "facebook" ? "Meta" : "Google Ads";
   const isEmpty =
     !!data &&
@@ -139,14 +142,14 @@ function DoLuongPageInner() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="flex items-center gap-2 text-xl font-bold text-slate-900">
-            <HeartPulse className="h-5 w-5 text-blue-600" aria-hidden="true" /> {platform === "tags" ? "Chẩn đoán gắn thẻ" : platform === "orders" ? "Đơn thật → Google & Meta" : "Sức khoẻ đo lường"}
+            <HeartPulse className="h-5 w-5 text-blue-600" aria-hidden="true" /> {platform === "tags" ? t("meta.measure.td.title") : platform === "orders" ? t("meta.measure.pg.title.orders") : t("meta.measure.pg.title.health")}
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-slate-500">
             {platform === "orders"
-              ? "Gửi đơn đã thu tiền trong Odoo về cho Google và Meta, để nền tảng học theo đơn thật thay vì số tự báo."
+              ? t("meta.measure.pg.sub.orders")
               : platform === "tags"
-              ? "Phát hiện sự kiện bắn trùng/sai tên và thẻ cấu hình sai trong GTM — kèm cách sửa từng bước."
-              : "Trước khi đọc chi phí/đơn ở bất kỳ chiến dịch nào — kiểm xem pixel/sự kiện chuyển đổi có đang bắn đúng không."}
+              ? t("meta.measure.td.subtitle")
+              : t("meta.measure.pg.sub.health")}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -154,7 +157,7 @@ function DoLuongPageInner() {
           {isHealth && (
             <Button className="h-10" variant="outline" size="sm" onClick={pullAgain} disabled={pulling || !baseUrl}>
               {pulling ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />}
-              Kéo lại
+              {t("meta.measure.td.refresh")}
             </Button>
           )}
         </div>
@@ -162,13 +165,13 @@ function DoLuongPageInner() {
 
       <div className="flex flex-wrap gap-4">
         <div>
-          <div className="mb-1 text-xs font-medium text-slate-400">Kênh</div>
-          <div role="tablist" aria-label="Kênh" className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
+          <div className="mb-1 text-xs font-medium text-slate-400">{t("meta.measure.pg.channel")}</div>
+          <div role="tablist" aria-label={t("meta.measure.pg.channel")} className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
             {([
               { value: "facebook", label: "Facebook" },
               { value: "google", label: "Google Ads" },
-              { value: "tags", label: "Chẩn đoán gắn thẻ" },
-              { value: "orders", label: "Đơn thật" },
+              { value: "tags", label: t("meta.measure.td.title") },
+              { value: "orders", label: t("meta.measure.pg.tab.orders") },
             ] as const).filter((p) => p.value !== "orders" || hasModule("orders")).map((p) => (
               <button
                 key={p.value}
@@ -186,8 +189,8 @@ function DoLuongPageInner() {
           </div>
         </div>
         <div>
-          <div className="mb-1 text-xs font-medium text-slate-400">Công ty</div>
-          <div role="tablist" aria-label="Công ty" className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
+          <div className="mb-1 text-xs font-medium text-slate-400">{t("meta.measure.pg.company")}</div>
+          <div role="tablist" aria-label={t("meta.measure.pg.company")} className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
             {(orderedCompanyIds(["MBI", "MBC"]) as Company[]).map((v) => {
               const allowed = allowedCompanies.includes(v);
               return (
@@ -211,7 +214,7 @@ function DoLuongPageInner() {
       </div>
 
       {allowedCompanies.length === 0 && (
-        <EmptyState icon={AlertTriangle} title="Tài khoản của bạn chưa được gán công ty nào" description="Liên hệ quản trị để được cấp quyền MBI hoặc MBC." />
+        <EmptyState icon={AlertTriangle} title={t("meta.measure.pg.noCompany")} description={t("meta.measure.pg.noCompanyDesc")} />
       )}
 
       {allowedCompanies.length > 0 && platform === "tags" && effectiveCompany && (
@@ -226,20 +229,20 @@ function DoLuongPageInner() {
         <EmptyState
           icon={AlertTriangle}
           title={effectiveErrorMessage}
-          description={quotaHint(effectiveErrorMessage) ?? "Số cũ không hiển thị để tránh xử lý trên dữ liệu lỗi thời."}
-          action={<Button className="h-10" onClick={pullAgain} disabled={pulling}>{pulling ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-4 w-4" aria-hidden="true" />} Thử lại</Button>}
+          description={quotaHint(effectiveErrorMessage, t) ?? t("meta.measure.td.staleNote")}
+          action={<Button className="h-10" onClick={pullAgain} disabled={pulling}>{pulling ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-4 w-4" aria-hidden="true" />} {t("meta.measure.td.retry")}</Button>}
         />
       )}
 
       {allowedCompanies.length > 0 && isHealth && !isLoading && !effectiveErrorMessage && data && isEmpty && (
         <EmptyState
-          title={`Chưa có dữ liệu ${platform === "facebook" ? "pixel" : "chuyển đổi"} trong ${effectiveRangeDays} ngày`}
+          title={t("meta.measure.pg.empty.title", { what: platform === "facebook" ? t("meta.measure.pg.empty.pixel") : t("meta.measure.pg.empty.conv"), days: effectiveRangeDays })}
           description={
             platform === "facebook"
-              ? "Hai khả năng thường gặp: (1) pixel chưa được gắn vào trang web; (2) cấu hình đang trỏ sai Pixel ID."
-              : "Chưa có nhóm quảng cáo/hành động chuyển đổi nào đang chạy cho công ty này trong kỳ."
+              ? t("meta.measure.pg.empty.descFb")
+              : t("meta.measure.pg.empty.descGoogle")
           }
-          action={<Button className="h-10" onClick={pullAgain} disabled={pulling}><RefreshCw className="h-4 w-4" aria-hidden="true" /> Kéo lại</Button>}
+          action={<Button className="h-10" onClick={pullAgain} disabled={pulling}><RefreshCw className="h-4 w-4" aria-hidden="true" /> {t("meta.measure.td.refresh")}</Button>}
         />
       )}
 
@@ -248,7 +251,7 @@ function DoLuongPageInner() {
       )}
 
       {allowedCompanies.length > 0 && isHealth && !isLoading && !effectiveErrorMessage && !data && (
-        <div className="text-sm text-slate-400">Không đọc được số liệu {channelLabel}.</div>
+        <div className="text-sm text-slate-400">{t("meta.measure.pg.noData", { channel: channelLabel })}</div>
       )}
     </div>
   );

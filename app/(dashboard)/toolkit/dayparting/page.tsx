@@ -9,8 +9,10 @@ import { useSession } from "@/components/SessionProvider";
 import { useToast } from "@/components/Toast";
 import { useGuardedWrite } from "@/components/ConfirmWriteDialog";
 import { orderedCompanyIds } from "@/lib/companies/registry";
+import { useT } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/messages";
 
-const DAY_LABELS = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
+const DAY_LABELS: MessageKey[] = ["google.dayparting.d1", "google.dayparting.d2", "google.dayparting.d3", "google.dayparting.d4", "google.dayparting.d5", "google.dayparting.d6", "google.dayparting.d7"];
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
 type Grade = "S" | "A" | "B" | "C" | "F" | "THIN" | "EMPTY";
@@ -87,6 +89,7 @@ function formatVND(v: number) {
 }
 
 export default function DaypartingPage() {
+  const t = useT();
   const { toast } = useToast();
   const [company, setCompany] = useState<string>(() => orderedCompanyIds(["MBC"])[0] ?? "MBC") // Đợt 25: công ty theo bản cài (bản Mắt Bão y như cũ);
   // Chỉ hiện công ty người này được xem. Trước đây nút bấm cứng cả MBC lẫn MBI,
@@ -120,7 +123,7 @@ export default function DaypartingPage() {
       if (json.error) throw new Error(json.error);
       setData(json);
     } catch (e: any) {
-      setError(e.message || "Không thể tải dữ liệu");
+      setError(e.message || t("google.dayparting.loadFailed"));
     } finally {
       setLoading(false);
     }
@@ -145,22 +148,22 @@ export default function DaypartingPage() {
             reduceBidDays: reduceBid,
             reduceBidPct: 20,
           },
-          label: `Lịch chạy "${selectedCampaign.name}": tạm dừng ${pauseHours.length} giờ${reduceBid.length ? `, giảm 20% bid vào ${reduceBid.join(", ")}` : ""}`,
+          label: t("google.dayparting.writeLabel", { name: selectedCampaign.name, hours: pauseHours.length }) + (reduceBid.length ? t("google.dayparting.writeLabelBid", { days: reduceBid.join(", ") }) : ""),
         }],
-        { title: `Áp dụng lịch chạy cho "${selectedCampaign.name}"?`, company },
+        { title: t("google.dayparting.applyTitle", { name: selectedCampaign.name }), company },
         {
-          onValidateFail: (message) => toast({ title: `❌ Kiểm trước thất bại: ${message}`, variant: "error" }),
+          onValidateFail: (message) => toast({ title: t("google.dayparting.validateFail", { message }), variant: "error" }),
           onSuccess: (results) => {
             const json = results[0].raw;
             toast({
-              title: `✅ Đã áp dụng lịch cho "${selectedCampaign.name}" (${json.schedulesApplied ?? 0} khung giờ)`,
+              title: t("google.dayparting.applied", { name: selectedCampaign.name, n: Number(json.schedulesApplied ?? 0) }),
               variant: "success",
               action: guard.undoAction(company, [results[0].writeId]),
             });
             fetchData();
           },
           onFailure: (results) => {
-            toast({ title: `❌ Áp dụng lịch thất bại: ${results[0].error}`, variant: "error" });
+            toast({ title: t("google.dayparting.applyFailed", { error: results[0].error ?? "" }), variant: "error" });
           },
         }
       );
@@ -195,7 +198,7 @@ export default function DaypartingPage() {
           </div>
           <div>
             <h1 className="text-xl font-semibold text-slate-800">Day-Parting Analysis</h1>
-            <p className="text-sm text-slate-500">Hiệu suất thực tế theo khung giờ và ngày (30 ngày qua)</p>
+            <p className="text-sm text-slate-500">{t("google.dayparting.subtitle")}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -205,7 +208,7 @@ export default function DaypartingPage() {
               onChange={e => setCampaignId(e.target.value)}
               className="rounded-lg border-2 border-slate-200 px-3 py-2 text-sm text-slate-600 max-w-[220px]"
             >
-              <option value="ALL">Tất cả campaign</option>
+              <option value="ALL">{t("google.dayparting.allCampaigns")}</option>
               {data.campaigns.map(c => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
@@ -242,13 +245,13 @@ export default function DaypartingPage() {
           {/* Grade legend */}
           <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
             {[
-              { grade: "S" as Grade, label: "Xuất sắc (CPL thấp nhất)" },
-              { grade: "A" as Grade, label: "Tốt" },
-              { grade: "B" as Grade, label: "Trung bình" },
-              { grade: "C" as Grade, label: "Kém" },
-              { grade: "F" as Grade, label: "Rất kém / Lãng phí" },
-              { grade: "THIN" as Grade, label: "Chưa đủ dữ liệu để chấm" },
-              { grade: "EMPTY" as Grade, label: "Không có data" },
+              { grade: "S" as Grade, label: t("google.dayparting.gradeS") },
+              { grade: "A" as Grade, label: t("google.dayparting.gradeA") },
+              { grade: "B" as Grade, label: t("google.dayparting.gradeB") },
+              { grade: "C" as Grade, label: t("google.dayparting.gradeC") },
+              { grade: "F" as Grade, label: t("google.dayparting.gradeF") },
+              { grade: "THIN" as Grade, label: t("google.dayparting.gradeThin") },
+              { grade: "EMPTY" as Grade, label: t("google.dayparting.gradeEmpty") },
             ].map(({ grade, label }) => (
               <div key={grade} className="flex items-center gap-1.5">
                 <span className={cn("h-4 w-4 rounded text-[9px] flex items-center justify-center font-bold shrink-0", gradeToColor(grade))}>
@@ -263,10 +266,10 @@ export default function DaypartingPage() {
           <Card className="border border-slate-200 bg-white shadow-sm rounded-xl">
             <CardHeader className="pb-3">
               <CardTitle className="text-base font-semibold text-slate-800">
-                Heatmap hiệu suất — {company} (30 ngày qua)
+                {t("google.dayparting.heatmapTitle", { company })}
               </CardTitle>
               <CardDescription className="text-sm text-slate-500">
-                Màu sắc thể hiện CPL thực tế so với trung bình. CPL TB: {formatVND(data.avgCPL)}
+                {t("google.dayparting.heatmapDesc", { avg: formatVND(data.avgCPL) })}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -280,16 +283,16 @@ export default function DaypartingPage() {
                   <div className="space-y-1">
                     {data.grid.map((dayRow, di) => (
                       <div key={dayRow.dayKey} className="flex items-center gap-1">
-                        <div className="w-9 shrink-0 text-right text-xs font-medium text-slate-500 pr-1">{DAY_LABELS[di]}</div>
+                        <div className="w-9 shrink-0 text-right text-xs font-medium text-slate-500 pr-1">{t(DAY_LABELS[di])}</div>
                         {dayRow.hours.map(cell => (
                           <div
                             key={cell.hour}
                             title={
                               cell.grade === "EMPTY"
-                                ? `${DAY_LABELS[di]} ${cell.label} — Không có data`
+                                ? `${t(DAY_LABELS[di])} ${cell.label} — ${t("google.dayparting.gradeEmpty")}`
                                 : cell.grade === "THIN"
-                                ? `${DAY_LABELS[di]} ${cell.label} — chưa đủ dữ liệu để chấm\nClicks: ${cell.clicks} | Conv: ${cell.conv.toFixed(1)}\nChi tiêu: ${formatVND(cell.spend)}`
-                                : `${DAY_LABELS[di]} ${cell.label}\nGrade: ${cell.grade}\nClicks: ${cell.clicks} | Conv: ${cell.conv}\nCPL: ${cell.cpl ? formatVND(cell.cpl) : "—"}\nChi tiêu: ${formatVND(cell.spend)}`
+                                ? `${t(DAY_LABELS[di])} ${cell.label} — ${t("google.dayparting.cellThin")}\nClicks: ${cell.clicks} | Conv: ${cell.conv.toFixed(1)}\n${t("google.dayparting.cellSpend")} ${formatVND(cell.spend)}`
+                                : `${t(DAY_LABELS[di])} ${cell.label}\nGrade: ${cell.grade}\nClicks: ${cell.clicks} | Conv: ${cell.conv}\nCPL: ${cell.cpl ? formatVND(cell.cpl) : "—"}\n${t("google.dayparting.cellSpend")} ${formatVND(cell.spend)}`
                             }
                             className={cn(
                               "w-8 h-7 shrink-0 rounded flex items-center justify-center text-[9px] font-bold transition-opacity cursor-help",
@@ -313,45 +316,45 @@ export default function DaypartingPage() {
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
               <div className="flex items-center gap-2 mb-1">
                 <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                <p className="text-xs font-medium text-slate-500">Khung giờ tốt nhất</p>
+                <p className="text-xs font-medium text-slate-500">{t("google.dayparting.bestHour")}</p>
               </div>
               <p className="text-lg font-bold text-emerald-600">
                 {insights?.bestHour ? `${insights.bestHour.hour}:00` : "—"}
               </p>
               <p className="mt-0.5 text-xs text-slate-500">
-                {insights?.bestHour ? `${insights.bestHour.conv.toFixed(1)} chuyển đổi` : "Chưa có đủ data"}
+                {insights?.bestHour ? t("google.dayparting.convCount", { n: insights.bestHour.conv.toFixed(1) }) : t("google.dayparting.notEnoughData")}
               </p>
             </div>
             <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
               <div className="flex items-center gap-2 mb-1">
                 <CheckCircle2 className="h-4 w-4 text-blue-600" />
-                <p className="text-xs font-medium text-slate-500">Ngày hiệu suất cao nhất</p>
+                <p className="text-xs font-medium text-slate-500">{t("google.dayparting.bestDay")}</p>
               </div>
               <p className="text-lg font-bold text-blue-600">
                 {insights?.bestDay?.day || "—"}
               </p>
               <p className="mt-0.5 text-xs text-slate-500">
-                {insights?.bestDay ? `${insights.bestDay.convRate.toFixed(1)} chuyển đổi` : ""}
+                {insights?.bestDay ? t("google.dayparting.convCount", { n: insights.bestDay.convRate.toFixed(1) }) : ""}
               </p>
             </div>
             <div className="rounded-xl border border-red-200 bg-red-50 p-4">
               <div className="flex items-center gap-2 mb-1">
                 <XCircle className="h-4 w-4 text-red-500" />
-                <p className="text-xs font-medium text-slate-500">Giờ nên tắt</p>
+                <p className="text-xs font-medium text-slate-500">{t("google.dayparting.pauseHours")}</p>
               </div>
               <p className="text-lg font-bold text-red-600">
                 {insights?.worstHours && insights.worstHours.length > 0
                   ? insights.worstHours.map(h => `${h}:00`).join(", ")
-                  : "Không có"}
+                  : t("google.dayparting.none")}
               </p>
               <p className="mt-0.5 text-xs text-slate-500">
                 {data.wastedSpend > 0
-                  ? `Tiết kiệm ~${formatVND(data.wastedSpend)}/tháng`
+                  ? t("google.dayparting.savePerMonth", { amount: formatVND(data.wastedSpend) })
                   : data.dataQuality && !data.dataQuality.reliable
                     // "Không lãng phí" là một KẾT LUẬN. Chưa đủ dữ liệu thì
                     // không được kết luận — nói đúng là chưa biết.
-                    ? "Chưa đủ dữ liệu để kết luận"
-                    : "Không lãng phí chi tiêu"}
+                    ? t("google.dayparting.noConclusion")
+                    : t("google.dayparting.noWaste")}
               </p>
             </div>
           </div>
@@ -361,12 +364,10 @@ export default function DaypartingPage() {
               mới thấy cảnh báo là đã kịp tin vào lưới. */}
           {data.dataQuality && !data.dataQuality.reliable && data.dataQuality.note && (
             <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3">
-              <p className="text-sm font-bold text-amber-900">⚠️ Chưa đủ dữ liệu để tin lưới này</p>
+              <p className="text-sm font-bold text-amber-900">{t("google.dayparting.untrustedGrid")}</p>
               <p className="mt-1 text-xs leading-relaxed text-amber-900">{data.dataQuality.note}</p>
               <p className="mt-1.5 text-[11px] text-amber-800/80">
-                {data.dataQuality.gradedCells} khung giờ đủ căn cứ ·{" "}
-                {data.dataQuality.thinCells} khung giờ có số liệu nhưng quá ít ·
-                tỷ lệ chuyển đổi {data.dataQuality.convRate}%
+                {t("google.dayparting.qualityLine", { graded: data.dataQuality.gradedCells, thin: data.dataQuality.thinCells, rate: data.dataQuality.convRate })}
               </p>
 
               {/* Gộp lên mức THỨ thì mỗi nhóm nhiều gấp 24 lần dữ liệu. Thay vì
@@ -375,18 +376,18 @@ export default function DaypartingPage() {
               {data.dayLevel && data.dayLevel.usable >= 5 && (
                 <div className="mt-3 rounded-lg border border-amber-200 bg-white/70 p-3">
                   <p className="mb-2 text-xs font-bold text-slate-700">
-                    Gộp theo THỨ — mức này đủ dữ liệu ({data.dayLevel.usable}/7 ngày)
+                    {t("google.dayparting.dayLevelTitle", { n: data.dayLevel.usable })}
                   </p>
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs">
                       <thead>
                         <tr className="text-[10px] uppercase tracking-wider text-slate-400">
-                          <th className="py-1 pr-3">Thứ</th>
-                          <th className="py-1 pr-3 text-right">Click</th>
-                          <th className="py-1 pr-3 text-right">Chuyển đổi</th>
-                          <th className="py-1 pr-3 text-right">Chi tiêu</th>
+                          <th className="py-1 pr-3">{t("google.dayparting.thDay")}</th>
+                          <th className="py-1 pr-3 text-right">{t("google.dayparting.thClick")}</th>
+                          <th className="py-1 pr-3 text-right">{t("google.dayparting.thConv")}</th>
+                          <th className="py-1 pr-3 text-right">{t("google.dayparting.thSpend")}</th>
                           <th className="py-1 pr-3 text-right">CPL</th>
-                          <th className="py-1 text-center">Hạng</th>
+                          <th className="py-1 text-center">{t("google.dayparting.thGrade")}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -418,11 +419,11 @@ export default function DaypartingPage() {
             <div className="rounded-xl border border-violet-200 bg-violet-50 p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-violet-800">Gợi ý tối ưu lịch chạy</p>
+                  <p className="text-sm font-semibold text-violet-800">{t("google.dayparting.suggestTitle")}</p>
                   <p className="text-xs text-violet-700 mt-1">{data.recommendation.summary}</p>
                   {data.recommendation.reduceBid.length > 0 && (
                     <p className="text-xs text-violet-600 mt-1">
-                      Giảm bid 20% vào: {data.recommendation.reduceBid.join(", ")}
+                      {t("google.dayparting.reduceBid", { days: data.recommendation.reduceBid.join(", ") })}
                     </p>
                   )}
                 </div>
@@ -430,11 +431,11 @@ export default function DaypartingPage() {
                   <button
                     onClick={handleApplySchedule}
                     disabled={applying || !selectedCampaign}
-                    title={!selectedCampaign ? "Chọn 1 campaign cụ thể để áp dụng lịch" : undefined}
+                    title={!selectedCampaign ? t("google.dayparting.pickCampaign") : undefined}
                     className="shrink-0 flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-2 text-xs font-semibold text-white hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                   >
                     {applying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PauseCircle className="h-3.5 w-3.5" />}
-                    Áp dụng lịch
+                    {t("google.dayparting.applySchedule")}
                   </button>
                 )}
               </div>

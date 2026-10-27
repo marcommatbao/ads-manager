@@ -5,6 +5,7 @@ import { formatCurrency } from "@/lib/utils";
 import { Loader2, Target, ArrowRight, CheckCircle2, AlertTriangle, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 interface RootCauseAnalysis {
   likely_causes: string[];
@@ -14,6 +15,7 @@ interface RootCauseAnalysis {
 }
 
 export function CplDashboardWidget() {
+  const t = useT();
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [rootCause, setRootCause] = useState<Record<string, RootCauseAnalysis>>({});
@@ -68,13 +70,13 @@ export function CplDashboardWidget() {
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden flex flex-col h-full">
       <div className="flex items-center justify-between px-5 pt-5 pb-3">
         <h3 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
-          📊 CPL Tháng Nay
+          {t("panels.cpl.title")}
         </h3>
         <Link
           href="/cpl"
           className="text-[11px] font-semibold text-amber-700 hover:text-amber-800 flex items-center gap-0.5"
         >
-          Chi tiết <ArrowRight className="h-3 w-3" />
+          {t("panels.cpl.detail")} <ArrowRight className="h-3 w-3" />
         </Link>
       </div>
 
@@ -83,28 +85,28 @@ export function CplDashboardWidget() {
           <div className="bg-violet-50 border border-violet-200 p-2.5 rounded-lg flex items-start gap-2 text-xs">
             <Target className="h-4 w-4 text-violet-600 shrink-0 mt-0.5" />
             <div className="flex-1">
-              <span className="font-semibold text-violet-800">Cập nhật đơn offline (MBI)</span>
-              <p className="text-violet-600 mt-0.5 leading-tight">Có campaign MBI thiếu số lượng đơn offline tháng này.</p>
+              <span className="font-semibold text-violet-800">{t("panels.cpl.offlineTitle")}</span>
+              <p className="text-violet-600 mt-0.5 leading-tight">{t("panels.cpl.offlineDesc")}</p>
             </div>
-            <Link href="/cpl"><span className="text-violet-700 bg-violet-100 font-bold px-2 py-1 rounded text-[10px] whitespace-nowrap">Nhập ngay</span></Link>
+            <Link href="/cpl"><span className="text-violet-700 bg-violet-100 font-bold px-2 py-1 rounded text-[10px] whitespace-nowrap">{t("panels.cpl.enterNow")}</span></Link>
           </div>
         )}
 
         <div className="grid grid-cols-2 gap-3 h-full">
           {/* Top 2 Good */}
           <div className="space-y-2">
-            <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Tốt Nhất 🟢</h4>
+            <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">{t("panels.cpl.best")}</h4>
             {good.length > 0 ? good.map(c => (
               <div key={c.campaign_id} className="bg-emerald-50/50 border border-emerald-100 rounded p-2">
                 <p className="text-[10px] font-semibold text-slate-700 truncate" title={c.campaign_name}>{c.campaign_name}</p>
                 <p className="text-lg font-bold text-emerald-700 leading-tight">{formatCurrency(c.cpl_data.cpl, "VND", false)}</p>
               </div>
-            )) : <p className="text-xs text-slate-400">Không có</p>}
+            )) : <p className="text-xs text-slate-400">{t("panels.cpl.none")}</p>}
           </div>
 
           {/* Top 2 Critical */}
           <div className="space-y-2">
-            <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Tệ Nhất 🔴</h4>
+            <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">{t("panels.cpl.worst")}</h4>
             {critical.length > 0 ? critical.map(c => (
               <div key={c.campaign_id} className="bg-red-50/50 border border-red-100 rounded p-2">
                  <p className="text-[10px] font-semibold text-slate-700 truncate" title={c.campaign_name}>{c.campaign_name}</p>
@@ -114,7 +116,7 @@ export function CplDashboardWidget() {
                    className="text-[10px] font-semibold text-indigo-600 hover:text-indigo-700 flex items-center gap-0.5 mt-1"
                  >
                    {rootCauseLoading === c.campaign_id ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <Sparkles className="h-2.5 w-2.5" />}
-                   {expanded === c.campaign_id ? "Ẩn" : "Vì sao?"}
+                   {expanded === c.campaign_id ? t("panels.cpl.hide") : t("panels.cpl.why")}
                  </button>
                  {expanded === c.campaign_id && rootCause[c.campaign_id] && (
                    <div className="mt-1.5 text-[10px] text-indigo-800 bg-indigo-50 border border-indigo-100 rounded p-1.5 space-y-1">
@@ -124,7 +126,7 @@ export function CplDashboardWidget() {
                    </div>
                  )}
               </div>
-            )) : <p className="text-[10px] text-emerald-600 flex items-center gap-1"><CheckCircle2 className="h-3 w-3" /> Tất cả an toàn</p>}
+            )) : <p className="text-[10px] text-emerald-600 flex items-center gap-1"><CheckCircle2 className="h-3 w-3" /> {t("panels.cpl.allSafe")}</p>}
           </div>
         </div>
       </div>

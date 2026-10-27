@@ -15,6 +15,9 @@ import {
   ScanLine, HeartPulse, Images, Split,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
+import type { TFunction } from "@/lib/i18n/translate";
+import type { MessageKey } from "@/lib/i18n/messages";
 import { companyIds, companyLabel } from "@/lib/companies/registry";
 
 // ─────────────────────────────────────────────
@@ -59,40 +62,40 @@ interface FeatureGroup {
   features: Feature[];
 }
 
-const GROUPS: FeatureGroup[] = [
+const buildGroups = (t: TFunction): FeatureGroup[] => [
   // ───────────── Dashboard ─────────────
   {
     id: "nhom-dashboard",
-    label: "Dashboard",
-    intro: "Màn hình đầu tiên khi mở app, và trợ lý chat AI nổi ở mọi trang.",
+    label: t("creative.guide.g.nhom-dashboard.label"),
+    intro: t("creative.guide.g.nhom-dashboard.intro"),
     features: [
       {
         id: "dashboard",
-        label: "Dashboard",
+        label: t("creative.guide.f.dashboard.label"),
         href: "/",
         icon: LayoutDashboard,
         color: "from-slate-500 to-slate-700",
-        summary: "Tổng quan chi tiêu, cảnh báo và tóm tắt AI mỗi sáng.",
+        summary: t("creative.guide.f.dashboard.summary"),
         description:
-          "Màn hình tổng quan: chi tiêu, cảnh báo và tóm tắt AI mỗi sáng cho cả Meta (Facebook) và Google Ads.",
-        when: "Mở đầu ngày để nắm nhanh tình hình, trước khi đi vào các trang chi tiết.",
+          t("creative.guide.f.dashboard.description"),
+        when: t("creative.guide.f.dashboard.when"),
       },
       {
         id: "adsbot",
-        label: "AdsBot (chat AI)",
+        label: t("creative.guide.f.adsbot.label"),
         href: "/",
         icon: Bot,
         color: "from-amber-500 to-orange-600",
-        summary: "Hỏi nhanh số liệu bằng tiếng Việt — nút tròn góc dưới bên phải, mở được ở mọi trang.",
+        summary: t("creative.guide.f.adsbot.summary"),
         description:
-          "AdsBot là chatbot AI (Gemini). Hỏi tự nhiên về chi tiêu, lead, CPL, PMax, đơn hàng thật, từ khoá… AdsBot tự gọi công cụ để lấy số thật, không bịa số. AdsBot CHỈ TƯ VẤN: không pause, đổi ngân sách hay đăng bài được. Bản nháp nó viết ra (quảng cáo mới, viết lại RSA…) bạn phải tự xem lại và tự áp dụng ở đúng trang chức năng.",
-        when: "Cần một con số nhanh hoặc một bản nháp nội dung mà không muốn mở nhiều trang.",
+          t("creative.guide.f.adsbot.description"),
+        when: t("creative.guide.f.adsbot.when"),
         steps: [
-          "Bấm nút tròn góc dưới bên phải để mở khung chat.",
-          "Hỏi tự nhiên, ví dụ: “Chiến dịch chi nhiều nhất tháng này là gì?”.",
-          "Thiếu thông tin (sản phẩm, giọng văn…) AdsBot sẽ hỏi lại thay vì tự đoán.",
+          t("creative.guide.f.adsbot.steps.1"),
+          t("creative.guide.f.adsbot.steps.2"),
+          t("creative.guide.f.adsbot.steps.3"),
         ],
-        tips: ["Mỗi tin nhắn tối đa 3 lượt gọi AI sinh nội dung — việc nhiều thì hỏi từng việc một."],
+        tips: [t("creative.guide.f.adsbot.tips.1")],
       },
     ],
   },
@@ -100,59 +103,59 @@ const GROUPS: FeatureGroup[] = [
   // ───────────── Hằng ngày ─────────────
   {
     id: "nhom-hang-ngay",
-    label: "Hằng ngày",
-    intro: "Mở đầu ngày: xem việc cần làm, báo cáo tuần và cảnh báo.",
+    label: t("creative.guide.g.nhom-hang-ngay.label"),
+    intro: t("creative.guide.g.nhom-hang-ngay.intro"),
     features: [
       {
         id: "viec-hom-nay",
-        label: "Việc hôm nay",
+        label: t("creative.guide.f.viec-hom-nay.label"),
         href: "/viec-hom-nay",
         icon: ListTodo,
         color: "from-blue-500 to-indigo-600",
-        summary: "Một hộp việc gộp từ PMax, Search, Meta, phiên xử lý và sức khoẻ đo lường.",
+        summary: t("creative.guide.f.viec-hom-nay.summary"),
         description:
-          "Gộp các việc nên làm từ nhiều nơi vào MỘT danh sách, xếp theo thứ tự ưu tiên: ① Số đo sai (sửa trước, vì mọi quyết định khác dựa trên số này), ② Lãng phí rõ (tiền đang chảy vào phần không ra đơn), ③ Cơ hội (ước tính, làm sau). Trong mỗi loại xếp theo số tiền. Hộp việc KHÔNG tự ghi gì lên tài khoản quảng cáo.",
-        when: "Việc đầu tiên mỗi sáng: xem hôm nay nên làm gì trước.",
+          t("creative.guide.f.viec-hom-nay.description"),
+        when: t("creative.guide.f.viec-hom-nay.when"),
         steps: [
-          "Lọc theo Công ty, Nguồn, Loại, Trạng thái (mặc định “Mới + Đã xem”).",
-          "Đọc lý do và số tiền của từng việc (mở “mục bên trong” nếu có), rồi sang trang tương ứng để xử lý.",
-          "Xong thì bấm “Đã làm”; chưa cần thì “Đã xem”, “Hoãn…” hoặc “Bỏ qua…”.",
-          "Cần xem lại việc đã đóng: đổi bộ lọc Trạng thái rồi bấm “Mở lại”.",
+          t("creative.guide.f.viec-hom-nay.steps.1"),
+          t("creative.guide.f.viec-hom-nay.steps.2"),
+          t("creative.guide.f.viec-hom-nay.steps.3"),
+          t("creative.guide.f.viec-hom-nay.steps.4"),
         ],
         tips: [
-          "08:10 mỗi ngày 5 việc ưu tiên nhất được gửi vào kênh Teams của team Ads (nếu đã cấu hình kênh).",
+          t("creative.guide.f.viec-hom-nay.tips.1"),
         ],
         warnings: [
-          "“Bỏ qua…” bắt buộc nhập lý do. Việc bị hoãn hoặc bỏ qua vẫn hiện lại nếu tiền liên quan tăng hơn 50%.",
-          "Nếu một nguồn không đọc được, việc của nguồn đó bị ẩn (để không xử lý trên số cũ) và có dòng báo lỗi ở đầu trang.",
+          t("creative.guide.f.viec-hom-nay.warnings.1"),
+          t("creative.guide.f.viec-hom-nay.warnings.2"),
         ],
       },
       {
         id: "bao-cao-tuan",
-        label: "Báo cáo tuần",
+        label: t("creative.guide.f.bao-cao-tuan.label"),
         href: "/bao-cao-tuan",
         icon: CalendarRange,
         color: "from-teal-500 to-emerald-700",
-        summary: "Mỗi thứ Hai: tiền và kết quả từng công ty, số đáng tin tới đâu, tool đã làm gì.",
+        summary: t("creative.guide.f.bao-cao-tuan.summary"),
         description:
-          "Báo cáo quản lý tuần, tự dựng vào thứ Hai 08:30 và gửi Teams kênh Ads. Gồm tiền và kết quả từng công ty, số đáng tin tới đâu, tool đã ghi gì lên tài khoản, việc tồn, thử nghiệm. Số do hệ thống tính, không do AI viết; nguồn nào đọc hỏng thì ghi “không đọc được”, không hiện số 0.",
-        when: "Họp đầu tuần hoặc khi cần xem lại một tuần cũ.",
+          t("creative.guide.f.bao-cao-tuan.description"),
+        when: t("creative.guide.f.bao-cao-tuan.when"),
         steps: [
-          "Chọn tuần ở ô “Chọn tuần” để xem các tuần đã lưu.",
-          "Đọc từng khối theo thứ tự trên trang.",
-          "Người có quyền sửa có thể bấm “Dựng lại tuần trọn gần nhất” để dựng ngay (chỉ lưu, không gửi Teams).",
+          t("creative.guide.f.bao-cao-tuan.steps.1"),
+          t("creative.guide.f.bao-cao-tuan.steps.2"),
+          t("creative.guide.f.bao-cao-tuan.steps.3"),
         ],
       },
       {
         id: "notifications",
-        label: "Thông báo",
+        label: t("creative.guide.f.notifications.label"),
         href: "/notifications",
         icon: Bell,
         color: "from-orange-500 to-red-600",
-        summary: "Cảnh báo chiến dịch theo thời gian thực.",
+        summary: t("creative.guide.f.notifications.summary"),
         description:
-          "Danh sách cảnh báo tự động từ hệ thống giám sát chiến dịch. Lọc theo mức độ hoặc xem các cảnh báo đã xử lý.",
-        when: "Khi thấy chuông thông báo, hoặc cuối ngày để rà các cảnh báo còn mở.",
+          t("creative.guide.f.notifications.description"),
+        when: t("creative.guide.f.notifications.when"),
       },
     ],
   },
@@ -160,65 +163,65 @@ const GROUPS: FeatureGroup[] = [
   // ───────────── Xử lý chiến dịch ─────────────
   {
     id: "nhom-xu-ly-chien-dich",
-    label: "Xử lý chiến dịch",
-    intro: "Phiên xử lý 7 bước: từ phát hiện chiến dịch tiêu vượt mục tiêu tới đo lại kết quả.",
+    label: t("creative.guide.g.nhom-xu-ly-chien-dich.label"),
+    intro: t("creative.guide.g.nhom-xu-ly-chien-dich.intro"),
     features: [
       {
         id: "xu-ly",
-        label: "Xử lý chiến dịch",
+        label: t("creative.guide.f.xu-ly.label"),
         href: "/xu-ly",
         icon: Stethoscope,
         color: "from-rose-500 to-red-700",
-        summary: "Chiến dịch nào đang tiêu vượt mục tiêu, vì sao, và xử lý tới khi xong.",
+        summary: t("creative.guide.f.xu-ly.summary"),
         description:
-          "Trang tổng quan xếp chiến dịch theo số tiền “chi vượt trần” (chi phí − trần × số đơn), lớn nhất lên đầu. Từ đây mở một phiên xử lý gồm 7 bước: Phân tích → Thu thập → Mục tiêu → Nguyên nhân → Hướng xử lý → Duyệt & làm → Hoàn thành. Sau khi làm thật, hệ thống tự đo lại sau 7 và 14 ngày.",
-        when: "Khi có chiến dịch chi nhiều mà ra ít đơn và bạn muốn xử lý có quy trình, có đo lại.",
+          t("creative.guide.f.xu-ly.description"),
+        when: t("creative.guide.f.xu-ly.when"),
         steps: [
-          "Chọn Kênh (Google Ads hoặc Facebook), Công ty và khoảng ngày.",
-          "Xem các ô tổng: Tổng chi, Đơn mua, Chi phí/đơn, Chi vượt trần (và ROAS chung với Facebook).",
-          "Chiến dịch chưa có mục tiêu: bấm “Đặt mục tiêu”. Đã có mục tiêu: bấm “Mở phiên xử lý”.",
-          "Đi hết các bước trên thanh bước. Bước 6 “Duyệt & làm” ghi thật lên tài khoản.",
-          "Bước 7: theo dõi kết quả đo lại 7/14 ngày.",
+          t("creative.guide.f.xu-ly.steps.1"),
+          t("creative.guide.f.xu-ly.steps.2"),
+          t("creative.guide.f.xu-ly.steps.3"),
+          t("creative.guide.f.xu-ly.steps.4"),
+          t("creative.guide.f.xu-ly.steps.5"),
         ],
         warnings: [
-          "Mở phiên cần khoảng ngày ít nhất 7 ngày (khoảng này được lưu làm mốc “trước” để so với đo lại).",
-          "Bước ghi thật (bước 6) phải gõ đúng “XAC NHAN”.",
-          "Chiến dịch 0 đơn chỉ bị đánh đỏ khi đã chi từ 2 lần trần trở lên; từ 1 đến dưới 2 lần trần là vàng “đáng lo, chưa đủ kết luận”; ít hơn thì ghi “Chưa đủ dữ liệu”.",
+          t("creative.guide.f.xu-ly.warnings.1"),
+          t("creative.guide.f.xu-ly.warnings.2"),
+          t("creative.guide.f.xu-ly.warnings.3"),
         ],
       },
       {
         id: "theo-doi",
-        label: "Theo dõi phiên",
+        label: t("creative.guide.f.theo-doi.label"),
         href: "/xu-ly/theo-doi",
         icon: ListChecks,
         color: "from-sky-500 to-blue-700",
-        summary: "Mọi phiên đang mở, chờ đo lại, hoặc vừa mở lại vì đo lại không cải thiện.",
+        summary: t("creative.guide.f.theo-doi.summary"),
         description:
-          "Một bảng chung cho mọi phiên của 2 công ty và 2 nền tảng: phiên đang ở bước nào, đo lại 7/14 ngày ra sao, việc giao người còn mở bao lâu.",
-        when: "Hằng ngày hoặc hằng tuần để biết phiên nào cần làm tiếp, phiên nào đang chờ đo lại.",
+          t("creative.guide.f.theo-doi.description"),
+        when: t("creative.guide.f.theo-doi.when"),
         steps: [
-          "Lọc theo công ty, nền tảng, trạng thái.",
-          "Bấm “Mở phiên” để vào đúng phiên cần làm tiếp.",
+          t("creative.guide.f.theo-doi.steps.1"),
+          t("creative.guide.f.theo-doi.steps.2"),
         ],
-        tips: ["Chưa có phiên nào thì dùng nút “Mở tổng quan chiến dịch” để chọn chiến dịch cần xử lý."],
+        tips: [t("creative.guide.f.theo-doi.tips.1")],
       },
       {
         id: "so-kinh-nghiem",
-        label: "Sổ kinh nghiệm",
+        label: t("creative.guide.f.so-kinh-nghiem.label"),
         href: "/so-kinh-nghiem",
         icon: BookOpenCheck,
         color: "from-violet-500 to-purple-700",
-        summary: "Học từ những gì đã thắng 180 ngày qua — dùng lại khi tạo chiến dịch mới.",
+        summary: t("creative.guide.f.so-kinh-nghiem.summary"),
         description:
-          "Tổng hợp từ 180 ngày gần nhất những đặc điểm lặp lại ở đơn vị thắng (“Nên dùng”) và đơn vị thua tiêu tiền mà 0 kết quả (“Nên tránh”). Cập nhật tự động thứ Hai 04:00. Bấm “Bằng chứng” để xem chiến dịch hoặc nhóm cụ thể làm căn cứ.",
-        when: "Trước khi tạo chiến dịch mới, để biết cái gì đã chạy tốt và cái gì nên tránh.",
+          t("creative.guide.f.so-kinh-nghiem.description"),
+        when: t("creative.guide.f.so-kinh-nghiem.when"),
         steps: [
-          "Lọc theo Công ty, Nền tảng, Sản phẩm, Trạng thái (có nút “Xoá bộ lọc”).",
-          "Đọc khối “Nên dùng” và “Nên tránh”, mở “Bằng chứng” để kiểm lại.",
-          "Muốn áp dụng thì sang tạo chiến dịch (nút “Tạo chiến dịch Meta →”).",
+          t("creative.guide.f.so-kinh-nghiem.steps.1"),
+          t("creative.guide.f.so-kinh-nghiem.steps.2"),
+          t("creative.guide.f.so-kinh-nghiem.steps.3"),
         ],
         tips: [
-          "Super Admin có thể bấm “Tải thêm số Meta” và “Chạy lại bây giờ” để cập nhật ngay, không cần chờ thứ Hai.",
+          t("creative.guide.f.so-kinh-nghiem.tips.1"),
         ],
       },
     ],
@@ -227,122 +230,122 @@ const GROUPS: FeatureGroup[] = [
   // ───────────── Google Ads ─────────────
   {
     id: "nhom-google-ads",
-    label: "Google Ads",
-    intro: "Công cụ làm việc trực tiếp trên tài khoản Google Ads (MBC / MBI).",
+    label: t("creative.guide.g.nhom-google-ads.label"),
+    intro: t("creative.guide.g.nhom-google-ads.intro"),
     features: [
       {
         id: "google-search",
-        label: "Google Search",
+        label: t("creative.guide.f.google-search.label"),
         href: "/google-search",
         icon: Search,
         color: "from-red-500 to-rose-700",
         adminOnly: true,
-        summary: "Bật/tắt, đổi ngân sách, chặn cụm đốt tiền, xem duyệt chính sách; X-quang chẩn đoán và việc nên làm.",
+        summary: t("creative.guide.f.google-search.summary"),
         description:
-          "Trang làm việc cho chiến dịch Search. Chọn công ty (MBC/MBI) dùng chung cho cả 4 tab. Tab quan trọng nhất là “X-quang & việc nên làm”: chẩn đoán theo Ý ĐỊNH tìm kiếm trong từng chiến dịch (chi phí, mất hiển thị, từ khoá, thiết bị) rồi nói rõ NÊN LÀM GÌ, cho áp dụng tại chỗ.",
-        when: "Chiến dịch Search chi nhiều mà ít đơn, mất hiển thị vì ngân sách, hoặc cần dọn từ khoá/cụm tìm kiếm tốn tiền.",
+          t("creative.guide.f.google-search.description"),
+        when: t("creative.guide.f.google-search.when"),
         visual: {
-          title: "4 tab của trang",
+          title: t("creative.guide.f.google-search.vis.title"),
           items: [
-            { label: "🩻 X-quang & việc nên làm", value: "Chẩn đoán + danh sách việc áp dụng được", color: "text-red-600" },
-            { label: "🔍 Cụm tìm kiếm", value: "Chặn cụm tìm kiếm tốn tiền, thêm từ khoá", color: "text-blue-600" },
-            { label: "✍️ Quảng cáo RSA", value: "AI soạn nháp viết lại quảng cáo, bạn duyệt rồi mới ghi", color: "text-violet-600" },
-            { label: "🧾 Nhật ký ghi", value: "Mọi lần tool ghi lên tài khoản, Hoàn tác một chạm", color: "text-slate-600" },
+            { label: t("creative.guide.f.google-search.vis.1.label"), value: t("creative.guide.f.google-search.vis.1.value"), color: "text-red-600" },
+            { label: t("creative.guide.f.google-search.vis.2.label"), value: t("creative.guide.f.google-search.vis.2.value"), color: "text-blue-600" },
+            { label: t("creative.guide.f.google-search.vis.3.label"), value: t("creative.guide.f.google-search.vis.3.value"), color: "text-violet-600" },
+            { label: t("creative.guide.f.google-search.vis.4.label"), value: t("creative.guide.f.google-search.vis.4.value"), color: "text-slate-600" },
           ],
         },
         steps: [
-          "Mở tab “X-quang & việc nên làm”, chọn công ty và khoảng ngày (mặc định 30 ngày). Bấm “Tải lại” để lấy số mới.",
-          "Đọc banner cảnh báo ở đầu, rồi khối “✅ Việc nên làm”. Mỗi thẻ có mức ưu tiên: P1 Làm ngay, P2 Nên làm, P3 Xem xét, kèm lý do và số tiền đang chảy vào.",
-          "Thẻ có “việc cụ thể”: bấm dòng “… việc cụ thể” để mở danh sách và tích chọn việc muốn làm (xem mục bên dưới).",
-          "Bấm “Kiểm trước (không ghi)”: Google kiểm tra giúp, CHƯA ghi gì. Báo OK thì nút “Áp dụng” mới bật.",
-          "Bấm “Áp dụng”, gõ “XAC NHAN”, bấm “Ghi thật”. Hệ thống đọc lại để xác nhận khớp.",
-          "Muốn rút lại: mở “Lịch sử áp dụng”, bấm “Hoàn tác” ở lần ghi đó (cũng phải gõ “XAC NHAN”).",
+          t("creative.guide.f.google-search.steps.1"),
+          t("creative.guide.f.google-search.steps.2"),
+          t("creative.guide.f.google-search.steps.3"),
+          t("creative.guide.f.google-search.steps.4"),
+          t("creative.guide.f.google-search.steps.5"),
+          t("creative.guide.f.google-search.steps.6"),
         ],
         tips: [
-          "Danh sách việc cụ thể dài (hơn 8 việc) sẽ có ô lọc theo tên/chiến dịch (gõ không dấu cũng được) và ô “Chỉ hiện đã chọn”.",
-          "“Chọn tất cả N” tích mọi việc đang hiện trong danh sách (đang lọc thì chỉ tích phần đã lọc); bấm lại để “Bỏ chọn”. Danh sách hiện 20 việc một lần, bấm “Xem thêm” để thấy tiếp.",
-          "Thanh trên cùng có “Chọn tất cả việc tích sẵn” để chọn các việc hệ thống đã tích mặc định ở mọi thẻ, rồi Kiểm trước + Áp dụng một lượt.",
+          t("creative.guide.f.google-search.tips.1"),
+          t("creative.guide.f.google-search.tips.2"),
+          t("creative.guide.f.google-search.tips.3"),
         ],
         warnings: [
-          "Mọi lệnh ghi đều theo thứ tự: Kiểm trước (không ghi) → gõ “XAC NHAN” → Ghi thật → Hoàn tác nếu cần. Không có đường tắt.",
-          "Không có quyền sửa thì xem được nhưng không áp dụng được (có dòng 🔒 báo ở đầu mục).",
+          t("creative.guide.f.google-search.warnings.1"),
+          t("creative.guide.f.google-search.warnings.2"),
         ],
       },
       {
         id: "search-split",
-        label: "Google Search → Tách lượt tìm chung",
+        label: t("creative.guide.f.search-split.label"),
         href: "/google-search",
         icon: Split,
         color: "from-orange-500 to-red-600",
         adminOnly: true,
-        summary: "Tách lượt tìm “chung” khỏi chiến dịch thương hiệu để lượt tìm thương hiệu không bị ăn ngân sách.",
+        summary: t("creative.guide.f.search-split.summary"),
         description:
-          "Khi một chiến dịch thương hiệu trộn cả lượt tìm thương hiệu (rẻ) và lượt tìm chung (đắt) chung MỘT ngân sách, lượt chung ăn trước và chiến dịch mất hiển thị vì ngân sách. Tính năng này dựng một chiến dịch riêng cho lượt tìm chung, có ngân sách và mục tiêu riêng. Mở từ thẻ “Tách lượt tìm chung…” trong X-quang & việc nên làm.",
-        when: "Thẻ việc nên làm đề xuất tách, hoặc chiến dịch thương hiệu mất nhiều hiển thị vì ngân sách do lẫn từ khoá chung.",
+          t("creative.guide.f.search-split.description"),
+        when: t("creative.guide.f.search-split.when"),
         visual: {
-          title: "4 bước (mỗi bước ghi thật đều gõ “XAC NHAN”)",
+          title: t("creative.guide.f.search-split.vis.title"),
           items: [
-            { label: "1. Kiểm trước → Tạo chiến dịch tạm dừng", value: "Dựng chiến dịch mới ở trạng thái TẠM DỪNG, chưa tiêu tiền" },
-            { label: "2. Bổ sung tài sản từ chiến dịch gốc", value: "Gắn sitelink, ảnh, tên doanh nghiệp… (chỉ tạo liên kết, không đổi nội dung); nên làm trước khi chuyển từ khoá" },
-            { label: "3. Bật chiến dịch mới", value: "Chiến dịch mới bắt đầu tiêu tiền" },
-            { label: "4. Chuyển từ khoá chung (bước 3 trong tool)", value: "Chỉ TẠM DỪNG từ khoá chung trong chiến dịch gốc, KHÔNG xoá; chỉ làm được khi chiến dịch mới đang bật" },
+            { label: t("creative.guide.f.search-split.vis.1.label"), value: t("creative.guide.f.search-split.vis.1.value") },
+            { label: t("creative.guide.f.search-split.vis.2.label"), value: t("creative.guide.f.search-split.vis.2.value") },
+            { label: t("creative.guide.f.search-split.vis.3.label"), value: t("creative.guide.f.search-split.vis.3.value") },
+            { label: t("creative.guide.f.search-split.vis.4.label"), value: t("creative.guide.f.search-split.vis.4.value") },
           ],
         },
         steps: [
-          "Trong thẻ đề xuất, bấm “Tách lượt tìm chung…” và đọc phần “Đánh giá & lộ trình”.",
-          "Chọn ngân sách/ngày cho chiến dịch mới (hoặc chọn một phương án trong khối “Chia ngân sách”: “Giữ tổng ngân sách” hoặc “Giữ thương hiệu nguyên ngân sách cũ”).",
-          "Chọn Mục tiêu CPA: “Không đặt” (khuyên dùng 2 tuần đầu để Google học), “Giữ như chiến dịch gốc” (nếu gốc có), hoặc “Đặt mức khác”.",
-          "Bấm “Kiểm trước (không ghi)”, rồi “Tạo chiến dịch tạm dừng”, gõ “XAC NHAN”, bấm “Tạo thật”.",
-          "Trên thẻ bản tách: “Bổ sung tài sản từ chiến dịch gốc” (Kiểm trước rồi “Gắn thật”) → “Bật chiến dịch mới” → “Chuyển từ khoá chung (bước 3)”.",
-          "Theo dõi bằng “Diễn biến theo ngày”, “Quảng cáo bản tách (Ad strength)” và các mốc đo tự động.",
+          t("creative.guide.f.search-split.steps.1"),
+          t("creative.guide.f.search-split.steps.2"),
+          t("creative.guide.f.search-split.steps.3"),
+          t("creative.guide.f.search-split.steps.4"),
+          t("creative.guide.f.search-split.steps.5"),
+          t("creative.guide.f.search-split.steps.6"),
         ],
         tips: [
-          "Phương án “Giữ tổng ngân sách”: ngân sách chiến dịch gốc sẽ được hạ ở bước chuyển từ khoá chung. Chiến dịch gốc dùng ngân sách DÙNG CHUNG thì tool không đổi được, bạn chỉnh tay. Nút “Ngân sách chiến dịch gốc…” để đặt lại mức này; tool ghi nhớ mức cũ để hoàn tác.",
-          "“Bỏ mục tiêu CPA” chuyển chiến dịch mới sang Tối đa chuyển đổi không mục tiêu CPA; đặt lại mục tiêu sau khi có khoảng 30 chuyển đổi.",
-          "“Diễn biến theo ngày” (chỉ đọc) so chi phí và chuyển đổi từng ngày giữa chiến dịch gốc và chiến dịch mới. “CĐ” là chuyển đổi Google tự báo, chưa phải đơn đã thu tiền.",
-          "“Quảng cáo bản tách (Ad strength)” cho biết độ mạnh quảng cáo từng nhóm; quảng cáo chép từ chiến dịch thương hiệu thường “Kém” với lượt tìm chung. Bấm “Sửa bằng AI…” để AI gợi ý viết lại, bạn duyệt, Kiểm trước, gõ “XAC NHAN” mới ghi.",
-          "Tool tự đo ở mốc 7 và 14 ngày sau khi chuyển từ khoá (kết quả: Đạt / Theo dõi / Nên hoàn tác) và báo Teams kênh Ads. Cũng nhắc nếu bản tách tạo quá 3 ngày mà chưa chuyển từ khoá. Có thể bấm “Đo lại (mốc 7/14 ngày)” để đo thủ công.",
-          "Sau khi đã tách, thẻ đề xuất đổi thành “Đã tách …” (còn bước bật + chuyển từ khoá, hoặc “đang theo dõi” kèm số ngày đã chạy trên 14). Một chiến dịch đã có bản tách thì không tách lần hai; muốn làm lại từ đầu phải bấm “Gỡ chiến dịch mới” ở bản cũ.",
+          t("creative.guide.f.search-split.tips.1"),
+          t("creative.guide.f.search-split.tips.2"),
+          t("creative.guide.f.search-split.tips.3"),
+          t("creative.guide.f.search-split.tips.4"),
+          t("creative.guide.f.search-split.tips.5"),
+          t("creative.guide.f.search-split.tips.6"),
         ],
         warnings: [
-          "Chuyển từ khoá chung CHỈ tạm dừng từ khoá chung ở chiến dịch gốc, không bao giờ xoá. “Hoàn tác chuyển từ khoá” bật lại các từ khoá đó (và trả ngân sách gốc về mức cũ nếu đã hạ).",
-          "Chiến dịch mới luôn tạo ở trạng thái TẠM DỪNG: chưa tiêu tiền cho tới khi bạn tự bấm “Bật chiến dịch mới”.",
-          "Nên bổ sung tài sản TRƯỚC khi chuyển từ khoá, vì sau đó chiến dịch gốc không còn phục vụ lượt tìm chung.",
+          t("creative.guide.f.search-split.warnings.1"),
+          t("creative.guide.f.search-split.warnings.2"),
+          t("creative.guide.f.search-split.warnings.3"),
         ],
       },
       {
         id: "pmax",
-        label: "PMax Insights",
+        label: t("creative.guide.f.pmax.label"),
         href: "/google-pmax",
         icon: PieChart,
         color: "from-indigo-500 to-blue-700",
         adminOnly: true,
-        summary: "Xếp hạng asset PMax, search categories, phân bổ kênh; X-quang và việc nên làm.",
+        summary: t("creative.guide.f.pmax.summary"),
         description:
-          "Phân tích chiến dịch Performance Max bằng dữ liệu thật từ Google Ads API. Chọn công ty MBC/MBI. Tab “🩻 X-quang” có khối “✅ Việc nên làm” dùng giống hệt Google Search: danh sách việc cụ thể để tích chọn → Kiểm trước (không ghi) → Áp dụng (gõ “XAC NHAN”) → Hoàn tác.",
-        when: "Chiến dịch PMax chi nhiều mà không rõ tiền đi đâu, cần dọn asset yếu hoặc chặn phần lãng phí.",
+          t("creative.guide.f.pmax.description"),
+        when: t("creative.guide.f.pmax.when"),
         visual: {
-          title: "6 tab của trang",
+          title: t("creative.guide.f.pmax.vis.title"),
           items: [
-            { label: "Tổng quan", value: "Thẻ từng chiến dịch PMax, cảnh báo", color: "text-blue-600" },
-            { label: "🩻 X-quang", value: "Chẩn đoán + “Việc nên làm” áp dụng được", color: "text-red-600" },
-            { label: "🧪 Thí nghiệm", value: "Thí nghiệm loại trừ vùng và các chỉ số khác (chất lượng lead…)", color: "text-violet-600" },
-            { label: "🎨 Asset", value: "Sức khoẻ asset, thay asset yếu", color: "text-emerald-600" },
-            { label: "AI PMax Advisor", value: "AI nhận xét từng chiến dịch (chỉ tải khi mở tab)", color: "text-amber-600" },
-            { label: "Hành động nháp", value: "Nháp tạo từ thẻ của Advisor", color: "text-slate-600" },
+            { label: t("creative.guide.f.pmax.vis.1.label"), value: t("creative.guide.f.pmax.vis.1.value"), color: "text-blue-600" },
+            { label: t("creative.guide.f.pmax.vis.2.label"), value: t("creative.guide.f.pmax.vis.2.value"), color: "text-red-600" },
+            { label: t("creative.guide.f.pmax.vis.3.label"), value: t("creative.guide.f.pmax.vis.3.value"), color: "text-violet-600" },
+            { label: t("creative.guide.f.pmax.vis.4.label"), value: t("creative.guide.f.pmax.vis.4.value"), color: "text-emerald-600" },
+            { label: t("creative.guide.f.pmax.vis.5.label"), value: t("creative.guide.f.pmax.vis.5.value"), color: "text-amber-600" },
+            { label: t("creative.guide.f.pmax.vis.6.label"), value: t("creative.guide.f.pmax.vis.6.value"), color: "text-slate-600" },
           ],
         },
         steps: [
-          "Mở tab “🩻 X-quang”.",
-          "Ở “Việc nên làm”, mở danh sách “việc cụ thể”; dùng ô lọc, “Chọn tất cả”, “Chỉ hiện đã chọn”, “Xem thêm” như ở Google Search.",
-          "Bấm “Kiểm trước (không ghi)” rồi “Áp dụng”, gõ “XAC NHAN”.",
-          "Muốn rút lại thì “Hoàn tác” trong lịch sử.",
+          t("creative.guide.f.pmax.steps.1"),
+          t("creative.guide.f.pmax.steps.2"),
+          t("creative.guide.f.pmax.steps.3"),
+          t("creative.guide.f.pmax.steps.4"),
         ],
         tips: [
-          "“Chọn tất cả việc tích sẵn” ở thanh trên cùng chọn các việc hệ thống đã tích mặc định.",
-          "Nếu trang trống: tài khoản có thể chưa chạy PMax trong 30 ngày gần đây.",
+          t("creative.guide.f.pmax.tips.1"),
+          t("creative.guide.f.pmax.tips.2"),
         ],
-        warnings: ["Không có quyền sửa thì xem được nhưng không áp dụng được."],
+        warnings: [t("creative.guide.f.pmax.warnings.1")],
       },
     ],
   },
@@ -350,40 +353,40 @@ const GROUPS: FeatureGroup[] = [
   // ───────────── Facebook / Meta ─────────────
   {
     id: "nhom-facebook-meta",
-    label: "Facebook / Meta",
-    intro: "Nhìn xuyên số “mua hàng” Meta tự báo để biết đơn thật nằm ở đâu.",
+    label: t("creative.guide.g.nhom-facebook-meta.label"),
+    intro: t("creative.guide.g.nhom-facebook-meta.intro"),
     features: [
       {
         id: "meta-xray",
-        label: "Meta X-quang",
+        label: t("creative.guide.f.meta-xray.label"),
         href: "/meta-xray",
         icon: ScanLine,
         color: "from-blue-500 to-indigo-700",
         adminOnly: true,
-        summary: "Đơn Meta báo tách “bấm thật” vs “chỉ xem”, đối chiếu GA4, việc nên làm cho từng chiến dịch.",
+        summary: t("creative.guide.f.meta-xray.summary"),
         description:
-          "Chẩn đoán chiến dịch Facebook: đơn “Mua hàng” Meta báo được tách thành đơn từ lượt bấm thật (7 ngày) và đơn chỉ do xem quảng cáo (1 ngày), đối chiếu với GA4, kiểm cài đặt ghi nhận. Cuối trang có khối “✅ Việc nên làm” cho từng chiến dịch. Trang này chỉ đọc; việc ghi (mở nhóm quảng cáo mới) đi qua phiên Xử lý chiến dịch.",
-        when: "Meta báo nhiều đơn nhưng doanh thu thật không tương xứng, hoặc cần quyết định chiến dịch nào đáng tăng/giảm.",
+          t("creative.guide.f.meta-xray.description"),
+        when: t("creative.guide.f.meta-xray.when"),
         steps: [
-          "Chọn công ty (MBC / MBI) và khoảng ngày (mặc định 30 ngày).",
-          "Đọc phần tách đơn bấm thật / chỉ xem và đối chiếu GA4.",
-          "Ở “Việc nên làm”, mỗi thẻ có nút “Mở phiên xử lý” (làm tiếp ở phiên Xử lý chiến dịch), hoặc link sang trang liên quan, hoặc phần “Cách làm” tự thực hiện.",
+          t("creative.guide.f.meta-xray.steps.1"),
+          t("creative.guide.f.meta-xray.steps.2"),
+          t("creative.guide.f.meta-xray.steps.3"),
         ],
       },
       {
         id: "creative-don-that",
-        label: "Creative đơn thật",
+        label: t("creative.guide.f.creative-don-that.label"),
         href: "/creative-don-that",
         icon: Target,
         color: "from-fuchsia-500 to-pink-700",
         adminOnly: true,
-        summary: "Mẫu quảng cáo nào thật sự ra đơn — chấm theo đơn đã thu tiền / lượt bấm.",
+        summary: t("creative.guide.f.creative-don-that.summary"),
         description:
-          "Xếp mẫu quảng cáo Meta theo nguồn gần đơn thật nhất đang có (đơn đã thu tiền từ Odoo, GA4 theo mã quảng cáo, hoặc mua hàng từ lượt bấm), không theo số “mua hàng” Meta tự báo (phần lớn là người chỉ xem). Mỗi số đều ghi rõ nguồn.",
-        when: "Chọn creative nào nên giữ, creative nào nên thay.",
+          t("creative.guide.f.creative-don-that.description"),
+        when: t("creative.guide.f.creative-don-that.when"),
         steps: [
-          "Chọn công ty (MBC / MBI) và khoảng ngày.",
-          "Xem bảng xếp hạng creative và nguồn dùng để chấm.",
+          t("creative.guide.f.creative-don-that.steps.1"),
+          t("creative.guide.f.creative-don-that.steps.2"),
         ],
       },
     ],
@@ -392,51 +395,51 @@ const GROUPS: FeatureGroup[] = [
   // ───────────── Đo lường & đơn thật ─────────────
   {
     id: "nhom-do-luong",
-    label: "Đo lường & đơn thật",
-    intro: "Số liệu có đáng tin không, và đưa đơn đã thu tiền về Google / Meta để chúng học theo đơn thật.",
+    label: t("creative.guide.g.nhom-do-luong.label"),
+    intro: t("creative.guide.g.nhom-do-luong.intro"),
     features: [
       {
         id: "do-luong",
-        label: "Sức khoẻ đo lường",
+        label: t("creative.guide.f.do-luong.label"),
         href: "/do-luong",
         icon: HeartPulse,
         color: "from-emerald-500 to-teal-700",
-        summary: "Kiểm pixel/sự kiện chuyển đổi có bắn đúng trước khi đọc chi phí/đơn; tab “Đơn thật” gửi đơn thật về Google / Meta.",
+        summary: t("creative.guide.f.do-luong.summary"),
         description:
-          "Trang có 4 tab: Facebook, Google Ads (kiểm đo lường từng nền tảng), Chẩn đoán gắn thẻ, và Đơn thật. Hệ thống cũng chạy lại kiểm tra hằng ngày và báo Teams khi có lỗi mới hoặc đã khỏi.",
-        when: "Trước khi tin các con số chi phí/đơn; hoặc khi muốn Google/Meta tối ưu theo đơn đã thu tiền thay vì số chúng tự báo.",
+          t("creative.guide.f.do-luong.description"),
+        when: t("creative.guide.f.do-luong.when"),
         visual: {
-          title: "Tab “Đơn thật” gồm 5 khối",
+          title: t("creative.guide.f.do-luong.vis.title"),
           items: [
-            { label: "Nguồn đơn", value: "Chọn Odoo / Webhook / Tệp CSV (mỗi công ty MỘT nguồn)", color: "text-blue-600" },
-            { label: "1. Xem trước", value: "Chỉ đọc nguồn đơn, đếm đơn và độ phủ", color: "text-slate-600" },
-            { label: "2. Google Ads", value: "Bật gửi đơn vào hàng “Lead chốt đơn”", color: "text-red-600" },
-            { label: "3. Meta (Conversions API)", value: "Bật gửi sự kiện đơn thật lên pixel", color: "text-indigo-600" },
-            { label: "4 và 5. Học theo đơn thật", value: "So sánh theo chiến dịch + kết luận (Google và Facebook)", color: "text-emerald-600" },
+            { label: t("creative.guide.f.do-luong.vis.1.label"), value: t("creative.guide.f.do-luong.vis.1.value"), color: "text-blue-600" },
+            { label: t("creative.guide.f.do-luong.vis.2.label"), value: t("creative.guide.f.do-luong.vis.2.value"), color: "text-slate-600" },
+            { label: t("creative.guide.f.do-luong.vis.3.label"), value: t("creative.guide.f.do-luong.vis.3.value"), color: "text-red-600" },
+            { label: t("creative.guide.f.do-luong.vis.4.label"), value: t("creative.guide.f.do-luong.vis.4.value"), color: "text-indigo-600" },
+            { label: t("creative.guide.f.do-luong.vis.5.label"), value: t("creative.guide.f.do-luong.vis.5.value"), color: "text-emerald-600" },
           ],
         },
         steps: [
-          "Mở tab “Đơn thật”, chọn công ty.",
-          "Khối “Nguồn đơn”: bấm một trong 3 nguồn. Đổi nguồn phải gõ “XAC NHAN”. Mỗi công ty dùng MỘT nguồn, hai nguồn cùng lúc sẽ đếm trùng đơn.",
-          "Odoo: đọc đơn đã thanh toán trực tiếp (hiện chỉ MBI có danh sách từng đơn). Webhook: web/CRM gọi vào khi đơn đã thanh toán. Tệp CSV: xuất đơn rồi tải lên thủ công.",
-          "Bấm “Xem trước” để thấy số đơn 30 ngày (gửi Google) và 7 ngày (gửi Meta), tỉ lệ có email/SĐT và “khớp được” bao nhiêu %.",
-          "Khối Google Ads bấm “Bật gửi Google”, khối Meta bấm “Bật gửi Meta” (hoặc “Bật chế độ thử” nếu nhập mã thử). Bật phải gõ “XAC NHAN”; tắt lại bất cứ lúc nào.",
-          "“Chạy ngay một lượt” để đẩy ngay thay vì chờ lịch tự động.",
-          "Đọc khối 4 và 5 để biết chiến dịch nào đã đủ điều kiện (xem bên dưới).",
+          t("creative.guide.f.do-luong.steps.1"),
+          t("creative.guide.f.do-luong.steps.2"),
+          t("creative.guide.f.do-luong.steps.3"),
+          t("creative.guide.f.do-luong.steps.4"),
+          t("creative.guide.f.do-luong.steps.5"),
+          t("creative.guide.f.do-luong.steps.6"),
+          t("creative.guide.f.do-luong.steps.7"),
         ],
         tips: [
-          "Webhook: bấm “Tạo khoá webhook”. Khoá chỉ hiện MỘT LẦN, hãy sao chép và cất ngay. “Tạo khoá mới” làm khoá cũ hết hiệu lực (cần gõ “XAC NHAN”). Mỗi lần gửi tối đa 500 đơn, chỉ gửi đơn ĐÃ THANH TOÁN; email/SĐT được băm ngay khi nhận. Gửi kèm gclid / fbc / utm thì khớp tốt nhất.",
-          "Tệp CSV: dòng đầu là tên cột. Bắt buộc có order_id, paid_at, value; tuỳ chọn email, phone, gclid, fbc, utm_source, utm_campaign, status. Tối đa 2MB mỗi tệp. Tải lại tệp cũ không sao, đơn trùng mã bị bỏ.",
-          "Mục “10 đơn gần nhất” chỉ hiện mã, giờ, giá trị và cờ có email/SĐT/gclid/fbc/utm, không hiện thông tin khách.",
-          "Khối 4 “Google học theo đơn thật”: đầu tiên là checklist “Sẵn sàng” (hành động “Lead chốt đơn” ở mức PHỤ, điều khoản dữ liệu khách hàng, chuyển đổi nâng cao). Bên dưới là bảng 30 ngày theo chiến dịch: đơn Google báo, CPA Google, đơn thật, CPA thật, và kết luận. Quy tắc: chạy song song ít nhất 14 ngày và có ít nhất 15 đơn thật khớp được thì chiến dịch mới “Đủ để đưa lên chính”. Kết luận khác: “Đang gom số”, “Chưa đủ đơn”, “Chưa khớp — kiểm cấu hình”. Tool chỉ đề xuất, không tự đổi mục tiêu.",
-          "Khối 5 “Facebook học theo đơn thật”: checklist Pixel, Gửi CAPI, Chuyển đổi tuỳ chỉnh. Nếu chưa có chuyển đổi tuỳ chỉnh, bấm “Tạo chuyển đổi tuỳ chỉnh… (Kiểm trước)”, rồi gõ “XAC NHAN” để tạo. Bảng theo chiến dịch có cột “% chỉ-xem” (phần “mua hàng” Meta báo chỉ do xem quảng cáo); kết luận như “Meta nhận vơ lượt xem” hoặc “Đủ để tối ưu theo đơn thật”.",
+          t("creative.guide.f.do-luong.tips.1"),
+          t("creative.guide.f.do-luong.tips.2"),
+          t("creative.guide.f.do-luong.tips.3"),
+          t("creative.guide.f.do-luong.tips.4"),
+          t("creative.guide.f.do-luong.tips.5"),
         ],
         warnings: [
-          "Google: đơn đi vào hành động chuyển đổi PHỤ, nên Google CHƯA dùng nó để đặt giá cho tới khi bạn tự đưa vào mục tiêu chính.",
-          "Meta: gửi sự kiện riêng, không phải “Purchase”, nên không làm trùng số mua hàng pixel đang báo. Meta chỉ nhận đơn trong 7 ngày.",
-          "Khi Kiểm trước tạo chuyển đổi tuỳ chỉnh Meta báo OK, đó mới là kiểm dữ liệu, không kiểm quyền ghi — tạo thật vẫn có thể bị từ chối.",
-          "Đơn thật không khớp quảng cáo (khách tự vào, không qua quảng cáo) là bình thường.",
-          "Chưa chọn nguồn đơn là việc cần làm, không phải sự cố.",
+          t("creative.guide.f.do-luong.warnings.1"),
+          t("creative.guide.f.do-luong.warnings.2"),
+          t("creative.guide.f.do-luong.warnings.3"),
+          t("creative.guide.f.do-luong.warnings.4"),
+          t("creative.guide.f.do-luong.warnings.5"),
         ],
       },
     ],
@@ -445,60 +448,60 @@ const GROUPS: FeatureGroup[] = [
   // ───────────── Chiến dịch & Creative ─────────────
   {
     id: "nhom-chien-dich-creative",
-    label: "Chiến dịch & Creative",
-    intro: "Xem chiến dịch đang chạy, và tạo / lưu / chấm điểm nội dung quảng cáo.",
+    label: t("creative.guide.g.nhom-chien-dich-creative.label"),
+    intro: t("creative.guide.g.nhom-chien-dich-creative.intro"),
     features: [
       {
         id: "campaigns",
-        label: "Campaigns",
+        label: t("creative.guide.f.campaigns.label"),
         href: "/campaigns",
         icon: Megaphone,
         color: "from-blue-500 to-blue-700",
-        summary: "Bảng chiến dịch đầy đủ — chỉnh sửa, đồng bộ, export.",
+        summary: t("creative.guide.f.campaigns.summary"),
         description:
-          "Danh sách toàn bộ chiến dịch Facebook Ads và Google Ads. Xem nhanh trạng thái, ngân sách, chỉ số hiệu suất; nhấn vào tên chiến dịch để xem báo cáo chi tiết theo ngày.",
-        when: "Cần xem hoặc sửa một chiến dịch cụ thể, hoặc xuất dữ liệu.",
+          t("creative.guide.f.campaigns.description"),
+        when: t("creative.guide.f.campaigns.when"),
       },
       {
         id: "ads-content",
-        label: "Ads Content",
+        label: t("creative.guide.f.ads-content.label"),
         href: "/campaigns/ads-content",
         icon: Images,
         color: "from-cyan-500 to-sky-600",
-        summary: "Creative đang chạy theo từng chiến dịch trong tháng.",
-        description: "Xem các creative (nội dung quảng cáo) đang chạy, gom theo từng chiến dịch trong tháng.",
-        when: "Muốn biết chiến dịch nào đang chạy mẫu nào.",
+        summary: t("creative.guide.f.ads-content.summary"),
+        description: t("creative.guide.f.ads-content.description"),
+        when: t("creative.guide.f.ads-content.when"),
       },
       {
         id: "creative",
-        label: "Creative AI",
+        label: t("creative.guide.f.creative.label"),
         href: "/creative",
         icon: Sparkles,
         color: "from-violet-500 to-purple-700",
         adminOnly: true,
-        summary: "Tạo chiến dịch mới bằng AI — audience, ad copy, launch.",
+        summary: t("creative.guide.f.creative.summary"),
         description:
-          "Creative AI Studio: tạo chiến dịch mới với AI hỗ trợ audience và ad copy rồi launch. Có tab “Creative AI” và “AI Ad Copy” (headline và mô tả bằng AI); mục con “Creative Brief” để dựng brief.",
-        when: "Lên chiến dịch hoặc mẫu quảng cáo mới.",
+          t("creative.guide.f.creative.description"),
+        when: t("creative.guide.f.creative.when"),
         tips: [
-          "Nội dung AI viết ra chỉ là bản nháp: đọc lại, chỉnh, rồi mới launch.",
-          "Dùng “Sổ kinh nghiệm” để biết nên dùng/tránh gì trước khi tạo.",
+          t("creative.guide.f.creative.tips.1"),
+          t("creative.guide.f.creative.tips.2"),
         ],
       },
       {
         id: "visual-analysis",
-        label: "Creative Library",
+        label: t("creative.guide.f.visual-analysis.label"),
         href: "/creative/analysis",
         icon: Eye,
         color: "from-cyan-500 to-teal-600",
         adminOnly: true,
-        summary: "Thư viện creative đã lưu + chấm điểm nội dung chữ.",
+        summary: t("creative.guide.f.visual-analysis.summary"),
         description:
-          "Lưu và theo dõi các creative đã tạo (tab “Hiệu suất”), và chấm điểm nội dung chữ — headline/description — theo quy tắc cố định (tab “Chấm điểm”). Đây KHÔNG phải phân tích ảnh/video bằng AI.",
-        when: "Muốn xem lại creative đã lưu hoặc chấm nhanh một đoạn nội dung trước khi chạy.",
+          t("creative.guide.f.visual-analysis.description"),
+        when: t("creative.guide.f.visual-analysis.when"),
         steps: [
-          "Tab “Hiệu suất”: xem creative đã lưu và số liệu theo dõi.",
-          "Tab “Chấm điểm”: dán headline/description cần đánh giá, xem điểm và gợi ý chỉnh.",
+          t("creative.guide.f.visual-analysis.steps.1"),
+          t("creative.guide.f.visual-analysis.steps.2"),
         ],
       },
     ],
@@ -507,56 +510,56 @@ const GROUPS: FeatureGroup[] = [
   // ───────────── Tối ưu & Tự động ─────────────
   {
     id: "nhom-toi-uu-tu-dong",
-    label: "Tối ưu & Tự động",
-    intro: "Gợi ý tối ưu, quy tắc tự động và các công cụ phân tích rời.",
+    label: t("creative.guide.g.nhom-toi-uu-tu-dong.label"),
+    intro: t("creative.guide.g.nhom-toi-uu-tu-dong.intro"),
     features: [
       {
         id: "improvements",
-        label: "Improvements",
+        label: t("creative.guide.f.improvements.label"),
         href: "/improvements",
         icon: Lightbulb,
         color: "from-yellow-500 to-amber-600",
         adminOnly: true,
-        badge: "Có badge số",
-        summary: "Danh sách gợi ý tối ưu ưu tiên theo tác động, một số auto-apply được.",
+        badge: t("creative.guide.f.improvements.badge"),
+        summary: t("creative.guide.f.improvements.summary"),
         description:
-          "Gom gợi ý tối ưu cho Facebook và Google vào một nơi, ưu tiên theo mức tác động. Badge đỏ trên menu là số gợi ý chưa xử lý.",
-        when: "Khi rảnh tay rà các gợi ý đã tích luỹ; xử lý mục ưu tiên cao trước.",
+          t("creative.guide.f.improvements.description"),
+        when: t("creative.guide.f.improvements.when"),
       },
       {
         id: "automation",
-        label: "Automation",
+        label: t("creative.guide.f.automation.label"),
         href: "/automation",
         icon: Zap,
         color: "from-blue-500 to-indigo-700",
         adminOnly: true,
-        summary: "Rule tự động Facebook + Google + tối ưu ngân sách theo lịch.",
+        summary: t("creative.guide.f.automation.summary"),
         description:
-          "Tạo quy tắc tự động và xem kết quả. Có 3 tab: “Automation” (các quy tắc), “Redistribution” (lịch sử phân bổ ngân sách tự động giữa các chiến dịch — cũng là mục con “Budget Redistribution” trong menu) và “History” (nhật ký thực thi).",
-        when: "Muốn máy làm thay việc lặp lại như tạm dừng chiến dịch vượt ngưỡng.",
+          t("creative.guide.f.automation.description"),
+        when: t("creative.guide.f.automation.when"),
         steps: [
-          "Ở tab “Automation”, bấm “Tạo quy tắc mới”.",
-          "Chọn điều kiện và hành động, rồi lưu. Mỗi quy tắc có công tắc bật/tắt.",
-          "Xem tab “History” để biết quy tắc đã làm gì.",
+          t("creative.guide.f.automation.steps.1"),
+          t("creative.guide.f.automation.steps.2"),
+          t("creative.guide.f.automation.steps.3"),
         ],
-        warnings: ["Quy tắc tự động có thể ghi lên tài khoản thật. Kiểm tra kỹ điều kiện trước khi bật."],
+        warnings: [t("creative.guide.f.automation.warnings.1")],
       },
       {
         id: "toolkit",
-        label: "Toolkit",
+        label: t("creative.guide.f.toolkit.label"),
         href: "/toolkit",
         icon: Wrench,
         color: "from-slate-500 to-slate-700",
         adminOnly: true,
-        summary: "Công cụ phân tích rời: Day-Parting, Quality Score, Phân khúc Bid.",
-        description: "Ba công cụ phân tích rời, mỗi công cụ một trang trong menu Toolkit.",
-        when: "Cần phân tích sâu một khía cạnh cụ thể của tài khoản Google.",
+        summary: t("creative.guide.f.toolkit.summary"),
+        description: t("creative.guide.f.toolkit.description"),
+        when: t("creative.guide.f.toolkit.when"),
         visual: {
-          title: "Công cụ đang mở trong menu",
+          title: t("creative.guide.f.toolkit.vis.title"),
           items: [
-            { label: "Day-Parting", value: "Hiệu suất theo khung giờ và ngày trong tuần (30 ngày qua)", color: "text-violet-600" },
-            { label: "🎯 Quality Score", value: "Điểm chất lượng theo từng từ khoá Google, xem từ khoá nào kéo điểm xuống", color: "text-amber-600" },
-            { label: "📊 Phân khúc Bid", value: "Hiệu suất theo thiết bị, vị trí, lịch chạy — cơ sở để chỉnh bid", color: "text-blue-600" },
+            { label: t("creative.guide.f.toolkit.vis.1.label"), value: t("creative.guide.f.toolkit.vis.1.value"), color: "text-violet-600" },
+            { label: t("creative.guide.f.toolkit.vis.2.label"), value: t("creative.guide.f.toolkit.vis.2.value"), color: "text-amber-600" },
+            { label: t("creative.guide.f.toolkit.vis.3.label"), value: t("creative.guide.f.toolkit.vis.3.value"), color: "text-blue-600" },
           ],
         },
       },
@@ -566,19 +569,19 @@ const GROUPS: FeatureGroup[] = [
   // ───────────── Báo cáo & chính sách ─────────────
   {
     id: "nhom-bao-cao-chinh-sach",
-    label: "Báo cáo & chính sách",
-    intro: "Theo dõi thay đổi chính sách của Google Ads và Meta.",
+    label: t("creative.guide.g.nhom-bao-cao-chinh-sach.label"),
+    intro: t("creative.guide.g.nhom-bao-cao-chinh-sach.intro"),
     features: [
       {
         id: "policy-radar",
-        label: "Radar Chính Sách",
+        label: t("creative.guide.f.policy-radar.label"),
         href: "/policy-radar",
         icon: Radar,
         color: "from-sky-500 to-blue-700",
-        summary: "Cập nhật chính sách Google Ads + Meta, chấm mức ảnh hưởng và việc cần làm.",
+        summary: t("creative.guide.f.policy-radar.summary"),
         description:
-          "Theo dõi thay đổi mới từ Google Ads và Meta, kèm tác động thực tế đến chiến dịch. Google Ads được quét tự động vào Thứ 2 và Thứ 5; Meta vẫn phải nhập tay (người có quyền quản lý có nút “Thêm mục”).",
-        when: "Hằng tuần, hoặc khi nghi một thay đổi chính sách làm chiến dịch bị từ chối/giảm.",
+          t("creative.guide.f.policy-radar.description"),
+        when: t("creative.guide.f.policy-radar.when"),
       },
     ],
   },
@@ -586,32 +589,32 @@ const GROUPS: FeatureGroup[] = [
   // ───────────── Cài đặt ─────────────
   {
     id: "nhom-cai-dat",
-    label: "Cài đặt",
-    intro: "Kết nối, ngân sách, KPI, người dùng và các tác vụ nền.",
+    label: t("creative.guide.g.nhom-cai-dat.label"),
+    intro: t("creative.guide.g.nhom-cai-dat.intro"),
     features: [
       {
         id: "settings",
-        label: "Settings",
+        label: t("creative.guide.f.settings.label"),
         href: "/settings",
         icon: Settings,
         color: "from-slate-600 to-slate-800",
-        summary: "Cấu hình tài khoản, ngân sách, KPI, nhóm, tracking, tác vụ nền.",
+        summary: t("creative.guide.f.settings.summary"),
         description:
-          "Cấu hình kết nối API và quản lý hệ thống. Menu con: Quản lý Users (chỉ Super Admin), Ngân sách, Scheduled Jobs (Super Admin), Sức khoẻ tool (Super Admin), KPI, Team (Super Admin), Tracking.",
-        when: "Thiết lập ban đầu, đổi ngân sách/KPI, hoặc kiểm tra tác vụ nền.",
+          t("creative.guide.f.settings.description"),
+        when: t("creative.guide.f.settings.when"),
         steps: [
-          "Kết nối Meta / Google / Teams: làm theo “Hướng dẫn kết nối” ở đầu trang này.",
-          "Quản lý Users: thêm thành viên và phân quyền (chỉ Super Admin).",
-          "Scheduled Jobs: xem, tạm dừng hoặc chạy tay các tác vụ nền; đổi link webhook Teams ở khối “Webhook Teams” (có hiệu lực ngay, không cần sửa code).",
+          t("creative.guide.f.settings.steps.1"),
+          t("creative.guide.f.settings.steps.2"),
+          t("creative.guide.f.settings.steps.3"),
         ],
         tips: [
-          "Trong Scheduled Jobs có job “Tự kiểm truy vấn thật” (query_smoke), chạy mỗi sáng 05:45 (giờ VN). Nó chạy thử (chỉ đọc) các truy vấn Google Ads / Meta mà tính năng đang dùng; khi một lần đọc bị hỏng (lỗi MỚI) hoặc đã hết lỗi, nó báo Teams kênh IT.",
-          "Job Health Monitor tự báo Teams nếu việc báo lead / đơn hàng mới bị im hoặc lỗi.",
-          "Bản cài mới cho khách có thêm mục Cài đặt → “Thiết lập ban đầu” (chỉ Super Admin, chỉ hiện ở bản cài bật trình thiết lập). Mục này đi lần lượt 6 bước: công ty → dán khoá → kiểm tra kết nối → tự kiểm → người dùng & email được đăng nhập → hoàn tất. Trước khi bấm Hoàn tất, các trang khác tạm khoá và job tự động chưa chạy.",
+          t("creative.guide.f.settings.tips.1"),
+          t("creative.guide.f.settings.tips.2"),
+          t("creative.guide.f.settings.tips.3"),
         ],
         warnings: [
-          "Meta Access Token hết hạn sau 60 ngày — cần gia hạn định kỳ.",
-          "Chỉ Super Admin mới vào được Quản lý Users, Scheduled Jobs, Sức khoẻ tool và Team.",
+          t("creative.guide.f.settings.warnings.1"),
+          t("creative.guide.f.settings.warnings.2"),
         ],
       },
     ],
@@ -629,24 +632,24 @@ const GROUPS: FeatureGroup[] = [
 
 // Rút từ grep thật `callGemini|generateWithTools|streamGeminiChat` trên toàn
 // bộ app (20 file, 2026-09-18) — không phải danh sách suy đoán.
-const GEMINI_FEATURES = [
-  "AdsBot (chat AI + các công cụ sinh nội dung của nó)",
-  "Creative AI / AI Ad Copy",
-  "Google Search → Quảng cáo RSA và “Sửa bằng AI…” của bản tách",
-  "PMax Advisor & Diagnosis",
-  "RSA Suggest (Toolkit → Quality Score)",
-  "Radar Chính Sách (tóm tắt thay đổi chính sách)",
-  "Improvements (một phần đề xuất)",
+const GEMINI_FEATURES: MessageKey[] = [
+  "creative.guide.gemini.1",
+  "creative.guide.gemini.2",
+  "creative.guide.gemini.3",
+  "creative.guide.gemini.4",
+  "creative.guide.gemini.5",
+  "creative.guide.gemini.6",
+  "creative.guide.gemini.7",
 ];
-const FREE_FEATURES = [
-  "Dashboard, Campaigns — đọc số liệu qua Meta/Google Ads API",
-  "X-quang Search / PMax / Meta — chỉ đọc số liệu",
-  "Sức khoẻ đo lường → Đơn thật — đọc đơn từ nguồn đơn đã chọn",
-  "Toolkit: Day-Parting, Quality Score, Phân khúc Bid",
+const FREE_FEATURES: MessageKey[] = [
+  "creative.guide.free.1",
+  "creative.guide.free.2",
+  "creative.guide.free.3",
+  "creative.guide.free.4",
 ];
 
-function fmtInt(n: number): string {
-  return new Intl.NumberFormat("vi-VN").format(Math.round(n));
+function fmtInt(n: number, loc: string): string {
+  return new Intl.NumberFormat(loc).format(Math.round(n));
 }
 
 interface CostData {
@@ -662,6 +665,8 @@ interface CostData {
 }
 
 function AiCostSection() {
+  const t = useT();
+  const loc = useIntlLocale();
   const [data, setData] = useState<CostData | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
@@ -703,8 +708,8 @@ function AiCostSection() {
       });
       const json = await res.json() as { ok?: boolean; error?: string };
       if (res.ok && json.ok) { setEditing(false); await loadCost(); }
-      else setSaveError(json.error ?? "Lỗi khi lưu");
-    } catch { setSaveError("Network error"); }
+      else setSaveError(json.error ?? t("creative.guide.cost.saveFail"));
+    } catch { setSaveError(t("creative.guide.cost.network")); }
     setSaving(false);
   };
 
@@ -723,52 +728,50 @@ function AiCostSection() {
     <div className="rounded-2xl border border-emerald-200 bg-emerald-50/40 p-6 space-y-4">
       <div className="flex items-center gap-2">
         <DollarSign className="h-5 w-5 text-emerald-600" />
-        <h2 className="text-sm font-bold text-slate-800">Chi phí vận hành (AI)</h2>
+        <h2 className="text-sm font-bold text-slate-800">{t("creative.guide.cost.title")}</h2>
       </div>
 
       {!usage.firstRecordedAt ? (
         <p className="text-xs text-slate-500 leading-relaxed">
-          Chưa có dữ liệu — hệ thống vừa bắt đầu đo token thật từ hôm nay. Trước đó app không lưu lại đã dùng
-          bao nhiêu nên không tính ngược được chi phí các tháng cũ. Từ giờ số dưới đây luôn là số đã đo thật,
-          không phải ước lượng.
+          {t("creative.guide.cost.noData")}
         </p>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="rounded-xl border border-slate-200 bg-white p-3">
-            <p className="text-[10px] font-semibold uppercase text-slate-400">Token tháng {usage.month}</p>
+            <p className="text-[10px] font-semibold uppercase text-slate-400">{t("creative.guide.cost.tokenMonth", { month: usage.month })}</p>
             <p className="text-lg font-bold text-slate-800 mt-1">
-              {fmtInt(usage.monthPromptTokens + usage.monthCandidateTokens)}
+              {fmtInt(usage.monthPromptTokens + usage.monthCandidateTokens, loc)}
             </p>
-            <p className="text-[10px] text-slate-400 mt-0.5">{fmtInt(usage.monthCalls)} lượt gọi AI — đo thật</p>
+            <p className="text-[10px] text-slate-400 mt-0.5">{t("creative.guide.cost.calls", { n: fmtInt(usage.monthCalls, loc) })}</p>
           </div>
           <div className="rounded-xl border border-slate-200 bg-white p-3">
-            <p className="text-[10px] font-semibold uppercase text-slate-400">Token vào / ra</p>
+            <p className="text-[10px] font-semibold uppercase text-slate-400">{t("creative.guide.cost.tokensInOut")}</p>
             <p className="text-sm font-semibold text-slate-700 mt-1">
-              {fmtInt(usage.monthPromptTokens)} / {fmtInt(usage.monthCandidateTokens)}
+              {fmtInt(usage.monthPromptTokens, loc)} / {fmtInt(usage.monthCandidateTokens, loc)}
             </p>
-            <p className="text-[10px] text-slate-400 mt-0.5">input / output</p>
+            <p className="text-[10px] text-slate-400 mt-0.5">{t("creative.guide.cost.inOutNote")}</p>
           </div>
           <div className="rounded-xl border border-slate-200 bg-white p-3">
-            <p className="text-[10px] font-semibold uppercase text-slate-400">Ước tính chi phí tháng này</p>
+            <p className="text-[10px] font-semibold uppercase text-slate-400">{t("creative.guide.cost.estMonth")}</p>
             <p className="text-lg font-bold text-emerald-700 mt-1">
-              {estimatedCost !== null ? `${fmtInt(estimatedCost)} ${settings.currency ?? "VND"}` : "—"}
+              {estimatedCost !== null ? `${fmtInt(estimatedCost, loc)} ${settings.currency ?? "VND"}` : "—"}
             </p>
-            {estimatedCost === null && <p className="text-[10px] text-amber-600 mt-0.5">chưa nhập đơn giá</p>}
+            {estimatedCost === null && <p className="text-[10px] text-amber-600 mt-0.5">{t("creative.guide.cost.noPrice")}</p>}
           </div>
         </div>
       )}
 
       {editing ? (
         <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
-          <p className="text-xs font-semibold text-slate-700">Đơn giá Gemini — lấy đúng số bạn xem ở Google Cloud Console</p>
+          <p className="text-xs font-semibold text-slate-700">{t("creative.guide.cost.priceHeading")}</p>
           <div className="grid grid-cols-2 gap-3">
             <label className="text-xs text-slate-500">
-              Input — giá / 1 triệu token
+              {t("creative.guide.cost.inputPrice")}
               <input type="number" min="0" step="0.01" value={inputPrice} onChange={(e) => setInputPrice(e.target.value)}
                 className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" />
             </label>
             <label className="text-xs text-slate-500">
-              Output — giá / 1 triệu token
+              {t("creative.guide.cost.outputPrice")}
               <input type="number" min="0" step="0.01" value={outputPrice} onChange={(e) => setOutputPrice(e.target.value)}
                 className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" />
             </label>
@@ -781,35 +784,35 @@ function AiCostSection() {
             </select>
             <button onClick={savePrice} disabled={saving || !inputPrice || !outputPrice}
               className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">
-              {saving && <Loader2 className="h-3 w-3 animate-spin" />} Lưu đơn giá
+              {saving && <Loader2 className="h-3 w-3 animate-spin" />} {t("creative.guide.cost.savePrice")}
             </button>
-            <button onClick={() => setEditing(false)} className="text-xs text-slate-400 hover:text-slate-600">Huỷ</button>
+            <button onClick={() => setEditing(false)} className="text-xs text-slate-400 hover:text-slate-600">{t("creative.guide.cost.cancel")}</button>
           </div>
           {saveError && <p className="text-xs text-red-600">{saveError}</p>}
         </div>
       ) : (
         <button onClick={startEdit} className="text-xs font-medium text-emerald-700 hover:text-emerald-800 underline underline-offset-2">
-          {settings.inputPricePerMillion !== undefined ? "Sửa đơn giá" : "Nhập đơn giá để tính ra tiền"}
+          {settings.inputPricePerMillion !== undefined ? t("creative.guide.cost.editPrice") : t("creative.guide.cost.enterPrice")}
         </button>
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-3 border-t border-emerald-100">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Tính năng dùng AI (tốn phí)</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">{t("creative.guide.cost.aiFeatures")}</p>
           <ul className="space-y-1">
             {GEMINI_FEATURES.map((f) => (
               <li key={f} className="text-xs text-slate-600 flex gap-1.5">
-                <span className="text-amber-500 shrink-0">•</span>{f}
+                <span className="text-amber-500 shrink-0">•</span>{t(f)}
               </li>
             ))}
           </ul>
         </div>
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Miễn phí (không tốn phí AI)</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">{t("creative.guide.cost.freeFeatures")}</p>
           <ul className="space-y-1">
             {FREE_FEATURES.map((f) => (
               <li key={f} className="text-xs text-slate-600 flex gap-1.5">
-                <span className="text-emerald-500 shrink-0">•</span>{f}
+                <span className="text-emerald-500 shrink-0">•</span>{t(f)}
               </li>
             ))}
           </ul>
@@ -817,9 +820,7 @@ function AiCostSection() {
       </div>
 
       <p className="text-[10px] text-slate-400 leading-relaxed">
-        Chi phí server/hosting không tính ở đây — máy chủ chạy chung nhiều dự án khác, không tách riêng được phần
-        của tool này. Gemini là chi phí biến động duy nhất gắn trực tiếp với việc dùng tool — Meta Ads API,
-        Google Ads API và Odoo Report API đều miễn phí gọi.
+        {t("creative.guide.cost.footnote")}
       </p>
     </div>
   );
@@ -829,31 +830,31 @@ function AiCostSection() {
 // Role permissions table
 // ─────────────────────────────────────────────
 
-const ROLES = [
+const ROLES: { role: string; color: string; access: MessageKey }[] = [
   {
     role: "Super Admin",
     color: "bg-amber-100 text-amber-800 border-amber-200",
-    access: "Toàn quyền: xem, chỉnh sửa, quản lý users, cấu hình API",
+    access: "creative.guide.roles.superAdmin",
   },
   {
     role: "Admin MBC",
     color: "bg-blue-100 text-blue-800 border-blue-200",
-    access: "Xem và chỉnh sửa dữ liệu MBC. Không quản lý được users",
+    access: "creative.guide.roles.adminMbc",
   },
   {
     role: "Admin MBI",
     color: "bg-violet-100 text-violet-800 border-violet-200",
-    access: "Xem và chỉnh sửa dữ liệu MBI. Không quản lý được users",
+    access: "creative.guide.roles.adminMbi",
   },
   {
     role: "Viewer MBC",
     color: "bg-slate-100 text-slate-700 border-slate-200",
-    access: "Chỉ xem dữ liệu MBC. Không thể thay đổi cài đặt",
+    access: "creative.guide.roles.viewerMbc",
   },
   {
     role: "Viewer MBI",
     color: "bg-slate-100 text-slate-700 border-slate-200",
-    access: "Chỉ xem dữ liệu MBI. Không thể thay đổi cài đặt",
+    access: "creative.guide.roles.viewerMbi",
   },
 ];
 
@@ -863,16 +864,16 @@ function coText(s: string): string {
   const ids = companyIds()
   if (ids.includes("MBC") && ids.includes("MBI")) return s
   const list = ids.map(companyLabel).join(" / ")
-  return s.replace(/MBC\s*\/\s*MBI|MBC hoặc MBI/g, list).replace(/\((?:hiện )?chỉ MBI[^)]*\)/g, "")
+  return s.replace(/MBC\s*\/\s*MBI|MBC hoặc MBI|MBC or MBI/g, list).replace(/\((?:hiện )?chỉ MBI[^)]*\)|\((?:currently )?only MBI[^)]*\)/g, "")
 }
-function rolesForInstall() {
+function rolesForInstall(): { role: string; color: string; access: MessageKey }[] {
   const ids = companyIds()
   const keep = ROLES.filter((r) => !/MBC$/.test(r.role) || ids.includes("MBC")).filter((r) => !/MBI$/.test(r.role) || ids.includes("MBI"))
   if (ids.includes("MBC") || ids.includes("MBI")) return keep
   return [
     ...keep,
-    { role: "Admin", color: "bg-blue-100 text-blue-800 border-blue-200", access: "Xem và chỉnh sửa dữ liệu các công ty được giao. Không quản lý được users" },
-    { role: "Viewer", color: "bg-slate-100 text-slate-700 border-slate-200", access: "Chỉ xem dữ liệu các công ty được giao. Không thể thay đổi cài đặt" },
+    { role: "Admin", color: "bg-blue-100 text-blue-800 border-blue-200", access: "creative.guide.roles.adminGeneric" },
+    { role: "Viewer", color: "bg-slate-100 text-slate-700 border-slate-200", access: "creative.guide.roles.viewerGeneric" },
   ]
 }
 
@@ -881,6 +882,7 @@ function rolesForInstall() {
 // ─────────────────────────────────────────────
 
 function FeatureCard({ feature }: { feature: Feature }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
 
   return (
@@ -906,7 +908,7 @@ function FeatureCard({ feature }: { feature: Feature }) {
             )}
             {feature.adminOnly && (
               <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500">
-                Chỉ Admin
+                {t("creative.guide.card.adminOnly")}
               </span>
             )}
           </div>
@@ -922,14 +924,14 @@ function FeatureCard({ feature }: { feature: Feature }) {
         <div className="border-t border-slate-100 px-5 pb-6 pt-4 space-y-4">
           {/* Dùng để làm gì */}
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Dùng để làm gì</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">{t("creative.guide.card.what")}</p>
             <p className="text-sm text-slate-600 leading-relaxed">{coText(feature.description)}</p>
           </div>
 
           {/* Khi nào dùng */}
           {feature.when && (
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Khi nào dùng</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">{t("creative.guide.card.when")}</p>
               <p className="text-sm text-slate-600 leading-relaxed">{feature.when}</p>
             </div>
           )}
@@ -959,7 +961,7 @@ function FeatureCard({ feature }: { feature: Feature }) {
             {feature.steps && (
               <div className="rounded-xl border border-blue-100 bg-blue-50 p-4">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-blue-400 mb-3">
-                  Các bước chính
+                  {t("creative.guide.card.steps")}
                 </p>
                 <ol className="space-y-2">
                   {feature.steps.map((step, i) => (
@@ -1005,7 +1007,7 @@ function FeatureCard({ feature }: { feature: Feature }) {
               href={feature.href}
               className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-700 transition-colors"
             >
-              Mở tính năng <ArrowRight size={12} />
+              {t("creative.guide.card.open")} <ArrowRight size={12} />
             </a>
           </div>
         </div>
@@ -1022,7 +1024,7 @@ function FeatureCard({ feature }: { feature: Feature }) {
 // — cùng một nguồn với menu, để trang Hướng dẫn không đi giới thiệu một trang
 // không vào được. Nhóm nào rỗng sau khi lọc thì bỏ luôn.
 // Đợt 21 A2: bỏ cả mục thuộc mô-đun đang TẮT ở bản cài (tính trong component — cấu hình nạp sau lần vẽ đầu).
-const visibleGroups = (): FeatureGroup[] => GROUPS
+const visibleGroups = (t: TFunction): FeatureGroup[] => buildGroups(t)
   .map((g) => ({ ...g, features: g.features.filter((f) => !isHiddenPage(f.href) && hasModule(moduleOfPage(f.href))) }))
   .filter((g) => g.features.length > 0);
 
@@ -1031,8 +1033,9 @@ function scrollToId(id: string) {
 }
 
 export default function GuidePage() {
+  const t = useT();
   useCompaniesVersion();
-  const VISIBLE_GROUPS = visibleGroups();
+  const VISIBLE_GROUPS = visibleGroups(t);
   const VISIBLE_FEATURES = VISIBLE_GROUPS.flatMap((g) => g.features);
   const [search, setSearch] = useState("");
 
@@ -1057,20 +1060,20 @@ export default function GuidePage() {
             <BookOpen className="h-6 w-6 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold">Hướng dẫn sử dụng</h1>
-            <p className="text-sm text-white/60">AdsCommand — Phiên bản 2026</p>
+            <h1 className="text-2xl font-bold">{t("creative.guide.page.title")}</h1>
+            <p className="text-sm text-white/60">{t("creative.guide.page.version")}</p>
           </div>
         </div>
         <p className="text-sm text-white/70 leading-relaxed max-w-2xl">
-          Các tính năng được xếp theo đúng thứ tự menu bên trái. Nhấn vào từng tính năng để xem dùng để làm gì, khi nào dùng, các bước chính và lưu ý quan trọng. Mọi thao tác ghi lên tài khoản quảng cáo đều phải “Kiểm trước (không ghi)” rồi gõ “XAC NHAN”.
+          {t("creative.guide.page.intro")}
         </p>
 
         {/* Stats */}
         <div className="mt-5 grid grid-cols-3 gap-3 max-w-sm">
           {[
-            { label: "Tính năng", value: String(VISIBLE_FEATURES.length) },
-            { label: "Nền tảng", value: "Meta + Google" },
-            { label: "AI Model", value: "Gemini" },
+            { label: t("creative.guide.page.statFeatures"), value: String(VISIBLE_FEATURES.length) },
+            { label: t("creative.guide.page.statPlatform"), value: "Meta + Google" },
+            { label: t("creative.guide.page.statModel"), value: "Gemini" },
           ].map((s) => (
             <div key={s.label} className="rounded-lg bg-white/10 px-3 py-2">
               <p className="text-lg font-bold">{s.value}</p>
@@ -1089,8 +1092,8 @@ export default function GuidePage() {
           <BookOpen size={20} />
         </div>
         <div className="flex-1 min-w-0">
-          <h3 className="text-sm font-bold text-slate-900">Hướng dẫn kết nối (Meta, Trang Facebook, GTM, Google Ads, Teams)</h3>
-          <p className="text-xs text-slate-500 mt-0.5">Từng bước lấy token/khoá và dán đúng ô trong Cài đặt — kèm lỗi thường gặp và cách xử lý.</p>
+          <h3 className="text-sm font-bold text-slate-900">{t("creative.guide.page.connectTitle")}</h3>
+          <p className="text-xs text-slate-500 mt-0.5">{t("creative.guide.page.connectDesc")}</p>
         </div>
         <ArrowRight size={16} className="shrink-0 text-amber-600" />
       </a>
@@ -1102,7 +1105,7 @@ export default function GuidePage() {
         <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
         <input
           type="text"
-          placeholder="Tìm kiếm tính năng..."
+          placeholder={t("creative.guide.page.searchPlaceholder")}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 py-3 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent shadow-sm"
@@ -1111,9 +1114,9 @@ export default function GuidePage() {
 
       {/* ── Mục lục theo nhóm menu ── */}
       {search === "" && (
-        <nav aria-label="Mục lục" className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <nav aria-label={t("creative.guide.page.tocAria")} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-4">
-            Mục lục — theo đúng thứ tự menu
+            {t("creative.guide.page.tocTitle")}
           </p>
           <div className="grid grid-cols-1 gap-x-6 gap-y-5 md:grid-cols-2">
             {VISIBLE_GROUPS.map((g) => (
@@ -1151,7 +1154,7 @@ export default function GuidePage() {
       {/* ── Danh sách theo nhóm ── */}
       <div className="space-y-8">
         <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">
-          {filteredCount} tính năng {search ? `khớp với "${search}"` : ""}
+          {t("creative.guide.page.count", { n: filteredCount })} {search ? t("creative.guide.page.match", { q: search }) : ""}
         </p>
         {filteredGroups.map((g) => (
           <section key={g.id} id={g.id} className="space-y-3 scroll-mt-4">
@@ -1169,7 +1172,7 @@ export default function GuidePage() {
         {filteredCount === 0 && (
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-10 text-center">
             <Info className="h-8 w-8 text-slate-300 mx-auto mb-2" />
-            <p className="text-sm text-slate-500">Không tìm thấy tính năng nào khớp</p>
+            <p className="text-sm text-slate-500">{t("creative.guide.page.noMatch")}</p>
           </div>
         )}
       </div>
@@ -1179,7 +1182,7 @@ export default function GuidePage() {
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
             <ShieldCheck className="h-4 w-4 text-emerald-500" />
-            Phân quyền theo Role
+            {t("creative.guide.page.rolesTitle")}
           </h2>
           <div className="space-y-2">
             {rolesForInstall().map((r) => (
@@ -1187,7 +1190,7 @@ export default function GuidePage() {
                 <span className={cn("rounded-full border px-2.5 py-1 text-[10px] font-bold shrink-0", r.color)}>
                   {r.role}
                 </span>
-                <p className="text-xs text-slate-500 leading-relaxed">{r.access}</p>
+                <p className="text-xs text-slate-500 leading-relaxed">{t(r.access)}</p>
               </div>
             ))}
           </div>
@@ -1199,20 +1202,20 @@ export default function GuidePage() {
         <div className="rounded-2xl border border-blue-100 bg-blue-50 p-6">
           <h2 className="text-sm font-bold text-blue-800 mb-4 flex items-center gap-2">
             <Lightbulb className="h-4 w-4 text-blue-500" />
-            Mẹo sử dụng nhanh
+            {t("creative.guide.page.quickTitle")}
           </h2>
           <ul className="space-y-2.5">
-            {[
-              "Sidebar thu gọn trên tablet — hover vào icon để xem tên tính năng",
-              "Rê chuột vào một mục trong menu để xem mô tả ngắn mục đó dùng cho việc gì",
-              "Badge số đỏ trên Improvements = số gợi ý AI chưa được xử lý",
-              "Mọi lệnh ghi lên Google/Meta: “Kiểm trước (không ghi)” → gõ “XAC NHAN” → ghi thật → có thể Hoàn tác",
-              "Google Search, PMax, Meta X-quang chọn công ty MBC hoặc MBI trước khi đọc số",
-              "Meta Access Token hết hạn sau 60 ngày — vào Settings để gia hạn",
-            ].map((tip, i) => (
+            {([
+              "creative.guide.quick.1",
+              "creative.guide.quick.2",
+              "creative.guide.quick.3",
+              "creative.guide.quick.4",
+              "creative.guide.quick.5",
+              "creative.guide.quick.6",
+            ] as MessageKey[]).map((tip, i) => (
               <li key={i} className="flex gap-2 text-xs text-blue-700">
                 <CheckCircle2 size={13} className="shrink-0 mt-0.5 text-blue-400" />
-                {coText(tip)}
+                {coText(t(tip))}
               </li>
             ))}
           </ul>

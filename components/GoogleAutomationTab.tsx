@@ -7,6 +7,8 @@ import {
   Zap, BarChart3, Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT, useIntlLocale } from "@/lib/i18n/client";
+import type { TFunction } from "@/lib/i18n/translate";
 import { resolveMatchType } from "@/lib/google-ads-helpers";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/Toast";
@@ -67,20 +69,20 @@ interface SearchTermItem {
 
 // ── Helpers ──
 
-function fmtMoney(val: number): string {
-  if (val >= 1_000_000) return `₫${(val / 1_000_000).toFixed(1)}Tr`;
+function fmtMoneyL(val: number, tr: TFunction, loc: string): string {
+  if (val >= 1_000_000) return tr("panels.gautomation.money.m", { n: (val / 1_000_000).toFixed(1) });
   if (val >= 1_000) return `₫${Math.round(val / 1000)}K`;
-  return `₫${val.toLocaleString("vi-VN")}`;
+  return `₫${val.toLocaleString(loc)}`;
 }
 
-function fmtRelative(iso: string): string {
+function fmtRelativeL(iso: string, tr: TFunction): string {
   const diff = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "vừa xong";
-  if (mins < 60) return `${mins} phút trước`;
+  if (mins < 1) return tr("panels.gautomation.rel.now");
+  if (mins < 60) return tr("panels.gautomation.rel.min", { n: mins });
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours} giờ trước`;
-  return `${Math.floor(hours / 24)} ngày trước`;
+  if (hours < 24) return tr("panels.gautomation.rel.hour", { n: hours });
+  return tr("panels.gautomation.rel.day", { n: Math.floor(hours / 24) });
 }
 
 const CPL_THRESHOLDS = {
@@ -93,6 +95,10 @@ const CPL_THRESHOLDS = {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 export default function GoogleAutomationTab() {
+  const tr = useT();
+  const loc = useIntlLocale();
+  const fmtMoney = (v: number) => fmtMoneyL(v, tr, loc);
+  const fmtRelative = (iso: string) => fmtRelativeL(iso, tr);
   const [company, setCompany] = useState<string>(() => orderedCompanyIds(["MBC"])[0] ?? "MBC") // Đợt 25: công ty theo bản cài (bản Mắt Bão y như cũ);
   const [loading, setLoading] = useState(true);
 
@@ -175,7 +181,7 @@ export default function GoogleAutomationTab() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.success) {
         toast({
-          title: "❌ Không chạy được",
+          title: tr("panels.gautomation.jobFail"),
           description: data.error ?? data.result?.error ?? `HTTP ${res.status}`,
           variant: "error",
         });
@@ -183,7 +189,7 @@ export default function GoogleAutomationTab() {
       }
       return data.result ?? null;
     } catch {
-      toast({ title: "❌ Lỗi kết nối khi chạy job", variant: "error" });
+      toast({ title: tr("panels.gautomation.jobConn"), variant: "error" });
       return null;
     }
   };
@@ -201,8 +207,8 @@ export default function GoogleAutomationTab() {
       }
       toast({
         title: actions.length > 0
-          ? `✅ Đã tối ưu ${actions.length} ngân sách`
-          : "✅ Đã chạy — không có ngân sách nào cần đổi",
+          ? tr("panels.gautomation.budgetOk", { n: actions.length })
+          : tr("panels.gautomation.budgetNone"),
       });
     } finally {
       setRunningBudget(false);
@@ -218,8 +224,8 @@ export default function GoogleAutomationTab() {
       if (details.length > 0) setAlerts(details);
       toast({
         title: details.length > 0
-          ? `✅ Quét xong — ${details.length} cảnh báo`
-          : "✅ Quét xong — không có cảnh báo",
+          ? tr("panels.gautomation.monitorOk", { n: details.length })
+          : tr("panels.gautomation.monitorNone"),
       });
     } finally {
       setRunningMonitor(false);
@@ -244,21 +250,21 @@ export default function GoogleAutomationTab() {
         [call],
         { title: dialogTitle, company },
         {
-          onValidateFail: (message) => toast({ title: "❌ Kiểm trước thất bại", description: message, variant: "error" }),
+          onValidateFail: (message) => toast({ title: tr("panels.gautomation.validateFail"), description: message, variant: "error" }),
           onSuccess: (results) => {
             const data = results[0].raw;
             const added = (data.added as number | undefined) ?? 0;
             const failed = data.failed as number | undefined;
             toast({
               title: successLabel(added),
-              description: failed ? `${failed} mục lỗi — xem lại trên Google Ads` : undefined,
+              description: failed ? tr("panels.gautomation.failedItems", { n: failed }) : undefined,
               variant: failed ? "error" : "success",
               action: guard.undoAction(company, [results[0].writeId]),
             });
             fetchAll();
           },
           onFailure: (results) => {
-            toast({ title: "❌ Không áp dụng được", description: results[0].error, variant: "error" });
+            toast({ title: tr("panels.gautomation.applyFail"), description: results[0].error, variant: "error" });
             fetchAll();
           },
         }
@@ -282,10 +288,10 @@ export default function GoogleAutomationTab() {
             adGroupId: t.adGroupId,
           })),
         },
-        label: `Thêm ${searchTerms.suggestAdd.length} từ khoá: ${searchTerms.suggestAdd.slice(0, 5).map(t => t.searchTerm).join(", ")}${searchTerms.suggestAdd.length > 5 ? "…" : ""}`,
+        label: tr("panels.gautomation.addKwLabel", { n: searchTerms.suggestAdd.length, list: `${searchTerms.suggestAdd.slice(0, 5).map(t => t.searchTerm).join(", ")}${searchTerms.suggestAdd.length > 5 ? "…" : ""}` }),
       },
-      `Thêm ${searchTerms.suggestAdd.length} từ khoá vào keyword list?`,
-      (added) => `✅ Đã thêm ${added} từ khóa`,
+      tr("panels.gautomation.addKwTitle", { n: searchTerms.suggestAdd.length }),
+      (added) => tr("panels.gautomation.addKwDone", { n: added }),
       setAddingKeywords,
     );
   };
@@ -303,10 +309,10 @@ export default function GoogleAutomationTab() {
             campaignId: t.campaignId,
           })),
         },
-        label: `Thêm ${searchTerms.suggestNegative.length} từ khoá phủ định: ${searchTerms.suggestNegative.slice(0, 5).map(t => t.searchTerm).join(", ")}${searchTerms.suggestNegative.length > 5 ? "…" : ""}`,
+        label: tr("panels.gautomation.addNegLabel", { n: searchTerms.suggestNegative.length, list: `${searchTerms.suggestNegative.slice(0, 5).map(t => t.searchTerm).join(", ")}${searchTerms.suggestNegative.length > 5 ? "…" : ""}` }),
       },
-      `Thêm ${searchTerms.suggestNegative.length} từ khoá phủ định?`,
-      (added) => `✅ Đã thêm ${added} từ khóa phủ định`,
+      tr("panels.gautomation.addNegTitle", { n: searchTerms.suggestNegative.length }),
+      (added) => tr("panels.gautomation.addNegDone", { n: added }),
       setAddingNegatives,
     );
   };
@@ -317,7 +323,7 @@ export default function GoogleAutomationTab() {
       <div className="flex items-center justify-center min-h-[40vh]">
         <div className="text-center space-y-3">
           <Loader2 className="h-8 w-8 animate-spin text-red-500 mx-auto" />
-          <p className="text-sm text-slate-500">Đang tải dữ liệu Google Ads...</p>
+          <p className="text-sm text-slate-500">{tr("panels.gautomation.loading")}</p>
         </div>
       </div>
     );
@@ -365,9 +371,7 @@ export default function GoogleAutomationTab() {
           thấy quy tắc đâu, và kết luận là tool không đặt được quy tắc cho
           Google — đúng câu hỏi nhận được ngày 22/09/2026. */}
       <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] leading-snug text-slate-600">
-        Ba mục dưới đây là việc <b>chạy sẵn</b>, không sửa được ở đây.
-        Muốn <b>tự đặt quy tắc</b> cho Google thì sang tab <b>Facebook</b> — danh sách quy tắc nằm ở đó,
-        và khi tạo quy tắc bạn chọn kênh <b>Google</b> hoặc <b>Cả hai</b> là nó chạy trên chiến dịch Google.
+        {tr("panels.gautomation.hintA")} <b>{tr("panels.gautomation.hintB")}</b>{tr("panels.gautomation.hintC")} <b>{tr("panels.gautomation.hintD")}</b> {tr("panels.gautomation.hintE")} <b>Facebook</b> {tr("panels.gautomation.hintF")} <b>Google</b> {tr("panels.gautomation.hintG")} <b>{tr("panels.gautomation.hintH")}</b> {tr("panels.gautomation.hintI")}
       </p>
 
       {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
@@ -384,12 +388,12 @@ export default function GoogleAutomationTab() {
             </div>
             <div className="text-left">
               <h3 className="text-sm font-bold text-slate-800">🤖 Budget Optimizer</h3>
-              <p className="text-[10px] text-slate-500">Chạy lúc 06:00 sáng mỗi ngày</p>
+              <p className="text-[10px] text-slate-500">{tr("panels.gautomation.budget.sub")}</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs font-semibold text-blue-600 bg-blue-100 rounded-full px-3 py-1">
-              {todayBudget.length} hôm nay
+              {tr("panels.gautomation.budget.today", { n: todayBudget.length })}
             </span>
             {expandedSections.has("budget")
               ? <ChevronUp className="h-4 w-4 text-slate-400" />
@@ -403,7 +407,7 @@ export default function GoogleAutomationTab() {
             {todayBudget.length > 0 ? (
               <div className="space-y-3 mb-4">
                 <p className="text-xs font-semibold text-slate-600">
-                  Hôm nay: {todayBudget.length} campaigns được điều chỉnh
+                  {tr("panels.gautomation.budget.todayLine", { n: todayBudget.length })}
                 </p>
                 {todayBudget.map((b, i) => {
                   const isIncrease = b.action.startsWith("INCREASE");
@@ -442,7 +446,7 @@ export default function GoogleAutomationTab() {
             ) : (
               <div className="text-center py-8">
                 <BarChart3 className="h-8 w-8 text-slate-200 mx-auto mb-2" />
-                <p className="text-xs text-slate-400">Chưa có điều chỉnh nào hôm nay</p>
+                <p className="text-xs text-slate-400">{tr("panels.gautomation.budget.none")}</p>
               </div>
             )}
 
@@ -450,7 +454,7 @@ export default function GoogleAutomationTab() {
             {budgetHistory.length > todayBudget.length && (
               <details className="mt-4">
                 <summary className="text-xs text-slate-400 cursor-pointer hover:text-slate-600">
-                  📋 Xem lịch sử ({budgetHistory.length - todayBudget.length} trước đó)
+                  {tr("panels.gautomation.budget.history", { n: budgetHistory.length - todayBudget.length })}
                 </summary>
                 <div className="mt-2 space-y-2 max-h-[300px] overflow-y-auto">
                   {budgetHistory.slice(todayBudget.length).map((b, i) => (
@@ -478,8 +482,8 @@ export default function GoogleAutomationTab() {
                 onClick={handleRunBudget}
               >
                 {runningBudget
-                  ? <><RefreshCw className="h-3 w-3 animate-spin" /> Đang chạy...</>
-                  : <><Play className="h-3 w-3" /> ▶ Chạy thủ công ngay</>
+                  ? <><RefreshCw className="h-3 w-3 animate-spin" /> {tr("panels.gautomation.budget.running")}</>
+                  : <><Play className="h-3 w-3" /> {tr("panels.gautomation.budget.run")}</>
                 }
               </Button>
             </div>
@@ -501,7 +505,7 @@ export default function GoogleAutomationTab() {
             </div>
             <div className="text-left">
               <h3 className="text-sm font-bold text-slate-800">🔔 CPL Monitor</h3>
-              <p className="text-[10px] text-slate-500">Kiểm tra mỗi 6 tiếng</p>
+              <p className="text-[10px] text-slate-500">{tr("panels.gautomation.mon.sub")}</p>
             </div>
           </div>
           {expandedSections.has("alerts")
@@ -521,7 +525,7 @@ export default function GoogleAutomationTab() {
                   <div key={c} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
                     <p className="text-xs font-bold text-slate-600 mb-1">{c}:</p>
                     <div className="flex gap-2 text-[10px]">
-                      <span className="bg-emerald-100 text-emerald-700 rounded px-1.5 py-0.5">Tốt &lt;{fmtMoney(t.good)}</span>
+                      <span className="bg-emerald-100 text-emerald-700 rounded px-1.5 py-0.5">{tr("panels.gautomation.mon.good")} &lt;{fmtMoney(t.good)}</span>
                       <span className="bg-amber-100 text-amber-700 rounded px-1.5 py-0.5">⚠️ {fmtMoney(t.warning)}</span>
                       <span className="bg-red-100 text-red-700 rounded px-1.5 py-0.5">🔴 {fmtMoney(t.danger)}</span>
                     </div>
@@ -533,7 +537,7 @@ export default function GoogleAutomationTab() {
             {/* Alerts list */}
             {alerts.length > 0 ? (
               <div className="space-y-2">
-                <p className="text-xs font-semibold text-slate-600">Alerts gần đây:</p>
+                <p className="text-xs font-semibold text-slate-600">{tr("panels.gautomation.mon.recent")}</p>
                 {/* Bảng này CHỈ được ghi thêm khi có alert. Lượt kiểm chạy xong
                     mà không phát hiện gì thì không ghi gì cả — nên danh sách
                     giữ nguyên tin cũ và trông như "việc gần đây nhất là hỏng".
@@ -546,9 +550,7 @@ export default function GoogleAutomationTab() {
                   if (!newest || days < 7) return null;
                   return (
                     <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] leading-snug text-slate-600">
-                      Dòng mới nhất ở đây đã <b>{days} ngày</b> trước. Danh sách chỉ được ghi thêm khi
-                      có cảnh báo, nên không có dòng mới nghĩa là <b>những lượt kiểm sau đó không phát
-                      hiện gì</b> — không phải là đã ngừng kiểm.
+                      {tr("panels.gautomation.mon.staleA")} <b>{tr("panels.gautomation.mon.staleDays", { n: days })}</b> {tr("panels.gautomation.mon.staleB")} <b>{tr("panels.gautomation.mon.staleC")}</b> {tr("panels.gautomation.mon.staleD")}
                     </p>
                   );
                 })()}
@@ -572,7 +574,7 @@ export default function GoogleAutomationTab() {
             ) : (
               <div className="text-center py-6">
                 <CheckCircle className="h-8 w-8 text-emerald-300 mx-auto mb-2" />
-                <p className="text-xs text-slate-400">Không có alerts — campaigns đang ổn</p>
+                <p className="text-xs text-slate-400">{tr("panels.gautomation.mon.none")}</p>
               </div>
             )}
 
@@ -585,8 +587,8 @@ export default function GoogleAutomationTab() {
                 onClick={handleRunMonitor}
               >
                 {runningMonitor
-                  ? <><RefreshCw className="h-3 w-3 animate-spin" /> Đang kiểm tra...</>
-                  : <><Play className="h-3 w-3" /> ▶ Chạy kiểm tra ngay</>
+                  ? <><RefreshCw className="h-3 w-3 animate-spin" /> {tr("panels.gautomation.mon.running")}</>
+                  : <><Play className="h-3 w-3" /> {tr("panels.gautomation.mon.run")}</>
                 }
               </Button>
             </div>
@@ -608,7 +610,7 @@ export default function GoogleAutomationTab() {
             </div>
             <div className="text-left">
               <h3 className="text-sm font-bold text-slate-800">📊 Keyword Performance</h3>
-              <p className="text-[10px] text-slate-500">Từ khóa đang tốt / kém trong 7 ngày — {company}</p>
+              <p className="text-[10px] text-slate-500">{tr("panels.gautomation.kw.sub", { company })}</p>
             </div>
           </div>
           {expandedSections.has("keywords")
@@ -623,7 +625,7 @@ export default function GoogleAutomationTab() {
             {keywordPerf.topPerformers.length > 0 && (
               <div>
                 <p className="text-xs font-bold text-emerald-700 mb-2 flex items-center gap-1.5">
-                  <TrendingUp className="h-3.5 w-3.5" /> TOP PERFORMERS:
+                  <TrendingUp className="h-3.5 w-3.5" /> {tr("panels.gautomation.kw.top")}
                 </p>
                 <div className="space-y-1">
                   {keywordPerf.topPerformers.slice(0, 10).map((kw, i) => (
@@ -649,7 +651,7 @@ export default function GoogleAutomationTab() {
             {keywordPerf.shouldPause.length > 0 && (
               <div>
                 <p className="text-xs font-bold text-red-700 mb-2 flex items-center gap-1.5">
-                  <XCircle className="h-3.5 w-3.5" /> 🚫 NÊN PAUSE (CPC cao, 0 conversion):
+                  <XCircle className="h-3.5 w-3.5" /> {tr("panels.gautomation.kw.pause")}
                 </p>
                 <div className="space-y-1">
                   {keywordPerf.shouldPause.slice(0, 10).map((kw, i) => (
@@ -674,7 +676,7 @@ export default function GoogleAutomationTab() {
             {keywordPerf.topPerformers.length === 0 && keywordPerf.shouldPause.length === 0 && (
               <div className="text-center py-8">
                 <Search className="h-8 w-8 text-slate-200 mx-auto mb-2" />
-                <p className="text-xs text-slate-400">Chưa có dữ liệu keyword</p>
+                <p className="text-xs text-slate-400">{tr("panels.gautomation.kw.none")}</p>
               </div>
             )}
           </div>
@@ -695,7 +697,7 @@ export default function GoogleAutomationTab() {
             </div>
             <div className="text-left">
               <h3 className="text-sm font-bold text-slate-800">📝 Search Term Report</h3>
-              <p className="text-[10px] text-slate-500">Người dùng thực tế đang tìm gì để thấy ads — {company}</p>
+              <p className="text-[10px] text-slate-500">{tr("panels.gautomation.st.sub", { company })}</p>
             </div>
           </div>
           {expandedSections.has("search-terms")
@@ -710,7 +712,7 @@ export default function GoogleAutomationTab() {
             {searchTerms.suggestAdd.length > 0 && (
               <div>
                 <p className="text-xs font-bold text-emerald-700 mb-2 flex items-center gap-1.5">
-                  <CheckCircle className="h-3.5 w-3.5" /> ✅ Nên thêm vào keyword list:
+                  <CheckCircle className="h-3.5 w-3.5" /> {tr("panels.gautomation.st.add")}
                 </p>
                 <div className="space-y-1">
                   {searchTerms.suggestAdd.slice(0, 10).map((t, i) => (
@@ -729,8 +731,8 @@ export default function GoogleAutomationTab() {
                   onClick={handleAddKeywords}
                 >
                   {addingKeywords
-                    ? <><Loader2 className="h-3 w-3 animate-spin" /> Đang thêm...</>
-                    : <><Plus className="h-3 w-3" /> ✅ Thêm tất cả vào keyword list</>
+                    ? <><Loader2 className="h-3 w-3 animate-spin" /> {tr("panels.gautomation.st.adding")}</>
+                    : <><Plus className="h-3 w-3" /> {tr("panels.gautomation.st.addAll")}</>
                   }
                 </Button>
               </div>
@@ -740,7 +742,7 @@ export default function GoogleAutomationTab() {
             {searchTerms.suggestNegative.length > 0 && (
               <div>
                 <p className="text-xs font-bold text-red-700 mb-2 flex items-center gap-1.5">
-                  <Ban className="h-3.5 w-3.5" /> 🚫 Nên thêm negative:
+                  <Ban className="h-3.5 w-3.5" /> {tr("panels.gautomation.st.neg")}
                 </p>
                 <div className="space-y-1">
                   {searchTerms.suggestNegative.slice(0, 10).map((t, i) => (
@@ -760,8 +762,8 @@ export default function GoogleAutomationTab() {
                   onClick={handleAddNegatives}
                 >
                   {addingNegatives
-                    ? <><Loader2 className="h-3 w-3 animate-spin" /> Đang thêm...</>
-                    : <><Ban className="h-3 w-3" /> 🚫 Thêm tất cả vào negative</>
+                    ? <><Loader2 className="h-3 w-3 animate-spin" /> {tr("panels.gautomation.st.adding")}</>
+                    : <><Ban className="h-3 w-3" /> {tr("panels.gautomation.st.negAll")}</>
                   }
                 </Button>
               </div>
@@ -770,7 +772,7 @@ export default function GoogleAutomationTab() {
             {searchTerms.suggestAdd.length === 0 && searchTerms.suggestNegative.length === 0 && (
               <div className="text-center py-8">
                 <Search className="h-8 w-8 text-slate-200 mx-auto mb-2" />
-                <p className="text-xs text-slate-400">Chưa có dữ liệu search terms</p>
+                <p className="text-xs text-slate-400">{tr("panels.gautomation.st.none")}</p>
               </div>
             )}
           </div>

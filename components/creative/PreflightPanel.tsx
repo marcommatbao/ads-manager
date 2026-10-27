@@ -3,6 +3,7 @@
 import { XCircle, AlertTriangle, CheckCircle, ShieldAlert, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/lib/i18n/client";
 import type { PreflightResult, PreflightCheck } from "@/lib/launch-preflight";
 
 // ── Check row ─────────────────────────────────────────────────
@@ -47,6 +48,7 @@ interface Props {
 }
 
 export function PreflightPanel({ result, onProceed, onClose }: Props) {
+  const t = useT();
   const isBlocked  = result.status === "blocked";
   const hasWarnings = result.warnings.length > 0;
 
@@ -69,12 +71,12 @@ export function PreflightPanel({ result, onProceed, onClose }: Props) {
           }
           <div>
             <p className="text-sm font-bold text-white">
-              {isBlocked ? "Không thể Launch — Cần sửa trước" : "Launch với cảnh báo"}
+              {isBlocked ? t("creative.brief.preflight.blockedTitle") : t("creative.brief.preflight.warnTitle")}
             </p>
             <p className="text-xs text-white/80 mt-0.5">
               {isBlocked
-                ? `${result.errors.length} lỗi cần khắc phục trước khi tạo campaign`
-                : `${result.warnings.length} cảnh báo — bạn có thể tiếp tục nhưng nên xem xét`
+                ? t("creative.brief.preflight.blockedSub", { n: result.errors.length })
+                : t("creative.brief.preflight.warnSub", { n: result.warnings.length })
               }
             </p>
           </div>
@@ -86,7 +88,7 @@ export function PreflightPanel({ result, onProceed, onClose }: Props) {
           {result.errors.length > 0 && (
             <div className="space-y-2">
               <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                Lỗi cần sửa ({result.errors.length})
+                {t("creative.brief.preflight.errors", { n: result.errors.length })}
               </p>
               {result.errors.map((c, i) => <CheckRow key={i} check={c} />)}
             </div>
@@ -96,7 +98,7 @@ export function PreflightPanel({ result, onProceed, onClose }: Props) {
           {hasWarnings && (
             <div className="space-y-2 mt-3">
               <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                Cảnh báo ({result.warnings.length})
+                {t("creative.brief.preflight.warnings", { n: result.warnings.length })}
               </p>
               {result.warnings.map((c, i) => <CheckRow key={i} check={c} />)}
             </div>
@@ -109,7 +111,7 @@ export function PreflightPanel({ result, onProceed, onClose }: Props) {
           isBlocked ? "justify-end" : "justify-between",
         )}>
           <Button variant="outline" size="sm" className="text-xs" onClick={onClose}>
-            ← Sửa lại
+            {t("creative.brief.preflight.fix")}
           </Button>
 
           {!isBlocked && (
@@ -119,7 +121,7 @@ export function PreflightPanel({ result, onProceed, onClose }: Props) {
               onClick={() => { onClose(); onProceed(); }}
             >
               <CheckCircle className="h-3.5 w-3.5" />
-              Tiếp tục dù có cảnh báo
+              {t("creative.brief.preflight.proceed")}
             </Button>
           )}
         </div>

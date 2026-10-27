@@ -13,6 +13,7 @@
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Loader2, RefreshCw, Tag, Undo2, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 import { getJson, postJson, ApiError } from "@/components/case/api";
 import { vnd, ddmmyyyy, datetimeVN } from "@/components/case/format";
 import { Button } from "@/components/ui/button";
@@ -37,12 +38,13 @@ interface CleanupResponse {
 // ── Kết quả Kiểm trước / Ghi ──
 
 function CleanupResultCard({ exec }: { exec: CleanupExecution }) {
+  const t = useT();
   const ok = exec.status === "done";
   return (
     <div className={cn("rounded-lg border p-2.5 text-xs", ok ? "border-emerald-200 bg-emerald-50" : "border-red-200 bg-red-50")}>
       <div className={cn("flex items-center gap-1.5 font-semibold", ok ? "text-emerald-700" : "text-red-700")}>
         {ok ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> : <XCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
-        {ok ? `Đã gắn nhãn ${exec.campaigns.length} chiến dịch` : "Google từ chối — xem lỗi bên dưới"}
+        {ok ? t("google.pmaxCleanup.labelled", { n: exec.campaigns.length }) : t("google.pmaxCleanup.rejected")}
       </div>
       {exec.campaigns.length > 0 && (
         <ul className="mt-1.5 list-disc space-y-0.5 pl-4 text-slate-600">{exec.campaigns.map((c) => <li key={c.id}>{c.name}</li>)}</ul>
@@ -57,13 +59,14 @@ function CleanupResultCard({ exec }: { exec: CleanupExecution }) {
 // ── Lịch sử gắn nhãn ──
 
 function CleanupHistoryRow({ h, onUndo }: { h: CleanupExecution; onUndo: (id: string) => void }) {
+  const t = useT();
   const ok = h.status === "done";
   return (
     <div className={cn("rounded-lg border p-3 text-xs", ok ? "border-emerald-100 bg-emerald-50/30" : "border-red-100 bg-red-50/30")}>
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <span className={cn("flex items-center gap-1 font-semibold", ok ? "text-emerald-700" : "text-red-700")}>
           {ok ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> : <XCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
-          {h.campaigns.length} chiến dịch
+          {t("google.pmaxCleanup.campaignCount", { n: h.campaigns.length })}
         </span>
         <span className="text-slate-400">{datetimeVN(h.at)}</span>
         <span className="text-slate-500">{h.by}</span>
@@ -72,11 +75,11 @@ function CleanupHistoryRow({ h, onUndo }: { h: CleanupExecution; onUndo: (id: st
       {h.errors.length > 0 && <ul className="mt-1.5 list-disc space-y-0.5 pl-4 text-red-700">{h.errors.map((e, i) => <li key={i}>{e}</li>)}</ul>}
       {ok && (
         h.undoneAt ? (
-          <p className="mt-1.5 text-slate-500">Đã hoàn tác lúc {datetimeVN(h.undoneAt)}</p>
+          <p className="mt-1.5 text-slate-500">{t("google.pmaxCleanup.undoneAt", { time: datetimeVN(h.undoneAt) })}</p>
         ) : (
           <div className="mt-2 flex justify-end">
             <Button variant="destructive" size="sm" className="h-8" onClick={() => onUndo(h.id)}>
-              <Undo2 className="h-3.5 w-3.5" aria-hidden="true" /> Hoàn tác
+              <Undo2 className="h-3.5 w-3.5" aria-hidden="true" /> {t("google.pmaxCleanup.undo")}
             </Button>
           </div>
         )
@@ -88,6 +91,7 @@ function CleanupHistoryRow({ h, onUndo }: { h: CleanupExecution; onUndo: (id: st
 // ── Root ──
 
 export function CleanupPanel({ company }: { company: Company }) {
+  const t = useT();
   const confirmId = useId();
   const [data, setData] = useState<CleanupResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -103,7 +107,7 @@ export function CleanupPanel({ company }: { company: Company }) {
       const json = await getJson(`/api/google/pmax/cleanup?company=${company}`);
       setData(json as CleanupResponse);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Lỗi kết nối tới Google Ads");
+      setError(e instanceof ApiError ? e.message : t("google.pmaxCleanup.connError"));
     } finally { setLoading(false); setReloading(false); }
   }, [company]);
 
@@ -147,7 +151,7 @@ export function CleanupPanel({ company }: { company: Company }) {
       setValidateExec(exec);
       setValidatedSig(exec.status === "done" ? sig : null);
     } catch (e) {
-      setValidateErr(e instanceof ApiError ? e.message : "Không kiểm được — thử lại sau");
+      setValidateErr(e instanceof ApiError ? e.message : t("google.pmaxCleanup.validateError"));
       setValidatedSig(null);
     } finally { setValidating(false); }
   }
@@ -162,10 +166,10 @@ export function CleanupPanel({ company }: { company: Company }) {
         setApplyOpen(false); setConfirmInput(""); setValidatedSig(null); setValidateExec(null);
         refresh();
       } else {
-        setApplyErr(exec.errors.join(" · ") || "Google từ chối — chưa ghi gì.");
+        setApplyErr(exec.errors.join(" · ") || t("google.pmaxCleanup.applyRejected"));
       }
     } catch (e) {
-      setApplyErr(e instanceof ApiError ? e.message : "Không ghi được — thử lại sau");
+      setApplyErr(e instanceof ApiError ? e.message : t("google.pmaxCleanup.applyError"));
     } finally { setApplying(false); }
   }
 
@@ -175,7 +179,7 @@ export function CleanupPanel({ company }: { company: Company }) {
       await postJson("/api/google/pmax/cleanup", { company, op: "undo", id });
       refresh();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Không hoàn tác được — thử lại sau");
+      setError(e instanceof ApiError ? e.message : t("google.pmaxCleanup.undoError"));
     }
   }
 
@@ -184,14 +188,14 @@ export function CleanupPanel({ company }: { company: Company }) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h3 className="flex items-center gap-1.5 text-base font-extrabold text-slate-900">
-            <Tag className="h-4 w-4" aria-hidden="true" /> Dọn PMax cũ
+            <Tag className="h-4 w-4" aria-hidden="true" /> {t("google.pmaxCleanup.title")}
           </h3>
           <p className="mt-1 text-xs text-slate-500">
-            Chỉ gắn nhãn &quot;{data?.label ?? "AdsCommand · PMax cũ"}&quot; — không xoá chiến dịch; gỡ nhãn là hoàn tác.
+            {t("google.pmaxCleanup.introA")} &quot;{data?.label ?? "AdsCommand · PMax cũ"}&quot; {t("google.pmaxCleanup.introB")}
           </p>
         </div>
         <Button type="button" variant="outline" size="sm" className="h-9 bg-white" onClick={refresh} disabled={loading || reloading}>
-          {reloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />} Tải lại
+          {reloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />} {t("google.pmaxCleanup.reload")}
         </Button>
       </div>
 
@@ -206,23 +210,23 @@ export function CleanupPanel({ company }: { company: Company }) {
       ) : !data ? null : (
         <>
           {!data.canEdit && (
-            <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">🔒 Cần quyền sửa để gắn nhãn — xem được, không ghi được.</p>
+            <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">{t("google.pmaxCleanup.readOnly")}</p>
           )}
 
           {data.campaigns.length === 0 ? (
-            <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-6 text-center text-xs text-slate-400">Không có PMax nào đang tạm dừng.</p>
+            <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-6 text-center text-xs text-slate-400">{t("google.pmaxCleanup.empty")}</p>
           ) : (
             <div className="overflow-x-auto rounded-xl border border-slate-200">
               <table className="w-full min-w-[720px] text-xs">
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50 text-left text-slate-500">
                     <th className="w-8 px-2 py-2"></th>
-                    <th className="px-2 py-2 font-medium">Chiến dịch</th>
-                    <th className="px-2 py-2 font-medium">Bắt đầu</th>
-                    <th className="px-2 py-2 font-medium text-right">Chi 12 tháng</th>
-                    <th className="px-2 py-2 font-medium">Chi lần cuối</th>
-                    <th className="px-2 py-2 font-medium">Nhãn</th>
-                    <th className="px-2 py-2 font-medium">Lý do</th>
+                    <th className="px-2 py-2 font-medium">{t("google.pmaxCleanup.col.campaign")}</th>
+                    <th className="px-2 py-2 font-medium">{t("google.pmaxCleanup.col.started")}</th>
+                    <th className="px-2 py-2 font-medium text-right">{t("google.pmaxCleanup.col.spend12m")}</th>
+                    <th className="px-2 py-2 font-medium">{t("google.pmaxCleanup.col.lastSpend")}</th>
+                    <th className="px-2 py-2 font-medium">{t("google.pmaxCleanup.col.label")}</th>
+                    <th className="px-2 py-2 font-medium">{t("google.pmaxCleanup.col.reason")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -239,9 +243,9 @@ export function CleanupPanel({ company }: { company: Company }) {
                       <td className="px-2 py-2 text-slate-500">{c.lastSpendMonth ? c.lastSpendMonth.split("-").reverse().join("/") : "—"}</td>
                       <td className="px-2 py-2">
                         {c.labelled ? (
-                          <span className="whitespace-nowrap rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">Đã gắn nhãn</span>
+                          <span className="whitespace-nowrap rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">{t("google.pmaxCleanup.tagged")}</span>
                         ) : (
-                          <span className="whitespace-nowrap rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">Chưa gắn</span>
+                          <span className="whitespace-nowrap rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">{t("google.pmaxCleanup.untagged")}</span>
                         )}
                       </td>
                       <td className="px-2 py-2 text-slate-500">
@@ -258,17 +262,17 @@ export function CleanupPanel({ company }: { company: Company }) {
             <div className="space-y-2">
               <div className="flex flex-wrap items-center gap-2">
                 <Button type="button" variant="outline" size="sm" className="h-9 bg-white" onClick={doValidate} disabled={!selectedIds.length || validating}>
-                  {validating ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : null} Kiểm trước (không ghi)
+                  {validating ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : null} {t("google.pmaxCleanup.validate")}
                 </Button>
                 <Button
                   type="button" size="sm" className="h-9"
                   onClick={() => { setConfirmInput(""); setApplyErr(null); setApplyOpen(true); }}
                   disabled={!canApply}
-                  title={!canApply ? "Kiểm trước rồi mới áp dụng được" : undefined}
+                  title={!canApply ? t("google.pmaxCleanup.validateFirst") : undefined}
                 >
-                  Gắn nhãn{selectedIds.length > 0 ? ` (${selectedIds.length})` : ""}
+                  {t("google.pmaxCleanup.apply")}{selectedIds.length > 0 ? ` (${selectedIds.length})` : ""}
                 </Button>
-                {!selectedIds.length && <span className="text-[11px] text-slate-400">Chưa chọn chiến dịch nào</span>}
+                {!selectedIds.length && <span className="text-[11px] text-slate-400">{t("google.pmaxCleanup.noneSelected")}</span>}
               </div>
               {validateErr && <p className="text-xs text-red-600">{validateErr}</p>}
               {validateExec && <CleanupResultCard exec={validateExec} />}
@@ -279,7 +283,7 @@ export function CleanupPanel({ company }: { company: Company }) {
           {data.history.length > 0 && (
             <div>
               <button type="button" onClick={() => setHistoryOpen((o) => !o)} className="flex items-center gap-1 text-xs font-semibold text-slate-600 hover:text-slate-800">
-                {historyOpen ? <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" /> : <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />} Lịch sử gắn nhãn ({data.history.length})
+                {historyOpen ? <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" /> : <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />} {t("google.pmaxCleanup.history", { n: data.history.length })}
               </button>
               {historyOpen && (
                 <div className="mt-2 space-y-2">
@@ -294,24 +298,24 @@ export function CleanupPanel({ company }: { company: Company }) {
       <Dialog open={applyOpen} onOpenChange={(o) => { setApplyOpen(o); if (!o) setConfirmInput(""); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Gắn nhãn {selectedIds.length} chiến dịch trên tài khoản thật {company}?</DialogTitle>
-            <DialogDescription>Không xoá chiến dịch — chỉ gắn nhãn, gỡ nhãn là hoàn tác.</DialogDescription>
+            <DialogTitle>{t("google.pmaxCleanup.dlgTitle", { n: selectedIds.length, company })}</DialogTitle>
+            <DialogDescription>{t("google.pmaxCleanup.dlgDesc")}</DialogDescription>
           </DialogHeader>
           <ul className="max-h-56 space-y-1.5 overflow-y-auto rounded-lg border border-slate-100 bg-slate-50 p-2.5 text-xs">
             {data?.campaigns.filter((c) => selectedIds.includes(c.id)).map((c) => <li key={c.id} className="text-slate-700">{c.name}</li>)}
           </ul>
           <div className="space-y-1.5">
             <label htmlFor={confirmId} className="text-xs font-medium text-slate-500">
-              Gõ <code className="rounded bg-slate-100 px-1 py-0.5">{data?.confirmText}</code> để xác nhận
+              {t("google.pmaxCleanup.typeA")} <code className="rounded bg-slate-100 px-1 py-0.5">{data?.confirmText}</code> {t("google.pmaxCleanup.typeB")}
             </label>
             <Input id={confirmId} value={confirmInput} onChange={(e) => setConfirmInput(e.target.value)} placeholder={data?.confirmText} autoComplete="off" className="h-10" />
           </div>
           {applyErr && <p className="text-xs text-red-600">{applyErr}</p>}
           {writeExec && writeExec.status !== "done" && <CleanupResultCard exec={writeExec} />}
           <DialogFooter>
-            <DialogClose render={<Button className="h-10" variant="outline" />}>Huỷ</DialogClose>
+            <DialogClose render={<Button className="h-10" variant="outline" />}>{t("google.pmaxCleanup.cancel")}</DialogClose>
             <Button className="h-10" onClick={doApply} disabled={applying || confirmInput.trim() !== (data?.confirmText ?? "")}>
-              {applying && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} Ghi thật
+              {applying && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} {t("google.pmaxCleanup.write")}
             </Button>
           </DialogFooter>
         </DialogContent>

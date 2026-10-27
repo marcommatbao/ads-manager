@@ -13,6 +13,8 @@ import { cn } from "@/lib/utils";
 import { BUILTIN_AD_CHANNELS, OTHER_CHANNEL, channelLabel, type AdChannelDef } from "@/lib/settings/ad-channels-def";
 import type { MonthActual, KpiActualsResponse } from "@/app/api/dashboard/kpi-actuals/route";
 import { KpiAnalysisPanel } from "@/components/dashboard/KpiAnalysisPanel";
+import { useIntlLocale, useT } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/messages";
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -34,11 +36,11 @@ const emptyMonth = (chs: AdChannelDef[]): MonthKpi => ({
 });
 
 const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
-const QUARTERS = [
-  { label: "QUÝ I", months: [1, 2, 3] },
-  { label: "QUÝ II", months: [4, 5, 6] },
-  { label: "QUÝ III", months: [7, 8, 9] },
-  { label: "QUÝ IV", months: [10, 11, 12] },
+const QUARTERS: { label: MessageKey; months: number[] }[] = [
+  { label: "overview.kpiov.q1", months: [1, 2, 3] },
+  { label: "overview.kpiov.q2", months: [4, 5, 6] },
+  { label: "overview.kpiov.q3", months: [7, 8, 9] },
+  { label: "overview.kpiov.q4", months: [10, 11, 12] },
 ];
 
 // Chỉ các khoá SỐ — keyof MonthKpi giờ kéo theo cả hai bảng kênh, mà bảng kênh
@@ -47,7 +49,7 @@ type Field = "revenueMbc" | "adSpendMbc" | "adSpendMbi" | "ordersMbi";
 
 interface RowDef {
   field: Field;
-  label: string;
+  label: MessageKey;
   money: boolean;
   higherIsBetter: boolean; // true: doanh thu/đơn (càng cao càng tốt) | false: chi phí (vượt = xấu)
   actual: (m: MonthActual | null) => number | null;
@@ -66,30 +68,31 @@ interface RowDef {
 }
 
 const ROWS: RowDef[] = [
-  { field: "revenueMbc", label: "Doanh thu MBC", money: true, higherIsBetter: true, actual: m => m ? m.mbc.revenue : null, sourceError: m => !!m?.mbc.revenueSourceError },
+  { field: "revenueMbc", label: "overview.kpiov.row.revenueMbc", money: true, higherIsBetter: true, actual: m => m ? m.mbc.revenue : null, sourceError: m => !!m?.mbc.revenueSourceError },
   // note: phần chi phí do người khai tay (TikTok/Zalo…) — hiện tách bạch để
   // không ai nhầm nó là số hệ thống đo được qua API.
-  { field: "adSpendMbc", label: "Chi QC MBC", money: true, higherIsBetter: false, actual: m => m ? m.mbc.totalSpend : null,
+  { field: "adSpendMbc", label: "overview.kpiov.row.adSpendMbc", money: true, higherIsBetter: false, actual: m => m ? m.mbc.totalSpend : null,
     manual: m => m?.mbc.spendManual ?? 0, manualLabels: m => (m?.mbc.manualBreakdown ?? []).map(b => b.label),
     sourceError: m => !!m?.mbc.googleSpendError || !!m?.mbc.facebookSpendError,
     channelBudget: t => t?.adSpendMbcByChannel, channelActual: m => m?.mbc.spendByChannel,
     channelUnavailable: (m, ch) =>
       (ch === "google" && !!m?.mbc.googleSpendError) || (ch === "facebook" && !!m?.mbc.facebookSpendError) },
-  { field: "adSpendMbi", label: "Chi QC MBI", money: true, higherIsBetter: false, actual: m => m ? m.mbi.totalSpend : null,
+  { field: "adSpendMbi", label: "overview.kpiov.row.adSpendMbi", money: true, higherIsBetter: false, actual: m => m ? m.mbi.totalSpend : null,
     manual: m => m?.mbi.spendManual ?? 0, manualLabels: m => (m?.mbi.manualBreakdown ?? []).map(b => b.label),
     sourceError: m => !!m?.mbi.googleSpendError || !!m?.mbi.facebookSpendError,
     channelBudget: t => t?.adSpendMbiByChannel, channelActual: m => m?.mbi.spendByChannel,
     channelUnavailable: (m, ch) =>
       (ch === "google" && !!m?.mbi.googleSpendError) || (ch === "facebook" && !!m?.mbi.facebookSpendError) },
-  { field: "ordersMbi", label: "Đơn hàng MBI", money: false, higherIsBetter: true, actual: m => m ? m.mbi.orders : null, sourceError: m => !!m?.mbi.ordersSourceError },
+  { field: "ordersMbi", label: "overview.kpiov.row.ordersMbi", money: false, higherIsBetter: true, actual: m => m ? m.mbi.orders : null, sourceError: m => !!m?.mbi.ordersSourceError },
 ];
 
 // ── Formatters ────────────────────────────────────────────────
 
-const fmt = (v: number) => v.toLocaleString("vi-VN");
-
-function fmtVal(v: number, money: boolean): string {
-  return money ? `${fmt(v)}đ` : fmt(v);
+// Định dạng số theo ngôn ngữ đang chọn (vi-VN: 1.234.567đ).
+function makeFmt(loc: string) {
+  const fmt = (v: number) => v.toLocaleString(loc);
+  const fmtVal = (v: number, money: boolean): string => (money ? `${fmt(v)}đ` : fmt(v));
+  return { fmt, fmtVal };
 }
 
 function fmtPct(v: number | null): string {
@@ -99,8 +102,9 @@ function fmtPct(v: number | null): string {
 // ── % badge — mirror kpiLine() màu trong lib/finance/kpi-report.ts ─
 
 function PctBadge({ actual, target, higherIsBetter }: { actual: number | null; target: number; higherIsBetter: boolean }) {
+  const t = useT();
   if (actual === null) return <span className="text-slate-300">—</span>;
-  if (!target || target <= 0) return <span className="text-slate-300 text-[10px]">chưa đặt KPI</span>;
+  if (!target || target <= 0) return <span className="text-slate-300 text-[10px]">{t("overview.kpiov.noKpi")}</span>;
   const pct = Math.round((actual / target) * 100);
   const tone = higherIsBetter
     ? pct >= 100 ? "text-emerald-600 bg-emerald-50" : pct >= 80 ? "text-amber-600 bg-amber-50" : "text-red-500 bg-red-50"
@@ -115,15 +119,17 @@ function PctBadge({ actual, target, higherIsBetter }: { actual: number | null; t
 // ── Monthly Kế hoạch vs Thực tế chart ────────────────────────
 
 function KpiMetricChart({ row, targets, actuals }: { row: RowDef; targets: MonthKpi[]; actuals: (MonthActual | null)[] }) {
+  const t = useT();
+  const { fmtVal } = makeFmt(useIntlLocale());
   const data = MONTHS.map((m, i) => ({
-    label: `T${m}`,
-    "Kế hoạch": targets[i]?.[row.field] ?? 0,
-    "Thực tế": actuals[i] ? row.actual(actuals[i]) ?? 0 : null,
+    label: t("overview.kpiov.monthShort", { m }),
+    plan: targets[i]?.[row.field] ?? 0,
+    actual: actuals[i] ? row.actual(actuals[i]) ?? 0 : null,
   }));
 
   return (
     <div className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
-      <p className="text-xs font-semibold text-slate-600 mb-2">{row.label}</p>
+      <p className="text-xs font-semibold text-slate-600 mb-2">{t(row.label)}</p>
       <ResponsiveContainer width="100%" height={160}>
         <BarChart data={data} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
           <XAxis dataKey="label" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} />
@@ -135,8 +141,8 @@ function KpiMetricChart({ row, targets, actuals }: { row: RowDef; targets: Month
             contentStyle={{ fontSize: 10, borderRadius: 8 }}
           />
           <Legend wrapperStyle={{ fontSize: 10 }} />
-          <Bar dataKey="Kế hoạch" fill="#94a3b8" radius={[3, 3, 0, 0]} />
-          <Bar dataKey="Thực tế" fill={row.higherIsBetter ? "#3b82f6" : "#f97316"} radius={[3, 3, 0, 0]} />
+          <Bar dataKey="plan" name={t("overview.kpiov.plan")} fill="#94a3b8" radius={[3, 3, 0, 0]} />
+          <Bar dataKey="actual" name={t("overview.kpiov.actual")} fill={row.higherIsBetter ? "#3b82f6" : "#f97316"} radius={[3, 3, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>
@@ -146,6 +152,8 @@ function KpiMetricChart({ row, targets, actuals }: { row: RowDef; targets: Month
 // ── Main ──────────────────────────────────────────────────────
 
 export function KpiOverviewTab() {
+  const t = useT();
+  const { fmt, fmtVal } = makeFmt(useIntlLocale());
   const now = new Date().getFullYear();
   const [year, setYear] = useState(now);
   const [channels, setChannels] = useState<AdChannelDef[]>(BUILTIN_AD_CHANNELS);
@@ -165,7 +173,7 @@ export function KpiOverviewTab() {
     fetch(`/api/settings/kpi?year=${year}`)
       .then(r => r.json())
       .then(json => {
-        if (!json.success) throw new Error(json.error ?? "Lỗi tải mục tiêu KPI");
+        if (!json.success) throw new Error(json.error ?? t("overview.kpiov.loadTargetsError"));
         const chs: AdChannelDef[] = Array.isArray(json.channels) && json.channels.length > 0 ? json.channels : BUILTIN_AD_CHANNELS;
         setChannels(chs);
         // 12/10: so với trần THỰC TẾ (cố định + khoản chi bổ sung) — server đã cộng sẵn ở effectiveMonths.
@@ -178,19 +186,19 @@ export function KpiOverviewTab() {
           adSpendMbiByChannel: { ...emptyChannels(chs), ...(m.adSpendMbiByChannel ?? {}) },
         })));
       })
-      .catch(err => setError(err instanceof Error ? err.message : "Lỗi tải mục tiêu KPI"))
+      .catch(err => setError(err instanceof Error ? err.message : t("overview.kpiov.loadTargetsError")))
       .finally(() => setLoadingTargets(false));
 
     setLoadingActuals(true);
     fetch(`/api/dashboard/kpi-actuals?year=${year}`)
       .then(r => r.json() as Promise<KpiActualsResponse>)
       .then(json => {
-        if (!json.success) throw new Error("Lỗi tải dữ liệu thực tế");
+        if (!json.success) throw new Error(t("overview.kpiov.loadActualsError"));
         setActuals(json.months);
       })
-      .catch(err => setError(err instanceof Error ? err.message : "Lỗi tải dữ liệu thực tế"))
+      .catch(err => setError(err instanceof Error ? err.message : t("overview.kpiov.loadActualsError")))
       .finally(() => setLoadingActuals(false));
-  }, [year]);
+  }, [year, t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -275,9 +283,9 @@ export function KpiOverviewTab() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex-1 min-w-0">
-          <h2 className="text-lg font-bold text-slate-800">KPI Tổng Quan — Kế hoạch vs Thực tế</h2>
+          <h2 className="text-lg font-bold text-slate-800">{t("overview.kpiov.title")}</h2>
           <p className="text-sm text-slate-500">
-            Mục tiêu lấy từ Settings → KPI · Thực tế lấy trực tiếp từ Meta/Google Ads + Odoo (live).
+            {t("overview.kpiov.subtitle")}
           </p>
         </div>
         <select
@@ -285,13 +293,13 @@ export function KpiOverviewTab() {
           onChange={e => setYear(Number(e.target.value))}
           className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-amber-400"
         >
-          {[now - 1, now, now + 1].map(y => <option key={y} value={y}>Năm {y}</option>)}
+          {[now - 1, now, now + 1].map(y => <option key={y} value={y}>{t("overview.kpiov.year", { y })}</option>)}
         </select>
         <button
           onClick={load}
           disabled={loading}
           className="p-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 disabled:opacity-50"
-          title="Làm mới dữ liệu"
+          title={t("overview.kpiov.refresh")}
         >
           <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
         </button>
@@ -314,16 +322,16 @@ export function KpiOverviewTab() {
           <table className="w-full border-collapse text-sm min-w-[1980px]">
             <thead>
               <tr>
-                <th className="sticky left-0 z-10 bg-slate-800 text-white text-left px-3 py-2 text-xs font-semibold">Chỉ tiêu</th>
+                <th className="sticky left-0 z-10 bg-slate-800 text-white text-left px-3 py-2 text-xs font-semibold">{t("overview.kpiov.colMetric")}</th>
                 {QUARTERS.map(q => (
-                  <th key={q.label} colSpan={3} className="bg-amber-400 text-slate-900 px-2 py-1.5 text-xs font-bold text-center border-l border-white">{q.label}</th>
+                  <th key={q.months[0]} colSpan={3} className="bg-amber-400 text-slate-900 px-2 py-1.5 text-xs font-bold text-center border-l border-white">{t(q.label)}</th>
                 ))}
-                <th className="bg-amber-500 text-slate-900 px-2 py-1.5 text-xs font-bold text-center border-l-2 border-white whitespace-nowrap">CẢ NĂM</th>
+                <th className="bg-amber-500 text-slate-900 px-2 py-1.5 text-xs font-bold text-center border-l-2 border-white whitespace-nowrap">{t("overview.kpiov.fullYear")}</th>
               </tr>
               <tr>
-                <th className="sticky left-0 z-10 bg-slate-700 text-white text-left px-3 py-1.5 text-[11px] font-semibold">DT Quý (MBC) KH / TT →</th>
+                <th className="sticky left-0 z-10 bg-slate-700 text-white text-left px-3 py-1.5 text-[11px] font-semibold">{t("overview.kpiov.quarterRevenueRow")}</th>
                 {QUARTERS.map(q => (
-                  <th key={q.label} colSpan={3} className="bg-blue-50 text-blue-700 px-2 py-1.5 text-[11px] font-bold text-center tabular-nums border-l border-white">
+                  <th key={q.months[0]} colSpan={3} className="bg-blue-50 text-blue-700 px-2 py-1.5 text-[11px] font-bold text-center tabular-nums border-l border-white">
                     <div>{fmt(quarterTarget(q.months))}đ</div>
                     <div className="text-emerald-600 font-semibold">{fmt(quarterActual(q.months))}đ</div>
                   </th>
@@ -334,15 +342,15 @@ export function KpiOverviewTab() {
                 </th>
               </tr>
               <tr>
-                <th className="sticky left-0 z-10 bg-slate-100 text-slate-500 text-left px-3 py-1.5 text-[11px]">Tháng</th>
+                <th className="sticky left-0 z-10 bg-slate-100 text-slate-500 text-left px-3 py-1.5 text-[11px]">{t("overview.kpiov.colMonth")}</th>
                 {MONTHS.map(m => (
-                  <th key={m} className={cn("px-2 py-1.5 text-[11px] font-semibold text-slate-500 text-center", m % 3 === 1 && "border-l border-slate-200")}>T{m}</th>
+                  <th key={m} className={cn("px-2 py-1.5 text-[11px] font-semibold text-slate-500 text-center", m % 3 === 1 && "border-l border-slate-200")}>{t("overview.kpiov.monthShort", { m })}</th>
                 ))}
                 <th
                   className="px-2 py-1.5 text-[10px] font-semibold text-slate-500 text-center border-l-2 border-slate-300 whitespace-nowrap"
-                  title="Kế hoạch cộng đủ 12 tháng. Thực tế chỉ cộng những tháng đã có số — tháng chưa tới không tính là 0đ."
+                  title={t("overview.kpiov.yearColHint")}
                 >
-                  KH 12 tháng · TT {monthsWithData} tháng
+                  {t("overview.kpiov.yearColLabel", { n: monthsWithData })}
                 </th>
               </tr>
             </thead>
@@ -356,13 +364,13 @@ export function KpiOverviewTab() {
                           type="button"
                           onClick={() => setOpenChannels(o => ({ ...o, [row.field]: !o[row.field] }))}
                           className="inline-flex items-center gap-1 hover:text-amber-600"
-                          title={openChannels[row.field] ? "Thu gọn các kênh" : "Xem tách theo kênh"}
+                          title={openChannels[row.field] ? t("overview.kpiov.collapseChannels") : t("overview.kpiov.expandChannels")}
                         >
                           {openChannels[row.field] ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-                          {row.label}
+                          {t(row.label)}
                         </button>
-                      ) : row.label}{" "}
-                      <span className="text-slate-400 font-normal">— Kế hoạch</span>
+                      ) : t(row.label)}{" "}
+                      <span className="text-slate-400 font-normal">{t("overview.kpiov.dashPlan")}</span>
                     </td>
                     {MONTHS.map((m, i) => (
                       <td key={m} className={cn("px-2 py-1.5 text-right text-xs text-slate-600 tabular-nums whitespace-nowrap", m % 3 === 1 && "border-l border-slate-200")}>
@@ -375,7 +383,7 @@ export function KpiOverviewTab() {
                   </tr>
                   <tr className="bg-slate-50/60">
                     <td className="sticky left-0 z-10 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 whitespace-nowrap">
-                      <span className="pl-2">↳ Thực tế</span>
+                      <span className="pl-2">{t("overview.kpiov.arrowActual")}</span>
                     </td>
                     {MONTHS.map((m, i) => {
                       const a = actuals[i];
@@ -389,13 +397,13 @@ export function KpiOverviewTab() {
                             {hasSourceError && (
                               <AlertTriangle
                                 className="h-3 w-3 text-amber-500 shrink-0"
-                                aria-label="Không lấy được dữ liệu thật — Report API lỗi/timeout"
+                                aria-label={t("overview.kpiov.sourceErrorLabel")}
                               />
                             )}
                             {val === null ? <span className="text-slate-300">—</span> : fmtVal(val, row.money)}
                           </div>
                           {hasSourceError ? (
-                            <span className="text-[10px] text-amber-600 font-semibold">lỗi dữ liệu</span>
+                            <span className="text-[10px] text-amber-600 font-semibold">{t("overview.kpiov.dataError")}</span>
                           ) : (
                             <PctBadge actual={val} target={targets[i]?.[row.field] ?? 0} higherIsBetter={row.higherIsBetter} />
                           )}
@@ -404,7 +412,7 @@ export function KpiOverviewTab() {
                           {manualPart > 0 && (
                             <div
                               className="text-[10px] text-blue-600"
-                              title={`Gồm ${fmtVal(manualPart, true)} nhập tay${manualLabels.length ? ` (${manualLabels.join(", ")})` : ""}`}
+                              title={`${t("overview.kpiov.includesManual", { amount: fmtVal(manualPart, true) })}${manualLabels.length ? ` (${manualLabels.join(", ")})` : ""}`}
                             >
                               ✍️ {fmtVal(manualPart, true)}
                             </div>
@@ -427,9 +435,9 @@ export function KpiOverviewTab() {
                           {missing > 0 ? (
                             <span
                               className="text-[10px] font-semibold text-amber-600"
-                              title="Có tháng không lấy được số — tổng năm này đang thiếu, nên không chấm phần trăm"
+                              title={t("overview.kpiov.yearMissingHint")}
                             >
-                              thiếu {missing} tháng
+                              {t("overview.kpiov.missingMonths", { n: missing })}
                             </span>
                           ) : (
                             <PctBadge actual={val} target={yearTarget(row.field)} higherIsBetter={row.higherIsBetter} />
@@ -452,9 +460,9 @@ export function KpiOverviewTab() {
                             {isManualChannel(ch) && (
                               <span
                                 className="ml-1 text-[9px] text-amber-600"
-                                title="Không có API — chi phí do người khai ở Settings → Chi phí kênh khác"
+                                title={t("overview.kpiov.channel.manualHint")}
                               >
-                                (nhập tay)
+                                {t("overview.kpiov.channel.manual")}
                               </span>
                             )}
                           </td>
@@ -470,15 +478,15 @@ export function KpiOverviewTab() {
                                   {val === null ? (
                                     <span
                                       className={cn("font-normal", unavailable ? "text-amber-500" : "text-slate-300")}
-                                      title={unavailable ? "Không lấy được chi phí kênh này — không phải tiêu 0đ" : undefined}
+                                      title={unavailable ? t("overview.kpiov.channel.unavailableHint") : undefined}
                                     >
                                       {unavailable ? "⚠ —" : "—"}
                                     </span>
                                   ) : fmtVal(val, true)}
                                 </div>
                                 {target > 0 && (
-                                  <div className="text-[9px] text-slate-400" title={`Trần kênh tháng ${m}`}>
-                                    trần {fmtVal(target, true)}
+                                  <div className="text-[9px] text-slate-400" title={t("overview.kpiov.channel.monthCapHint", { m })}>
+                                    {t("overview.kpiov.channel.cap", { amount: fmtVal(target, true) })}
                                   </div>
                                 )}
                               </td>
@@ -492,12 +500,12 @@ export function KpiOverviewTab() {
                               {yActual === null ? <span className="text-slate-300 font-normal">—</span> : fmtVal(yActual, true)}
                             </div>
                             {ySkipped > 0 && (
-                              <div className="text-[9px] text-amber-600" title="Những tháng không lấy được chi phí đã bị loại khỏi tổng này">
-                                thiếu {ySkipped} tháng
+                              <div className="text-[9px] text-amber-600" title={t("overview.kpiov.channel.skippedHint")}>
+                                {t("overview.kpiov.missingMonths", { n: ySkipped })}
                               </div>
                             )}
                             {yTarget > 0 && (
-                              <div className="text-[9px] text-slate-400">trần {fmtVal(yTarget, true)}</div>
+                              <div className="text-[9px] text-slate-400">{t("overview.kpiov.channel.cap", { amount: fmtVal(yTarget, true) })}</div>
                             )}
                           </td>
                         </tr>
@@ -509,7 +517,7 @@ export function KpiOverviewTab() {
               {/* Tổng Chi QC (auto) */}
               <tr className="border-t border-slate-200 bg-violet-50/40">
                 <td className="sticky left-0 z-10 bg-violet-50 px-3 py-2 text-xs font-bold text-violet-700 whitespace-nowrap">
-                  Tổng Chi QC (auto) <span className="font-normal text-violet-400">— Kế hoạch</span>
+                  {t("overview.kpiov.totalAdSpend")} <span className="font-normal text-violet-400">{t("overview.kpiov.dashPlan")}</span>
                 </td>
                 {MONTHS.map((m, i) => (
                   <td key={m} className={cn("px-2 py-2 text-right text-xs font-bold text-violet-700 tabular-nums whitespace-nowrap", m % 3 === 1 && "border-l border-slate-200")}>
@@ -522,7 +530,7 @@ export function KpiOverviewTab() {
               </tr>
               <tr className="bg-violet-50/70">
                 <td className="sticky left-0 z-10 bg-violet-50 px-3 py-2 text-xs font-bold text-violet-700 whitespace-nowrap">
-                  <span className="pl-2">↳ Thực tế</span>
+                  <span className="pl-2">{t("overview.kpiov.arrowActual")}</span>
                 </td>
                 {MONTHS.map((m, i) => {
                   const val = totalAdSpendActual(i);
@@ -538,8 +546,8 @@ export function KpiOverviewTab() {
                     <td className="px-2 py-2 text-right text-xs font-bold text-violet-800 tabular-nums whitespace-nowrap border-l-2 border-slate-300 bg-violet-100/80">
                       {val === null ? <span className="text-slate-300 font-normal">—</span> : fmtVal(val, true)}
                       {monthsMissingSpend > 0 && (
-                        <div className="text-[9px] font-semibold text-amber-600" title="Có tháng không lấy được chi phí — tổng này đang thiếu">
-                          thiếu {monthsMissingSpend} tháng
+                        <div className="text-[9px] font-semibold text-amber-600" title={t("overview.kpiov.totalMissingHint")}>
+                          {t("overview.kpiov.missingMonths", { n: monthsMissingSpend })}
                         </div>
                       )}
                     </td>
@@ -550,7 +558,7 @@ export function KpiOverviewTab() {
               {/* Tỉ lệ Chi QC / Doanh thu (MBC, auto) */}
               <tr className="border-t border-slate-200 bg-teal-50/40">
                 <td className="sticky left-0 z-10 bg-teal-50 px-3 py-2 text-xs font-bold text-teal-700 whitespace-nowrap">
-                  Tỉ lệ QC/DT (MBC, auto) <span className="font-normal text-teal-400">— Kế hoạch</span>
+                  {t("overview.kpiov.adRatio")} <span className="font-normal text-teal-400">{t("overview.kpiov.dashPlan")}</span>
                 </td>
                 {MONTHS.map((m, i) => (
                   <td key={m} className={cn("px-2 py-2 text-right text-xs font-bold text-teal-700 tabular-nums whitespace-nowrap", m % 3 === 1 && "border-l border-slate-200")}>
@@ -563,7 +571,7 @@ export function KpiOverviewTab() {
               </tr>
               <tr className="bg-teal-50/70">
                 <td className="sticky left-0 z-10 bg-teal-50 px-3 py-2 text-xs font-bold text-teal-700 whitespace-nowrap">
-                  <span className="pl-2">↳ Thực tế</span>
+                  <span className="pl-2">{t("overview.kpiov.arrowActual")}</span>
                 </td>
                 {MONTHS.map((m, i) => {
                   const val = ratioActual(i);
@@ -576,8 +584,8 @@ export function KpiOverviewTab() {
                 <td className="px-2 py-2 text-right text-xs font-bold text-teal-800 tabular-nums whitespace-nowrap border-l-2 border-slate-300 bg-teal-100/80">
                   {fmtPct(yearRatioActual())}
                   {monthsMissingSpend > 0 && (
-                    <div className="text-[9px] font-semibold text-amber-600" title="Tử số (chi phí) đang thiếu vài tháng nên tỉ lệ này thấp hơn thực tế">
-                      thiếu {monthsMissingSpend} tháng
+                    <div className="text-[9px] font-semibold text-amber-600" title={t("overview.kpiov.ratioMissingHint")}>
+                      {t("overview.kpiov.missingMonths", { n: monthsMissingSpend })}
                     </div>
                   )}
                 </td>

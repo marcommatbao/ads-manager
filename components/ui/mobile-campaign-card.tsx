@@ -12,6 +12,7 @@ import {
 } from "@/components/CampaignTable";
 import PlatformBadge from "@/components/PlatformBadge";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 import { BarChart2, Edit2, MoreHorizontal } from "lucide-react";
 
 interface MobileCampaignCardProps {
@@ -22,6 +23,7 @@ interface MobileCampaignCardProps {
 }
 
 export function MobileCampaignCard({ campaign, currency, onViewDetails, onEditBudget }: MobileCampaignCardProps) {
+  const t = useT();
   const c = campaign;
   const m = c.metrics;
   const company = c.company ?? detectCompany(c.name, c.accountName);
@@ -79,25 +81,25 @@ export function MobileCampaignCard({ campaign, currency, onViewDetails, onEditBu
         <div className="grid grid-cols-3 gap-y-3 gap-x-2 text-sm">
           {/* Row 1 */}
           <div>
-            <p className="text-[11px] font-medium text-slate-400 mb-0.5">Spend</p>
+            <p className="text-[11px] font-medium text-slate-400 mb-0.5">{t("creative.ui.spend")}</p>
             <p className="font-semibold text-slate-700">{fmtSpend(spend, currency)}</p>
           </div>
           <div>
-            <p className="text-[11px] font-medium text-slate-400 mb-0.5">CTR</p>
+            <p className="text-[11px] font-medium text-slate-400 mb-0.5">{t("creative.ui.ctr")}</p>
             <p className="font-semibold text-slate-700">{ctr.toFixed(2)}%</p>
           </div>
           <div>
-            <p className="text-[11px] font-medium text-slate-400 mb-0.5">CPC</p>
+            <p className="text-[11px] font-medium text-slate-400 mb-0.5">{t("creative.ui.cpc")}</p>
             <p className="font-semibold text-slate-700">{fmtCurrency(cpc, currency)}</p>
           </div>
 
           {/* Row 2 */}
           <div>
-            <p className="text-[11px] font-medium text-slate-400 mb-0.5">Leads</p>
+            <p className="text-[11px] font-medium text-slate-400 mb-0.5">{t("creative.ui.leads")}</p>
             <p className="font-semibold text-slate-700">{fmtNumber(leads)}</p>
           </div>
           <div className="col-span-2">
-            <p className="text-[11px] font-medium text-slate-400 mb-0.5">CPL</p>
+            <p className="text-[11px] font-medium text-slate-400 mb-0.5">{t("creative.ui.cpl")}</p>
             <p className="font-semibold text-slate-700">
               {healthEmoji} {fmtCurrency(cpl, currency)}
             </p>
@@ -111,13 +113,13 @@ export function MobileCampaignCard({ campaign, currency, onViewDetails, onEditBu
           onClick={() => onViewDetails(c.id, c.platform)}
           className="flex-1 flex items-center justify-center gap-1.5 h-9 rounded-lg bg-amber-50 text-amber-700 text-[13px] font-medium hover:bg-amber-100 transition-colors"
         >
-          <BarChart2 className="w-4 h-4" /> Chi tiết
+          <BarChart2 className="w-4 h-4" /> {t("creative.ui.details")}
         </button>
         <button
           onClick={() => onEditBudget(c)}
           className="flex-1 flex items-center justify-center gap-1.5 h-9 rounded-lg border border-slate-200 text-slate-600 text-[13px] font-medium hover:bg-slate-50 transition-colors"
         >
-          <Edit2 className="w-4 h-4" /> Budget
+          <Edit2 className="w-4 h-4" /> {t("creative.ui.budget")}
         </button>
         <button
           className="flex items-center justify-center w-9 h-9 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors ml-auto shrink-0"

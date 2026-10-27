@@ -7,6 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { useSession } from "@/components/SessionProvider";
 import { orderedCompanyIds } from "@/lib/companies/registry";
+import { useIntlLocale, useT } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/messages";
 
 type SegmentType = "device" | "location" | "adschedule";
 type Company = string;
@@ -30,10 +32,10 @@ interface ApiResponse {
   error?: string;
 }
 
-const SEGMENTS: { key: SegmentType; label: string; icon: typeof Monitor; desc: string }[] = [
-  { key: "device",     label: "Thiết bị",     icon: Monitor,  desc: "Hiệu suất theo Mobile / Desktop / Tablet" },
-  { key: "location",   label: "Vị trí",       icon: MapPin,   desc: "Hiệu suất theo địa điểm người dùng" },
-  { key: "adschedule", label: "Lịch quảng cáo", icon: Calendar, desc: "Hiệu suất theo ngày trong tuần" },
+const SEGMENTS: { key: SegmentType; label: MessageKey; icon: typeof Monitor; desc: MessageKey }[] = [
+  { key: "device",     label: "google.segments.device",     icon: Monitor,  desc: "google.segments.deviceDesc" },
+  { key: "location",   label: "google.segments.location",       icon: MapPin,   desc: "google.segments.locationDesc" },
+  { key: "adschedule", label: "google.segments.adschedule", icon: Calendar, desc: "google.segments.adscheduleDesc" },
 ];
 
 function formatVND(v: number) {
@@ -43,6 +45,8 @@ function formatVND(v: number) {
 }
 
 function BarRow({ row, max, rank }: { row: SegmentRow; max: number; rank: number }) {
+  const t = useT();
+  const loc = useIntlLocale();
   const barW = max > 0 ? (row.spend / max) * 100 : 0;
   const rankColor = rank === 1 ? "text-amber-500" : rank === 2 ? "text-slate-400" : rank === 3 ? "text-amber-700/70" : "text-slate-300";
 
@@ -62,10 +66,10 @@ function BarRow({ row, max, rank }: { row: SegmentRow; max: number; rank: number
         <div className="h-2 rounded-full bg-amber-500 transition-all" style={{ width: `${barW}%` }} />
       </div>
       <div className="flex items-center gap-4 text-[11px] text-slate-400">
-        <span>{row.clicks.toLocaleString("vi-VN")} clicks</span>
+        <span>{t("google.segments.clicks", { n: row.clicks.toLocaleString(loc) })}</span>
         {row.ctr != null && <span>CTR: {row.ctr}%</span>}
         <span className="text-emerald-600 font-medium">
-          {row.conversions > 0 ? `${row.conversions} conv` : "0 conv"}
+          {row.conversions > 0 ? t("google.segments.conv", { n: row.conversions }) : t("google.segments.conv", { n: 0 })}
         </span>
         {row.cpl != null && (
           <span className="text-amber-600">CPL: {formatVND(row.cpl)}</span>
@@ -76,6 +80,7 @@ function BarRow({ row, max, rank }: { row: SegmentRow; max: number; rank: number
 }
 
 export default function SegmentsPage() {
+  const t = useT();
   const [company, setCompany]   = useState<Company>(() => orderedCompanyIds(["MBC"])[0] ?? "MBC"); // Đợt 25: công ty theo bản cài (bản Mắt Bão y như cũ)
   // Chỉ hiện công ty người này được xem. Trước đây nút bấm cứng cả MBC lẫn MBI,
   // nên người chỉ có quyền một bên vẫn thấy nút bên kia và bấm vào là nhận 403.
@@ -103,14 +108,14 @@ export default function SegmentsPage() {
     try {
       const res  = await fetch(`/api/google/toolkit/segments?company=${company}&segment=${segment}`);
       const json = await res.json() as ApiResponse;
-      if (!json.success) throw new Error(json.error || "Lỗi tải dữ liệu");
+      if (!json.success) throw new Error(json.error || t("google.segments.loadError"));
       setData(json);
     } catch (e: any) {
       setError(e.message);
     } finally {
       setLoading(false);
     }
-  }, [company, segment]);
+  }, [company, segment, t]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -127,8 +132,8 @@ export default function SegmentsPage() {
             <Target className="h-5 w-5 text-indigo-600" />
           </div>
           <div>
-            <h1 className="text-xl font-semibold text-slate-800">Phân tích phân khúc</h1>
-            <p className="text-sm text-slate-500">Hiệu suất theo thiết bị, vị trí, lịch chạy — cơ sở để điều chỉnh bid</p>
+            <h1 className="text-xl font-semibold text-slate-800">{t("google.segments.title")}</h1>
+            <p className="text-sm text-slate-500">{t("google.segments.subtitle")}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -157,13 +162,13 @@ export default function SegmentsPage() {
                 : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
             )}>
             <s.icon className="h-4 w-4" />
-            {s.label}
+            {t(s.label)}
           </button>
         ))}
       </div>
 
       {/* Period note */}
-      <p className="text-xs text-slate-400">Dữ liệu 30 ngày gần nhất — {meta.desc}</p>
+      <p className="text-xs text-slate-400">{t("google.segments.period", { desc: t(meta.desc) })}</p>
 
       {loading ? (
         <div className="flex items-center justify-center min-h-[30vh]">
@@ -173,13 +178,13 @@ export default function SegmentsPage() {
         <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-center">
           <AlertTriangle className="h-8 w-8 text-red-400 mx-auto mb-2" />
           <p className="text-sm font-semibold text-red-700">{error}</p>
-          <p className="text-xs text-red-500 mt-1">Kiểm tra kết nối Google Ads trong Settings</p>
+          <p className="text-xs text-red-500 mt-1">{t("google.segments.checkConn")}</p>
         </div>
       ) : rows.length === 0 ? (
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-10 text-center">
           <Target className="h-10 w-10 text-slate-300 mx-auto mb-3" />
-          <p className="text-sm font-semibold text-slate-500">Không có dữ liệu</p>
-          <p className="text-xs text-slate-400 mt-1">Tài khoản {company} chưa có data cho phân khúc này trong 30 ngày qua.</p>
+          <p className="text-sm font-semibold text-slate-500">{t("google.segments.noData")}</p>
+          <p className="text-xs text-slate-400 mt-1">{t("google.segments.noDataDesc", { company })}</p>
         </div>
       ) : (
         <Card className="border border-slate-200 bg-white shadow-sm rounded-xl">
@@ -187,11 +192,11 @@ export default function SegmentsPage() {
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2">
                 <meta.icon className="h-4 w-4 text-indigo-500" />
-                {meta.label} — {company}
+                {t(meta.label)} — {company}
               </CardTitle>
               {data && (
                 <span className="text-xs text-slate-400">
-                  Tổng chi: {formatVND(data.totalSpend)}
+                  {t("google.segments.totalSpend", { amount: formatVND(data.totalSpend) })}
                 </span>
               )}
             </div>
@@ -207,22 +212,22 @@ export default function SegmentsPage() {
       {/* Bid adjustment tips */}
       {rows.length > 0 && !loading && (
         <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 p-4 space-y-2">
-          <p className="text-sm font-semibold text-indigo-800">Gợi ý điều chỉnh bid</p>
+          <p className="text-sm font-semibold text-indigo-800">{t("google.segments.tipsTitle")}</p>
           <ul className="text-xs text-indigo-700 space-y-1 list-disc list-inside">
             {rows[0] && (
               <li>
-                <span className="font-semibold">{rows[0].label}</span> chiếm {rows[0].pctSpend}% chi tiêu
-                {rows[0].conversions > 0 ? ` với ${rows[0].conversions} conversions — tăng bid +10–20%` : " nhưng chưa có conversion — theo dõi thêm"}
+                <span className="font-semibold">{rows[0].label}</span>{t("google.segments.tipShare", { pct: rows[0].pctSpend })}
+                {rows[0].conversions > 0 ? t("google.segments.tipWithConv", { n: rows[0].conversions }) : t("google.segments.tipNoConv")}
               </li>
             )}
             {rows.filter(r => r.conversions === 0 && r.spend > 0).slice(0, 2).map(r => (
               <li key={r.label}>
-                <span className="font-semibold">{r.label}</span> tốn {formatVND(r.spend)} ({r.pctSpend}%) nhưng 0 conversion — cân nhắc giảm bid -20%
+                <span className="font-semibold">{r.label}</span>{t("google.segments.tipWaste", { amount: formatVND(r.spend), pct: r.pctSpend })}
               </li>
             ))}
             {rows.filter(r => r.cpl != null).sort((a, b) => (a.cpl ?? 0) - (b.cpl ?? 0)).slice(0, 1).map(r => (
               <li key={r.label + "_best"}>
-                CPL thấp nhất: <span className="font-semibold">{r.label}</span> ({formatVND(r.cpl!)}) — ưu tiên ngân sách cho phân khúc này
+                {t("google.segments.tipBestCpl")} <span className="font-semibold">{r.label}</span>{t("google.segments.tipBestCplTail", { cpl: formatVND(r.cpl!) })}
               </li>
             ))}
           </ul>

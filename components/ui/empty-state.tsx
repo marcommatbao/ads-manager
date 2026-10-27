@@ -3,6 +3,7 @@
 // ─────────────────────────────────────────────
 import { type LucideIcon, Inbox } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 interface EmptyStateProps {
   icon?: LucideIcon;
@@ -15,12 +16,15 @@ interface EmptyStateProps {
 
 export function EmptyState({
   icon: Icon = Inbox,
-  title = "Không có dữ liệu",
-  description = "Chưa có nội dung nào để hiển thị.",
+  title: titleProp,
+  description: descriptionProp,
   action,
   className,
   compact = false,
 }: EmptyStateProps) {
+  const t = useT();
+  const title = titleProp ?? t("creative.ui.emptyTitle");
+  const description = descriptionProp === undefined ? t("creative.ui.emptyDesc") : descriptionProp;
   return (
     <div
       className={cn(

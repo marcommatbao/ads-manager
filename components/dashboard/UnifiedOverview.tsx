@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useAdsStore } from "@/store/useAdsStore";
 import { hasModule } from "@/lib/companies/registry";
+import { useIntlLocale, useT } from "@/lib/i18n/client";
 
 // ── Types ──
 interface UnifiedSummary {
@@ -49,8 +50,8 @@ interface UnifiedSummary {
 }
 
 // ── Helpers ──
-function formatMoney(n: number): string {
-  return new Intl.NumberFormat("vi-VN").format(Math.round(n));
+function formatMoneyWith(n: number, loc: string): string {
+  return new Intl.NumberFormat(loc).format(Math.round(n));
 }
 
 function formatRoas(v: number | null): string {
@@ -59,6 +60,9 @@ function formatRoas(v: number | null): string {
 
 // ── Main Component ──
 export default function UnifiedOverview() {
+  const t = useT();
+  const loc = useIntlLocale();
+  const formatMoney = (n: number) => formatMoneyWith(n, loc);
   const company = useAdsStore((s) => s.selectedCompany); // "all" | string
   const dateRange = useAdsStore((s) => s.dateRange);      // { from, to }
   const [data, setData] = useState<UnifiedSummary | null>(null);
@@ -128,7 +132,7 @@ export default function UnifiedOverview() {
       {/* ── Header ── */}
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-gray-800">
-          📊 Tổng quan tất cả kênh
+          {t("overview.unified.title")}
         </h2>
         <p className="text-xs text-slate-400">
           {dateRange.from} → {dateRange.to}
@@ -139,13 +143,13 @@ export default function UnifiedOverview() {
       {ggError && (
         <div className="flex items-center justify-between rounded-xl border border-yellow-200 bg-yellow-50 px-4 py-3">
           <span className="text-sm text-yellow-800">
-            ⚠️ Không lấy được data Google Ads — đang hiển thị Facebook only
+            {t("overview.unified.googleError")}
           </span>
           <button
             onClick={fetchData}
             className="rounded-lg bg-yellow-100 px-3 py-1 text-sm font-medium text-yellow-800 hover:bg-yellow-200"
           >
-            Thử lại
+            {t("overview.unified.retry")}
           </button>
         </div>
       )}
@@ -154,7 +158,7 @@ export default function UnifiedOverview() {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         {/* Total Spend */}
         <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-          <p className="text-sm font-medium text-gray-500">💰 Tổng Spend</p>
+          <p className="text-sm font-medium text-gray-500">{t("overview.unified.totalSpend")}</p>
           <p className="mt-1 text-2xl font-bold text-gray-900">
             ₫{formatMoney(total.spend)}
           </p>
@@ -204,21 +208,21 @@ export default function UnifiedOverview() {
             MBI đo hiệu quả bằng đơn hàng (không có doanh thu để đo), nên đây
             là sự thật cố định của MBI chứ không phải số bị lọc theo phạm vi. */}
         <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-          <p className="text-sm font-medium text-gray-500">📦 Đơn hàng MBI (thật)</p>
+          <p className="text-sm font-medium text-gray-500">{t("overview.unified.mbiOrders.title")}</p>
           {mbiOrders.error ? (
             <>
               <p className="mt-1 text-2xl font-bold text-gray-300">—</p>
               <p className="mt-3 text-[11px] leading-snug text-amber-700">
-                Không lấy được đơn hàng thật: {mbiOrders.error}
+                {t("overview.unified.mbiOrders.error", { error: mbiOrders.error })}
               </p>
             </>
           ) : (
             <>
               <p className="mt-1 text-2xl font-bold text-gray-900">
-                {formatMoney(mbiOrders.value ?? 0)} đơn
+                {t("overview.unified.mbiOrders.value", { n: formatMoney(mbiOrders.value ?? 0) })}
               </p>
               <p className="mt-3 text-[11px] leading-snug text-gray-400">
-                Đơn hàng thật từ Odoo — cùng nguồn với card &quot;Hiệu quả chi phí theo công ty&quot; bên dưới.
+                {t("overview.unified.mbiOrders.note")}
               </p>
             </>
           )}
@@ -228,12 +232,12 @@ export default function UnifiedOverview() {
             tự khai. LUÔN hiện cùng lý do như ô Đơn hàng MBI ở trên; ROAS chỉ
             tính được khi bộ lọc company đang chọn đúng "MBC" (xem mbcRoas). */}
         <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-          <p className="text-sm font-medium text-gray-500">📈 Doanh thu MBC (thật)</p>
+          <p className="text-sm font-medium text-gray-500">{t("overview.unified.mbcRevenue.title")}</p>
           {mbcRevenue.error ? (
             <>
               <p className="mt-1 text-2xl font-bold text-gray-300">—</p>
               <p className="mt-3 text-[11px] leading-snug text-amber-700">
-                Không lấy được doanh thu thật: {mbcRevenue.error}
+                {t("overview.unified.mbcRevenue.error", { error: mbcRevenue.error })}
               </p>
             </>
           ) : (
@@ -248,8 +252,8 @@ export default function UnifiedOverview() {
               </p>
               <p className="mt-3 text-[11px] leading-snug text-gray-400">
                 {mbcRoas !== null
-                  ? "Doanh thu thật từ Odoo — cùng nguồn với card “Hiệu quả chi phí theo công ty” bên dưới, không phải số Meta/Google tự khai."
-                  : "Doanh thu thật từ Odoo. Chọn bộ lọc “MBC” ở trên để xem thêm ROAS (chi phí theo phạm vi đang chọn không khớp doanh thu MBC)."}
+                  ? t("overview.unified.mbcRevenue.noteRoas")
+                  : t("overview.unified.mbcRevenue.noteNoRoas")}
               </p>
             </>
           )}
