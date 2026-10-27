@@ -3,6 +3,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import type { McpContext } from "./auth"
 import { registerReadTools } from "./tools/read"
 import { registerWriteTools } from "./tools/write"
+import { registerLaunchTools } from "./tools/launch"
 
 export const MCP_SERVER_NAME = "adscommand"
 
@@ -21,5 +22,6 @@ export function buildMcpServer(ctx: McpContext): McpServer {
   registerReadTools(server, ctx)
   // Công cụ ghi luôn được liệt kê (Claude biết có thể làm gì); khoá Chỉ đọc / công tắc tắt → từ chối lúc gọi, nói rõ lý do.
   registerWriteTools(server, ctx)
+  registerLaunchTools(server, ctx)
   return server
 }

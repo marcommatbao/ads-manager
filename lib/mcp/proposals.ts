@@ -77,6 +77,9 @@ export function lastBudgetChangeAt(target: string): number | null {
 
 export class ProposalError extends Error {}
 
+/** Mọi đề xuất còn lưu (đã dùng ≤7 ngày) — để kiểm "chiến dịch này do Claude tạo" khi hoàn tác. */
+export function listProposals(): Proposal[] { return read() }
+
 /** Luật ngân sách: tối đa ±30% mỗi lần, 1 lần / đối tượng / 24h. Trả lý do từ chối hoặc null. */
 export function budgetRuleViolation(current: number, next: number, target: string, now = Date.now()): string | null {
   if (!(current > 0)) return "Current budget unknown or zero — change it in AdsCommand/Ads Manager instead"

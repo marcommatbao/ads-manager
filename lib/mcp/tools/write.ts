@@ -19,7 +19,8 @@ import {
   readGoogleCampaignState, readMetaNodeState, setGoogleCampaignBudget, setGoogleCampaignStatus, setMetaBudget, setMetaStatus,
 } from "@/lib/campaigns/mutations"
 import { readSettings, writesToday } from "../store"
-import { budgetRuleViolation, CONFIRM_TEXT, getProposalForApply, markUsed, ProposalError, saveProposal, type Proposal } from "../proposals"
+import { budgetRuleViolation, CONFIRM_TEXT, getProposalForApply, listProposals, markUsed, ProposalError, saveProposal, type Proposal } from "../proposals"
+import { applyLaunch, applyLaunchUndo, planLaunchUndo } from "./launch"
 import type { McpContext } from "../auth"
 import { requireCo, run, ToolError } from "./kit"
 
@@ -29,6 +30,7 @@ const actorOf = (ctx: McpContext) => `${ctx.user.email || ctx.user.name} qua Cla
 const ASK = "Show the user this summary (before → after, spend impact, undo) and ask for explicit approval. Only after the user agrees, call apply_change with this proposal_id and confirm=\"XAC NHAN\"."
 
 /** Khoá mức Ghi + công tắc tổng + quyền vai trò. */
+export function requireWriteFor(ctx: McpContext, perm: PermissionKey = "can_edit") { requireWrite(ctx, perm) }
 function requireWrite(ctx: McpContext, perm: PermissionKey = "can_edit") {
   if (ctx.key.mode !== "write") throw new ToolError("This MCP key is read-only. Create a Read + Write key in AdsCommand → Settings → Claude.")
   if (!readSettings().writesEnabled) throw new ToolError("Writing via Claude is turned off in AdsCommand → Settings → Claude.")
@@ -50,6 +52,9 @@ async function fingerprintNow(ctx: McpContext, p: Proposal): Promise<string> {
     return p.kind === "status" ? String(st.status) : String(st.dailyBudget)
   }
   if (p.kind === "case") return String(readCase(String(a.caseId))?.updatedAt ?? "missing")
+  // Hoàn tác: tính lại ĐÚNG như lúc đề xuất (giá trị hiện tại / trạng thái tạm dừng) — trước đây trả "-" nên mọi hoàn tác
+  // bị từ chối nhầm "State changed" (test mcp-launch bắt được 27/10).
+  if (p.kind === "undo") return (await planUndoChange(ctx, String(a.changeId))).fingerprint
   return "-"
 }
 
@@ -164,7 +169,7 @@ export function registerWriteTools(server: McpServer, ctx: McpContext): void {
 
   server.registerTool("propose_undo", {
     title: "Propose undo of a change",
-    description: "Dry-run undoing a change listed by get_change_history (id like dm:…, guard:…, case:<caseId>:<execId>). Refuses if the value was changed again since. " + ASK,
+    description: "Dry-run undoing a change listed by get_change_history (id like dm:…, guard:…, case:<caseId>:<execId>) or a campaign Claude created (launch:<campaignId>, deleted only while still paused). Refuses if the value was changed again since. " + ASK,
     inputSchema: { changeId: z.string().min(3).max(200) }, annotations: PROPOSE,
   }, run(ctx, "propose_undo", async (a: { changeId: string }) => {
     requireWrite(ctx)
@@ -232,6 +237,8 @@ async function applyProposal(ctx: McpContext, p: Proposal): Promise<unknown> {
     }
     case "undo":
       return applyUndo(ctx, String(a.changeId))
+    case "launch":
+      return applyLaunch(ctx, p, actor)
   }
   throw new ToolError(`Unknown proposal kind ${p.kind}`)
 }
@@ -269,6 +276,7 @@ async function planUndoChange(ctx: McpContext, changeId: string): Promise<{ comp
     if (!ex || ex.undoneAt) throw new ToolError(ex ? "Already undone" : "Execution not found")
     return { company: c.company, fingerprint: "-", summary: { company: c.company, caseId, executionId: execId }, dry: "case undo plan" }
   }
+  if (src === "launch") return planLaunchUndo(ctx, rest.join(":"), listProposals())
   throw new ToolError("This change type can't be undone via Claude — use AdsCommand → Actions & results")
 }
 
@@ -294,5 +302,9 @@ async function applyUndo(ctx: McpContext, changeId: string): Promise<unknown> {
     return undoWrite(w.company, w.id, actor)
   }
   if (src === "case") return undoExecution(rest[0], rest[1], actor)
+  if (src === "launch") {
+    await planLaunchUndo(ctx, rest.join(":"), listProposals())
+    return applyLaunchUndo(rest.join(":"))
+  }
   throw new ToolError("Unsupported change id")
 }
